@@ -1,0 +1,10 @@
+pro:
+  push:
+    - docker:
+        image: node:18
+      imports: https://cnb.cool/godgodgame/oci-private-key/-/blob/main/envs.yml
+      stages:
+        - name: 环境检查
+          script: echo $GITHUB_TOKEN_GK && echo $GITHUB_TOKEN && node -v && npm -v
+        - name: 将pro分支同步更新到github的main分支
+          script: git push https://$GITHUB_TOKEN_GK:$GITHUB_TOKEN@github.com/zhezzma/seedclaw.git HEAD:main
