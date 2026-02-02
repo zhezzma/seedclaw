@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { useThemeStore } from './stores/theme'
+import { useUiSettingsStore } from './stores/setting'
+import ErrorToast from './components/ErrorToast.vue'
 // Initialize theme at app root
-useThemeStore()
+useUiSettingsStore().initTheme()
 </script>
 
 <template>
     <div class="h-screen w-screen pt-[env(safe-area-inset-top)] bg-base-100">
         <router-view />
+        <ErrorToast />
     </div>
 </template>
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
     MagnifyingGlassIcon,
@@ -8,25 +8,82 @@ import {
     ChevronDownIcon,
     ChatBubbleLeftRightIcon
 } from '@heroicons/vue/24/outline'
-import { useAgentStore } from '../stores/agent'
-import { useSessionStore } from '../stores/session'
+import { useGatewayStore } from '../stores/gateway'
 
 const router = useRouter()
-const agentStore = useAgentStore()
-const sessionStore = useSessionStore()
+const gatewayStore = useGatewayStore()
 
 // Agents expand/collapse state
 const isAgentsExpanded = ref(false)
 const MAX_VISIBLE_AGENTS = 4
 
-const visibleAgents = computed(() => {
-    if (isAgentsExpanded.value || agentStore.agents.length <= MAX_VISIBLE_AGENTS) {
-        return agentStore.agents
-    }
-    return agentStore.agents.slice(0, MAX_VISIBLE_AGENTS)
+// Get agents from gateway store
+const agents = computed(() => {
+    const list = gatewayStore.agentsList?.agents || []
+    return list.map((a: any) => ({
+        id: a.id || a.name,
+        name: a.name || a.id,
+        icon: a.icon || '🤖',
+        description: a.description || ''
+    }))
 })
 
-const hasMoreAgents = computed(() => agentStore.agents.length > MAX_VISIBLE_AGENTS)
+const visibleAgents = computed(() => {
+    if (isAgentsExpanded.value || agents.value.length <= MAX_VISIBLE_AGENTS) {
+        return agents.value
+    }
+    return agents.value.slice(0, MAX_VISIBLE_AGENTS)
+})
+
+const hasMoreAgents = computed(() => agents.value.length > MAX_VISIBLE_AGENTS)
+
+// Get sessions from gateway store
+const sessions = computed(() => {
+    const list = gatewayStore.sessionsResult?.sessions || []
+    return list.map((s: any) => ({
+        key: s.key,
+        label: s.label || s.key,
+        lastActiveAt: s.lastActiveAt
+    }))
+})
+
+const currentSessionKey = computed(() => gatewayStore.sessionKey)
+
+const selectAgent = (agentId: string) => {
+    gatewayStore.setSessionKey(`agent:${agentId}:main`)
+    // Close sidebar on mobile
+    const drawer = document.getElementById('sidebar-drawer') as HTMLInputElement
+    if (drawer) drawer.checked = false
+}
+
+const selectSession = (key: string) => {
+    gatewayStore.setSessionKey(key)
+    // Close sidebar on mobile
+    const drawer = document.getElementById('sidebar-drawer') as HTMLInputElement
+    if (drawer) drawer.checked = false
+}
+
+const createNewSession = () => {
+    // Create a new session with timestamp-based key
+    const newKey = `session:${Date.now()}`
+    gatewayStore.setSessionKey(newKey)
+    // Close sidebar on mobile
+    const drawer = document.getElementById('sidebar-drawer') as HTMLInputElement
+    if (drawer) drawer.checked = false
+}
+
+// Load sessions when connected
+onMounted(() => {
+    if (gatewayStore.connected) {
+        gatewayStore.loadSessions()
+    }
+})
+
+watch(() => gatewayStore.connected, (connected) => {
+    if (connected) {
+        gatewayStore.loadSessions()
+    }
+})
 </script>
 
 <template>
@@ -46,20 +103,12 @@ const hasMoreAgents = computed(() => agentStore.agents.length > MAX_VISIBLE_AGEN
 
         <!-- New Chat Button -->
         <div class="shrink-0 px-4">
-            <button class="btn btn-primary btn-block gap-2 shadow-md hover:shadow-lg transition-shadow rounded-xl h-11">
+            <button @click="createNewSession"
+                class="btn btn-primary btn-block gap-2 shadow-md hover:shadow-lg transition-shadow rounded-xl h-11">
                 <PlusIcon class="h-5 w-5" />
                 <span class="font-medium">新建对话</span>
             </button>
         </div>
-
-        <!-- All Apps -->
-        <!-- <div class="shrink-0 px-3">
-            <button
-                class="btn btn-ghost justify-start w-full gap-3 h-11 rounded-xl hover:bg-base-300 font-normal text-base">
-                <Squares2X2Icon class="h-5 w-5 opacity-70" />
-                全部应用
-            </button>
-        </div> -->
 
         <!-- Divider -->
         <div class="shrink-0 px-4 py-3">
@@ -80,20 +129,31 @@ const hasMoreAgents = computed(() => agentStore.agents.length > MAX_VISIBLE_AGEN
 
         <!-- Agents List - 2 columns -->
         <div class="shrink-0 px-3 pb-2">
-            <div class="grid grid-cols-2 gap-1">
-                <a v-for="agent in visibleAgents" :key="agent.id" @click="agentStore.selectAgent(agent.id)"
-                    class="flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer transition-colors"
-                    :class="agentStore.isSelected(agent.id) ? 'bg-primary/20 text-primary' : 'hover:bg-base-300'">
-                    <span class="text-base">{{ agent.icon }}</span>
-                    <span class="text-sm font-medium truncate">{{ agent.name }}</span>
-                </a>
+            <!-- Loading state -->
+            <div v-if="gatewayStore.agentsLoading" class="flex items-center justify-center py-4">
+                <span class="loading loading-spinner loading-sm"></span>
             </div>
-            <a v-if="hasMoreAgents && !isAgentsExpanded"
-                class="flex items-center justify-center gap-2 px-3 py-2 mt-1 rounded-xl cursor-pointer hover:bg-base-300 transition-colors text-base-content/60"
-                @click="isAgentsExpanded = true">
-                <span class="text-sm">展开更多</span>
-                <span class="badge badge-sm badge-ghost">+{{ agentStore.agents.length - MAX_VISIBLE_AGENTS }}</span>
-            </a>
+            <!-- Empty state -->
+            <div v-else-if="agents.length === 0" class="text-center py-4 text-base-content/50 text-sm">
+                暂无智能体
+            </div>
+            <!-- Agents grid -->
+            <template v-else>
+                <div class="grid grid-cols-2 gap-1">
+                    <a v-for="agent in visibleAgents" :key="agent.id" @click="selectAgent(agent.id)"
+                        class="flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer transition-colors"
+                        :class="currentSessionKey.includes(agent.id) ? 'bg-primary/20 text-primary' : 'hover:bg-base-300'">
+                        <span class="text-base">{{ agent.icon }}</span>
+                        <span class="text-sm font-medium truncate">{{ agent.name }}</span>
+                    </a>
+                </div>
+                <a v-if="hasMoreAgents && !isAgentsExpanded"
+                    class="flex items-center justify-center gap-2 px-3 py-2 mt-1 rounded-xl cursor-pointer hover:bg-base-300 transition-colors text-base-content/60"
+                    @click="isAgentsExpanded = true">
+                    <span class="text-sm">展开更多</span>
+                    <span class="badge badge-sm badge-ghost">+{{ agents.length - MAX_VISIBLE_AGENTS }}</span>
+                </a>
+            </template>
         </div>
 
         <!-- Divider -->
@@ -111,15 +171,21 @@ const hasMoreAgents = computed(() => agentStore.agents.length > MAX_VISIBLE_AGEN
 
         <!-- Conversations List - scrollable -->
         <div class="flex-1 overflow-y-auto px-3 pb-4 min-h-0">
-            <div class="space-y-1">
-                <a v-for="session in sessionStore.sessions" :key="session.id"
-                    @click="sessionStore.selectSession(session.id)"
+            <!-- Loading state -->
+            <div v-if="gatewayStore.sessionsLoading" class="flex items-center justify-center py-4">
+                <span class="loading loading-spinner loading-sm"></span>
+            </div>
+            <!-- Empty state -->
+            <div v-else-if="sessions.length === 0" class="text-center py-4 text-base-content/50 text-sm">
+                暂无对话记录
+            </div>
+            <!-- Sessions list -->
+            <div v-else class="space-y-1">
+                <a v-for="session in sessions" :key="session.key" @click="selectSession(session.key)"
                     class="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-base-300 transition-colors group"
-                    :class="{ 'bg-base-300': sessionStore.currentSessionId === session.id }">
+                    :class="{ 'bg-base-300': currentSessionKey === session.key }">
                     <ChatBubbleLeftRightIcon class="h-5 w-5 opacity-50 shrink-0" />
-                    <span class="text-sm truncate flex-1">{{ session.title }}</span>
-                    <span v-if="session.hasNotification"
-                        class="w-2 h-2 rounded-full bg-error shrink-0 animate-pulse"></span>
+                    <span class="text-sm truncate flex-1">{{ session.label }}</span>
                 </a>
             </div>
         </div>

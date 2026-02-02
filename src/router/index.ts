@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useConfigStore } from '../stores/config'
+import { useUiSettingsStore } from '../stores/setting'
 
 // Layouts
 import MainLayout from '../layouts/MainLayout.vue'
@@ -10,6 +10,7 @@ import HomeView from '../views/HomeView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import AgentsView from '../views/AgentsView.vue'
 import MessagesView from '../views/MessagesView.vue'
+import OpenClawTest from '../views/OpenClawTest.vue'
 
 const router = createRouter({
     history: createWebHistory(),
@@ -18,6 +19,11 @@ const router = createRouter({
             path: '/setup',
             name: 'setup',
             component: SetupView
+        },
+        {
+            path: '/openclaw',
+            name: 'openclaw',
+            component: OpenClawTest
         },
         {
             path: '/',
@@ -51,7 +57,7 @@ const router = createRouter({
 
 // Navigation guard to check config
 router.beforeEach((to, _from, next) => {
-    const configStore = useConfigStore()
+    const configStore = useUiSettingsStore()
 
     // If route requires config and user is not configured
     if (to.meta.requiresConfig && !configStore.isConfigured) {

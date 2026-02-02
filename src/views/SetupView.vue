@@ -1,21 +1,42 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { useConfigStore } from '../stores/config'
+import { useUiSettingsStore } from '../stores/setting'
+import { useGatewayStore } from '../stores/gateway'
+import { loadOrCreateDeviceIdentity } from '../services/device-identity'
 import {
     ArrowRightIcon,
     EyeIcon,
-    EyeSlashIcon
+    EyeSlashIcon,
+    DevicePhoneMobileIcon
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
-const configStore = useConfigStore()
+const configStore = useUiSettingsStore()
+const gatewayStore = useGatewayStore()
 
 const gatewayUrl = ref('ws://localhost:18789')
 const authToken = ref('')
 const isLoading = ref(false)
 const error = ref('')
 const showPassword = ref(false)
+
+const pairingState = ref<{
+    isPairing: boolean
+    deviceId: string
+    requestId: string
+}>({
+    isPairing: false,
+    deviceId: '',
+    requestId: ''
+})
+
+// Watch for successful connection to redirect
+watch(() => gatewayStore.connected, (connected) => {
+    if (connected) {
+        router.push('/')
+    }
+})
 
 const handleSubmit = async () => {
     // Validate
@@ -36,19 +57,40 @@ const handleSubmit = async () => {
 
     isLoading.value = true
     error.value = ''
+    pairingState.value.isPairing = false
 
     try {
-        // Save configuration
-        configStore.saveConfig({
+        // Save configuration first
+        configStore.save({
             gatewayUrl: gatewayUrl.value.trim(),
-            authToken: authToken.value.trim()
+            token: authToken.value.trim()
         })
 
-        // Redirect to home
+        // Attempt to connect to the gateway
+        await gatewayStore.connect()
+
+        // Connection successful, redirect to home
         router.push('/')
-    } catch (e) {
-        error.value = '保存配置失败'
-        console.error(e)
+    } catch (e: any) {
+        // Handle pairing requirement
+        if (e.code === 'NOT_PAIRED') {
+            try {
+                const identity = await loadOrCreateDeviceIdentity()
+                pairingState.value = {
+                    isPairing: true,
+                    deviceId: identity.deviceId,
+                    requestId: e.details?.requestId || '未知'
+                }
+                // Don't show error, show pairing UI instead
+            } catch (err) {
+                console.error('Failed to load device identity:', err)
+                error.value = '无法获取设备 ID'
+            }
+        } else {
+            // Connection failed, show error
+            error.value = e instanceof Error ? e.message : '连接网关失败'
+            console.error(e)
+        }
     } finally {
         isLoading.value = false
     }
@@ -65,7 +107,7 @@ const handleSubmit = async () => {
         </div>
 
         <div
-            class="card bg-base-100/80 backdrop-blur-xl shadow-2xl w-full max-w-md border border-base-300/50 relative z-10">
+            class="card bg-base-100/80 backdrop-blur-xl shadow-2xl w-full max-w-md border border-base-300/50 relative z-10 transition-all duration-500">
             <div class="card-body p-8">
                 <!-- Header -->
                 <div class="text-center mb-8">
@@ -77,8 +119,50 @@ const handleSubmit = async () => {
                     <p class="text-base-content/60 mt-3 text-sm">配置 OpenClaw 网关以开始使用</p>
                 </div>
 
-                <!-- Form -->
-                <form @submit.prevent="handleSubmit" class="space-y-6">
+                <!-- Pairing UI -->
+                <div v-if="pairingState.isPairing" class="space-y-6 animate-fade-in">
+                    <div class="alert alert-info shadow-sm">
+                        <DevicePhoneMobileIcon class="h-6 w-6" />
+                        <div>
+                            <h3 class="font-bold">设备配对请求已发送</h3>
+                            <div class="text-xs">请联系管理员批准此设备连接</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-base-200/50 rounded-xl p-4 space-y-4 border border-base-content/5">
+                        <div class="space-y-1">
+                            <div class="text-xs text-base-content/50 font-medium uppercase tracking-wider">设备 ID</div>
+                            <div
+                                class="font-mono text-sm break-all bg-base-100 p-2 rounded border border-base-content/10 select-all">
+                                {{ pairingState.deviceId }}
+                            </div>
+                        </div>
+
+                        <div class="space-y-1">
+                            <div class="text-xs text-base-content/50 font-medium uppercase tracking-wider">请求 ID</div>
+                            <div
+                                class="font-mono text-sm break-all bg-base-100 p-2 rounded border border-base-content/10 select-all">
+                                {{ pairingState.requestId }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-center gap-3 py-4 text-base-content/60">
+                        <span class="loading loading-spinner loading-md text-primary"></span>
+                        <span class="text-sm">正在等待批准...</span>
+                    </div>
+
+                    <div v-if="error" class="alert alert-error text-sm py-2">
+                        {{ error }}
+                    </div>
+
+                    <button @click="pairingState.isPairing = false" class="btn btn-ghost btn-block btn-sm">
+                        返回修改配置
+                    </button>
+                </div>
+
+                <!-- Config Form -->
+                <form v-else @submit.prevent="handleSubmit" class="space-y-6 animate-fade-in">
                     <!-- Gateway URL -->
                     <fieldset class="fieldset">
                         <legend class="fieldset-legend text-sm font-medium">
@@ -117,14 +201,14 @@ const handleSubmit = async () => {
                     </fieldset>
 
                     <!-- Error message -->
-                    <div v-if="error" role="alert" class="alert alert-error alert-soft">
+                    <!-- <div v-if="error" role="alert" class="alert alert-error alert-soft">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24"
                             stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
                         <span>{{ error }}</span>
-                    </div>
+                    </div> -->
 
                     <!-- Submit button -->
                     <button type="submit"
@@ -151,3 +235,21 @@ const handleSubmit = async () => {
         </div>
     </div>
 </template>
+
+<style scoped>
+@keyframes fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fade-in 0.3s ease-out forwards;
+}
+</style>

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { useThemeStore } from '../stores/theme'
-import { useConfigStore } from '../stores/config'
+import { useUiSettingsStore } from '../stores/setting'
 import {
     XMarkIcon,
     ChevronRightIcon,
@@ -18,15 +17,14 @@ import {
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
-const themeStore = useThemeStore()
-const configStore = useConfigStore()
+const configStore = useUiSettingsStore()
 
 const goBack = () => {
     router.back()
 }
 
 const logout = () => {
-    configStore.clearConfig()
+    configStore.clear()
     router.push('/setup')
 }
 </script>
@@ -79,7 +77,7 @@ const logout = () => {
                                         <span class="font-medium">网关地址</span>
                                         <p class="text-xs text-base-content/50 truncate max-w-48">{{
                                             configStore.gatewayUrl
-                                        }}</p>
+                                            }}</p>
                                     </div>
                                 </div>
                                 <span class="text-sm text-primary cursor-pointer hover:underline">更换</span>
@@ -102,7 +100,7 @@ const logout = () => {
                         <ul class="divide-y divide-base-300">
                             <li class="flex items-center justify-between p-4">
                                 <div class="flex items-center gap-3">
-                                    <template v-if="themeStore.isDark">
+                                    <template v-if="configStore.isDark">
                                         <MoonIcon class="h-5 w-5 text-base-content/60" />
                                     </template>
                                     <template v-else>
@@ -111,10 +109,10 @@ const logout = () => {
                                     <span class="font-medium">主题设置</span>
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <span class="text-sm text-base-content/60">{{ themeStore.isDark ? '深色' : '浅色'
-                                    }}</span>
-                                    <input type="checkbox" class="toggle toggle-primary" :checked="themeStore.isDark"
-                                        @change="themeStore.toggleTheme()" />
+                                    <span class="text-sm text-base-content/60">{{ configStore.isDark ? '深色' : '浅色'
+                                        }}</span>
+                                    <input type="checkbox" class="toggle toggle-primary" :checked="configStore.isDark"
+                                        @change="configStore.toggleTheme()" />
                                 </div>
                             </li>
                             <li class="flex items-center justify-between p-4">

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import {
     Bars3Icon,
     SpeakerXMarkIcon,
@@ -8,45 +8,107 @@ import {
     ChevronDownIcon,
     CameraIcon,
     MicrophoneIcon,
-    PlusIcon,
     CheckIcon,
     SunIcon,
-    MoonIcon
+    MoonIcon,
+    PaperAirplaneIcon,
+    StopIcon
 } from '@heroicons/vue/24/outline'
-import { useThemeStore } from '../stores/theme'
-import { useAgentStore } from '../stores/agent'
+import { useUiSettingsStore } from '../stores/setting'
+import { useGatewayStore } from '../stores/gateway'
 
 const inputText = ref('')
 const dropdownRef = ref<HTMLDetailsElement | null>(null)
-const themeStore = useThemeStore()
-const agentStore = useAgentStore()
+const messagesContainerRef = ref<HTMLDivElement | null>(null)
+const settingsStore = useUiSettingsStore()
+const gatewayStore = useGatewayStore()
 
-// Chat messages
-interface Message {
-    id: number
+// Computed properties for chat
+const messages = computed(() => gatewayStore.chatMessages as Array<{
     role: 'user' | 'assistant'
-    content: string
-    avatar?: string
-    time?: string
+    content: unknown
+    timestamp?: number
+}>)
+
+const isLoading = computed(() => gatewayStore.chatLoading)
+const isBusy = computed(() => gatewayStore.isChatBusy)
+const streamingText = computed(() => gatewayStore.chatStream)
+
+// Get available agents from gateway
+const agents = computed(() => {
+    const list = gatewayStore.agentsList?.agents || []
+    return list.map((a: any) => ({
+        id: a.id || a.name,
+        name: a.name || a.id,
+        icon: a.icon || '🤖',
+        description: a.description || ''
+    }))
+})
+
+const selectedAgentId = ref('')
+const selectedAgent = computed(() => {
+    return agents.value.find(a => a.id === selectedAgentId.value) || agents.value[0] || { id: 'main', name: 'Assistant', icon: '🤖' }
+})
+
+// Extract text from message content
+const extractMessageText = (content: unknown): string => {
+    if (typeof content === 'string') return content
+    if (Array.isArray(content)) {
+        return content
+            .filter((block: any) => block.type === 'text')
+            .map((block: any) => block.text || '')
+            .join('\n')
+    }
+    return ''
 }
 
-const messages = ref<Message[]>([
-    { id: 1, role: 'user', content: '你好，请帮我介绍一下你自己', time: '10:30' },
-    { id: 2, role: 'assistant', content: '你好！我是 Seedclaw，一个智能助手。我可以帮你聊天、写作、搜索信息等。有什么我可以帮助你的吗？', time: '10:30' },
-    { id: 3, role: 'user', content: '你能做什么？', time: '10:31' },
-    { id: 4, role: 'assistant', content: '我可以帮你完成很多任务：\n\n1. **聊天交流** - 陪你聊天，回答问题\n2. **写作辅助** - 帮你写文章、邮件、代码等\n3. **信息搜索** - 帮你查找和整理信息\n4. **创意生成** - 帮你生成图片、头脑风暴\n5. **翻译润色** - 多语言翻译和文本优化\n\n还有更多功能等你发现！', time: '10:31' },
-    { id: 5, role: 'user', content: '你好，请帮我介绍一下你自己', time: '10:30' },
-    { id: 6, role: 'assistant', content: '你好！我是 Seedclaw，一个智能助手。我可以帮你聊天、写作、搜索信息等。有什么我可以帮助你的吗？', time: '10:30' },
-    { id: 7, role: 'user', content: '你能做什么？', time: '10:31' },
-    { id: 8, role: 'assistant', content: '我可以帮你完成很多任务：\n\n1. **聊天交流** - 陪你聊天，回答问题\n2. **写作辅助** - 帮你写文章、邮件、代码等\n3. **信息搜索** - 帮你查找和整理信息\n4. **创意生成** - 帮你生成图片、头脑风暴\n5. **翻译润色** - 多语言翻译和文本优化\n\n还有更多功能等你发现！', time: '10:31' },
-])
+// Format timestamp
+const formatTime = (timestamp?: number): string => {
+    if (!timestamp) return ''
+    const date = new Date(timestamp)
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+}
 
 const selectAgent = (agentId: string) => {
-    agentStore.selectAgent(agentId)
+    selectedAgentId.value = agentId
     if (dropdownRef.value) {
         dropdownRef.value.open = false
     }
 }
+
+const handleSend = async () => {
+    const text = inputText.value.trim()
+    if (!text && !isBusy.value) return
+
+    if (isBusy.value) {
+        // If busy, abort the current run
+        await gatewayStore.abortChat()
+        return
+    }
+
+    inputText.value = ''
+    await gatewayStore.sendMessage(text)
+    scrollToBottom()
+}
+
+const handleKeydown = (e: KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        handleSend()
+    }
+}
+
+// Scroll to bottom when new messages arrive
+const scrollToBottom = () => {
+    nextTick(() => {
+        if (messagesContainerRef.value) {
+            messagesContainerRef.value.scrollTop = messagesContainerRef.value.scrollHeight
+        }
+    })
+}
+
+watch(() => messages.value.length, scrollToBottom)
+watch(() => streamingText.value, scrollToBottom)
 
 // Close dropdown when clicking outside
 const handleClickOutside = (event: MouseEvent) => {
@@ -55,12 +117,28 @@ const handleClickOutside = (event: MouseEvent) => {
     }
 }
 
+const refreshChatAndScroll = async () => {
+    await gatewayStore.refreshChat()
+    scrollToBottom()
+}
+
 onMounted(() => {
     document.addEventListener('click', handleClickOutside)
+    // Load chat history when mounted
+    if (gatewayStore.connected) {
+        refreshChatAndScroll()
+    }
 })
 
 onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside)
+})
+
+// Watch for connection and load chat
+watch(() => gatewayStore.connected, (connected) => {
+    if (connected) {
+        refreshChatAndScroll()
+    }
 })
 </script>
 
@@ -78,19 +156,31 @@ onUnmounted(() => {
                 <!-- Agent dropdown -->
                 <details class="dropdown" ref="dropdownRef">
                     <summary class="btn btn-ghost btn-sm gap-1 list-none">
-                        <span class="font-semibold">{{ agentStore.currentAgent.name }}</span>
+                        <span class="font-semibold">{{ selectedAgent?.name || 'Assistant' }}</span>
                         <ChevronDownIcon class="h-4 w-4" />
                     </summary>
                     <ul class="dropdown-content menu bg-base-200 rounded-box z-50 w-52 p-2 shadow-lg">
-                        <li v-for="agent in agentStore.agents" :key="agent.id">
+                        <li v-for="agent in agents" :key="agent.id">
                             <a @click="selectAgent(agent.id)" class="flex justify-between items-center"
-                                :class="{ 'active': agentStore.isSelected(agent.id) }">
+                                :class="{ 'active': selectedAgentId === agent.id }">
                                 <span>{{ agent.name }}</span>
-                                <CheckIcon v-if="agentStore.isSelected(agent.id)" class="h-4 w-4" />
+                                <CheckIcon v-if="selectedAgentId === agent.id" class="h-4 w-4" />
                             </a>
+                        </li>
+                        <li v-if="agents.length === 0">
+                            <span class="text-base-content/50">加载中...</span>
                         </li>
                     </ul>
                 </details>
+            </div>
+            <!-- Connection status indicator -->
+            <div class="flex-none flex items-center gap-2">
+                <div class="flex items-center gap-1">
+                    <div class="w-2 h-2 rounded-full" :class="gatewayStore.connected ? 'bg-success' : 'bg-error'"></div>
+                    <span class="text-xs text-base-content/60 hidden sm:inline">
+                        {{ gatewayStore.connected ? '已连接' : '未连接' }}
+                    </span>
+                </div>
             </div>
             <!-- Mobile buttons -->
             <div class="flex-none flex gap-1 lg:hidden">
@@ -106,8 +196,8 @@ onUnmounted(() => {
             </div>
             <!-- PC theme toggle button -->
             <div class="flex-none hidden lg:flex gap-2">
-                <button @click="themeStore.toggleTheme()" class="btn btn-ghost btn-circle btn-sm">
-                    <SunIcon v-if="themeStore.isDark" class="h-5 w-5" />
+                <button @click="settingsStore.toggleTheme()" class="btn btn-ghost btn-circle btn-sm">
+                    <SunIcon v-if="settingsStore.isDark" class="h-5 w-5" />
                     <MoonIcon v-else class="h-5 w-5" />
                 </button>
             </div>
@@ -115,8 +205,13 @@ onUnmounted(() => {
 
         <!-- Main content area -->
         <div class="flex-1 flex flex-col min-h-0">
+            <!-- Loading state -->
+            <div v-if="isLoading && messages.length === 0" class="flex-1 flex items-center justify-center">
+                <span class="loading loading-spinner loading-lg"></span>
+            </div>
+
             <!-- Welcome message when no messages -->
-            <div v-if="messages.length === 0" class="flex-1 flex flex-col items-center justify-center p-4">
+            <div v-else-if="messages.length === 0" class="flex-1 flex flex-col items-center justify-center p-4">
                 <div class="text-center">
                     <h1 class="text-3xl font-bold mb-2">Hi, 欢迎使用 Seedclaw</h1>
                     <p class="text-base-content/60">我是 Seedclaw，聊天、写作、搜索都在行，助你灵感无限</p>
@@ -124,9 +219,9 @@ onUnmounted(() => {
             </div>
 
             <!-- Chat messages - only this area scrolls -->
-            <div v-else class="flex-1 overflow-y-auto p-4">
+            <div v-else ref="messagesContainerRef" class="flex-1 overflow-y-auto p-4">
                 <div class="space-y-4 max-w-3xl mx-auto w-full">
-                    <div v-for="msg in messages" :key="msg.id" class="chat"
+                    <div v-for="(msg, index) in messages" :key="index" class="chat"
                         :class="msg.role === 'user' ? 'chat-end' : 'chat-start'">
                         <!-- Avatar -->
                         <div class="chat-image avatar">
@@ -137,13 +232,29 @@ onUnmounted(() => {
                         </div>
                         <!-- Header -->
                         <div class="chat-header opacity-70 text-xs mb-1">
-                            {{ msg.role === 'user' ? '你' : agentStore.currentAgent.name }}
-                            <time v-if="msg.time" class="ml-1">{{ msg.time }}</time>
+                            {{ msg.role === 'user' ? '你' : selectedAgent?.name || 'Assistant' }}
+                            <time v-if="msg.timestamp" class="ml-1">{{ formatTime(msg.timestamp) }}</time>
                         </div>
                         <!-- Bubble -->
                         <div class="chat-bubble whitespace-pre-wrap"
                             :class="msg.role === 'user' ? 'chat-bubble-primary' : ''">
-                            {{ msg.content }}
+                            {{ extractMessageText(msg.content) }}
+                        </div>
+                    </div>
+
+                    <!-- Streaming response -->
+                    <div v-if="streamingText || isBusy" class="chat chat-start">
+                        <div class="chat-image avatar">
+                            <div class="w-10 rounded-full bg-base-300 flex items-center justify-center">
+                                <span class="text-lg">🤖</span>
+                            </div>
+                        </div>
+                        <div class="chat-header opacity-70 text-xs mb-1">
+                            {{ selectedAgent?.name || 'Assistant' }}
+                            <span class="ml-1 loading loading-dots loading-xs"></span>
+                        </div>
+                        <div class="chat-bubble whitespace-pre-wrap" :class="{ 'opacity-50': !streamingText }">
+                            {{ streamingText || '...' }}
                         </div>
                     </div>
                 </div>
@@ -156,13 +267,16 @@ onUnmounted(() => {
                 <button class="btn btn-ghost btn-circle btn-sm">
                     <CameraIcon class="h-5 w-5" />
                 </button>
-                <input v-model="inputText" type="text" placeholder="发消息或按住说话..."
-                    class="flex-1 bg-transparent border-none outline-none text-sm" />
+                <input v-model="inputText" type="text" :placeholder="isBusy ? '正在生成回复...' : '发消息或按住说话...'"
+                    class="flex-1 bg-transparent border-none outline-none text-sm" @keydown="handleKeydown"
+                    :disabled="!gatewayStore.connected" />
                 <button class="btn btn-ghost btn-circle btn-sm">
                     <MicrophoneIcon class="h-5 w-5" />
                 </button>
-                <button class="btn btn-ghost btn-circle btn-sm">
-                    <PlusIcon class="h-5 w-5" />
+                <button @click="handleSend" class="btn btn-ghost btn-circle btn-sm" :class="{ 'text-error': isBusy }"
+                    :disabled="!gatewayStore.connected">
+                    <StopIcon v-if="isBusy" class="h-5 w-5" />
+                    <PaperAirplaneIcon v-else class="h-5 w-5" />
                 </button>
             </div>
         </div>
