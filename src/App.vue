@@ -5,7 +5,9 @@ useThemeStore()
 </script>
 
 <template>
-    <router-view />
+    <div class="h-screen w-screen pt-[env(safe-area-inset-top)] bg-base-100">
+        <router-view />
+    </div>
 </template>
 
 <style>
@@ -15,5 +17,6 @@ body,
     height: 100%;
     margin: 0;
     padding: 0;
+    overflow: hidden;
 }
 </style>

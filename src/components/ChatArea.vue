@@ -14,18 +14,12 @@ import {
     MoonIcon
 } from '@heroicons/vue/24/outline'
 import { useThemeStore } from '../stores/theme'
+import { useAgentStore } from '../stores/agent'
 
 const inputText = ref('')
-const selectedAgent = ref('Hunyuan')
 const dropdownRef = ref<HTMLDetailsElement | null>(null)
 const themeStore = useThemeStore()
-
-const agents = [
-    { id: 1, name: 'Hunyuan' },
-    { id: 2, name: 'GPT-4' },
-    { id: 3, name: 'Claude' },
-    { id: 4, name: 'Gemini' },
-]
+const agentStore = useAgentStore()
 
 // Chat messages
 interface Message {
@@ -47,8 +41,8 @@ const messages = ref<Message[]>([
     { id: 8, role: 'assistant', content: '我可以帮你完成很多任务：\n\n1. **聊天交流** - 陪你聊天，回答问题\n2. **写作辅助** - 帮你写文章、邮件、代码等\n3. **信息搜索** - 帮你查找和整理信息\n4. **创意生成** - 帮你生成图片、头脑风暴\n5. **翻译润色** - 多语言翻译和文本优化\n\n还有更多功能等你发现！', time: '10:31' },
 ])
 
-const selectAgent = (name: string) => {
-    selectedAgent.value = name
+const selectAgent = (agentId: string) => {
+    agentStore.selectAgent(agentId)
     if (dropdownRef.value) {
         dropdownRef.value.open = false
     }
@@ -84,15 +78,15 @@ onUnmounted(() => {
                 <!-- Agent dropdown -->
                 <details class="dropdown" ref="dropdownRef">
                     <summary class="btn btn-ghost btn-sm gap-1 list-none">
-                        <span class="font-semibold">{{ selectedAgent }}</span>
+                        <span class="font-semibold">{{ agentStore.currentAgent.name }}</span>
                         <ChevronDownIcon class="h-4 w-4" />
                     </summary>
                     <ul class="dropdown-content menu bg-base-200 rounded-box z-50 w-52 p-2 shadow-lg">
-                        <li v-for="agent in agents" :key="agent.id">
-                            <a @click="selectAgent(agent.name)" class="flex justify-between items-center"
-                                :class="{ 'active': selectedAgent === agent.name }">
+                        <li v-for="agent in agentStore.agents" :key="agent.id">
+                            <a @click="selectAgent(agent.id)" class="flex justify-between items-center"
+                                :class="{ 'active': agentStore.isSelected(agent.id) }">
                                 <span>{{ agent.name }}</span>
-                                <CheckIcon v-if="selectedAgent === agent.name" class="h-4 w-4" />
+                                <CheckIcon v-if="agentStore.isSelected(agent.id)" class="h-4 w-4" />
                             </a>
                         </li>
                     </ul>
@@ -143,7 +137,7 @@ onUnmounted(() => {
                         </div>
                         <!-- Header -->
                         <div class="chat-header opacity-70 text-xs mb-1">
-                            {{ msg.role === 'user' ? '你' : selectedAgent }}
+                            {{ msg.role === 'user' ? '你' : agentStore.currentAgent.name }}
                             <time v-if="msg.time" class="ml-1">{{ msg.time }}</time>
                         </div>
                         <!-- Bubble -->

@@ -3,7 +3,7 @@ import BottomNav from '../components/BottomNav.vue'
 </script>
 
 <template>
-    <div class="min-h-screen bg-base-100">
+    <div class="h-full bg-base-100">
         <!-- Main content -->
         <router-view />
         <!-- Bottom navigation for mobile -->

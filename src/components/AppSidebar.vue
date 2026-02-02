@@ -5,60 +5,32 @@ import {
     MagnifyingGlassIcon,
     Cog6ToothIcon,
     PlusIcon,
-    Squares2X2Icon,
-    FolderIcon,
     ChevronDownIcon,
-    ChevronUpIcon,
     ChatBubbleLeftRightIcon
 } from '@heroicons/vue/24/outline'
+import { useAgentStore } from '../stores/agent'
+import { useSessionStore } from '../stores/session'
 
 const router = useRouter()
-
-// Sample conversation list
-const conversations = ref([
-    { id: 1, title: '秋冬抗炎饮食食材推荐', hasNotification: true },
-    { id: 2, title: '打招呼与问候交流', hasNotification: false },
-    { id: 3, title: '日常问候与交流', hasNotification: false },
-    { id: 4, title: '帮我生成图片:新春贺卡', hasNotification: false },
-    { id: 5, title: '帮我生成图片:绿树毛毡小马', hasNotification: false },
-    { id: 6, title: '秋冬抗炎饮食食材推荐', hasNotification: true },
-    { id: 7, title: '打招呼与问候交流', hasNotification: false },
-    { id: 8, title: '日常问候与交流', hasNotification: false },
-    { id: 9, title: '帮我生成图片:新春贺卡', hasNotification: false },
-    { id: 10, title: '帮我生成图片:绿树毛毡小马', hasNotification: false },
-    { id: 11, title: '秋冬抗炎饮食食材推荐', hasNotification: true },
-    { id: 12, title: '打招呼与问候交流', hasNotification: false },
-    { id: 13, title: '日常问候与交流', hasNotification: false },
-    { id: 14, title: '帮我生成图片:新春贺卡', hasNotification: false },
-    { id: 15, title: '帮我生成图片:绿树毛毡小马', hasNotification: false },
-])
-
-const agents = ref([
-    { id: 1, name: 'Hunyuan', icon: '🤖' },
-    { id: 2, name: 'GPT-4', icon: '🧠' },
-    { id: 3, name: 'Claude', icon: '💬' },
-    { id: 4, name: 'Gemini', icon: '✨' },
-    { id: 5, name: 'Llama', icon: '🦙' },
-    { id: 6, name: 'Mistral', icon: '🌪️' },
-    { id: 7, name: 'Qwen', icon: '🔮' },
-])
+const agentStore = useAgentStore()
+const sessionStore = useSessionStore()
 
 // Agents expand/collapse state
 const isAgentsExpanded = ref(false)
 const MAX_VISIBLE_AGENTS = 4
 
 const visibleAgents = computed(() => {
-    if (isAgentsExpanded.value || agents.value.length <= MAX_VISIBLE_AGENTS) {
-        return agents.value
+    if (isAgentsExpanded.value || agentStore.agents.length <= MAX_VISIBLE_AGENTS) {
+        return agentStore.agents
     }
-    return agents.value.slice(0, MAX_VISIBLE_AGENTS)
+    return agentStore.agents.slice(0, MAX_VISIBLE_AGENTS)
 })
 
-const hasMoreAgents = computed(() => agents.value.length > MAX_VISIBLE_AGENTS)
+const hasMoreAgents = computed(() => agentStore.agents.length > MAX_VISIBLE_AGENTS)
 </script>
 
 <template>
-    <div class="flex flex-col h-full bg-base-200/50">
+    <div class="flex flex-col h-full bg-base-200/50 pt-[env(safe-area-inset-top)]">
         <!-- Header -->
         <div class="shrink-0 px-5 py-4 flex items-center justify-between">
             <div class="flex items-center gap-2">
@@ -109,8 +81,9 @@ const hasMoreAgents = computed(() => agents.value.length > MAX_VISIBLE_AGENTS)
         <!-- Agents List - 2 columns -->
         <div class="shrink-0 px-3 pb-2">
             <div class="grid grid-cols-2 gap-1">
-                <a v-for="agent in visibleAgents" :key="agent.id"
-                    class="flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer hover:bg-base-300 transition-colors">
+                <a v-for="agent in visibleAgents" :key="agent.id" @click="agentStore.selectAgent(agent.id)"
+                    class="flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer transition-colors"
+                    :class="agentStore.isSelected(agent.id) ? 'bg-primary/20 text-primary' : 'hover:bg-base-300'">
                     <span class="text-base">{{ agent.icon }}</span>
                     <span class="text-sm font-medium truncate">{{ agent.name }}</span>
                 </a>
@@ -119,7 +92,7 @@ const hasMoreAgents = computed(() => agents.value.length > MAX_VISIBLE_AGENTS)
                 class="flex items-center justify-center gap-2 px-3 py-2 mt-1 rounded-xl cursor-pointer hover:bg-base-300 transition-colors text-base-content/60"
                 @click="isAgentsExpanded = true">
                 <span class="text-sm">展开更多</span>
-                <span class="badge badge-sm badge-ghost">+{{ agents.length - MAX_VISIBLE_AGENTS }}</span>
+                <span class="badge badge-sm badge-ghost">+{{ agentStore.agents.length - MAX_VISIBLE_AGENTS }}</span>
             </a>
         </div>
 
@@ -139,11 +112,13 @@ const hasMoreAgents = computed(() => agents.value.length > MAX_VISIBLE_AGENTS)
         <!-- Conversations List - scrollable -->
         <div class="flex-1 overflow-y-auto px-3 pb-4 min-h-0">
             <div class="space-y-1">
-                <a v-for="conv in conversations" :key="conv.id"
-                    class="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-base-300 transition-colors group">
+                <a v-for="session in sessionStore.sessions" :key="session.id"
+                    @click="sessionStore.selectSession(session.id)"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-base-300 transition-colors group"
+                    :class="{ 'bg-base-300': sessionStore.currentSessionId === session.id }">
                     <ChatBubbleLeftRightIcon class="h-5 w-5 opacity-50 shrink-0" />
-                    <span class="text-sm truncate flex-1">{{ conv.title }}</span>
-                    <span v-if="conv.hasNotification"
+                    <span class="text-sm truncate flex-1">{{ session.title }}</span>
+                    <span v-if="session.hasNotification"
                         class="w-2 h-2 rounded-full bg-error shrink-0 animate-pulse"></span>
                 </a>
             </div>

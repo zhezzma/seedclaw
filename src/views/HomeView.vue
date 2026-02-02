@@ -5,11 +5,11 @@ import ChatArea from '../components/ChatArea.vue'
 
 <template>
     <!-- Main layout using daisyUI Drawer -->
-    <div class="drawer lg:drawer-open h-screen">
+    <div class="drawer lg:drawer-open h-full">
         <input id="sidebar-drawer" type="checkbox" class="drawer-toggle" />
 
         <!-- Main content area -->
-        <div class="drawer-content flex flex-col bg-base-100 h-screen overflow-hidden">
+        <div class="drawer-content flex flex-col bg-base-100 h-full overflow-hidden">
             <ChatArea />
         </div>
 

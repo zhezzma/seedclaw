@@ -32,7 +32,7 @@ const logout = () => {
 </script>
 
 <template>
-    <div class="flex flex-col h-screen bg-base-200">
+    <div class="flex flex-col h-full bg-base-200">
         <!-- Header - fixed -->
         <div class="shrink-0 navbar bg-base-100 border-b border-base-300">
             <div class="flex-1">
@@ -79,7 +79,7 @@ const logout = () => {
                                         <span class="font-medium">网关地址</span>
                                         <p class="text-xs text-base-content/50 truncate max-w-48">{{
                                             configStore.gatewayUrl
-                                            }}</p>
+                                        }}</p>
                                     </div>
                                 </div>
                                 <span class="text-sm text-primary cursor-pointer hover:underline">更换</span>
@@ -112,7 +112,7 @@ const logout = () => {
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm text-base-content/60">{{ themeStore.isDark ? '深色' : '浅色'
-                                        }}</span>
+                                    }}</span>
                                     <input type="checkbox" class="toggle toggle-primary" :checked="themeStore.isDark"
                                         @change="themeStore.toggleTheme()" />
                                 </div>
