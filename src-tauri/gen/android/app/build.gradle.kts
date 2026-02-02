@@ -17,7 +17,7 @@ android {
     compileSdk = 36
     namespace = "com.godgodgame.seedclaw"
     defaultConfig {
-        manifestPlaceholders["usesCleartextTraffic"] = "false"
+        manifestPlaceholders["usesCleartextTraffic"] = "true"
         applicationId = "com.godgodgame.seedclaw"
         minSdk = 24
         targetSdk = 36

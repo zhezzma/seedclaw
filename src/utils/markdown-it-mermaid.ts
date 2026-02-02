@@ -4,24 +4,24 @@ import MarkdownIt from 'markdown-it'
  * Markdown-it的Mermaid插件，用于在Vue环境中处理mermaid代码块
  */
 export default function markdownItMermaid(md: MarkdownIt): void {
-    // 保存原始的fence渲染函数
-    const originalFence = md.renderer.rules.fence || ((tokens, idx, options, env, self) => {
-        return self.renderToken(tokens, idx, options)
-    })
+  // 保存原始的fence渲染函数
+  const originalFence = md.renderer.rules.fence || ((tokens, idx, options, _env, self) => {
+    return self.renderToken(tokens, idx, options)
+  })
 
-    // 替换fence渲染函数，识别并处理mermaid代码块
-    md.renderer.rules.fence = (tokens, idx, options, env, self) => {
-        const token = tokens[idx]
-        const code = token.content.trim()
-        const info = token.info.trim()
+  // 替换fence渲染函数，识别并处理mermaid代码块
+  md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+    const token = tokens[idx]
+    const code = token.content.trim()
+    const info = token.info.trim()
 
-        // 检查是否为mermaid代码块
-        if (info === 'mermaid') {
-            // 生成唯一ID
-            const diagramId = `mermaid-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+    // 检查是否为mermaid代码块
+    if (info === 'mermaid') {
+      // 生成唯一ID
+      const diagramId = `mermaid-${Date.now()}-${Math.floor(Math.random() * 1000)}`
 
-            // 创建特殊元素，包含所需的数据属性和交互控件
-            return `<div class="mermaid-diagram-wrapper">
+      // 创建特殊元素，包含所需的数据属性和交互控件
+      return `<div class="mermaid-diagram-wrapper">
         <div class="mermaid-controls">
           <button type="button" class="mermaid-zoom-in" title="放大">
             <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zm.5-7H9v2H7v1h2v2h1v-2h2V9h-2z"/></svg>
@@ -44,9 +44,9 @@ export default function markdownItMermaid(md: MarkdownIt): void {
             <div class="mermaid-loading">图表加载中...</div></div>
         </div>
       </div>`
-        }
-
-        // 非mermaid代码块使用原始渲染函数
-        return originalFence(tokens, idx, options, env, self)
     }
+
+    // 非mermaid代码块使用原始渲染函数
+    return originalFence(tokens, idx, options, env, self)
+  }
 }

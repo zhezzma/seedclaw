@@ -5,13 +5,9 @@ import { useUiSettingsStore } from '../stores/setting'
 import {
     XMarkIcon,
     ChevronRightIcon,
-    UserCircleIcon,
-    DevicePhoneMobileIcon,
     ServerIcon,
-    KeyIcon,
     SunIcon,
     MoonIcon,
-    LanguageIcon,
     QuestionMarkCircleIcon,
     ChatBubbleLeftEllipsisIcon,
     ArrowRightOnRectangleIcon
@@ -89,7 +85,7 @@ const logout = () => {
                                         <span class="font-medium">网关地址</span>
                                         <p class="text-xs text-base-content/50 truncate max-w-48">{{
                                             configStore.gatewayUrl
-                                        }}</p>
+                                            }}</p>
                                     </div>
                                 </div>
                                 <span class="text-sm text-primary cursor-pointer hover:underline"
@@ -116,7 +112,7 @@ const logout = () => {
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm text-base-content/60">{{ configStore.isDark ? '深色' : '浅色'
-                                    }}</span>
+                                        }}</span>
                                     <input type="checkbox" class="toggle toggle-primary" :checked="configStore.isDark"
                                         @change="configStore.toggleTheme()" />
                                 </div>
