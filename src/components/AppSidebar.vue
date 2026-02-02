@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import {
     MagnifyingGlassIcon,
     Cog6ToothIcon,
@@ -10,6 +11,8 @@ import {
     ChevronUpIcon,
     ChatBubbleLeftRightIcon
 } from '@heroicons/vue/24/outline'
+
+const router = useRouter()
 
 // Sample conversation list
 const conversations = ref([
@@ -63,17 +66,14 @@ const hasMoreAgents = computed(() => agents.value.length > MAX_VISIBLE_AGENTS)
                 <span class="text-lg font-bold tracking-tight">Seedclaw</span>
             </div>
             <div class="flex gap-1">
-                <button class="btn btn-ghost btn-circle btn-sm hover:bg-base-300">
-                    <MagnifyingGlassIcon class="h-5 w-5" />
-                </button>
-                <button class="btn btn-ghost btn-circle btn-sm hover:bg-base-300">
+                <button @click="router.push('/settings')" class="btn btn-ghost btn-circle btn-sm hover:bg-base-300">
                     <Cog6ToothIcon class="h-5 w-5" />
                 </button>
             </div>
         </div>
 
         <!-- New Chat Button -->
-        <div class="shrink-0 px-4 pb-4">
+        <div class="shrink-0 px-4">
             <button class="btn btn-primary btn-block gap-2 shadow-md hover:shadow-lg transition-shadow rounded-xl h-11">
                 <PlusIcon class="h-5 w-5" />
                 <span class="font-medium">新建对话</span>
@@ -81,13 +81,13 @@ const hasMoreAgents = computed(() => agents.value.length > MAX_VISIBLE_AGENTS)
         </div>
 
         <!-- All Apps -->
-        <div class="shrink-0 px-3">
+        <!-- <div class="shrink-0 px-3">
             <button
                 class="btn btn-ghost justify-start w-full gap-3 h-11 rounded-xl hover:bg-base-300 font-normal text-base">
                 <Squares2X2Icon class="h-5 w-5 opacity-70" />
                 全部应用
             </button>
-        </div>
+        </div> -->
 
         <!-- Divider -->
         <div class="shrink-0 px-4 py-3">
@@ -129,8 +129,11 @@ const hasMoreAgents = computed(() => agents.value.length > MAX_VISIBLE_AGENTS)
         </div>
 
         <!-- Conversations Header -->
-        <div class="shrink-0 px-4 pt-2 pb-2">
+        <div class="shrink-0 px-4 pt-2 pb-2 flex items-center justify-between">
             <span class="text-sm font-medium text-base-content/70 uppercase tracking-wider">最近对话</span>
+            <button class="btn btn-ghost btn-circle btn-xs hover:bg-base-300">
+                <MagnifyingGlassIcon class="h-4 w-4" />
+            </button>
         </div>
 
         <!-- Conversations List - scrollable -->

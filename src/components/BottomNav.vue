@@ -1,29 +1,38 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import {
     ChatBubbleLeftRightIcon,
     SparklesIcon,
-    CalendarDaysIcon,
-    PencilSquareIcon,
-    UserCircleIcon
+    BellIcon,
+    Cog6ToothIcon
 } from '@heroicons/vue/24/outline'
 import {
     ChatBubbleLeftRightIcon as ChatBubbleLeftRightIconSolid,
     SparklesIcon as SparklesIconSolid,
-    CalendarDaysIcon as CalendarDaysIconSolid,
-    PencilSquareIcon as PencilSquareIconSolid,
-    UserCircleIcon as UserCircleIconSolid
+    BellIcon as BellIconSolid,
+    Cog6ToothIcon as Cog6ToothIconSolid
 } from '@heroicons/vue/24/solid'
 
-const activeTab = ref('chat')
+const router = useRouter()
+const route = useRoute()
 
 const tabs = [
-    { id: 'chat', label: '问AI', icon: ChatBubbleLeftRightIcon, iconActive: ChatBubbleLeftRightIconSolid },
-    { id: 'discover', label: '发现', icon: SparklesIcon, iconActive: SparklesIconSolid },
-    { id: 'event', label: '活动', icon: CalendarDaysIcon, iconActive: CalendarDaysIconSolid },
-    { id: 'create', label: '创作', icon: PencilSquareIcon, iconActive: PencilSquareIconSolid },
-    { id: 'profile', label: '我的', icon: UserCircleIcon, iconActive: UserCircleIconSolid },
+    { id: 'chat', route: '/', label: '问AI', icon: ChatBubbleLeftRightIcon, iconActive: ChatBubbleLeftRightIconSolid },
+    { id: 'agents', route: '/agents', label: '智能体', icon: SparklesIcon, iconActive: SparklesIconSolid },
+    { id: 'messages', route: '/messages', label: '消息', icon: BellIcon, iconActive: BellIconSolid },
+    { id: 'settings', route: '/settings', label: '设置', icon: Cog6ToothIcon, iconActive: Cog6ToothIconSolid },
 ]
+
+const activeTab = computed(() => {
+    const currentPath = route.path
+    const tab = tabs.find(t => t.route === currentPath)
+    return tab?.id || 'chat'
+})
+
+const navigateTo = (tab: typeof tabs[0]) => {
+    router.push(tab.route)
+}
 </script>
 
 <template>
@@ -32,7 +41,7 @@ const tabs = [
         <!-- Glassmorphism background -->
         <div class="bg-base-100/80 backdrop-blur-xl border-t border-base-300/50 shadow-lg">
             <div class="flex items-center justify-around px-2 py-2 safe-area-bottom">
-                <button v-for="tab in tabs" :key="tab.id" @click="activeTab = tab.id"
+                <button v-for="tab in tabs" :key="tab.id" @click="navigateTo(tab)"
                     class="flex flex-col items-center justify-center gap-1 px-4 py-2 rounded-2xl transition-all duration-200"
                     :class="activeTab === tab.id
                         ? 'text-primary bg-primary/10'

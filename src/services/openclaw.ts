@@ -270,10 +270,6 @@ export class OpenClawClient {
                 this.handleAgentEvent(msg.payload);
                 break;
 
-            case 'agent.audio':
-            case 'chat.audio':
-                this.handleAudioEvent(msg.payload);
-                break;
 
             case 'chat':
                 this.handleChatEvent(msg.payload);
@@ -338,32 +334,8 @@ export class OpenClawClient {
             }
         }
 
-        // 处理内嵌音频
-        if (p.audio) {
-            if (p.audio.data) {
-                this.events.onAudio(p.audio.data, p.audio.mimeType || 'audio/mp3');
-            } else if (p.audio.url) {
-                this.fetchAndPlayAudio(p.audio.url);
-            }
-        }
     }
 
-    /**
-     * 处理音频事件
-     */
-    private handleAudioEvent(payload: unknown): void {
-        const p = payload as {
-            data?: string;
-            url?: string;
-            mimeType?: string;
-        };
-
-        if (p.data) {
-            this.events.onAudio(p.data, p.mimeType || 'audio/mp3');
-        } else if (p.url) {
-            this.fetchAndPlayAudio(p.url);
-        }
-    }
 
     /**
      * 处理Chat事件
@@ -418,67 +390,10 @@ export class OpenClawClient {
                     this.events.onStreamingText(textContent, this.currentStreamingMessage.id);
                 }
             }
-
-            // 检测并播放 MEDIA 路径中的音频
-            this.detectAndPlayMediaAudio(textContent);
-        }
-
-        if (p.audio) {
-            if (p.audio.data) {
-                this.events.onAudio(p.audio.data, p.audio.mimeType || 'audio/mp3');
-            } else if (p.audio.url) {
-                this.fetchAndPlayAudio(p.audio.url);
-            }
         }
     }
 
-    /**
-     * 检测文本中的 MEDIA 路径并播放音频
-     */
-    private detectAndPlayMediaAudio(text: string): void {
-        // 解析 MEDIA:xxx.mp3 路径
-        const match = text.match(/MEDIA:(\S+\.mp3)/);
-        if (match) {
-            const audioPath = match[1];
-            // 从 gatewayUrl 提取基础 HTTP URL
-            const wsUrl = this.config.gatewayUrl;
-            const httpUrl = wsUrl.replace(/^ws:/, 'http:').replace(/^wss:/, 'https:');
-            const audioUrl = `${httpUrl}${audioPath.startsWith('/') ? '' : '/'}${audioPath}`;
 
-            console.log('[OpenClaw] Playing media audio:', audioUrl);
-            this.playMediaAudio(audioUrl);
-        }
-    }
-
-    /**
-     * 直接播放音频URL（不经过事件系统）
-     */
-    private playMediaAudio(url: string): void {
-        const audio = new Audio(url);
-        audio.play().catch(error => {
-            console.error('[OpenClaw] Failed to play media audio:', error);
-        });
-    }
-
-    /**
-     * 获取并播放音频URL
-     */
-    private async fetchAndPlayAudio(url: string): Promise<void> {
-        try {
-            const response = await fetch(url);
-            const blob = await response.blob();
-            const reader = new FileReader();
-
-            reader.onloadend = () => {
-                const base64 = (reader.result as string).split(',')[1];
-                this.events.onAudio(base64, blob.type || 'audio/mp3');
-            };
-
-            reader.readAsDataURL(blob);
-        } catch (error) {
-            console.error('[OpenClaw] Failed to fetch audio:', error);
-        }
-    }
 
     /**
      * 检查连接状态
