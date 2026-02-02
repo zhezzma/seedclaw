@@ -32,10 +32,12 @@ watch(() => gatewayStore.connected, (connected) => {
 </script>
 
 <template>
-    <div class="h-full bg-base-100">
+    <div class="h-full bg-base-100 flex flex-col">
         <!-- Main content -->
-        <router-view />
+        <div class="flex-1 min-h-0" :class="{ 'pb-16 lg:pb-0': settingsStore.showBottomNav }">
+            <router-view />
+        </div>
         <!-- Bottom navigation for mobile -->
-        <BottomNav />
+        <BottomNav v-if="settingsStore.showBottomNav" />
     </div>
 </template>

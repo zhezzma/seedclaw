@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
 import { GatewayBrowserClient, type GatewayEventFrame, type GatewayHelloOk } from '../services/gateway'
+import { generateUUID } from '../services/uuid'
+import { extractText } from '../services/chat/message-extract'
 import { useUiSettingsStore } from './setting'
 import type { ChatAttachment, ChatQueueItem } from '../services/ui-types'
 import type { PresenceEntry, HealthSnapshot, StatusSummary, SessionsListResult, AgentsListResult } from '../services/types'
@@ -21,6 +23,7 @@ import {
 } from '../services/controllers/exec-approval'
 import { GATEWAY_CLIENT_IDS } from '../services/includes/client-info'
 import { handleSendChat, handleAbortChat, refreshChat, type ChatHost } from '../services/app-chat'
+import { parseAgentSessionKey, isAgentMainSession } from '../services/includes/session-key-utils'
 
 // ==================== Types ====================
 export interface GatewayState {
@@ -109,9 +112,11 @@ export interface GatewayState {
 
     // Misc
     onboarding: boolean
+    isNewSessionPending: boolean
 }
 
 const CHAT_SESSIONS_ACTIVE_MINUTES = 120
+const autoNamingRuns = new Map<string, { targetSessionKey: string; titleBuffer: string }>()
 
 // ==================== Store ====================
 export const useGatewayStore = defineStore('gateway', {
@@ -200,15 +205,20 @@ export const useGatewayStore = defineStore('gateway', {
         toolStreamSyncTimer: null,
 
         // Misc
-        onboarding: false
+        onboarding: false,
+        isNewSessionPending: false
     }),
 
     getters: {
         isConnected: (state) => state.connected,
         isChatBusy: (state) => state.chatSending || Boolean(state.chatRunId),
-        currentSessionKey: (state) => state.sessionKey,
         agents: (state) => state.agentsList?.agents || [],
         sessions: (state) => state.sessionsResult?.sessions || [],
+        // Get default agent ID from session defaults
+        defaultAgentId: (state) => {
+            const snapshot = state.hello?.snapshot as { sessionDefaults?: { defaultAgentId?: string } } | undefined
+            return snapshot?.sessionDefaults?.defaultAgentId?.trim() || 'main'
+        },
         // Expose settings store for app-chat.ts compatibility
         settings: () => useUiSettingsStore()
     },
@@ -240,7 +250,7 @@ export const useGatewayStore = defineStore('gateway', {
                     token: settings.token.trim() ? settings.token : undefined,
                     password: this.password.trim() ? this.password : undefined,
                     clientName: GATEWAY_CLIENT_IDS.CONTROL_UI,
-                    displayName: 'SeedClaw',
+                    displayName: 'SeedClaw-APP',
                     mode: 'webchat',
                     onConnectError: (err) => {
                         reject(err)
@@ -316,6 +326,47 @@ export const useGatewayStore = defineStore('gateway', {
         },
 
         handleGatewayEventUnsafe(evt: GatewayEventFrame) {
+            // Intercept auto-naming events
+            if (evt.event === 'chat') {
+                const payload = evt.payload as ChatEventPayload | undefined
+                if (payload?.runId && autoNamingRuns.has(payload.runId)) {
+                    const ctx = autoNamingRuns.get(payload.runId)!
+
+                    if (payload.state === 'delta') {
+                        const text = extractText(payload.message)
+                        if (text) ctx.titleBuffer += text
+                    } else if (payload.state === 'final') {
+                        // Clean up title (remove quotes, trim)
+                        let title = ctx.titleBuffer.trim()
+                        if (title.startsWith('"') && title.endsWith('"')) {
+                            title = title.slice(1, -1).trim()
+                        }
+
+                        autoNamingRuns.delete(payload.runId)
+
+                            // Execute async update sequentially
+                            ; (async () => {
+                                try {
+                                    // wrapper: Use force option to skip confirmation
+                                    await deleteSession(this as unknown as SessionsState, 'agent:main:session:name')
+                                } catch (e) {
+                                    console.warn('Failed to cleanup auto-naming session', e)
+                                }
+
+                                if (title) {
+                                    // patchSession internally calls loadSessions
+                                    await this.patchSession(ctx.targetSessionKey, { label: title })
+                                } else {
+                                    await this.loadSessions()
+                                }
+                            })()
+                    } else if (payload.state === 'error' || payload.state === 'aborted') {
+                        autoNamingRuns.delete(payload.runId)
+                    }
+                    return
+                }
+            }
+
             this.eventLogBuffer = [
                 { ts: Date.now(), event: evt.event, payload: evt.payload },
                 ...this.eventLogBuffer
@@ -341,13 +392,29 @@ export const useGatewayStore = defineStore('gateway', {
                     resetToolStream(this as unknown as Parameters<typeof resetToolStream>[0])
                     // Chat queue will be flushed automatically by app-chat.ts
                     const runId = payload?.runId
+                    let shouldRefreshSessions = false
+
+                    // Check for specific runId
                     if (runId && this.refreshSessionsAfterChat.has(runId)) {
                         this.refreshSessionsAfterChat.delete(runId)
+                        shouldRefreshSessions = true
+                    }
+
+                    // Check for new session marker
+                    if (this.isNewSessionPending) {
+                        this.isNewSessionPending = false
+
+                        // Trigger auto-rename for this session
                         if (state === 'final') {
-                            void loadSessions(this as unknown as SessionsState, {
-                                activeMinutes: CHAT_SESSIONS_ACTIVE_MINUTES
-                            })
+                            void this.triggerAutoRename(this.sessionKey)
+                            // process will be refreshed by auto-rename logic
                         }
+                    }
+
+                    if (shouldRefreshSessions && state === 'final') {
+                        void loadSessions(this as unknown as SessionsState, {
+                            activeMinutes: CHAT_SESSIONS_ACTIVE_MINUTES
+                        })
                     }
                 }
                 if (state === 'final') {
@@ -467,13 +534,70 @@ export const useGatewayStore = defineStore('gateway', {
             await refreshChat(this as unknown as ChatHost)
         },
 
-        setSessionKey(key: string) {
+        async setSessionKey(key: string, opts?: { isNewSession?: boolean }) {
             this.sessionKey = key
             const settings = useUiSettingsStore()
             settings.sessionKey = key
             settings.lastActiveSessionKey = key
             settings.persist()
+            void loadAssistantIdentity(this as unknown as AssistantIdentityState)
             void loadChatHistory(this as unknown as ChatState)
+
+            // Mark to refresh sessions after first chat for new sessions
+            this.isNewSessionPending = !!opts?.isNewSession
+        },
+
+        async createNewSession() {
+            // Determine agentId from current session or use default
+            // If current session is agent:xxx:main format (not session:xxx), use that agentId
+            // For agent:xxx:session:xxx format, use the default agentId
+            const parsed = parseAgentSessionKey(this.sessionKey)
+            const agentId = isAgentMainSession(this.sessionKey) ? parsed!.agentId : this.defaultAgentId
+
+            // Create a new session with full agent format to match server's format
+            const newKey = `agent:${agentId}:session:${generateUUID()}`
+            await this.setSessionKey(newKey, { isNewSession: true })
+        },
+
+        async triggerAutoRename(targetKey: string) {
+            if (!this.client || !this.connected) return
+
+            // Get context from current chat messages
+            const messages = this.chatMessages as any[]
+            if (messages.length === 0) return
+
+            const firstUserMsg = messages.find(m => m.role === 'user')?.content
+            const firstAsstMsg = messages.find(m => m.role === 'assistant')?.content
+
+            // Extract text from content blocks
+            const getText = (content: any) => {
+                if (typeof content === 'string') return content
+                if (Array.isArray(content)) {
+                    return content.map(b => b.text || '').join(' ')
+                }
+                return ''
+            }
+
+            const userText = getText(firstUserMsg)
+            const asstText = getText(firstAsstMsg)
+
+            if (!userText) return
+
+            const runId = generateUUID()
+            autoNamingRuns.set(runId, { targetSessionKey: targetKey, titleBuffer: '' })
+
+            try {
+                // Request title generation from agent:main:session:name
+                await this.client.request('chat.send', {
+                    sessionKey: 'agent:main:session:name',
+                    message: `Generate a short title (max 6 words) for this conversation.\nUser: ${userText.substring(0, 500)}\nAssistant: ${asstText.substring(0, 500)}`,
+                    deliver: false,
+                    idempotencyKey: runId
+                })
+            } catch (err) {
+                console.error('Failed to trigger auto-rename', err)
+                autoNamingRuns.delete(runId)
+            }
         },
 
         // ==================== Sessions ====================

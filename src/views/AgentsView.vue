@@ -3,6 +3,7 @@ import { computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGatewayStore } from '../stores/gateway'
 import { SparklesIcon } from '@heroicons/vue/24/outline'
+import { createAgentMainSessionKey } from '../services/includes/session-key-utils'
 
 const router = useRouter()
 const gatewayStore = useGatewayStore()
@@ -22,7 +23,7 @@ const isLoading = computed(() => gatewayStore.agentsLoading)
 
 const selectAgent = (agentId: string) => {
     // Set session key to agent's default session
-    gatewayStore.setSessionKey(`agent:${agentId}:main`)
+    gatewayStore.setSessionKey(createAgentMainSessionKey(agentId))
     // Navigate to home/chat
     router.push('/')
 }
@@ -51,7 +52,7 @@ watch(() => gatewayStore.connected, (connected) => {
         </div>
 
         <!-- Content - scrollable -->
-        <div class="flex-1 overflow-y-auto p-4 pb-20">
+        <div class="flex-1 overflow-y-auto p-4">
             <!-- Loading state -->
             <div v-if="isLoading" class="flex items-center justify-center py-8">
                 <span class="loading loading-spinner loading-lg"></span>

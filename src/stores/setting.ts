@@ -8,6 +8,8 @@ export interface UiSettings {
     lastActiveSessionKey: string
     theme: 'light' | 'dark'
     isSidebarOpen: boolean
+    isWideMode: boolean
+    showBottomNav: boolean
 }
 
 // ==================== Constants ====================
@@ -19,7 +21,9 @@ const getDefaultSettings = (): UiSettings => ({
     sessionKey: '',
     lastActiveSessionKey: '',
     theme: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
-    isSidebarOpen: false
+    isSidebarOpen: false,
+    isWideMode: false,
+    showBottomNav: false
 })
 
 const loadConfig = (): UiSettings => {
@@ -90,6 +94,12 @@ export const useUiSettingsStore = defineStore('ui-settings', {
 
         initTheme() {
             this.applyTheme(this.theme)
+        },
+
+        // Layout
+        toggleLayout() {
+            this.isWideMode = !this.isWideMode
+            this.persist()
         }
     }
 })

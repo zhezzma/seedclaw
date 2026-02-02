@@ -2,6 +2,7 @@
 import type { GatewayBrowserClient } from "../gateway";
 import type { SessionsListResult } from "../types";
 import { toNumber } from "../format";
+import { CHAT_SESSIONS_ACTIVE_MINUTES } from "../app-chat";
 
 export type SessionsState = {
     client: GatewayBrowserClient | null;
@@ -86,7 +87,9 @@ export async function patchSession(
     }
     try {
         await state.client.request("sessions.patch", params);
-        await loadSessions(state);
+        await loadSessions(state, {
+            activeMinutes: CHAT_SESSIONS_ACTIVE_MINUTES,
+        });
     } catch (err) {
         state.sessionsError = String(err);
     }
@@ -99,17 +102,17 @@ export async function deleteSession(state: SessionsState, key: string) {
     if (state.sessionsLoading) {
         return;
     }
-    const confirmed = window.confirm(
-        `Delete session "${key}"?\n\nDeletes the session entry and archives its transcript.`,
-    );
-    if (!confirmed) {
-        return;
-    }
     state.sessionsLoading = true;
     state.sessionsError = null;
     try {
         await state.client.request("sessions.delete", { key, deleteTranscript: true });
-        await loadSessions(state);
+        // Remove from local list instead of reloading
+        if (state.sessionsResult?.sessions) {
+            state.sessionsResult = {
+                ...state.sessionsResult,
+                sessions: state.sessionsResult.sessions.filter((s: any) => s.key !== key)
+            };
+        }
     } catch (err) {
         state.sessionsError = String(err);
     } finally {

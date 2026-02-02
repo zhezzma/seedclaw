@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
 import {
@@ -19,6 +20,32 @@ import {
 const router = useRouter()
 const configStore = useUiSettingsStore()
 
+const editForm = ref({
+    gatewayUrl: '',
+    token: ''
+})
+
+const openConnectionModal = () => {
+    editForm.value = {
+        gatewayUrl: configStore.gatewayUrl,
+        token: configStore.token
+    }
+    const modal = document.getElementById('connection_modal') as HTMLDialogElement
+    if (modal) modal.showModal()
+}
+
+const saveConnection = () => {
+    configStore.save({
+        gatewayUrl: editForm.value.gatewayUrl,
+        token: editForm.value.token
+    })
+    // Force reload to apply changes if needed, or just let store reactivity handle it
+    // For gateway URL changes, we might want to reconnect
+    if (window.location.protocol !== 'file:') {
+        window.location.reload()
+    }
+}
+
 const goBack = () => {
     router.back()
 }
@@ -37,7 +64,8 @@ const logout = () => {
                 <span class="text-lg font-semibold px-4">设置</span>
             </div>
             <!-- Close button - PC only -->
-            <div class="flex-none hidden lg:flex">
+            <!-- <div class="flex-none hidden lg:flex"> -->
+            <div class="flex-none  lg:flex">
                 <button @click="goBack" class="btn btn-ghost btn-circle">
                     <XMarkIcon class="h-5 w-5" />
                 </button>
@@ -45,25 +73,9 @@ const logout = () => {
         </div>
 
         <!-- Content - scrollable -->
-        <div class="flex-1 overflow-y-auto pb-20">
+        <div class="flex-1 overflow-y-auto ">
             <div class="max-w-2xl mx-auto p-4 space-y-6">
-                <!-- User Profile Section -->
-                <div class="card bg-base-100 shadow-sm">
-                    <div class="card-body p-4">
-                        <div class="flex items-center gap-4">
-                            <div class="avatar placeholder">
-                                <div class="bg-primary text-primary-content w-14 rounded-full">
-                                    <UserCircleIcon class="h-8 w-8" />
-                                </div>
-                            </div>
-                            <div class="flex-1">
-                                <h3 class="font-semibold text-lg">用户</h3>
-                                <p class="text-sm text-base-content/60">Seedclaw 用户</p>
-                            </div>
-                            <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
-                        </div>
-                    </div>
-                </div>
+
 
                 <!-- Connection Settings -->
                 <div class="space-y-2">
@@ -77,17 +89,11 @@ const logout = () => {
                                         <span class="font-medium">网关地址</span>
                                         <p class="text-xs text-base-content/50 truncate max-w-48">{{
                                             configStore.gatewayUrl
-                                            }}</p>
+                                        }}</p>
                                     </div>
                                 </div>
-                                <span class="text-sm text-primary cursor-pointer hover:underline">更换</span>
-                            </li>
-                            <li class="flex items-center justify-between p-4">
-                                <div class="flex items-center gap-3">
-                                    <KeyIcon class="h-5 w-5 text-base-content/60" />
-                                    <span class="font-medium">访问令牌</span>
-                                </div>
-                                <span class="text-sm text-primary cursor-pointer hover:underline">更换</span>
+                                <span class="text-sm text-primary cursor-pointer hover:underline"
+                                    @click="openConnectionModal">更换</span>
                             </li>
                         </ul>
                     </div>
@@ -110,31 +116,12 @@ const logout = () => {
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm text-base-content/60">{{ configStore.isDark ? '深色' : '浅色'
-                                        }}</span>
+                                    }}</span>
                                     <input type="checkbox" class="toggle toggle-primary" :checked="configStore.isDark"
                                         @change="configStore.toggleTheme()" />
                                 </div>
                             </li>
-                            <li class="flex items-center justify-between p-4">
-                                <div class="flex items-center gap-3">
-                                    <LanguageIcon class="h-5 w-5 text-base-content/60" />
-                                    <span class="font-medium">语言设置</span>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <span class="text-sm text-base-content/60">简体中文</span>
-                                    <ChevronRightIcon class="h-4 w-4 text-base-content/40" />
-                                </div>
-                            </li>
-                            <li class="flex items-center justify-between p-4">
-                                <div class="flex items-center gap-3">
-                                    <DevicePhoneMobileIcon class="h-5 w-5 text-base-content/60" />
-                                    <div>
-                                        <span class="font-medium">允许个性化推荐</span>
-                                        <p class="text-xs text-base-content/50">开启后，将基于您的浏览记录进行个性化推荐</p>
-                                    </div>
-                                </div>
-                                <input type="checkbox" class="toggle toggle-primary" checked />
-                            </li>
+
                         </ul>
                     </div>
                 </div>
@@ -168,7 +155,7 @@ const logout = () => {
                 <div class="pt-4">
                     <button @click="logout" class="btn btn-outline btn-error btn-block gap-2">
                         <ArrowRightOnRectangleIcon class="h-5 w-5" />
-                        退出登录
+                        清空数据
                     </button>
                 </div>
 
@@ -179,4 +166,36 @@ const logout = () => {
             </div>
         </div>
     </div>
+
+    <!-- Connection Settings Modal -->
+    <dialog id="connection_modal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg mb-4">连接设置</h3>
+            <div class="form-control w-full space-y-4">
+                <div>
+                    <label class="label">
+                        <span class="label-text">网关地址</span>
+                    </label>
+                    <input type="text" v-model="editForm.gatewayUrl" placeholder="例如: http://localhost:3000"
+                        class="input input-bordered w-full" />
+                </div>
+                <div>
+                    <label class="label">
+                        <span class="label-text">访问令牌 (Token)</span>
+                    </label>
+                    <input type="text" v-model="editForm.token" placeholder="请输入您的 Token"
+                        class="input input-bordered w-full" />
+                </div>
+            </div>
+            <div class="modal-action">
+                <form method="dialog">
+                    <button class="btn btn-ghost mr-2">取消</button>
+                    <button class="btn btn-primary" @click="saveConnection">保存</button>
+                </form>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
 </template>

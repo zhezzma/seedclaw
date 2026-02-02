@@ -2,9 +2,6 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import {
     Bars3Icon,
-    SpeakerXMarkIcon,
-    PhoneIcon,
-    ChatBubbleOvalLeftEllipsisIcon,
     ChevronDownIcon,
     CameraIcon,
     MicrophoneIcon,
@@ -12,11 +9,15 @@ import {
     SunIcon,
     MoonIcon,
     PaperAirplaneIcon,
-    StopIcon
+    StopIcon,
+    ArrowsPointingOutIcon,
+    ArrowsPointingInIcon,
+    PlusIcon
 } from '@heroicons/vue/24/outline'
 import { useUiSettingsStore } from '../stores/setting'
 import { useGatewayStore } from '../stores/gateway'
-
+import { isAgentMainSession, createAgentMainSessionKey } from '../services/includes/session-key-utils'
+import MarkdownRenderer from './MarkdownRenderer.vue'
 const inputText = ref('')
 const dropdownRef = ref<HTMLDetailsElement | null>(null)
 const messagesContainerRef = ref<HTMLDivElement | null>(null)
@@ -50,6 +51,25 @@ const selectedAgent = computed(() => {
     return agents.value.find(a => a.id === selectedAgentId.value) || agents.value[0] || { id: 'main', name: 'Assistant', icon: '🤖' }
 })
 
+// Check if current session is an agent main session (show dropdown) or a specific session (show session name)
+const showAgentDropdown = computed(() => isAgentMainSession(gatewayStore.sessionKey))
+
+// Get current session name from sessions list
+const currentSessionName = computed(() => {
+    const sessionKey = gatewayStore.sessionKey
+    if (!sessionKey) return 'Chat Session'
+
+    if (gatewayStore.isNewSessionPending) {
+        const agentId = gatewayStore.assistantAgentId
+        const agent = agents.value.find(a => a.id === agentId)
+        return `新会话(${agent?.name || 'Assistant'})`
+    }
+
+    const sessions = gatewayStore.sessionsResult?.sessions || []
+    const session = sessions.find((s: any) => s.key === sessionKey)
+    return session?.displayName || session?.label || 'Chat Session'
+})
+
 // Extract text from message content
 const extractMessageText = (content: unknown): string => {
     if (typeof content === 'string') return content
@@ -69,12 +89,27 @@ const formatTime = (timestamp?: number): string => {
     return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
 
+// Helper to check if avatar string is a URL
+const isAvatarUrl = (avatar: string | null | undefined): boolean => {
+    if (!avatar) return false
+    return avatar.startsWith('http') || avatar.startsWith('data:') || avatar.startsWith('/')
+}
+
 const selectAgent = (agentId: string) => {
     selectedAgentId.value = agentId
     if (dropdownRef.value) {
         dropdownRef.value.open = false
     }
+    // Switch to agent's main session
+    gatewayStore.setSessionKey(createAgentMainSessionKey(agentId))
 }
+
+// Watch for assistant identity changes to update selection
+watch(() => gatewayStore.assistantAgentId, (newId) => {
+    if (newId) {
+        selectedAgentId.value = newId
+    }
+}, { immediate: true })
 
 const handleSend = async () => {
     const text = inputText.value.trim()
@@ -107,9 +142,17 @@ const scrollToBottom = () => {
     })
 }
 
-watch(() => messages.value.length, scrollToBottom)
+watch(messages, scrollToBottom)
 watch(() => streamingText.value, scrollToBottom)
-
+watch(isLoading, (newVal, oldVal) => {
+    if (!newVal && oldVal) {
+        // Wait for DOM update and potential markdown rendering
+        nextTick(() => {
+            scrollToBottom()
+            setTimeout(scrollToBottom, 500)
+        })
+    }
+})
 // Close dropdown when clicking outside
 const handleClickOutside = (event: MouseEvent) => {
     if (dropdownRef.value && !dropdownRef.value.contains(event.target as Node)) {
@@ -153,8 +196,8 @@ watch(() => gatewayStore.connected, (connected) => {
                 </label>
             </div>
             <div class="flex-1">
-                <!-- Agent dropdown -->
-                <details class="dropdown" ref="dropdownRef">
+                <!-- Agent dropdown (for agent main sessions) -->
+                <details v-if="showAgentDropdown" class="dropdown" ref="dropdownRef">
                     <summary class="btn btn-ghost btn-sm gap-1 list-none">
                         <span class="font-semibold">{{ selectedAgent?.name || 'Assistant' }}</span>
                         <ChevronDownIcon class="h-4 w-4" />
@@ -172,6 +215,10 @@ watch(() => gatewayStore.connected, (connected) => {
                         </li>
                     </ul>
                 </details>
+                <!-- Session name (for specific sessions like agent:xxx:session:xxx) -->
+                <span v-else class="btn btn-ghost btn-sm font-semibold">
+                    {{ currentSessionName }}
+                </span>
             </div>
             <!-- Connection status indicator -->
             <div class="flex-none flex items-center gap-2">
@@ -184,18 +231,23 @@ watch(() => gatewayStore.connected, (connected) => {
             </div>
             <!-- Mobile buttons -->
             <div class="flex-none flex gap-1 lg:hidden">
-                <button class="btn btn-ghost btn-circle btn-sm">
+                <!-- <button class="btn btn-ghost btn-circle btn-sm">
                     <SpeakerXMarkIcon class="h-5 w-5" />
                 </button>
                 <button class="btn btn-ghost btn-circle btn-sm">
                     <PhoneIcon class="h-5 w-5" />
-                </button>
-                <button class="btn btn-ghost btn-circle btn-sm">
-                    <ChatBubbleOvalLeftEllipsisIcon class="h-5 w-5" />
+                </button> -->
+                <button @click="gatewayStore.createNewSession()" class="btn btn-ghost btn-circle btn-sm" title="新建对话">
+                    <PlusIcon class="h-5 w-5" />
                 </button>
             </div>
             <!-- PC theme toggle button -->
             <div class="flex-none hidden lg:flex gap-2">
+                <button @click="settingsStore.toggleLayout()" class="btn btn-ghost btn-circle btn-sm"
+                    :title="settingsStore.isWideMode ? '切换至窄屏' : '切换至宽屏'">
+                    <ArrowsPointingInIcon v-if="settingsStore.isWideMode" class="h-5 w-5" />
+                    <ArrowsPointingOutIcon v-else class="h-5 w-5" />
+                </button>
                 <button @click="settingsStore.toggleTheme()" class="btn btn-ghost btn-circle btn-sm">
                     <SunIcon v-if="settingsStore.isDark" class="h-5 w-5" />
                     <MoonIcon v-else class="h-5 w-5" />
@@ -220,41 +272,62 @@ watch(() => gatewayStore.connected, (connected) => {
 
             <!-- Chat messages - only this area scrolls -->
             <div v-else ref="messagesContainerRef" class="flex-1 overflow-y-auto p-4">
-                <div class="space-y-4 max-w-3xl mx-auto w-full">
+                <div class="space-y-4 mx-auto w-full" :class="{ 'max-w-3xl': !settingsStore.isWideMode }">
                     <div v-for="(msg, index) in messages" :key="index" class="chat"
                         :class="msg.role === 'user' ? 'chat-end' : 'chat-start'">
                         <!-- Avatar -->
-                        <div class="chat-image avatar">
-                            <div class="w-10 rounded-full bg-base-300 flex items-center justify-center">
-                                <span v-if="msg.role === 'user'" class="text-lg">👤</span>
-                                <span v-else class="text-lg">🤖</span>
+                        <div class="chat-image avatar hidden md:block">
+                            <div class="w-10 rounded-full bg-base-300 flex items-center justify-center overflow-hidden">
+                                <template v-if="msg.role === 'user'">
+                                    <span class="text-lg">👤</span>
+                                </template>
+                                <template v-else>
+                                    <img v-if="isAvatarUrl(gatewayStore.assistantAvatar)"
+                                        :src="gatewayStore.assistantAvatar || undefined"
+                                        class="w-full h-full object-cover" />
+                                    <span v-else-if="gatewayStore.assistantAvatar" class="text-lg">{{
+                                        gatewayStore.assistantAvatar }}</span>
+                                    <span v-else class="text-lg">🤖</span>
+                                </template>
                             </div>
                         </div>
                         <!-- Header -->
                         <div class="chat-header opacity-70 text-xs mb-1">
-                            {{ msg.role === 'user' ? '你' : selectedAgent?.name || 'Assistant' }}
+                            {{ msg.role === 'user' ? '你' : gatewayStore.assistantName || 'Assistant' }}
                             <time v-if="msg.timestamp" class="ml-1">{{ formatTime(msg.timestamp) }}</time>
                         </div>
                         <!-- Bubble -->
                         <div class="chat-bubble whitespace-pre-wrap"
-                            :class="msg.role === 'user' ? 'chat-bubble-primary' : ''">
-                            {{ extractMessageText(msg.content) }}
+                            :class="msg.role === 'user' ? 'chat-bubble-primary' : 'w-full'">
+                            <div class="whitespace-normal">
+                                <div v-if="msg.role === 'user'">
+                                    {{ extractMessageText(msg.content) }}
+                                </div>
+                                <div v-else>
+                                    <MarkdownRenderer :content="extractMessageText(msg.content)" />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Streaming response -->
                     <div v-if="streamingText || isBusy" class="chat chat-start">
-                        <div class="chat-image avatar">
-                            <div class="w-10 rounded-full bg-base-300 flex items-center justify-center">
-                                <span class="text-lg">🤖</span>
+                        <div class="chat-image avatar hidden md:block">
+                            <div class="w-10 rounded-full bg-base-300 flex items-center justify-center overflow-hidden">
+                                <img v-if="isAvatarUrl(gatewayStore.assistantAvatar)"
+                                    :src="gatewayStore.assistantAvatar || undefined"
+                                    class="w-full h-full object-cover" />
+                                <span v-else-if="gatewayStore.assistantAvatar" class="text-lg">{{
+                                    gatewayStore.assistantAvatar }}</span>
+                                <span v-else class="text-lg">🤖</span>
                             </div>
                         </div>
                         <div class="chat-header opacity-70 text-xs mb-1">
-                            {{ selectedAgent?.name || 'Assistant' }}
+                            {{ gatewayStore.assistantName || 'Assistant' }}
                             <span class="ml-1 loading loading-dots loading-xs"></span>
                         </div>
-                        <div class="chat-bubble whitespace-pre-wrap" :class="{ 'opacity-50': !streamingText }">
-                            {{ streamingText || '...' }}
+                        <div class="chat-bubble w-full overflow-hidden" :class="{ 'opacity-50': !streamingText }">
+                            <MarkdownRenderer :content="streamingText || '...'" />
                         </div>
                     </div>
                 </div>
@@ -262,7 +335,7 @@ watch(() => gatewayStore.connected, (connected) => {
         </div>
 
         <!-- Input area -->
-        <div class="p-4 border-t border-base-300 mb-16 lg:mb-0">
+        <div class="p-4 border-t border-base-300">
             <div class="flex items-center gap-2 bg-base-200 rounded-full px-4 py-2">
                 <button class="btn btn-ghost btn-circle btn-sm">
                     <CameraIcon class="h-5 w-5" />

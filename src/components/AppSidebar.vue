@@ -6,9 +6,11 @@ import {
     Cog6ToothIcon,
     PlusIcon,
     ChevronDownIcon,
-    ChatBubbleLeftRightIcon
+    ChatBubbleLeftRightIcon,
+    TrashIcon
 } from '@heroicons/vue/24/outline'
 import { useGatewayStore } from '../stores/gateway'
+import { isAgentMainSession, createAgentMainSessionKey } from '../services/includes/session-key-utils'
 
 const router = useRouter()
 const gatewayStore = useGatewayStore()
@@ -37,20 +39,24 @@ const visibleAgents = computed(() => {
 
 const hasMoreAgents = computed(() => agents.value.length > MAX_VISIBLE_AGENTS)
 
-// Get sessions from gateway store
+// Get sessions from gateway store (filter out agent main sessions)
 const sessions = computed(() => {
     const list = gatewayStore.sessionsResult?.sessions || []
-    return list.map((s: any) => ({
-        key: s.key,
-        label: s.label || s.key,
-        lastActiveAt: s.lastActiveAt
-    }))
+    return list
+        .filter((s: any) => !isAgentMainSession(s.key))
+        .map((s: any) => ({
+            key: s.key,
+            label: s.displayName || s.label || s.key,
+            lastActiveAt: s.lastActiveAt || s.updatedAt
+        }))
 })
 
+
 const currentSessionKey = computed(() => gatewayStore.sessionKey)
+const activeAgentId = computed(() => gatewayStore.assistantAgentId)
 
 const selectAgent = (agentId: string) => {
-    gatewayStore.setSessionKey(`agent:${agentId}:main`)
+    gatewayStore.setSessionKey(createAgentMainSessionKey(agentId))
     // Close sidebar on mobile
     const drawer = document.getElementById('sidebar-drawer') as HTMLInputElement
     if (drawer) drawer.checked = false
@@ -63,13 +69,25 @@ const selectSession = (key: string) => {
     if (drawer) drawer.checked = false
 }
 
-const createNewSession = () => {
-    // Create a new session with timestamp-based key
-    const newKey = `session:${Date.now()}`
-    gatewayStore.setSessionKey(newKey)
+const createNewSession = async () => {
+    await gatewayStore.createNewSession()
     // Close sidebar on mobile
     const drawer = document.getElementById('sidebar-drawer') as HTMLInputElement
     if (drawer) drawer.checked = false
+}
+
+const handleDeleteSession = async (key: string, event: Event) => {
+    event.stopPropagation() // Prevent selecting the session
+
+    if (!window.confirm(`Delete session "${key}"?\n\nDeletes the session entry and archives its transcript.`)) {
+        return
+    }
+
+    await gatewayStore.deleteSession(key)
+    // If deleted current session, switch to default
+    if (gatewayStore.sessionKey === key) {
+        gatewayStore.setSessionKey(createAgentMainSessionKey(gatewayStore.defaultAgentId))
+    }
 }
 
 // Load sessions when connected
@@ -142,7 +160,7 @@ watch(() => gatewayStore.connected, (connected) => {
                 <div class="grid grid-cols-2 gap-1">
                     <a v-for="agent in visibleAgents" :key="agent.id" @click="selectAgent(agent.id)"
                         class="flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer transition-colors"
-                        :class="currentSessionKey.includes(agent.id) ? 'bg-primary/20 text-primary' : 'hover:bg-base-300'">
+                        :class="activeAgentId === agent.id && isAgentMainSession(currentSessionKey) ? 'bg-primary/20 text-primary' : 'hover:bg-base-300'">
                         <span class="text-base">{{ agent.icon }}</span>
                         <span class="text-sm font-medium truncate">{{ agent.name }}</span>
                     </a>
@@ -186,6 +204,11 @@ watch(() => gatewayStore.connected, (connected) => {
                     :class="{ 'bg-base-300': currentSessionKey === session.key }">
                     <ChatBubbleLeftRightIcon class="h-5 w-5 opacity-50 shrink-0" />
                     <span class="text-sm truncate flex-1">{{ session.label }}</span>
+                    <!-- Delete button - visible on hover -->
+                    <button @click="handleDeleteSession(session.key, $event)"
+                        class="btn btn-ghost btn-circle btn-xs opacity-0 group-hover:opacity-100 transition-opacity hover:bg-error/20 hover:text-error">
+                        <TrashIcon class="h-4 w-4" />
+                    </button>
                 </a>
             </div>
         </div>

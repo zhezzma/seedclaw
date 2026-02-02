@@ -39,7 +39,7 @@ const getIconColor = (type: string) => {
         </div>
 
         <!-- Content - scrollable -->
-        <div class="flex-1 overflow-y-auto p-4 pb-20">
+        <div class="flex-1 overflow-y-auto p-4 ">
             <!-- Empty state -->
             <div v-if="messageStore.messages.length === 0" class="flex flex-col items-center justify-center py-20">
                 <BellIcon class="h-16 w-16 text-base-content/20 mb-4" />
