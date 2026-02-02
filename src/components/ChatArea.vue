@@ -52,7 +52,7 @@ const selectedAgent = computed(() => {
 })
 
 // Check if current session is an agent main session (show dropdown) or a specific session (show session name)
-const showAgentDropdown = computed(() => isAgentMainSession(gatewayStore.sessionKey))
+const showAgentDropdown = computed(() => isAgentMainSession(gatewayStore.sessionKey) || gatewayStore.isNewSessionPending)
 
 // Get current session name from sessions list
 const currentSessionName = computed(() => {
@@ -100,6 +100,12 @@ const selectAgent = (agentId: string) => {
     if (dropdownRef.value) {
         dropdownRef.value.open = false
     }
+
+    if (gatewayStore.isNewSessionPending) {
+        gatewayStore.assistantAgentId = agentId
+        return
+    }
+
     // Switch to agent's main session
     gatewayStore.setSessionKey(createAgentMainSessionKey(agentId))
 }
@@ -119,6 +125,10 @@ const handleSend = async () => {
         // If busy, abort the current run
         await gatewayStore.abortChat()
         return
+    }
+
+    if (gatewayStore.isNewSessionPending) {
+        await gatewayStore.commitNewSession()
     }
 
     inputText.value = ''
@@ -163,6 +173,10 @@ const handleClickOutside = (event: MouseEvent) => {
 const refreshChatAndScroll = async () => {
     await gatewayStore.refreshChat()
     scrollToBottom()
+}
+
+const createNewSession = async () => {
+    await gatewayStore.createNewSession()
 }
 
 onMounted(() => {
@@ -237,7 +251,7 @@ watch(() => gatewayStore.connected, (connected) => {
                 <button class="btn btn-ghost btn-circle btn-sm">
                     <PhoneIcon class="h-5 w-5" />
                 </button> -->
-                <button @click="gatewayStore.createNewSession()" class="btn btn-ghost btn-circle btn-sm" title="新建对话">
+                <button @click="createNewSession" class="btn btn-ghost btn-circle btn-sm" title="新建对话">
                     <PlusIcon class="h-5 w-5" />
                 </button>
             </div>

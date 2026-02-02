@@ -12,21 +12,23 @@ const gatewayStore = useGatewayStore()
 const toastStore = useToastStore()
 
 // Global error handler
-watch(() => gatewayStore.lastError, (error: any) => {
-    if (error) {
-        console.log(error)
-        // Ignore NOT_PAIRED error as it is handled in SetupView
-        if (error.includes('pairing')) {
-            gatewayStore.lastError = null
-            return
-        }
+// watch(() => gatewayStore.lastError, (error: any) => {
 
-        toastStore.error(error)
-        // Clear error after showing toast to allow same error to trigger again if needed
-        // and to clean up state.
-        gatewayStore.lastError = null
-    }
-})
+//     if (error) {
+
+//         console.log(error)
+//         // Ignore NOT_PAIRED error as it is handled in SetupView
+//         if (error.includes('pairing')) {
+//             gatewayStore.lastError = null
+//             return
+//         }
+
+//         toastStore.error(error)
+//         // Clear error after showing toast to allow same error to trigger again if needed
+//         // and to clean up state.
+//         gatewayStore.lastError = null
+//     }
+// })
 </script>
 
 <template>

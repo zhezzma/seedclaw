@@ -541,22 +541,40 @@ export const useGatewayStore = defineStore('gateway', {
             settings.lastActiveSessionKey = key
             settings.persist()
             void loadAssistantIdentity(this as unknown as AssistantIdentityState)
-            void loadChatHistory(this as unknown as ChatState)
-
             // Mark to refresh sessions after first chat for new sessions
             this.isNewSessionPending = !!opts?.isNewSession
+            if (this.isNewSessionPending) {
+                return
+            }
+            void loadChatHistory(this as unknown as ChatState)
         },
 
         async createNewSession() {
-            // Determine agentId from current session or use default
-            // If current session is agent:xxx:main format (not session:xxx), use that agentId
-            // For agent:xxx:session:xxx format, use the default agentId
-            const parsed = parseAgentSessionKey(this.sessionKey)
-            const agentId = isAgentMainSession(this.sessionKey) ? parsed!.agentId : this.defaultAgentId
+            this.isNewSessionPending = true
+            this.assistantAgentId = this.defaultAgentId
+            this.chatMessages = []
+            this.chatRunId = null
+            this.chatStream = null
+            this.sessionKey = ''
+        },
 
+        async commitNewSession() {
             // Create a new session with full agent format to match server's format
-            const newKey = `agent:${agentId}:session:${generateUUID()}`
+            const newKey = `agent:${this.assistantAgentId}:session:${generateUUID()}`
             await this.setSessionKey(newKey, { isNewSession: true })
+            // Ensure pending is false after commit (setSessionKey might do it, but let's be safe or rely on setSessionKey logic)
+            // Note: setSessionKey sets isNewSessionPending based on opts.isNewSession. 
+            // In setSessionKey: this.isNewSessionPending = !!opts?.isNewSession
+            // So if we pass true, it stays true? 
+            // Wait, existing setSessionKey logic:
+            // this.isNewSessionPending = !!opts?.isNewSession
+            // If we commit, we are creating a REAL session. key changed.
+            // We want isNewSessionPending to remain true UNTIL the first chat response comes back? 
+            // Or should it be false immediately?
+            // The original logic was: setSessionKey(..., {isNewSession: true}) -> isNewSessionPending = true.
+            // Then in handleGatewayEvent 'chat': if (state === 'final' && this.isNewSessionPending) => triggerAutoRename.
+            // So we DO want isNewSessionPending to be true AFTER commit, so auto-rename happens.
+            // So calling setSessionKey(..., { isNewSession: true }) is correct for commitNewSession.
         },
 
         async triggerAutoRename(targetKey: string) {
