@@ -29,7 +29,7 @@ const getDefaultSettings = (): UiSettings => ({
     showBottomNav: false,
     sessionsActiveDays: 3,
     asrToken: '',
-    ttsEngine: 'qwen'
+    ttsEngine: 'edge'
 })
 
 const loadConfig = (): UiSettings => {
