@@ -607,7 +607,7 @@ export const useGatewayStore = defineStore('gateway', {
             try {
                 // Request title generation from agent:main:session:name
                 await this.client.request('chat.send', {
-                    sessionKey: 'agent:main:session:name',
+                    sessionKey: `agent:${this.assistantAgentId}:session:rename`,
                     message: `Generate a short title (max 6 words) for this conversation.\nUser: ${userText.substring(0, 500)}\nAssistant: ${asstText.substring(0, 500)}`,
                     deliver: false,
                     idempotencyKey: runId

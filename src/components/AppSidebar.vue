@@ -206,7 +206,7 @@ watch(() => gatewayStore.connected, (connected) => {
                     <span class="text-sm truncate flex-1">{{ session.label }}</span>
                     <!-- Delete button - visible on hover -->
                     <button @click="handleDeleteSession(session.key, $event)"
-                        class="btn btn-ghost btn-circle btn-xs opacity-0 group-hover:opacity-100 transition-opacity hover:bg-error/20 hover:text-error">
+                        class="btn btn-ghost btn-circle btn-xs opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity hover:bg-error/20 hover:text-error">
                         <TrashIcon class="h-4 w-4" />
                     </button>
                 </a>

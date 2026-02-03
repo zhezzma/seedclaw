@@ -12,39 +12,26 @@ const gatewayStore = useGatewayStore()
 const toastStore = useToastStore()
 
 // Global error handler
-// watch(() => gatewayStore.lastError, (error: any) => {
-
-//     if (error) {
-
-//         console.log(error)
-//         // Ignore NOT_PAIRED error as it is handled in SetupView
-//         if (error.includes('pairing')) {
-//             gatewayStore.lastError = null
-//             return
-//         }
-
-//         toastStore.error(error)
-//         // Clear error after showing toast to allow same error to trigger again if needed
-//         // and to clean up state.
-//         gatewayStore.lastError = null
-//     }
-// })
+watch(() => gatewayStore.lastError, (error: any) => {
+    if (error) {
+        // Ignore NOT_PAIRED error as it is handled in SetupView
+        if (error.includes('pairing')) {
+            gatewayStore.lastError = null
+            return
+        }
+        //toastStore.error(error)
+        // Clear error after showing toast to allow same error to trigger again if needed
+        // and to clean up state.
+        gatewayStore.lastError = null
+    }
+})
 </script>
 
 <template>
-    <div class="h-screen w-screen pt-[env(safe-area-inset-top)] bg-base-100">
+    <div class="fixed inset-0 pt-[env(safe-area-inset-top)] bg-base-100 overflow-hidden">
         <router-view />
         <MessagePlugin />
     </div>
 </template>
 
-<style>
-html,
-body,
-#app {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-}
-</style>
+<style></style>

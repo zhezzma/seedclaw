@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import {
     Bars3Icon,
     ChevronDownIcon,
+    ChevronUpIcon,
     CameraIcon,
     MicrophoneIcon,
     CheckIcon,
@@ -12,17 +13,43 @@ import {
     StopIcon,
     ArrowsPointingOutIcon,
     ArrowsPointingInIcon,
-    PlusIcon
+    PlusIcon,
+    CommandLineIcon,
+    CpuChipIcon,
+    LightBulbIcon,
+    SparklesIcon
 } from '@heroicons/vue/24/outline'
 import { useUiSettingsStore } from '../stores/setting'
 import { useGatewayStore } from '../stores/gateway'
 import { isAgentMainSession, createAgentMainSessionKey } from '../services/includes/session-key-utils'
 import MarkdownRenderer from './MarkdownRenderer.vue'
+
 const inputText = ref('')
 const dropdownRef = ref<HTMLDetailsElement | null>(null)
 const messagesContainerRef = ref<HTMLDivElement | null>(null)
 const settingsStore = useUiSettingsStore()
 const gatewayStore = useGatewayStore()
+
+// Input Area State
+const isRecording = ref(false)
+const isThinking = ref(true)
+const selectedModel = ref('glm')
+const commandDropdownOpen = ref(false)
+const modelDropdownOpen = ref(false)
+
+const commands = [
+    { label: '/new (新建)', value: '/new' },
+    { label: '/reset (重置)', value: '/reset' },
+    { label: '/status (状态)', value: '/status' },
+    { label: '/commands (命令)', value: '/commands' },
+    { label: '/help (帮助)', value: '/help' }
+]
+
+const models = [
+    { label: 'GLM-4', value: 'glm' },
+    { label: 'Gemini Pro', value: 'gemini' },
+    { label: 'GPT-4o', value: 'gpt4' }
+]
 
 // Computed properties for chat
 const messages = computed(() => gatewayStore.chatMessages as Array<{
@@ -136,6 +163,39 @@ const handleSend = async () => {
     scrollToBottom()
 }
 
+const selectCommand = (cmd: string) => {
+    inputText.value = cmd + ' '
+    commandDropdownOpen.value = false
+    // Focus input
+    const el = document.querySelector('textarea') as HTMLTextAreaElement
+    if (el) el.focus()
+}
+
+const selectModel = (model: string) => {
+    selectedModel.value = model
+    modelDropdownOpen.value = false
+}
+
+const handleMicClick = () => {
+    if (isRecording.value) {
+        isRecording.value = false
+        return
+    }
+
+    isRecording.value = true
+    // Simulate speech recognition flow
+    setTimeout(() => {
+        if (!isRecording.value) return
+        inputText.value += '（听写内容...）'
+
+        // Simulate silence detection
+        setTimeout(() => {
+            if (!isRecording.value) return
+            isRecording.value = false
+        }, 2000)
+    }, 2000)
+}
+
 const handleKeydown = (e: KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
@@ -165,8 +225,18 @@ watch(isLoading, (newVal, oldVal) => {
 })
 // Close dropdown when clicking outside
 const handleClickOutside = (event: MouseEvent) => {
+    // Main agent dropdown
     if (dropdownRef.value && !dropdownRef.value.contains(event.target as Node)) {
         dropdownRef.value.open = false
+    }
+
+    // Close input toolbar dropdowns if clicking outside the input area
+    // Simplified: just close them on any click outside specific dropdowns interactions
+    // For now, let's rely on DaisyUI focus behavior or manual toggles, but manual close is safer
+    const target = event.target as HTMLElement
+    if (!target.closest('.dropdown-top')) {
+        commandDropdownOpen.value = false
+        modelDropdownOpen.value = false
     }
 }
 
@@ -349,23 +419,112 @@ watch(() => gatewayStore.connected, (connected) => {
         </div>
 
         <!-- Input area -->
-        <div class="p-4 border-t border-base-300">
-            <div class="flex items-center gap-2 bg-base-200 rounded-full px-4 py-2">
-                <button class="btn btn-ghost btn-circle btn-sm">
-                    <CameraIcon class="h-5 w-5" />
-                </button>
-                <input v-model="inputText" type="text" :placeholder="isBusy ? '正在生成回复...' : '发消息或按住说话...'"
-                    class="flex-1 bg-transparent border-none outline-none text-sm" @keydown="handleKeydown"
-                    :disabled="!gatewayStore.connected" />
-                <button class="btn btn-ghost btn-circle btn-sm">
-                    <MicrophoneIcon class="h-5 w-5" />
-                </button>
-                <button @click="handleSend" class="btn btn-ghost btn-circle btn-sm" :class="{ 'text-error': isBusy }"
-                    :disabled="!gatewayStore.connected">
-                    <StopIcon v-if="isBusy" class="h-5 w-5" />
-                    <PaperAirplaneIcon v-else class="h-5 w-5" />
-                </button>
+        <div class="p-4 border-t border-base-300 bg-base-100">
+            <div
+                class="bg-base-200/50 rounded-[2rem] p-2 pr-2 shadow-sm border border-base-300/50 flex flex-col gap-1 relative focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/50 transition-all duration-300">
+                <!-- Input Top -->
+                <textarea v-model="inputText" rows="1" placeholder="发消息或输入'/'选择技能"
+                    class="textarea textarea-ghost w-full resize-none focus:outline-none focus:bg-transparent text-base min-h-[44px] max-h-[200px] px-3 py-3 leading-6 placeholder:text-base-content/40 hide-scrollbar"
+                    @keydown="handleKeydown"
+                    @input="(e) => { const target = e.target as HTMLTextAreaElement; target.style.height = 'auto'; target.style.height = target.scrollHeight + 'px' }"
+                    :disabled="!gatewayStore.connected"></textarea>
+
+                <!-- Toolbar Bottom -->
+                <div class="flex items-center justify-between pb-1">
+                    <!-- Left Actions -->
+                    <div class="flex items-center gap-1 text-base-content/70">
+                        <!-- Attach -->
+                        <button
+                            class="btn btn-ghost btn-circle btn-sm hover:bg-base-300 hover:text-primary transition-colors"
+                            title="上传附件">
+                            <CameraIcon class="h-5 w-5" />
+                        </button>
+
+                        <!-- Command -->
+                        <div class="dropdown dropdown-top" :class="{ 'dropdown-open': commandDropdownOpen }">
+                            <button @click.stop="commandDropdownOpen = !commandDropdownOpen; modelDropdownOpen = false"
+                                class="btn btn-ghost btn-sm  gap-1 font-normal rounded-full border border-base-content/20 hover:border-base-content/40 hover:bg-base-300  transition-all"
+                                title="命令">
+                                <CommandLineIcon class="h-4 w-4 hidden sm:inline" />
+                                <span class="sm:inline">命令</span>
+                                <ChevronUpIcon class="h-3 w-3 ml-0.5 opacity-50" />
+                            </button>
+                            <ul
+                                class="dropdown-content menu p-2 shadow-xl bg-base-100 rounded-box w-56 border border-base-300 mb-2 z-[100]">
+                                <li class="menu-title px-4 py-2 text-xs opacity-50">常用指令</li>
+                                <li v-for="cmd in commands" :key="cmd.value">
+                                    <a @click="selectCommand(cmd.value)" class="rounded-lg">{{ cmd.label }}</a>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Model -->
+                        <div class="dropdown dropdown-top" :class="{ 'dropdown-open': modelDropdownOpen }">
+                            <button @click.stop="modelDropdownOpen = !modelDropdownOpen; commandDropdownOpen = false"
+                                class="btn btn-ghost btn-sm gap-1 font-normal rounded-full border border-base-content/20 hover:border-base-content/40 hover:bg-base-300  transition-all"
+                                title="模型">
+                                <CpuChipIcon class="h-4 w-4  hidden sm:inline" />
+                                <span class=" sm:inline">模型</span>
+                                <ChevronUpIcon class="h-3 w-3 ml-0.5 opacity-50" />
+                            </button>
+                            <ul
+                                class="dropdown-content menu p-2 shadow-xl bg-base-100 rounded-box w-48 border border-base-300 mb-2 z-[100]">
+                                <li class="menu-title px-4 py-2 text-xs opacity-50">选择模型</li>
+                                <li v-for="m in models" :key="m.value">
+                                    <a @click="selectModel(m.value)" class="rounded-lg justify-between"
+                                        :class="{ 'active': selectedModel === m.value }">
+                                        {{ m.label }}
+                                        <CheckIcon v-if="selectedModel === m.value" class="h-4 w-4" />
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Think -->
+                        <button @click="isThinking = !isThinking"
+                            class="btn btn-sm gap-1 font-normal rounded-full transition-all duration-300 "
+                            :class="isThinking ? 'bg-primary/10 text-primary hover:bg-primary/20 border-primary/20' : 'btn-ghost hover:bg-base-300'"
+                            title="深度思考">
+                            <SparklesIcon class="h-4 w-4" />
+                            <span class=" sm:inline">思考</span>
+                        </button>
+                    </div>
+
+                    <!-- Right Actions -->
+                    <div class="flex items-center gap-2">
+                        <!-- Mic -->
+                        <button @click="handleMicClick"
+                            class="btn btn-circle btn-sm transition-all duration-300 relative overflow-hidden"
+                            :class="isRecording ? 'btn-success text-success-content scale-110 shadow-[0_0_15px_rgba(var(--sc),0.5)] border-success' : 'btn-ghost bg-base-300/50 hover:bg-base-300'"
+                            title="语音输入">
+                            <MicrophoneIcon class="h-5 w-5 relative z-10" />
+                            <span v-if="isRecording"
+                                class="absolute inset-0 bg-white/20 animate-ping rounded-full"></span>
+                        </button>
+
+                        <!-- Send -->
+                        <button @click="handleSend"
+                            class="btn btn-circle btn-sm btn-primary shadow-md hover:shadow-lg transition-all hover:scale-105 active:scale-95"
+                            :disabled="!gatewayStore.connected || (!inputText.trim() && !isBusy)">
+                            <StopIcon v-if="isBusy" class="h-5 w-5" />
+                            <PaperAirplaneIcon v-else class="h-5 w-5 -rotate-45 translate-x-0.5 translate-y-px" />
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </template>
+
+<style scoped>
+.hide-scrollbar {
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+</style>

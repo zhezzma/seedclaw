@@ -1,12 +1,22 @@
 @import "tailwindcss";
-@import './github-markdown.css';
-@import '../../node_modules/katex/dist/katex.css';
+@import "./github-markdown.css";
+@import "../../node_modules/katex/dist/katex.css";
 @plugin "daisyui" {
-  themes: light --default, dark --prefersdark;
+    themes: light --default, dark --prefersdark;
 }
 
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* Prevent body scroll on mobile */
+    overscroll-behavior: none; /* Prevent bounce/rubber-band */
+    /* Ensure clean layout reset */
+}
 
-
+#app {
+    height: 100%;
+}
 
 [data-theme="light"] .markdown-it-code-title .code-header-bg {
     background-color: #f5f5f5;
@@ -29,20 +39,19 @@
     margin-top: -3px;
 }
 
-
 .markdown-body ol,
 .markdown-body ul {
     list-style: revert;
 }
 
-.markdown-body pre>::-webkit-scrollbar,
+.markdown-body pre > ::-webkit-scrollbar,
 .scrollbar::-webkit-scrollbar {
     width: 5px;
     height: 5px;
 }
 
 /* 自定义滚动条滑块 */
-.markdown-body pre>::-webkit-scrollbar-thumb,
+.markdown-body pre > ::-webkit-scrollbar-thumb,
 .scrollbar::-webkit-scrollbar-thumb {
     /* 滑块颜色 */
     border-radius: 5px;
@@ -51,18 +60,16 @@
     @apply bg-neutral-400/30;
 }
 
-
 [data-theme="light"] .markdown-body {
-
     /*@import 'highlight.js/styles/github.css';*/
     pre code.hljs {
         display: block;
         overflow-x: auto;
-        padding: 1em
+        padding: 1em;
     }
 
     code.hljs {
-        padding: 3px 5px
+        padding: 3px 5px;
     }
 
     /*!
@@ -71,13 +78,12 @@
         Author: github.com
         Maintainer: @Hirse
         Updated: 2021-05-15
-      
+  
         Outdated base version: https://github.com/primer/github-syntax-light
         Current colors taken from GitHub's CSS
       */
     .hljs {
         color: #24292e;
-
     }
 
     .hljs-doctag,
@@ -88,7 +94,7 @@
     .hljs-type,
     .hljs-variable.language_ {
         /* prettylights-syntax-keyword */
-        color: #d73a49
+        color: #d73a49;
     }
 
     .hljs-title,
@@ -96,7 +102,7 @@
     .hljs-title.class_.inherited__,
     .hljs-title.function_ {
         /* prettylights-syntax-entity */
-        color: #6f42c1
+        color: #6f42c1;
     }
 
     .hljs-attr,
@@ -110,27 +116,27 @@
     .hljs-selector-class,
     .hljs-selector-id {
         /* prettylights-syntax-constant */
-        color: #005cc5
+        color: #005cc5;
     }
 
     .hljs-regexp,
     .hljs-string,
     .hljs-meta .hljs-string {
         /* prettylights-syntax-string */
-        color: #032f62
+        color: #032f62;
     }
 
     .hljs-built_in,
     .hljs-symbol {
         /* prettylights-syntax-variable */
-        color: #e36209
+        color: #e36209;
     }
 
     .hljs-comment,
     .hljs-code,
     .hljs-formula {
         /* prettylights-syntax-comment */
-        color: #6a737d
+        color: #6a737d;
     }
 
     .hljs-name,
@@ -138,47 +144,47 @@
     .hljs-selector-tag,
     .hljs-selector-pseudo {
         /* prettylights-syntax-entity-tag */
-        color: #22863a
+        color: #22863a;
     }
 
     .hljs-subst {
         /* prettylights-syntax-storage-modifier-import */
-        color: #24292e
+        color: #24292e;
     }
 
     .hljs-section {
         /* prettylights-syntax-markup-heading */
         color: #005cc5;
-        font-weight: bold
+        font-weight: bold;
     }
 
     .hljs-bullet {
         /* prettylights-syntax-markup-list */
-        color: #735c0f
+        color: #735c0f;
     }
 
     .hljs-emphasis {
         /* prettylights-syntax-markup-italic */
         color: #24292e;
-        font-style: italic
+        font-style: italic;
     }
 
     .hljs-strong {
         /* prettylights-syntax-markup-bold */
         color: #24292e;
-        font-weight: bold
+        font-weight: bold;
     }
 
     .hljs-addition {
         /* prettylights-syntax-markup-inserted */
         color: #22863a;
-        background-color: #f0fff4
+        background-color: #f0fff4;
     }
 
     .hljs-deletion {
         /* prettylights-syntax-markup-deleted */
         color: #b31d28;
-        background-color: #ffeef0
+        background-color: #ffeef0;
     }
 
     .hljs-char.escape_,
@@ -188,21 +194,19 @@
     .hljs-punctuation,
     .hljs-tag {
         /* purposely ignored */
-
     }
 }
 
 [data-theme="dark"] .markdown-body {
-
     /*@import 'highlight.js/styles/github-dark.css';*/
     pre code.hljs {
         display: block;
         overflow-x: auto;
-        padding: 1em
+        padding: 1em;
     }
 
     code.hljs {
-        padding: 3px 5px
+        padding: 3px 5px;
     }
 
     /*!
@@ -211,13 +215,12 @@
         Author: github.com
         Maintainer: @Hirse
         Updated: 2021-05-15
-      
+  
         Outdated base version: https://github.com/primer/github-syntax-dark
         Current colors taken from GitHub's CSS
       */
     .hljs {
         color: #c9d1d9;
-
     }
 
     .hljs-doctag,
@@ -228,7 +231,7 @@
     .hljs-type,
     .hljs-variable.language_ {
         /* prettylights-syntax-keyword */
-        color: #ff7b72
+        color: #ff7b72;
     }
 
     .hljs-title,
@@ -236,7 +239,7 @@
     .hljs-title.class_.inherited__,
     .hljs-title.function_ {
         /* prettylights-syntax-entity */
-        color: #d2a8ff
+        color: #d2a8ff;
     }
 
     .hljs-attr,
@@ -250,27 +253,27 @@
     .hljs-selector-class,
     .hljs-selector-id {
         /* prettylights-syntax-constant */
-        color: #79c0ff
+        color: #79c0ff;
     }
 
     .hljs-regexp,
     .hljs-string,
     .hljs-meta .hljs-string {
         /* prettylights-syntax-string */
-        color: #a5d6ff
+        color: #a5d6ff;
     }
 
     .hljs-built_in,
     .hljs-symbol {
         /* prettylights-syntax-variable */
-        color: #ffa657
+        color: #ffa657;
     }
 
     .hljs-comment,
     .hljs-code,
     .hljs-formula {
         /* prettylights-syntax-comment */
-        color: #8b949e
+        color: #8b949e;
     }
 
     .hljs-name,
@@ -278,47 +281,47 @@
     .hljs-selector-tag,
     .hljs-selector-pseudo {
         /* prettylights-syntax-entity-tag */
-        color: #7ee787
+        color: #7ee787;
     }
 
     .hljs-subst {
         /* prettylights-syntax-storage-modifier-import */
-        color: #c9d1d9
+        color: #c9d1d9;
     }
 
     .hljs-section {
         /* prettylights-syntax-markup-heading */
         color: #1f6feb;
-        font-weight: bold
+        font-weight: bold;
     }
 
     .hljs-bullet {
         /* prettylights-syntax-markup-list */
-        color: #f2cc60
+        color: #f2cc60;
     }
 
     .hljs-emphasis {
         /* prettylights-syntax-markup-italic */
         color: #c9d1d9;
-        font-style: italic
+        font-style: italic;
     }
 
     .hljs-strong {
         /* prettylights-syntax-markup-bold */
         color: #c9d1d9;
-        font-weight: bold
+        font-weight: bold;
     }
 
     .hljs-addition {
         /* prettylights-syntax-markup-inserted */
         color: #aff5b4;
-        background-color: #033a16
+        background-color: #033a16;
     }
 
     .hljs-deletion {
         /* prettylights-syntax-markup-deleted */
         color: #ffdcd7;
-        background-color: #67060c
+        background-color: #67060c;
     }
 
     .hljs-char.escape_,
@@ -328,6 +331,5 @@
     .hljs-punctuation,
     .hljs-tag {
         /* purposely ignored */
-
     }
 }
