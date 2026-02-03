@@ -20,7 +20,8 @@ const editForm = ref({
     gatewayUrl: '',
     token: '',
     sessionsActiveDays: 3,
-    asrToken: ''
+    asrToken: '',
+    ttsEngine: 'qwen' as 'qwen' | 'edge'
 })
 
 const openConnectionModal = () => {
@@ -28,7 +29,8 @@ const openConnectionModal = () => {
         gatewayUrl: configStore.gatewayUrl,
         token: configStore.token,
         sessionsActiveDays: configStore.sessionsActiveDays,
-        asrToken: configStore.asrToken
+        asrToken: configStore.asrToken,
+        ttsEngine: configStore.ttsEngine
     }
     const modal = document.getElementById('basic_settings_modal') as HTMLDialogElement
     if (modal) modal.showModal()
@@ -39,7 +41,8 @@ const saveConnection = () => {
         gatewayUrl: editForm.value.gatewayUrl,
         token: editForm.value.token,
         sessionsActiveDays: Number(editForm.value.sessionsActiveDays),
-        asrToken: editForm.value.asrToken
+        asrToken: editForm.value.asrToken,
+        ttsEngine: editForm.value.ttsEngine
     })
     // Force reload to apply changes if needed, or just let store reactivity handle it
     // For gateway URL changes, we might want to reconnect
@@ -205,6 +208,15 @@ const logout = () => {
                     <label class="label">
                         <span class="label-text-alt opacity-50">留空则使用默认配置</span>
                     </label>
+                </div>
+                <div>
+                    <label class="label">
+                        <span class="label-text">TTS 引擎</span>
+                    </label>
+                    <select v-model="editForm.ttsEngine" class="select select-bordered w-full">
+                        <option value="qwen">Qwen TTS (实时PCM/低延迟)</option>
+                        <option value="edge">Edge TTS (流式MSE/免费)</option>
+                    </select>
                 </div>
             </div>
             <div class="modal-action">

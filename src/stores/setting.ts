@@ -12,6 +12,7 @@ export interface UiSettings {
     showBottomNav: boolean
     sessionsActiveDays: number
     asrToken: string // ASR API Key
+    ttsEngine: 'qwen' | 'edge'
 }
 
 // ==================== Constants ====================
@@ -27,7 +28,8 @@ const getDefaultSettings = (): UiSettings => ({
     isWideMode: false,
     showBottomNav: false,
     sessionsActiveDays: 3,
-    asrToken: ''
+    asrToken: '',
+    ttsEngine: 'qwen'
 })
 
 const loadConfig = (): UiSettings => {
