@@ -21,7 +21,7 @@ export class SpeechRecognitionService {
 
     private getApiKey(): string {
         const store = useUiSettingsStore();
-        return store.asrToken || import.meta.env.VITE_ASRTOKEN || 'sk-a7fd0c335ca94d6a9eb3056d2f7c2cf5';
+        return store.asrToken || import.meta.env.VITE_ASRTOKEN || '';
     }
 
     async start(onResult: (text: string, isFinal: boolean) => void): Promise<void> {

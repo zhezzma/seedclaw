@@ -8,7 +8,8 @@ import {
     MoonIcon,
     ArrowsPointingOutIcon,
     ArrowsPointingInIcon,
-    PlusIcon
+    PlusIcon,
+    PhoneIcon
 } from '@heroicons/vue/24/outline'
 import { useUiSettingsStore } from '../../stores/setting'
 import { useGatewayStore } from '../../stores/gateway'
@@ -30,6 +31,7 @@ const props = defineProps<{
 const emit = defineEmits<{
     (e: 'select-agent', agentId: string): void
     (e: 'create-session'): void
+    (e: 'start-voice-chat'): void
 }>()
 
 const settingsStore = useUiSettingsStore()
@@ -47,6 +49,10 @@ const selectAgent = (agentId: string) => {
 
 const createNewSession = () => {
     emit('create-session')
+}
+
+const startVoiceChat = () => {
+    emit('start-voice-chat')
 }
 
 // Close dropdown when clicking outside
@@ -102,6 +108,9 @@ defineExpose({
         </div>
         <!-- Mobile buttons -->
         <div class="flex-none flex gap-1 lg:hidden">
+            <button @click="startVoiceChat" class="btn btn-ghost btn-circle btn-sm" title="语音对话">
+                <PhoneIcon class="h-5 w-5" />
+            </button>
             <button @click="createNewSession" class="btn btn-ghost btn-circle btn-sm" title="新建对话">
                 <PlusIcon class="h-5 w-5" />
             </button>

@@ -5,10 +5,12 @@ import { useGatewayStore } from '../stores/gateway'
 import { isAgentMainSession, createAgentMainSessionKey } from '../services/includes/session-key-utils'
 import { useChatMessages, type DisplayMessage } from '../composables/useChatMessages'
 import { useTTS } from '../composables/useTTS'
+import { useVoiceChat } from '../composables/useVoiceChat'
 import ChatHeader from './chat/ChatHeader.vue'
 import MessageBubble from './chat/MessageBubble.vue'
 import ChatInput from './chat/ChatInput.vue'
 import MarkdownRenderer from './chat/MarkdownRenderer.vue'
+import VoiceChatOverlay from './chat/VoiceChatOverlay.vue'
 
 const settingsStore = useUiSettingsStore()
 const gatewayStore = useGatewayStore()
@@ -135,6 +137,52 @@ const createNewSession = async () => {
     await gatewayStore.createNewSession()
 }
 
+// Voice Chat
+const handleRecognizedText = async (text: string) => {
+    // Need to send this text to the chat
+    // Just simulating input and send
+    if (chatInputRef.value) {
+        chatInputRef.value.inputText = text
+        await handleSend()
+    } else {
+        // Fallback if ref is missing
+        await gatewayStore.sendMessage(text)
+        scrollToBottom()
+    }
+}
+
+const {
+    isVoiceChatActive,
+    voiceStatus,
+    transcript,
+    currentlySpeakingText,
+    start: startVoiceChat,
+    stop: stopVoiceChat,
+    speakStream,
+    startStream,
+    finishStream
+} = useVoiceChat(handleRecognizedText)
+
+// Watch streaming text to speak
+watch(() => streamingText.value, (newText) => {
+    if (isVoiceChatActive.value && newText) {
+        speakStream(newText)
+    }
+})
+
+// Watch busy state to manage stream life cycle
+watch(isBusy, (busy, prevBusy) => {
+    if (!isVoiceChatActive.value) return
+
+    if (!prevBusy && busy) {
+        // Started generating
+        startStream()
+    } else if (prevBusy && !busy) {
+        // Finished generating
+        finishStream()
+    }
+})
+
 // Close dropdown when clicking outside
 const handleClickOutside = (event: MouseEvent) => {
     chatHeaderRef.value?.handleClickOutside(event)
@@ -167,7 +215,7 @@ watch(() => gatewayStore.connected, (connected) => {
         <!-- Header -->
         <ChatHeader ref="chatHeaderRef" :selected-agent="selectedAgent" :show-agent-dropdown="showAgentDropdown"
             :current-session-name="currentSessionName" :agents="agents" @select-agent="handleSelectAgent"
-            @create-session="createNewSession" />
+            @create-session="createNewSession" @start-voice-chat="startVoiceChat" />
 
         <!-- Main content area -->
         <div class="flex-1 flex flex-col min-h-0">
@@ -220,5 +268,9 @@ watch(() => gatewayStore.connected, (connected) => {
 
         <!-- Input area -->
         <ChatInput ref="chatInputRef" :is-busy="isBusy" :disabled="!gatewayStore.connected" @send="handleSend" />
+
+        <!-- Voice Chat Overlay -->
+        <VoiceChatOverlay :is-open="isVoiceChatActive" :status="voiceStatus" :transcript="transcript"
+            :speaking-text="currentlySpeakingText" @close="stopVoiceChat" />
     </div>
 </template>
