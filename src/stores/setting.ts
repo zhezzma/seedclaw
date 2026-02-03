@@ -10,6 +10,7 @@ export interface UiSettings {
     isSidebarOpen: boolean
     isWideMode: boolean
     showBottomNav: boolean
+    sessionsActiveDays: number
 }
 
 // ==================== Constants ====================
@@ -23,7 +24,8 @@ const getDefaultSettings = (): UiSettings => ({
     theme: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
     isSidebarOpen: false,
     isWideMode: false,
-    showBottomNav: false
+    showBottomNav: false,
+    sessionsActiveDays: 3
 })
 
 const loadConfig = (): UiSettings => {

@@ -2,7 +2,6 @@
 import type { GatewayBrowserClient } from "../gateway";
 import type { SessionsListResult } from "../types";
 import { toNumber } from "../format";
-import { CHAT_SESSIONS_ACTIVE_MINUTES } from "../app-chat";
 
 export type SessionsState = {
     client: GatewayBrowserClient | null;
@@ -87,9 +86,7 @@ export async function patchSession(
     }
     try {
         await state.client.request("sessions.patch", params);
-        await loadSessions(state, {
-            activeMinutes: CHAT_SESSIONS_ACTIVE_MINUTES,
-        });
+
     } catch (err) {
         state.sessionsError = String(err);
     }

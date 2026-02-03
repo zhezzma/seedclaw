@@ -21,8 +21,6 @@ export type ChatHost = {
     refreshSessionsAfterChat: Set<string>;
 };
 
-export const CHAT_SESSIONS_ACTIVE_MINUTES = 120;
-
 export function isChatBusy(host: ChatHost) {
     return host.chatSending || Boolean(host.chatRunId);
 }
@@ -196,10 +194,11 @@ export async function handleSendChat(
 }
 
 export async function refreshChat(host: ChatHost) {
+    const activeMinutes = ((host as any).settings?.sessionsActiveDays ?? 3) * 24 * 60;
     await Promise.all([
         loadChatHistory(host as any),
         loadSessions(host as any, {
-            activeMinutes: CHAT_SESSIONS_ACTIVE_MINUTES,
+            activeMinutes,
         }),
         refreshChatAvatar(host),
     ]);

@@ -116,7 +116,6 @@ export interface GatewayState {
     renameSessionKey: string | null
 }
 
-const CHAT_SESSIONS_ACTIVE_MINUTES = 120
 const autoNamingRuns = new Map<string, { targetSessionKey: string; titleBuffer: string }>()
 
 // ==================== Store ====================
@@ -417,9 +416,8 @@ export const useGatewayStore = defineStore('gateway', {
                     }
 
                     if (shouldRefreshSessions && state === 'final') {
-                        void loadSessions(this as unknown as SessionsState, {
-                            activeMinutes: CHAT_SESSIONS_ACTIVE_MINUTES
-                        })
+
+                        void this.loadSessions()
                     }
                 }
                 if (state === 'final') {
@@ -634,13 +632,15 @@ export const useGatewayStore = defineStore('gateway', {
 
         // ==================== Sessions ====================
         async loadSessions() {
+            const settings = useUiSettingsStore()
             await loadSessions(this as unknown as SessionsState, {
-                activeMinutes: CHAT_SESSIONS_ACTIVE_MINUTES
+                activeMinutes: settings.sessionsActiveDays * 24 * 60
             })
         },
 
         async patchSession(key: string, patch: { label?: string | null }) {
             await patchSession(this as unknown as SessionsState, key, patch)
+            await this.loadSessions();
         },
 
         async deleteSession(key: string) {
