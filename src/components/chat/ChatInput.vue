@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import {
     CameraIcon,
     MicrophoneIcon,
@@ -8,7 +9,8 @@ import {
     ChevronUpIcon,
     CommandLineIcon,
     CpuChipIcon,
-    SparklesIcon
+    SparklesIcon,
+    XMarkIcon
 } from '@heroicons/vue/24/outline'
 import { useChatInput, COMMANDS, MODELS } from '../../composables/useChatInput'
 import { SpeechRecognitionService } from '../../utils/asr/speechRecognition'
@@ -29,14 +31,32 @@ const {
     selectedModel,
     commandDropdownOpen,
     modelDropdownOpen,
+    attachments,
     selectCommand,
     selectModel,
     handleMicClick,
     handleInputFocus,
     stopRecording,
     handleKeydown,
-    closeDropdowns
+    closeDropdowns,
+    addAttachment,
+    removeAttachment
 } = useChatInput()
+
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
+const triggerFileInput = () => {
+    fileInputRef.value?.click()
+}
+
+const handleFileChange = (e: Event) => {
+    const target = e.target as HTMLInputElement
+    if (target.files && target.files.length > 0) {
+        addAttachment(target.files[0])
+        // Reset input so same file can be selected again if needed
+        target.value = ''
+    }
+}
 
 const onSend = () => {
     stopRecording();
@@ -59,6 +79,7 @@ defineExpose({
     inputText,
     isThinking,
     selectedModel,
+    attachments,
     handleToolbarClickOutside
 })
 </script>
@@ -67,6 +88,39 @@ defineExpose({
     <div class="p-4 border-t border-base-300 bg-base-100">
         <div
             class="bg-base-200/50 rounded-[2rem] p-2 pr-2 shadow-sm border border-base-300/50 flex flex-col gap-1 relative focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/50 transition-all duration-300">
+            <!-- Preview Area -->
+            <!-- Preview Area -->
+            <div v-if="attachments.length > 0"
+                class="flex gap-2 px-3 pt-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-base-300 scrollbar-track-transparent">
+                <div v-for="att in attachments" :key="att.id" class="relative group flex-shrink-0">
+                    <!-- Image Preview -->
+                    <div v-if="att.mimeType.startsWith('image/')" class="relative">
+                        <img :src="att.dataUrl" class="h-16 w-16 object-cover rounded-lg border border-base-300"
+                            :title="att.name" />
+                    </div>
+                    <!-- File Preview -->
+                    <div v-else
+                        class="h-16 w-16 bg-base-300 rounded-lg flex flex-col items-center justify-center p-1 border border-base-content/10"
+                        :title="att.name">
+                        <!-- Simple Document Icon using Heroicons path (or generic placeholder) -->
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                            stroke="currentColor" class="w-8 h-8 opacity-50">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                        </svg>
+                        <span class="text-[9px] w-full truncate text-center opacity-70 leading-tight mt-0.5">{{ att.name
+                        }}</span>
+                    </div>
+
+                    <!-- Delete Button: Always visible on mobile (using forced opacity or just remove opacity class). 
+                         Changed color to bg-base-100 (white/dark) with shadow and border for better visibility without being 'red'. -->
+                    <button @click="removeAttachment(att.id)"
+                        class="absolute -top-1.5 -right-1.5 btn btn-circle btn-xs bg-base-100 hover:bg-base-200 border-base-300 shadow-sm text-base-content/70 z-10 transition-transform hover:scale-110">
+                        <XMarkIcon class="h-3 w-3" />
+                    </button>
+                </div>
+            </div>
+
             <!-- Input Top -->
             <textarea v-model="inputText" rows="1" placeholder="发消息或输入'/'选择技能"
                 class="textarea textarea-ghost w-full resize-none focus:outline-none focus:bg-transparent text-base min-h-[44px] max-h-[200px] px-3 py-3 leading-6 placeholder:text-base-content/40 hide-scrollbar"
@@ -79,7 +133,8 @@ defineExpose({
                 <!-- Left Actions -->
                 <div class="flex items-center gap-1 text-base-content/70">
                     <!-- Attach -->
-                    <button
+                    <input type="file" ref="fileInputRef" class="hidden" @change="handleFileChange" />
+                    <button @click="triggerFileInput"
                         class="btn btn-ghost btn-circle btn-sm hover:bg-base-300 hover:text-primary transition-colors"
                         title="上传附件">
                         <CameraIcon class="h-5 w-5" />
@@ -149,7 +204,7 @@ defineExpose({
                     <!-- Send -->
                     <button @click="onSend"
                         class="btn btn-circle btn-sm btn-primary shadow-md hover:shadow-lg transition-all hover:scale-105 active:scale-95"
-                        :disabled="disabled || (!inputText.trim() && !isBusy)">
+                        :disabled="disabled || ((!inputText.trim() && attachments.length === 0) && !isBusy)">
                         <StopIcon v-if="isBusy" class="h-5 w-5" />
                         <PaperAirplaneIcon v-else class="h-5 w-5 -rotate-45 translate-x-0.5 translate-y-px" />
                     </button>

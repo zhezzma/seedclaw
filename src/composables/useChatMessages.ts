@@ -3,7 +3,7 @@ import { useGatewayStore } from '../stores/gateway'
 
 // Types for internal display
 export interface DisplayBlock {
-    type: 'text' | 'tool'
+    type: 'text' | 'tool' | 'image' | 'file'
     text?: string
     toolCallId?: string
     toolName?: string
@@ -11,6 +11,12 @@ export interface DisplayBlock {
     toolResult?: any
     toolState?: 'calling' | 'success' | 'error'
     toolError?: string
+    source?: {
+        type: 'base64' | 'url'
+        media_type?: string
+        data?: string
+        name?: string
+    }
 }
 
 export interface DisplayMessage {
@@ -84,6 +90,17 @@ export function useChatMessages(messagesContainerRef: Ref<HTMLDivElement | null>
                         })
                         // Register location
                         toolCallRegistry.set(item.id, { msgIdx: targetMsgIdx, blockIdx: baseBlockIdx + blocks.length - 1 })
+                    } else if (item.type === 'image') {
+                        blocks.push({
+                            type: 'image',
+                            source: item.source
+                        })
+                    } else if (item.type === 'file') {
+                        blocks.push({
+                            type: 'file',
+                            source: item.source,
+                            text: item.text // Optional fallback text
+                        })
                     }
                 }
             } else if (typeof msg.content === 'string') {

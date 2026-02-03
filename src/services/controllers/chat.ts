@@ -48,11 +48,18 @@ export async function loadChatHistory(state: ChatState) {
 }
 
 function dataUrlToBase64(dataUrl: string): { content: string; mimeType: string } | null {
-    const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
-    if (!match) {
+    // Match data:MIMETYPE;base64,DATA. MIMETYPE can contain ; characters (e.g. charset).
+    // We look for the ";base64," marker.
+    const marker = ";base64,";
+    const markerIndex = dataUrl.indexOf(marker);
+    if (markerIndex === -1 || !dataUrl.startsWith("data:")) {
         return null;
     }
-    return { mimeType: match[1], content: match[2] };
+
+    const mimeType = dataUrl.substring(5, markerIndex);
+    const content = dataUrl.substring(markerIndex + marker.length);
+
+    return { mimeType, content };
 }
 
 export async function sendChatMessage(
@@ -76,13 +83,21 @@ export async function sendChatMessage(
     if (msg) {
         contentBlocks.push({ type: "text", text: msg });
     }
-    // Add image previews to the message for display
+    // Add image/file previews to the message for display
     if (hasAttachments) {
         for (const att of attachments) {
-            contentBlocks.push({
-                type: "image",
-                source: { type: "base64", media_type: att.mimeType, data: att.dataUrl },
-            });
+            if (att.mimeType.startsWith("image/")) {
+                contentBlocks.push({
+                    type: "image",
+                    source: { type: "base64", media_type: att.mimeType, data: att.dataUrl },
+                });
+            } else {
+                contentBlocks.push({
+                    type: "file",
+                    text: `[File: ${att.name || "attachment"}]`, // Fallback text representation
+                    source: { type: "base64", media_type: att.mimeType, data: att.dataUrl, name: att.name },
+                });
+            }
         }
     }
 
@@ -110,10 +125,12 @@ export async function sendChatMessage(
                 if (!parsed) {
                     return null;
                 }
+                const isImage = att.mimeType.startsWith("image/");
                 return {
-                    type: "image",
+                    type: isImage ? "image" : "file",
                     mimeType: parsed.mimeType,
                     content: parsed.content,
+                    name: att.name
                 };
             })
             .filter((a): a is NonNullable<typeof a> => a !== null)

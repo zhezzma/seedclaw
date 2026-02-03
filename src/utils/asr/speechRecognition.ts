@@ -158,7 +158,7 @@ export class SpeechRecognitionService {
                 task_group: 'audio',
                 task: 'asr',
                 function: 'recognition',
-                model: 'fun-asr-realtime',
+                model: 'fun-asr-realtime-2025-11-07',
                 parameters: {
                     sample_rate: 16000,
                     format: 'pcm'

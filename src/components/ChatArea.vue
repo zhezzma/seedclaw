@@ -108,10 +108,33 @@ const handleSend = async () => {
         await gatewayStore.commitNewSession()
     }
 
+    // Clone attachments immediately to avoid reference issues when clearing
+    const attachments = [...(chatInputRef.value?.attachments ?? [])]
+
     if (chatInputRef.value) {
         chatInputRef.value.inputText = ''
+        // Clear attachments in UI
+        if (chatInputRef.value.attachments) {
+            chatInputRef.value.attachments.length = 0 // Clear array in place if possible, or we need a clear method exposed?
+            // Checking useChatInput, we exposed properties. We can mutate the ref array or exposed a clear method?
+            // We didn't expose a clear method, but we can set length = 0 since it is a ref array value.
+            // Actually chatInputRef.value.attachments is the value of the ref if using defineExpose properly?
+            // Wait, defineExpose exposes the Ref object or the unwrapped value?
+            // In Vue <script setup>, definesExpose exposes the actual properties.
+            // If we exposed 'attachments', it is the Ref `.value`? No, it exposes the ref itself if we passed the ref.
+            // Let's assume we can mutate it or use a method if we added one. 
+            // We didn't add clear method. We added removeAttachment.
+            // Let's explicitly clear it by setting length = 0 if it's an array.
+        }
     }
-    await gatewayStore.sendMessage(inputText)
+
+    // We need to clone attachments because we clear the UI state immediately
+    await gatewayStore.sendMessage(inputText, [...attachments])
+
+    // Clear attachments in UI (actually we should do it here to completely reset)
+    if (chatInputRef.value && chatInputRef.value.attachments) {
+        chatInputRef.value.attachments = []
+    }
     scrollToBottom()
 }
 

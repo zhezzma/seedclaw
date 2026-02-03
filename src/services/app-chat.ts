@@ -150,15 +150,15 @@ export function removeQueuedMessage(host: ChatHost, id: string) {
 export async function handleSendChat(
     host: ChatHost,
     messageOverride?: string,
-    opts?: { restoreDraft?: boolean },
+    opts?: { restoreDraft?: boolean; attachments?: ChatAttachment[] },
 ) {
     if (!host.connected) {
         return;
     }
     const previousDraft = host.chatMessage;
     const message = (messageOverride ?? host.chatMessage).trim();
-    const attachments = host.chatAttachments ?? [];
-    const attachmentsToSend = messageOverride == null ? attachments : [];
+    const attachments = opts?.attachments ?? host.chatAttachments ?? [];
+    const attachmentsToSend = messageOverride == null ? attachments : (opts?.attachments ?? []);
     const hasAttachments = attachmentsToSend.length > 0;
 
     // Allow sending with just attachments (no message text required)

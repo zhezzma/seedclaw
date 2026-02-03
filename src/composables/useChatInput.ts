@@ -151,6 +151,31 @@ export function useChatInput() {
         modelDropdownOpen.value = false
     }
 
+    // Attachments
+    const attachments = ref<{ id: string; name: string; dataUrl: string; mimeType: string }[]>([])
+
+    const addAttachment = (file: File) => {
+        // Allow all files
+        // if (!file.type.startsWith('image/')) return 
+
+        const reader = new FileReader()
+        reader.onload = (e) => {
+            if (e.target?.result && typeof e.target.result === 'string') {
+                attachments.value.push({
+                    id: crypto.randomUUID(),
+                    name: file.name,
+                    dataUrl: e.target.result,
+                    mimeType: file.type || 'application/octet-stream'
+                })
+            }
+        }
+        reader.readAsDataURL(file)
+    }
+
+    const removeAttachment = (id: string) => {
+        attachments.value = attachments.value.filter(a => a.id !== id)
+    }
+
     return {
         inputText,
         isRecording,
@@ -158,13 +183,16 @@ export function useChatInput() {
         selectedModel,
         commandDropdownOpen,
         modelDropdownOpen,
+        attachments, // Export
         selectCommand,
         selectModel,
         handleMicClick,
-        handleInputFocus, // Export this
+        handleInputFocus,
         handleKeydown,
         closeDropdowns,
-        stopRecording, // Export this
+        stopRecording,
+        addAttachment, // Export
+        removeAttachment, // Export
         commands: COMMANDS,
         models: MODELS
     }

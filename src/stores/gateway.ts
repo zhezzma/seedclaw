@@ -525,8 +525,8 @@ export const useGatewayStore = defineStore('gateway', {
         },
 
         // ==================== Chat ====================
-        async sendMessage(message?: string) {
-            await handleSendChat(this as unknown as ChatHost, message)
+        async sendMessage(message?: string, attachments?: ChatAttachment[]) {
+            await handleSendChat(this as unknown as ChatHost, message, { attachments })
         },
 
         async abortChat() {
