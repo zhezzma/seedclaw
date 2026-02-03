@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 .agent
 debug.keystore
+
+
+.env

@@ -11,6 +11,7 @@ import {
     SparklesIcon
 } from '@heroicons/vue/24/outline'
 import { useChatInput, COMMANDS, MODELS } from '../../composables/useChatInput'
+import { SpeechRecognitionService } from '../../utils/asr/speechRecognition'
 
 const props = defineProps<{
     isBusy: boolean
@@ -31,11 +32,14 @@ const {
     selectCommand,
     selectModel,
     handleMicClick,
+    handleInputFocus,
+    stopRecording,
     handleKeydown,
     closeDropdowns
 } = useChatInput()
 
 const onSend = () => {
+    stopRecording();
     emit('send')
 }
 
@@ -66,7 +70,7 @@ defineExpose({
             <!-- Input Top -->
             <textarea v-model="inputText" rows="1" placeholder="发消息或输入'/'选择技能"
                 class="textarea textarea-ghost w-full resize-none focus:outline-none focus:bg-transparent text-base min-h-[44px] max-h-[200px] px-3 py-3 leading-6 placeholder:text-base-content/40 hide-scrollbar"
-                @keydown="handleInputKeydown"
+                @keydown="handleInputKeydown" @focus="handleInputFocus"
                 @input="(e) => { const target = e.target as HTMLTextAreaElement; target.style.height = 'auto'; target.style.height = target.scrollHeight + 'px' }"
                 :disabled="disabled"></textarea>
 

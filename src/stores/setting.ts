@@ -11,6 +11,7 @@ export interface UiSettings {
     isWideMode: boolean
     showBottomNav: boolean
     sessionsActiveDays: number
+    asrToken: string // ASR API Key
 }
 
 // ==================== Constants ====================
@@ -25,7 +26,8 @@ const getDefaultSettings = (): UiSettings => ({
     isSidebarOpen: false,
     isWideMode: false,
     showBottomNav: false,
-    sessionsActiveDays: 3
+    sessionsActiveDays: 3,
+    asrToken: ''
 })
 
 const loadConfig = (): UiSettings => {

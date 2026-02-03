@@ -18,22 +18,28 @@ const configStore = useUiSettingsStore()
 
 const editForm = ref({
     gatewayUrl: '',
-    token: ''
+    token: '',
+    sessionsActiveDays: 3,
+    asrToken: ''
 })
 
 const openConnectionModal = () => {
     editForm.value = {
         gatewayUrl: configStore.gatewayUrl,
-        token: configStore.token
+        token: configStore.token,
+        sessionsActiveDays: configStore.sessionsActiveDays,
+        asrToken: configStore.asrToken
     }
-    const modal = document.getElementById('connection_modal') as HTMLDialogElement
+    const modal = document.getElementById('basic_settings_modal') as HTMLDialogElement
     if (modal) modal.showModal()
 }
 
 const saveConnection = () => {
     configStore.save({
         gatewayUrl: editForm.value.gatewayUrl,
-        token: editForm.value.token
+        token: editForm.value.token,
+        sessionsActiveDays: Number(editForm.value.sessionsActiveDays),
+        asrToken: editForm.value.asrToken
     })
     // Force reload to apply changes if needed, or just let store reactivity handle it
     // For gateway URL changes, we might want to reconnect
@@ -73,23 +79,22 @@ const logout = () => {
             <div class="max-w-2xl mx-auto p-4 space-y-6">
 
 
-                <!-- Connection Settings -->
                 <div class="space-y-2">
-                    <h4 class="text-sm font-medium text-base-content/60 px-2">连接设置</h4>
+                    <h4 class="text-sm font-medium text-base-content/60 px-2">基本设置</h4>
                     <div class="card bg-base-100 shadow-sm">
                         <ul class="divide-y divide-base-300">
-                            <li class="flex items-center justify-between p-4">
+                            <li class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors"
+                                @click="openConnectionModal">
                                 <div class="flex items-center gap-3">
                                     <ServerIcon class="h-5 w-5 text-base-content/60" />
                                     <div>
-                                        <span class="font-medium">网关地址</span>
+                                        <span class="font-medium">基本设置</span>
                                         <p class="text-xs text-base-content/50 truncate max-w-48">{{
                                             configStore.gatewayUrl
-                                            }}</p>
+                                        }}</p>
                                     </div>
                                 </div>
-                                <span class="text-sm text-primary cursor-pointer hover:underline"
-                                    @click="openConnectionModal">更换</span>
+                                <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
                             </li>
                         </ul>
                     </div>
@@ -112,7 +117,7 @@ const logout = () => {
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm text-base-content/60">{{ configStore.isDark ? '深色' : '浅色'
-                                        }}</span>
+                                    }}</span>
                                     <input type="checkbox" class="toggle toggle-primary" :checked="configStore.isDark"
                                         @change="configStore.toggleTheme()" />
                                 </div>
@@ -163,10 +168,10 @@ const logout = () => {
         </div>
     </div>
 
-    <!-- Connection Settings Modal -->
-    <dialog id="connection_modal" class="modal">
+    <!-- Basic Settings Modal -->
+    <dialog id="basic_settings_modal" class="modal">
         <div class="modal-box">
-            <h3 class="font-bold text-lg mb-4">连接设置</h3>
+            <h3 class="font-bold text-lg mb-4">基本设置</h3>
             <div class="form-control w-full space-y-4">
                 <div>
                     <label class="label">
@@ -181,6 +186,25 @@ const logout = () => {
                     </label>
                     <input type="text" v-model="editForm.token" placeholder="请输入您的 Token"
                         class="input input-bordered w-full" />
+                </div>
+                <div>
+                    <label class="label">
+                        <span class="label-text">会话活跃天数</span>
+                    </label>
+                    <input type="number" v-model="editForm.sessionsActiveDays" class="input input-bordered w-full" />
+                    <label class="label">
+                        <span class="label-text-alt">超过此天数的会话将不会被读取</span>
+                    </label>
+                </div>
+                <div>
+                    <label class="label">
+                        <span class="label-text">ASR API Key</span>
+                    </label>
+                    <input type="password" v-model="editForm.asrToken" placeholder="sk-..."
+                        class="input input-bordered w-full" />
+                    <label class="label">
+                        <span class="label-text-alt opacity-50">留空则使用默认配置</span>
+                    </label>
                 </div>
             </div>
             <div class="modal-action">
