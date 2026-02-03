@@ -4,6 +4,7 @@ import md from '../utils/markdown'
 
 const props = defineProps<{
     content: string
+    asUser?: boolean
 }>()
 
 const renderedHtml = ref('')
@@ -32,7 +33,16 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="markdown-body " v-html="renderedHtml"></div>
+    <div class="markdown-body" :class="{ 'user-message': asUser }" v-html="renderedHtml"></div>
 </template>
 
-<style></style>
+<style scoped>
+/* Force white text for user messages, overriding markdown-body specifics */
+.user-message {
+    color: white !important;
+}
+
+.user-message :deep(*) {
+    color: white !important;
+}
+</style>

@@ -113,6 +113,7 @@ export interface GatewayState {
     // Misc
     onboarding: boolean
     isNewSessionPending: boolean
+    renameSessionKey: string | null
 }
 
 const CHAT_SESSIONS_ACTIVE_MINUTES = 120
@@ -206,7 +207,8 @@ export const useGatewayStore = defineStore('gateway', {
 
         // Misc
         onboarding: false,
-        isNewSessionPending: false
+        isNewSessionPending: false,
+        renameSessionKey: null,
     }),
 
     getters: {
@@ -342,24 +344,27 @@ export const useGatewayStore = defineStore('gateway', {
                             title = title.slice(1, -1).trim()
                         }
 
-                        autoNamingRuns.delete(payload.runId)
+                        autoNamingRuns.delete(payload.runId);
 
-                            // Execute async update sequentially
-                            ; (async () => {
-                                try {
-                                    // wrapper: Use force option to skip confirmation
-                                    await deleteSession(this as unknown as SessionsState, 'agent:main:session:name')
-                                } catch (e) {
-                                    console.warn('Failed to cleanup auto-naming session', e)
+                        // Execute async update sequentially
+                        (async () => {
+                            try {
+                                // wrapper: Use force option to skip confirmation
+                                if (this.renameSessionKey) {
+                                    await deleteSession(this as unknown as SessionsState, this.renameSessionKey)
                                 }
 
-                                if (title) {
-                                    // patchSession internally calls loadSessions
-                                    await this.patchSession(ctx.targetSessionKey, { label: title })
-                                } else {
-                                    await this.loadSessions()
-                                }
-                            })()
+                            } catch (e) {
+                                console.warn('Failed to cleanup auto-naming session', e)
+                            }
+
+                            if (title) {
+                                // patchSession internally calls loadSessions
+                                await this.patchSession(ctx.targetSessionKey, { label: title })
+                            } else {
+                                await this.loadSessions()
+                            }
+                        })()
                     } else if (payload.state === 'error' || payload.state === 'aborted') {
                         autoNamingRuns.delete(payload.runId)
                     }
@@ -605,9 +610,10 @@ export const useGatewayStore = defineStore('gateway', {
             autoNamingRuns.set(runId, { targetSessionKey: targetKey, titleBuffer: '' })
 
             try {
+                this.renameSessionKey = `agent:${this.assistantAgentId}:session:rename`
                 // Request title generation from agent:main:session:name
                 await this.client.request('chat.send', {
-                    sessionKey: `agent:${this.assistantAgentId}:session:rename`,
+                    sessionKey: this.renameSessionKey,
                     message: `Generate a short title (max 6 words) for this conversation.\nUser: ${userText.substring(0, 500)}\nAssistant: ${asstText.substring(0, 500)}`,
                     deliver: false,
                     idempotencyKey: runId

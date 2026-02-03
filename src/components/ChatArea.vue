@@ -23,6 +23,7 @@ import { useUiSettingsStore } from '../stores/setting'
 import { useGatewayStore } from '../stores/gateway'
 import { isAgentMainSession, createAgentMainSessionKey } from '../services/includes/session-key-utils'
 import MarkdownRenderer from './MarkdownRenderer.vue'
+import ToolInvocation from './chat/ToolInvocation.vue'
 
 const inputText = ref('')
 const dropdownRef = ref<HTMLDetailsElement | null>(null)
@@ -51,12 +52,95 @@ const models = [
     { label: 'GPT-4o', value: 'gpt4' }
 ]
 
-// Computed properties for chat
-const messages = computed(() => gatewayStore.chatMessages as Array<{
+// Types for internal display
+interface DisplayBlock {
+    type: 'text' | 'tool'
+    text?: string
+    toolCallId?: string
+    toolName?: string
+    toolArgs?: any
+    toolResult?: any
+    toolState?: 'calling' | 'success' | 'error'
+    toolError?: string
+}
+
+interface DisplayMessage {
     role: 'user' | 'assistant'
-    content: unknown
+    blocks: DisplayBlock[]
     timestamp?: number
-}>)
+}
+
+// Transform raw messages into display messages with merged tool results
+const processedMessages = computed(() => {
+    const rawMessages = gatewayStore.chatMessages as any[]
+    const displayMessages: DisplayMessage[] = []
+
+    // map toolCallId -> { messageIndex, blockIndex }
+    const toolCallRegistry = new Map<string, { msgIdx: number, blockIdx: number }>()
+
+    for (const msg of rawMessages) {
+        if (msg.role === 'toolResult') {
+            // Find corresponding tool call and update it
+            const reg = toolCallRegistry.get(msg.toolCallId)
+            if (reg) {
+                const targetBlock = displayMessages[reg.msgIdx].blocks[reg.blockIdx]
+                if (targetBlock && targetBlock.type === 'tool') {
+                    targetBlock.toolResult = msg.content
+
+                    // Simple error detection logic (adjust based on your actual error format)
+                    let isError = false
+                    let errorMsg = ''
+
+                    if (msg.isError) {
+                        isError = true
+                        errorMsg = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+                    } else if (msg.details?.status === 'error') {
+                        isError = true
+                        errorMsg = msg.details.error || 'Unknown error'
+                    }
+
+                    targetBlock.toolState = isError ? 'error' : 'success'
+                    targetBlock.toolError = errorMsg
+                }
+            }
+            // Do not add toolResult as a separate message
+            continue
+        }
+
+        const blocks: DisplayBlock[] = []
+
+        if (Array.isArray(msg.content)) {
+            for (const item of msg.content) {
+                if (item.type === 'text') {
+                    if (item.text) blocks.push({ type: 'text', text: item.text })
+                } else if (item.type === 'toolCall') {
+                    blocks.push({
+                        type: 'tool',
+                        toolCallId: item.id,
+                        toolName: item.name,
+                        toolArgs: item.arguments,
+                        toolState: 'calling' // Default state until result found
+                    })
+                    // Register location for future result merging
+                    // Note: We use the index in the *current* displayMessages array
+                    toolCallRegistry.set(item.id, { msgIdx: displayMessages.length, blockIdx: blocks.length - 1 })
+                }
+            }
+        } else if (typeof msg.content === 'string') {
+            blocks.push({ type: 'text', text: msg.content })
+        }
+
+        if (blocks.length > 0) {
+            displayMessages.push({
+                role: msg.role as 'user' | 'assistant',
+                blocks,
+                timestamp: msg.timestamp
+            })
+        }
+    }
+
+    return displayMessages
+})
 
 const isLoading = computed(() => gatewayStore.chatLoading)
 const isBusy = computed(() => gatewayStore.isChatBusy)
@@ -96,18 +180,6 @@ const currentSessionName = computed(() => {
     const session = sessions.find((s: any) => s.key === sessionKey)
     return session?.displayName || session?.label || 'Chat Session'
 })
-
-// Extract text from message content
-const extractMessageText = (content: unknown): string => {
-    if (typeof content === 'string') return content
-    if (Array.isArray(content)) {
-        return content
-            .filter((block: any) => block.type === 'text')
-            .map((block: any) => block.text || '')
-            .join('\n')
-    }
-    return ''
-}
 
 // Format timestamp
 const formatTime = (timestamp?: number): string => {
@@ -212,7 +284,7 @@ const scrollToBottom = () => {
     })
 }
 
-watch(messages, scrollToBottom)
+watch(processedMessages, scrollToBottom, { deep: true })
 watch(() => streamingText.value, scrollToBottom)
 watch(isLoading, (newVal, oldVal) => {
     if (!newVal && oldVal) {
@@ -294,9 +366,6 @@ watch(() => gatewayStore.connected, (connected) => {
                                 <CheckIcon v-if="selectedAgentId === agent.id" class="h-4 w-4" />
                             </a>
                         </li>
-                        <li v-if="agents.length === 0">
-                            <span class="text-base-content/50">加载中...</span>
-                        </li>
                     </ul>
                 </details>
                 <!-- Session name (for specific sessions like agent:xxx:session:xxx) -->
@@ -315,12 +384,6 @@ watch(() => gatewayStore.connected, (connected) => {
             </div>
             <!-- Mobile buttons -->
             <div class="flex-none flex gap-1 lg:hidden">
-                <!-- <button class="btn btn-ghost btn-circle btn-sm">
-                    <SpeakerXMarkIcon class="h-5 w-5" />
-                </button>
-                <button class="btn btn-ghost btn-circle btn-sm">
-                    <PhoneIcon class="h-5 w-5" />
-                </button> -->
                 <button @click="createNewSession" class="btn btn-ghost btn-circle btn-sm" title="新建对话">
                     <PlusIcon class="h-5 w-5" />
                 </button>
@@ -342,12 +405,13 @@ watch(() => gatewayStore.connected, (connected) => {
         <!-- Main content area -->
         <div class="flex-1 flex flex-col min-h-0">
             <!-- Loading state -->
-            <div v-if="isLoading && messages.length === 0" class="flex-1 flex items-center justify-center">
+            <div v-if="isLoading && processedMessages.length === 0" class="flex-1 flex items-center justify-center">
                 <span class="loading loading-spinner loading-lg"></span>
             </div>
 
             <!-- Welcome message when no messages -->
-            <div v-else-if="messages.length === 0" class="flex-1 flex flex-col items-center justify-center p-4">
+            <div v-else-if="processedMessages.length === 0"
+                class="flex-1 flex flex-col items-center justify-center p-4">
                 <div class="text-center">
                     <h1 class="text-3xl font-bold mb-2">Hi, 欢迎使用 Seedclaw</h1>
                     <p class="text-base-content/60">我是 Seedclaw，聊天、写作、搜索都在行，助你灵感无限</p>
@@ -357,7 +421,7 @@ watch(() => gatewayStore.connected, (connected) => {
             <!-- Chat messages - only this area scrolls -->
             <div v-else ref="messagesContainerRef" class="flex-1 overflow-y-auto p-4">
                 <div class="space-y-4 mx-auto w-full" :class="{ 'max-w-3xl': !settingsStore.isWideMode }">
-                    <div v-for="(msg, index) in messages" :key="index" class="chat"
+                    <div v-for="(msg, index) in processedMessages" :key="index" class="chat"
                         :class="msg.role === 'user' ? 'chat-end' : 'chat-start'">
                         <!-- Avatar -->
                         <div class="chat-image avatar hidden md:block">
@@ -383,13 +447,15 @@ watch(() => gatewayStore.connected, (connected) => {
                         <!-- Bubble -->
                         <div class="chat-bubble whitespace-pre-wrap"
                             :class="msg.role === 'user' ? 'chat-bubble-primary' : 'w-full'">
-                            <div class="whitespace-normal">
-                                <div v-if="msg.role === 'user'">
-                                    {{ extractMessageText(msg.content) }}
-                                </div>
-                                <div v-else>
-                                    <MarkdownRenderer :content="extractMessageText(msg.content)" />
-                                </div>
+                            <div class="whitespace-normal flex flex-col gap-2">
+                                <template v-for="(block, bIndex) in msg.blocks" :key="bIndex">
+                                    <MarkdownRenderer v-if="block.type === 'text'" :content="block.text || ''"
+                                        :asUser="msg.role === 'user'" />
+                                    <ToolInvocation v-else-if="block.type === 'tool'"
+                                        :toolName="block.toolName || 'Unknown Tool'" :args="block.toolArgs || {}"
+                                        :result="block.toolResult" :state="block.toolState"
+                                        :errorMessage="block.toolError" />
+                                </template>
                             </div>
                         </div>
                     </div>
