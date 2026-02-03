@@ -3,7 +3,7 @@ import { createPinia } from 'pinia'
 import './style/main.css'
 import App from './App.vue'
 import router from './router'
-import { initializeMermaid } from "./utils/mermaid-render";
+import { initializeMermaid } from "./utils/markdown/mermaid-render";
 const app = createApp(App)
 
 app.use(createPinia())

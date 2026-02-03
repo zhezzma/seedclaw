@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
-import md from '../utils/markdown'
+import md from '../utils/markdown/markdown'
 
 const props = defineProps<{
     content: string

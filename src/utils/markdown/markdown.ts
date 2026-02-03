@@ -1,7 +1,7 @@
 import markdownWorker from './markdown-worker-wrapper'
 import { renderMermaidDiagrams } from "./mermaid-render.ts"
 import { createMarkdownItInstance } from './markdown-config'
-import { useToastStore } from '../stores/toast'
+import { useToastStore } from '../../stores/toast'
 
 
 

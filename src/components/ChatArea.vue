@@ -17,13 +17,16 @@ import {
     CommandLineIcon,
     CpuChipIcon,
     LightBulbIcon,
-    SparklesIcon
+    SparklesIcon,
+    ClipboardIcon,
+    SpeakerWaveIcon
 } from '@heroicons/vue/24/outline'
 import { useUiSettingsStore } from '../stores/setting'
 import { useGatewayStore } from '../stores/gateway'
 import { isAgentMainSession, createAgentMainSessionKey } from '../services/includes/session-key-utils'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ToolInvocation from './chat/ToolInvocation.vue'
+import { EdgeTTS } from '../utils/tts/edge-tts'
 
 const inputText = ref('')
 const dropdownRef = ref<HTMLDetailsElement | null>(null)
@@ -37,6 +40,8 @@ const isThinking = ref(true)
 const selectedModel = ref('glm')
 const commandDropdownOpen = ref(false)
 const modelDropdownOpen = ref(false)
+const currentReadingMsgId = ref<string | null>(null)
+const currentAudio = ref<HTMLAudioElement | null>(null)
 
 const commands = [
     { label: '/new (新建)', value: '/new' },
@@ -65,6 +70,7 @@ interface DisplayBlock {
 }
 
 interface DisplayMessage {
+    id: string
     role: 'user' | 'assistant'
     blocks: DisplayBlock[]
     timestamp?: number
@@ -83,31 +89,39 @@ const processedMessages = computed(() => {
             // Find corresponding tool call and update it
             const reg = toolCallRegistry.get(msg.toolCallId)
             if (reg) {
-                const targetBlock = displayMessages[reg.msgIdx].blocks[reg.blockIdx]
-                if (targetBlock && targetBlock.type === 'tool') {
-                    targetBlock.toolResult = msg.content
+                const targetMsg = displayMessages[reg.msgIdx]
+                if (targetMsg) {
+                    const targetBlock = targetMsg.blocks[reg.blockIdx]
+                    if (targetBlock && targetBlock.type === 'tool') {
+                        targetBlock.toolResult = msg.content
 
-                    // Simple error detection logic (adjust based on your actual error format)
-                    let isError = false
-                    let errorMsg = ''
+                        // Simple error detection logic
+                        let isError = false
+                        let errorMsg = ''
 
-                    if (msg.isError) {
-                        isError = true
-                        errorMsg = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
-                    } else if (msg.details?.status === 'error') {
-                        isError = true
-                        errorMsg = msg.details.error || 'Unknown error'
+                        if (msg.isError) {
+                            isError = true
+                            errorMsg = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+                        } else if (msg.details?.status === 'error') {
+                            isError = true
+                            errorMsg = msg.details.error || 'Unknown error'
+                        }
+
+                        targetBlock.toolState = isError ? 'error' : 'success'
+                        targetBlock.toolError = errorMsg
                     }
-
-                    targetBlock.toolState = isError ? 'error' : 'success'
-                    targetBlock.toolError = errorMsg
                 }
             }
-            // Do not add toolResult as a separate message
             continue
         }
 
         const blocks: DisplayBlock[] = []
+        // Determine if we should merge with the previous message
+        const lastMsg = displayMessages.length > 0 ? displayMessages[displayMessages.length - 1] : null
+        const shouldMerge = lastMsg && lastMsg.role === 'assistant' && msg.role === 'assistant'
+
+        const targetMsgIdx = shouldMerge ? displayMessages.length - 1 : displayMessages.length
+        const baseBlockIdx = shouldMerge ? lastMsg.blocks.length : 0
 
         if (Array.isArray(msg.content)) {
             for (const item of msg.content) {
@@ -119,11 +133,10 @@ const processedMessages = computed(() => {
                         toolCallId: item.id,
                         toolName: item.name,
                         toolArgs: item.arguments,
-                        toolState: 'calling' // Default state until result found
+                        toolState: 'calling'
                     })
-                    // Register location for future result merging
-                    // Note: We use the index in the *current* displayMessages array
-                    toolCallRegistry.set(item.id, { msgIdx: displayMessages.length, blockIdx: blocks.length - 1 })
+                    // Register location
+                    toolCallRegistry.set(item.id, { msgIdx: targetMsgIdx, blockIdx: baseBlockIdx + blocks.length - 1 })
                 }
             }
         } else if (typeof msg.content === 'string') {
@@ -131,11 +144,16 @@ const processedMessages = computed(() => {
         }
 
         if (blocks.length > 0) {
-            displayMessages.push({
-                role: msg.role as 'user' | 'assistant',
-                blocks,
-                timestamp: msg.timestamp
-            })
+            if (shouldMerge && lastMsg) {
+                lastMsg.blocks.push(...blocks)
+            } else {
+                displayMessages.push({
+                    id: msg.id || `msg-${Date.now()}-${displayMessages.length}`,
+                    role: msg.role as 'user' | 'assistant',
+                    blocks,
+                    timestamp: msg.timestamp
+                })
+            }
         }
     }
 
@@ -233,6 +251,172 @@ const handleSend = async () => {
     inputText.value = ''
     await gatewayStore.sendMessage(text)
     scrollToBottom()
+}
+
+const copyMessage = (msg: DisplayMessage) => {
+    const text = msg.blocks
+        .filter(b => b.type === 'text')
+        .map(b => b.text || '')
+        .join('\n')
+    navigator.clipboard.writeText(text)
+}
+
+const readAloud = async (msg: DisplayMessage) => {
+    try {
+        // If clicking the current playing message, stop it
+        if (currentReadingMsgId.value === msg.id) {
+            if (currentAudio.value) {
+                currentAudio.value.pause()
+                currentAudio.value.removeAttribute('src')
+                currentAudio.value = null
+            }
+            if (window.speechSynthesis) window.speechSynthesis.cancel()
+            currentReadingMsgId.value = null
+            return
+        }
+
+        // Stop existing playback
+        if (currentAudio.value) {
+            currentAudio.value.pause()
+            currentAudio.value.removeAttribute('src')
+            currentAudio.value = null
+        }
+        if (window.speechSynthesis) window.speechSynthesis.cancel()
+        currentReadingMsgId.value = msg.id
+
+        if (!msg || !msg.blocks) return
+
+        const text = msg.blocks
+            .filter(b => b.type === 'text')
+            .map(b => b.text || '')
+            .join('\n')
+
+        if (!text.trim()) return
+
+        // Detect browser type for Chrome fallback
+        const ua = navigator.userAgent
+        // @ts-ignore
+        const isTauri = !!(window.__TAURI_INTERNALS__ || window.__TAURI__)
+        // Edge variants: Edg/ (PC), EdgA/ (Android), EdgiOS/ (iOS)
+        const isEdge = /Edg\/|EdgA\/|EdgiOS\//.test(ua)
+        const isChrome = ua.includes('Chrome/') && !isEdge
+
+        // Chrome browsers can't use Edge TTS (server checks User-Agent for "Edg/")
+        // Browser WebSocket API doesn't allow setting User-Agent header
+        // Use Web Speech API as fallback for Chrome
+        if (isChrome && !isTauri && window.speechSynthesis) {
+            const utterance = new SpeechSynthesisUtterance(text)
+            utterance.lang = 'zh-CN'
+            utterance.rate = 1.0
+            utterance.onend = () => {
+                if (currentReadingMsgId.value === msg.id) {
+                    currentReadingMsgId.value = null
+                }
+            }
+            utterance.onerror = () => {
+                currentReadingMsgId.value = null
+            }
+            window.speechSynthesis.speak(utterance)
+            return
+        }
+
+        const edge = new EdgeTTS()
+
+        // Use MSE if supported (Chrome already handled above with Web Speech API)
+        if (window.MediaSource && MediaSource.isTypeSupported('audio/mpeg')) {
+            // MSE streaming playback
+            const mediaSource = new MediaSource()
+            const url = URL.createObjectURL(mediaSource)
+            const audio = new Audio(url)
+            currentAudio.value = audio
+
+            const cleanup = () => {
+                if (currentReadingMsgId.value === msg.id) {
+                    currentReadingMsgId.value = null
+                    currentAudio.value = null
+                }
+                URL.revokeObjectURL(url)
+            }
+
+            audio.onended = cleanup
+            audio.onerror = () => cleanup()
+
+            mediaSource.addEventListener('sourceopen', () => {
+                try {
+                    const sb = mediaSource.addSourceBuffer('audio/mpeg')
+                    const queue: Uint8Array[] = []
+                    let updating = false
+
+                    const processQueue = () => {
+                        if (updating || queue.length === 0 || sb.updating) return
+                        updating = true
+                        try {
+                            sb.appendBuffer(queue.shift()! as unknown as BufferSource)
+                        } catch {
+                            updating = false
+                        }
+                    }
+
+                    sb.addEventListener('updateend', () => {
+                        updating = false
+                        processQueue()
+                    })
+
+                    edge.stream(text, {
+                        onChunk: (data) => {
+                            if (mediaSource.readyState === 'open') {
+                                queue.push(data)
+                                processQueue()
+                                if (audio.paused && sb.buffered.length > 0) {
+                                    audio.play().catch(() => { })
+                                }
+                            }
+                        },
+                        onEnd: () => {
+                            if (mediaSource.readyState === 'open' && !sb.updating && queue.length === 0) {
+                                mediaSource.endOfStream()
+                            } else {
+                                const checkEnd = setInterval(() => {
+                                    if (mediaSource.readyState !== 'open') {
+                                        clearInterval(checkEnd)
+                                        return
+                                    }
+                                    if (!sb.updating && queue.length === 0) {
+                                        mediaSource.endOfStream()
+                                        clearInterval(checkEnd)
+                                    }
+                                }, 100)
+                            }
+                        },
+                        onError: () => {
+                            if (mediaSource.readyState === 'open') mediaSource.endOfStream('network')
+                        }
+                    }).catch(() => { })
+                } catch {
+                    // SourceBuffer creation failed
+                }
+            })
+
+            audio.play().catch(() => { })
+        } else {
+            // Blob fallback playback
+            const blob = await edge.ttsPromise(text)
+            const url = URL.createObjectURL(blob)
+            const audio = new Audio(url)
+            currentAudio.value = audio
+            audio.onended = () => {
+                if (currentReadingMsgId.value === msg.id) {
+                    currentReadingMsgId.value = null
+                    currentAudio.value = null
+                }
+                URL.revokeObjectURL(url)
+            }
+            audio.play().catch(() => { })
+        }
+    } catch (error) {
+        console.error('EdgeTTS Error:', error)
+        currentReadingMsgId.value = null
+    }
 }
 
 const selectCommand = (cmd: string) => {
@@ -421,7 +605,7 @@ watch(() => gatewayStore.connected, (connected) => {
             <!-- Chat messages - only this area scrolls -->
             <div v-else ref="messagesContainerRef" class="flex-1 overflow-y-auto p-4">
                 <div class="space-y-4 mx-auto w-full" :class="{ 'max-w-3xl': !settingsStore.isWideMode }">
-                    <div v-for="(msg, index) in processedMessages" :key="index" class="chat"
+                    <div v-for="(msg, index) in processedMessages" :key="index" class="chat group"
                         :class="msg.role === 'user' ? 'chat-end' : 'chat-start'">
                         <!-- Avatar -->
                         <div class="chat-image avatar hidden md:block">
@@ -445,18 +629,55 @@ watch(() => gatewayStore.connected, (connected) => {
                             <time v-if="msg.timestamp" class="ml-1">{{ formatTime(msg.timestamp) }}</time>
                         </div>
                         <!-- Bubble -->
-                        <div class="chat-bubble whitespace-pre-wrap"
-                            :class="msg.role === 'user' ? 'chat-bubble-primary' : 'w-full'">
-                            <div class="whitespace-normal flex flex-col gap-2">
+                        <!-- User Message -->
+                        <div v-if="msg.role === 'user'" class="chat-bubble chat-bubble-primary relative">
+                            <div class="whitespace-normal">
                                 <template v-for="(block, bIndex) in msg.blocks" :key="bIndex">
                                     <MarkdownRenderer v-if="block.type === 'text'" :content="block.text || ''"
-                                        :asUser="msg.role === 'user'" />
+                                        :asUser="true" />
+                                </template>
+                            </div>
+                        </div>
+                        <!-- User Actions (Hover) -->
+                        <div v-if="msg.role === 'user'"
+                            class="chat-footer opacity-0 group-hover:opacity-100 transition-all duration-200 mt-1">
+                            <button @click="copyMessage(msg)"
+                                class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-primary hover:bg-base-200"
+                                title="复制">
+                                <ClipboardIcon class="h-4 w-4" />
+                            </button>
+                        </div>
+
+                        <!-- Assistant Message -->
+                        <div v-else class="chat-bubble w-full relative">
+                            <div class="whitespace-normal flex flex-col gap-2">
+                                <template v-for="(block, bIndex) in msg.blocks" :key="bIndex">
+                                    <MarkdownRenderer v-if="block.type === 'text'" :content="block.text || ''" />
                                     <ToolInvocation v-else-if="block.type === 'tool'"
                                         :toolName="block.toolName || 'Unknown Tool'" :args="block.toolArgs || {}"
                                         :result="block.toolResult" :state="block.toolState"
                                         :errorMessage="block.toolError" />
                                 </template>
                             </div>
+                        </div>
+                        <!-- Assistant Actions (Fixed) -->
+                        <div v-if="msg.role !== 'user'" class="chat-footer mt-1 flex gap-1">
+                            <button @click="copyMessage(msg)"
+                                class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-primary hover:bg-base-200"
+                                title="复制">
+                                <ClipboardIcon class="h-4 w-4" />
+                            </button>
+                            <button @click="readAloud(msg)"
+                                class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-primary hover:bg-base-200"
+                                :class="{ 'bg-green-100 text-green-600 hover:bg-green-200 hover:text-green-700': currentReadingMsgId === msg.id }"
+                                title="朗读">
+                                <template v-if="currentReadingMsgId === msg.id">
+                                    <StopIcon class="h-4 w-4" />
+                                </template>
+                                <template v-else>
+                                    <SpeakerWaveIcon class="h-4 w-4" />
+                                </template>
+                            </button>
                         </div>
                     </div>
 
@@ -583,14 +804,17 @@ watch(() => gatewayStore.connected, (connected) => {
 </template>
 
 <style scoped>
-.hide-scrollbar {
-    -ms-overflow-style: none;
-    /* IE and Edge */
-    scrollbar-width: none;
-    /* Firefox */
-}
-
 .hide-scrollbar::-webkit-scrollbar {
     display: none;
+}
+
+.hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+textarea:focus,
+input:focus {
+    box-shadow: none;
 }
 </style>

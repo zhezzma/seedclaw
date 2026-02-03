@@ -251,7 +251,7 @@ export const useGatewayStore = defineStore('gateway', {
                     url: settings.gatewayUrl,
                     token: settings.token.trim() ? settings.token : undefined,
                     password: this.password.trim() ? this.password : undefined,
-                    clientName: GATEWAY_CLIENT_IDS.CONTROL_UI,
+                    clientName: GATEWAY_CLIENT_IDS.WEBCHAT,
                     displayName: 'SeedClaw-APP',
                     mode: 'webchat',
                     onConnectError: (err) => {
@@ -541,6 +541,14 @@ export const useGatewayStore = defineStore('gateway', {
 
         async setSessionKey(key: string, opts?: { isNewSession?: boolean }) {
             this.sessionKey = key
+
+            // Clear ephemeral state to prevent leaks from previous session
+            this.chatRunId = null
+            this.chatStream = null
+            this.chatStreamStartedAt = null
+            this.chatThinkingLevel = null
+            resetToolStream(this as unknown as Parameters<typeof resetToolStream>[0])
+
             const settings = useUiSettingsStore()
             settings.sessionKey = key
             settings.lastActiveSessionKey = key

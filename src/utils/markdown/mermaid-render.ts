@@ -1,7 +1,7 @@
 import mermaid, { MermaidConfig } from 'mermaid'
 import { nextTick, watch } from 'vue'  // 添加watch以监视变化
-import { useUiSettingsStore } from '../stores/setting'
-import { useToastStore } from '../stores/toast'
+import { useUiSettingsStore } from '../../stores/setting'
+import { useToastStore } from '../../stores/toast'
 
 //该文件不放在./markdown-it-mermaid中因为使用document..不能被works引用
 
