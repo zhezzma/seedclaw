@@ -92,26 +92,29 @@ export async function patchSession(
     }
 }
 
-export async function deleteSession(state: SessionsState, key: string) {
+export async function deleteSession(state: SessionsState, key: string): Promise<{ deleted: boolean }> {
     if (!state.client || !state.connected) {
-        return;
+        return { deleted: false };
     }
     if (state.sessionsLoading) {
-        return;
+        return { deleted: false };
     }
     state.sessionsLoading = true;
     state.sessionsError = null;
     try {
-        await state.client.request("sessions.delete", { key, deleteTranscript: true });
-        // Remove from local list instead of reloading
-        if (state.sessionsResult?.sessions) {
+        const res: any = await state.client.request("sessions.delete", { key, deleteTranscript: true });
+        const deleted = res?.deleted === true;
+        // Only remove from local list if actually deleted
+        if (deleted && state.sessionsResult?.sessions) {
             state.sessionsResult = {
                 ...state.sessionsResult,
                 sessions: state.sessionsResult.sessions.filter((s: any) => s.key !== key)
             };
         }
+        return { deleted };
     } catch (err) {
         state.sessionsError = String(err);
+        return { deleted: false };
     } finally {
         state.sessionsLoading = false;
     }

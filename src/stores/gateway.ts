@@ -644,7 +644,7 @@ export const useGatewayStore = defineStore('gateway', {
         },
 
         async deleteSession(key: string) {
-            await deleteSession(this as unknown as SessionsState, key)
+            return await deleteSession(this as unknown as SessionsState, key)
         },
 
         // ==================== Agents ====================

@@ -83,9 +83,10 @@ const handleDeleteSession = async (key: string, event: Event) => {
         return
     }
 
-    await gatewayStore.deleteSession(key)
-    // If deleted current session, switch to default
-    if (gatewayStore.sessionKey === key) {
+    const result = await gatewayStore.deleteSession(key)
+    console.log(`deleteSession result:`, result)
+    // Only switch to default if deletion was successful
+    if (result.deleted && gatewayStore.sessionKey === key) {
         gatewayStore.setSessionKey(createAgentMainSessionKey(gatewayStore.defaultAgentId))
     }
 }
