@@ -78,7 +78,7 @@ defineExpose({
         <div class="flex-1">
             <!-- Agent dropdown (for agent main sessions) -->
             <details v-if="showAgentDropdown" class="dropdown" ref="dropdownRef">
-                <summary class="btn btn-ghost btn-sm gap-1 list-none">
+                <summary class="btn btn-ghost  gap-1 list-none">
                     <span class="font-semibold">{{ selectedAgent?.name || 'Assistant' }}</span>
                     <ChevronDownIcon class="h-4 w-4" />
                 </summary>
@@ -93,7 +93,7 @@ defineExpose({
                 </ul>
             </details>
             <!-- Session name (for specific sessions like agent:xxx:session:xxx) -->
-            <span v-else class="btn btn-ghost btn-sm font-semibold">
+            <span v-else class=" pl-5 font-semibold">
                 {{ currentSessionName }}
             </span>
         </div>

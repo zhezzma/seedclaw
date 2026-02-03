@@ -201,7 +201,21 @@ watch(isBusy, (busy, prevBusy) => {
         // Started generating
         startStream()
     } else if (prevBusy && !busy) {
-        // Finished generating
+        // Finished generating - get the final complete text from last message
+        const lastMessages = processedMessages.value
+        if (lastMessages.length > 0) {
+            const lastMsg = lastMessages[lastMessages.length - 1]
+            if (lastMsg.role === 'assistant') {
+                const fullText = lastMsg.blocks
+                    .filter(b => b.type === 'text')
+                    .map(b => b.text || '')
+                    .join('\n')
+                // Ensure the complete text is processed
+                if (fullText) {
+                    speakStream(fullText)
+                }
+            }
+        }
         finishStream()
     }
 })
