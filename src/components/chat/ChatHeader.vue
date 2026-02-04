@@ -98,7 +98,7 @@ defineExpose({
             </span>
         </div>
         <!-- Connection status indicator -->
-        <div class="flex-none flex items-center gap-2">
+        <div class="flex-none flex items-center gap-2 pr-1">
             <div class="flex items-center gap-1">
                 <div class="w-2 h-2 rounded-full" :class="gatewayStore.connected ? 'bg-success' : 'bg-error'"></div>
                 <span class="text-xs text-base-content/60 hidden sm:inline">
