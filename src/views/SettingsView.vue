@@ -21,7 +21,8 @@ const editForm = ref({
     token: '',
     sessionsActiveDays: 3,
     asrToken: '',
-    ttsEngine: 'qwen' as 'qwen' | 'edge'
+    ttsEngine: 'qwen' as 'qwen' | 'edge',
+    ttsToken: ''
 })
 
 const openConnectionModal = () => {
@@ -30,7 +31,8 @@ const openConnectionModal = () => {
         token: configStore.token,
         sessionsActiveDays: configStore.sessionsActiveDays,
         asrToken: configStore.asrToken,
-        ttsEngine: configStore.ttsEngine
+        ttsEngine: configStore.ttsEngine,
+        ttsToken: configStore.ttsToken
     }
     const modal = document.getElementById('basic_settings_modal') as HTMLDialogElement
     if (modal) modal.showModal()
@@ -42,7 +44,8 @@ const saveConnection = () => {
         token: editForm.value.token,
         sessionsActiveDays: Number(editForm.value.sessionsActiveDays),
         asrToken: editForm.value.asrToken,
-        ttsEngine: editForm.value.ttsEngine
+        ttsEngine: editForm.value.ttsEngine,
+        ttsToken: editForm.value.ttsToken
     })
     // Force reload to apply changes if needed, or just let store reactivity handle it
     // For gateway URL changes, we might want to reconnect
@@ -94,7 +97,7 @@ const logout = () => {
                                         <span class="font-medium">基本设置</span>
                                         <p class="text-xs text-base-content/50 truncate max-w-48">{{
                                             configStore.gatewayUrl
-                                        }}</p>
+                                            }}</p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
@@ -120,7 +123,7 @@ const logout = () => {
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm text-base-content/60">{{ configStore.isDark ? '深色' : '浅色'
-                                    }}</span>
+                                        }}</span>
                                     <input type="checkbox" class="toggle toggle-primary" :checked="configStore.isDark"
                                         @change="configStore.toggleTheme()" />
                                 </div>
@@ -207,6 +210,16 @@ const logout = () => {
                         class="input input-bordered w-full" />
                     <label class="label">
                         <span class="label-text-alt opacity-50">留空则使用默认配置</span>
+                    </label>
+                </div>
+                <div>
+                    <label class="label">
+                        <span class="label-text">TTS API Key (Qwen)</span>
+                    </label>
+                    <input type="password" v-model="editForm.ttsToken" placeholder="sk-..."
+                        class="input input-bordered w-full" />
+                    <label class="label">
+                        <span class="label-text-alt opacity-50">留空则尝试使用 ASR Token</span>
                     </label>
                 </div>
                 <div>

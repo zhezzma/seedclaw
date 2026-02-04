@@ -6,7 +6,7 @@ export class QwenTTS {
 
     constructor() {
         const store = useUiSettingsStore()
-        this.apiKey = store.asrToken || import.meta.env.VITE_ASRTOKEN || ''
+        this.apiKey = store.ttsToken || import.meta.env.VITE_TTSTOKEN || ''
         this.model = 'qwen3-tts-flash-realtime-2025-11-27'
     }
 
