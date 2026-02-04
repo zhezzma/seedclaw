@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import {
     CameraIcon,
     MicrophoneIcon,
@@ -44,6 +44,21 @@ const {
 } = useChatInput()
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
+const textareaRef = ref<HTMLTextAreaElement | null>(null)
+
+const adjustHeight = () => {
+    if (textareaRef.value) {
+        textareaRef.value.style.height = 'auto'
+        textareaRef.value.style.height = textareaRef.value.scrollHeight + 'px'
+    }
+}
+
+// Watch input text changes to adjust height (handles clearing)
+watch(inputText, () => {
+    nextTick(() => {
+        adjustHeight()
+    })
+})
 
 const triggerFileInput = () => {
     fileInputRef.value?.click()
@@ -122,10 +137,9 @@ defineExpose({
             </div>
 
             <!-- Input Top -->
-            <textarea v-model="inputText" rows="1" placeholder="发消息或输入'/'选择技能"
+            <textarea ref="textareaRef" v-model="inputText" rows="1" placeholder="发消息或输入'/'选择技能"
                 class="textarea textarea-ghost w-full resize-none focus:outline-none focus:bg-transparent text-base min-h-[44px] max-h-[200px] px-3 py-3 leading-6 placeholder:text-base-content/40 hide-scrollbar"
-                @keydown="handleInputKeydown" @focus="handleInputFocus"
-                @input="(e) => { const target = e.target as HTMLTextAreaElement; target.style.height = 'auto'; target.style.height = target.scrollHeight + 'px' }"
+                @keydown="handleInputKeydown" @focus="handleInputFocus" @input="adjustHeight"
                 :disabled="disabled"></textarea>
 
             <!-- Toolbar Bottom -->
