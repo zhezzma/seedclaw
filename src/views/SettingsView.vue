@@ -22,7 +22,8 @@ const editForm = ref({
     sessionsActiveDays: 3,
     asrToken: '',
     ttsEngine: 'qwen' as 'qwen' | 'edge',
-    ttsToken: ''
+    ttsToken: '',
+    silenceDuration: 1500
 })
 
 const openConnectionModal = () => {
@@ -32,7 +33,8 @@ const openConnectionModal = () => {
         sessionsActiveDays: configStore.sessionsActiveDays,
         asrToken: configStore.asrToken,
         ttsEngine: configStore.ttsEngine,
-        ttsToken: configStore.ttsToken
+        ttsToken: configStore.ttsToken,
+        silenceDuration: configStore.silenceDuration
     }
     const modal = document.getElementById('basic_settings_modal') as HTMLDialogElement
     if (modal) modal.showModal()
@@ -45,7 +47,8 @@ const saveConnection = () => {
         sessionsActiveDays: Number(editForm.value.sessionsActiveDays),
         asrToken: editForm.value.asrToken,
         ttsEngine: editForm.value.ttsEngine,
-        ttsToken: editForm.value.ttsToken
+        ttsToken: editForm.value.ttsToken,
+        silenceDuration: Number(editForm.value.silenceDuration)
     })
     // Force reload to apply changes if needed, or just let store reactivity handle it
     // For gateway URL changes, we might want to reconnect
@@ -197,9 +200,18 @@ const logout = () => {
                     <label class="label">
                         <span class="label-text">会话活跃天数</span>
                     </label>
-                    <input type="number" v-model="editForm.sessionsActiveDays" class="input input-bordered w-full" />
                     <label class="label">
                         <span class="label-text-alt">超过此天数的会话将不会被读取</span>
+                    </label>
+                </div>
+                <div>
+                    <label class="label">
+                        <span class="label-text">语音发送等待 (毫秒)</span>
+                    </label>
+                    <input type="number" v-model="editForm.silenceDuration" class="input input-bordered w-full"
+                        placeholder="1500" />
+                    <label class="label">
+                        <span class="label-text-alt opacity-50">说话停顿多少毫秒后自动发送</span>
                     </label>
                 </div>
                 <div>
@@ -219,7 +231,7 @@ const logout = () => {
                     <input type="password" v-model="editForm.ttsToken" placeholder="sk-..."
                         class="input input-bordered w-full" />
                     <label class="label">
-                        <span class="label-text-alt opacity-50">留空则尝试使用 ASR Token</span>
+                        <span class="label-text-alt opacity-50">留空则使用默认配置</span>
                     </label>
                 </div>
                 <div>

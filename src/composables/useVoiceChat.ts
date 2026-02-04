@@ -150,7 +150,7 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
         if (newText && newText !== oldText) {
             silenceTimer = window.setTimeout(() => {
                 handleSpeechEnd();
-            }, 1500);
+            }, store.silenceDuration || 1500);
         }
     });
 

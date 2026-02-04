@@ -14,6 +14,7 @@ export interface UiSettings {
     asrToken: string // ASR API Key
     ttsEngine: 'qwen' | 'edge'
     ttsToken: string // TTS API Key (if different from ASR)
+    silenceDuration: number // Auto-send delay in ms
 }
 
 // ==================== Constants ====================
@@ -31,7 +32,8 @@ const getDefaultSettings = (): UiSettings => ({
     sessionsActiveDays: 3,
     asrToken: '',
     ttsEngine: 'edge',
-    ttsToken: ''
+    ttsToken: '',
+    silenceDuration: 1500
 })
 
 const loadConfig = (): UiSettings => {
