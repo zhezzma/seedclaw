@@ -62,6 +62,7 @@ import { SpeechRecognitionService } from '../utils/asr/speechRecognition'
 import { EdgeTTS } from '../utils/tts/edge-tts'
 import { QwenTTS } from '../utils/tts/qwen-tts'
 import { useUiSettingsStore } from '../stores/setting'
+import { cleanTextForTTS, splitText, MAX_TTS_CHARS } from '../utils/textUtils'
 
 export type VoiceStatus = 'idle' | 'listening' | 'processing' | 'speaking' | 'error'
 
@@ -70,52 +71,6 @@ const endings = ['.', '?', '!', '。', '？', '！', '\n']
 // 最小句子长度阈值（清洗后的字符数）
 const MIN_SENTENCE_LENGTH = 150
 
-/**
- * Clean text for TTS - remove content that shouldn't be spoken
- */
-function cleanTextForTTS(text: string): string {
-    let cleaned = text
-
-    // 1. Remove code blocks ```...```
-    cleaned = cleaned.replace(/```[\s\S]*?```/g, '')
-
-    // 2. Remove inline code `...`
-    cleaned = cleaned.replace(/`[^`]+`/g, '')
-
-    // 3. Remove markdown links [text](url) -> keep text
-    cleaned = cleaned.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-
-    // 4. Remove markdown images ![alt](url)
-    cleaned = cleaned.replace(/!\[[^\]]*\]\([^)]+\)/g, '')
-
-    // 5. Remove markdown emphasis markers (**, *, __, _)
-    cleaned = cleaned.replace(/(\*\*|__)(.*?)\1/g, '$2')  // bold
-    cleaned = cleaned.replace(/(\*|_)(.*?)\1/g, '$2')     // italic
-
-    // 6. Remove markdown headers # ## ### etc
-    cleaned = cleaned.replace(/^#{1,6}\s*/gm, '')
-
-    // 7. Remove horizontal rules --- *** ___
-    cleaned = cleaned.replace(/^[-*_]{3,}\s*$/gm, '')
-
-    // 8. Remove kaomoji/emoticons (Japanese-style text faces)
-    // Common patterns: (xxx), （xxx）, ╮(╯▽╰)╭, ヾ(≧▽≦*)o, etc.
-    cleaned = cleaned.replace(/[（(][^)（）]*[◡╯╰▽□°・ω＾≧≦><╮╭ヾo○●◎★☆♪♫♬♡❤❥→←↑↓↔↕⇐⇒⇑⇓∀∂∃∅∇∈∋∏∑√∝∞∟∠∣∥∧∨∩∪∫∬∭∮∯∰∱∲∳][^)（）]*[)）]/g, '')
-
-    // 9. Remove standalone special symbols often used decoratively
-    cleaned = cleaned.replace(/[~～♪♫♬★☆✦✧❤♡❥→←↑↓⇐⇒●○◎◆◇□■△▲▽▼※✿❀❁❂❃❄❅❆]/g, '')
-
-    // 10. Remove excessive punctuation (more than 2 in a row)
-    cleaned = cleaned.replace(/([!?！？~～。，、]){3,}/g, '$1$1')
-
-    // 11. Remove multiple spaces/newlines
-    cleaned = cleaned.replace(/\s+/g, ' ')
-
-    // 12. Trim
-    cleaned = cleaned.trim()
-
-    return cleaned
-}
 
 export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) {
     const isVoiceChatActive = ref(false)
@@ -439,21 +394,25 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
             if (pendingItems.length > 1) {
                 // Combine all pending texts
                 const mergedText = pendingItems.map(item => item.text).join(' ')
-                console.log('[TTS] Merging', pendingItems.length, 'pending items:', mergedText.substring(0, 80) + '...')
 
-                // Create new merged segment
-                const mergedSegment: AudioSegment = {
+                // If merged text is within limits, make one segment. If too long, split.
+                const chunks = splitText(mergedText, MAX_TTS_CHARS)
+                console.log('[TTS] Merging', pendingItems.length, 'items into', chunks.length, 'chunks. Total chars:', mergedText.length)
+
+                const newSegments = chunks.map(chunk => ({
                     id: Math.random().toString(36).substring(7),
-                    text: mergedText,
-                    status: 'pending'
-                }
+                    text: chunk,
+                    status: 'pending' as const
+                }))
 
-                // Keep only non-pending items (ready/fetching) + add merged
+                // Keep only non-pending items (ready/fetching) + add new segments
                 const itemsToKeep = playbackQueue.filter(item => item.status !== 'pending')
-                playbackQueue = [...itemsToKeep, mergedSegment]
+                playbackQueue = [...itemsToKeep, ...newSegments]
 
-                // Start fetching the merged segment
-                fetchSegmentAudio(mergedSegment)
+                // Start fetching the first of the new segments (others will be prefetched by queue logic or processPlaybackQueue)
+                // Actually, we should trigger fetch for all new segments to be fast?
+                // Or just the first one. Let's trigger all since we just have a few.
+                newSegments.forEach(seg => fetchSegmentAudio(seg))
             }
         }
 
