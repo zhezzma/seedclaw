@@ -112,7 +112,7 @@ export function useChatMessages(messagesContainerRef: Ref<HTMLDivElement | null>
                     lastMsg.blocks.push(...blocks)
                 } else {
                     displayMessages.push({
-                        id: msg.id || `msg-${Date.now()}-${displayMessages.length}`,
+                        id: msg.id || `${gatewayStore.sessionKey || 'temp'}-msg-fallback-${displayMessages.length}`,
                         role: msg.role as 'user' | 'assistant',
                         blocks,
                         timestamp: msg.timestamp

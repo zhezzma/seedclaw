@@ -468,6 +468,11 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
     }
 
     const start = () => {
+        if (isVoiceChatActive.value) return; // Prevent double start
+
+        // Take control immediately to stop TTS or others
+        takeAudioControl('VoiceChat', stopAudioOnly)
+
         isVoiceChatActive.value = true;
         startListening();
     }

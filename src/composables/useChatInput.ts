@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { SpeechRecognitionService } from '../utils/asr/speechRecognition'
+import { takeAudioControl, releaseAudioControl } from '../utils/audioManager'
 
 export interface CommandItem {
     label: string
@@ -80,8 +81,19 @@ export function useChatInput() {
             if (speechService) {
                 await speechService.stop();
             }
+            // Release control (though we don't have play audio, we silenced others)
+            // Actually 'ChatInput' doesn't play audio, so just releasing is fine.
+            // But we don't hold a "playing" lock. We just wanted to stop others.
+            // So we can just release immediately after taking? 
+            // Better: Hold it while recording? No, just "Stop Others" is enough.
+            // But if we hold it, others can't start. That's good.
+            releaseAudioControl(stopRecording)
             return;
         }
+
+        // START RECORDING
+        // Stop any playing audio (TTS, Voice Chat)
+        takeAudioControl('ChatInput', stopRecording)
 
         isRecording.value = true;
         resetSilenceTimer(); // Start timer
