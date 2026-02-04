@@ -41,11 +41,23 @@ export function useTTS() {
      * Stop current audio playback
      */
     const stopPlayback = () => {
-        if (currentAudio.value) {
-            currentAudio.value.pause()
-            currentAudio.value.removeAttribute('src')
+        console.log('[TTS] stopPlayback called')
+        const audio = currentAudio.value
+        if (audio) {
+            try {
+                audio.pause()
+                if ('removeAttribute' in audio) {
+                    audio.removeAttribute('src')
+                }
+            } catch (e) {
+                console.error('[TTS] Error stopping audio:', e)
+            }
             currentAudio.value = null
         }
+
+        // Invalidate current session to prevent lingering callbacks (e.g. MSE onChunk) from restarting playback
+        playbackSessionId++
+
         // Resolve any pending playback promise to unblock readAloud loop
         if (currentPlaybackResolve) {
             currentPlaybackResolve()
@@ -67,9 +79,11 @@ export function useTTS() {
      * Read text aloud using the appropriate TTS engine
      */
     const readAloud = async (msgId: string, text: string) => {
+        console.log('[TTS] readAloud called. Target:', msgId, 'Current:', currentReadingMsgId.value)
         try {
             // If clicking the current playing message, stop it
             if (currentReadingMsgId.value === msgId) {
+                console.log('[TTS] Stopping current playback via toggle')
                 stopPlayback()
                 return
             }
@@ -181,7 +195,10 @@ export function useTTS() {
                                 queue.push(data)
                                 processQueue()
                                 if (audio.paused && sb.buffered.length > 0) {
-                                    audio.play().catch(() => { })
+                                    // Only play if we are still the valid session
+                                    if (playbackSessionId === sessionId) {
+                                        audio.play().catch(() => { })
+                                    }
                                 }
                             }
                         },
@@ -312,8 +329,16 @@ export function useTTS() {
                     return
                 }
                 const blob = await tts.ttsPromise(text)
+
+                // Double check if we were stopped during fetch
+                if (currentReadingMsgId.value !== msgId || playbackSessionId !== sessionId) {
+                    resolve()
+                    return
+                }
+
                 const url = URL.createObjectURL(blob)
                 const audio = new Audio(url)
+                // Assign to global currentAudio
                 currentAudio.value = audio
 
                 audio.onended = () => {
