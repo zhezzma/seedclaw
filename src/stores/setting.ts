@@ -33,7 +33,7 @@ const getDefaultSettings = (): UiSettings => ({
     asrToken: '',
     ttsEngine: 'edge',
     ttsToken: '',
-    silenceDuration: 1500
+    silenceDuration: 3000
 })
 
 const loadConfig = (): UiSettings => {
