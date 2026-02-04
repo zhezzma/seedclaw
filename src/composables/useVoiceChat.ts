@@ -63,6 +63,7 @@ import { EdgeTTS } from '../utils/tts/edge-tts'
 import { QwenTTS } from '../utils/tts/qwen-tts'
 import { useUiSettingsStore } from '../stores/setting'
 import { cleanTextForTTS, splitText, MAX_TTS_CHARS } from '../utils/textUtils'
+import { takeAudioControl, releaseAudioControl } from '../utils/audioManager'
 
 export type VoiceStatus = 'idle' | 'listening' | 'processing' | 'speaking' | 'error'
 
@@ -100,6 +101,18 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
     let textBuffer = ''
     let silenceTimer: number | null = null;
     let autoRestartListeningTimeout: number | null = null;
+
+    // Helper to stop only audio playback part (compatible with AudioManager)
+    const stopAudioOnly = () => {
+        if (currentAudio) {
+            currentAudio.pause();
+            currentAudio = null;
+        }
+        isPlayingAudio = false
+        playbackQueue = []
+        currentlySpeakingText.value = ''
+        isAudioInterrupted = true
+    }
 
     const stopListening = async () => {
         try {
@@ -287,6 +300,11 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
     const processPlaybackQueue = async () => {
         if (isPlayingAudio) return
 
+        if (isAudioInterrupted) {
+            playbackQueue = []
+            return
+        }
+
         // Find next segment to play
         // We must play in order. So we look at index 0.
         if (playbackQueue.length === 0) return
@@ -314,6 +332,9 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
 
         // Ready to play
         if (segment.status === 'ready' && segment.audioUrl) {
+            // Request audio control. If rejected (or immediately stopped), currentAudio logic handles it.
+            takeAudioControl('VoiceChat', stopAudioOnly)
+
             isPlayingAudio = true
 
             // Remove from queue primarily, BUT we hold reference to play
@@ -335,11 +356,15 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
 
                     if (playbackQueue.length > 0) {
                         processPlaybackQueue()
-                    } else if (!isVoiceChatActive.value) {
-                        voiceStatus.value = 'idle'
-                    } else if (voiceStatus.value === 'speaking' && !isGenerating) {
-                        // Queue empty and generation done
-                        onTurnComplete()
+                    } else {
+                        // Queue empty - release audio control
+                        releaseAudioControl(stopAudioOnly)
+
+                        if (!isVoiceChatActive.value) {
+                            voiceStatus.value = 'idle'
+                        } else if (voiceStatus.value === 'speaking' && !isGenerating) {
+                            onTurnComplete()
+                        }
                     }
                 }
 
@@ -368,10 +393,13 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
 
     // Flag to track if we expect more text
     let isGenerating = false
+    // Flag to track if audio was interrupted by external source
+    let isAudioInterrupted = false
 
     const startStream = () => {
         console.log('[TTS] startStream called')
         isGenerating = true
+        isAudioInterrupted = false
         processedTextLength = 0
         textBuffer = ''
         playbackQueue = []
@@ -450,16 +478,14 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
         if (silenceTimer) clearTimeout(silenceTimer);
         if (autoRestartListeningTimeout) clearTimeout(autoRestartListeningTimeout);
 
-        if (currentAudio) {
-            currentAudio.pause();
-            currentAudio = null;
-        }
+
+
+        stopAudioOnly()
+        releaseAudioControl(stopAudioOnly)
+
         await stopListening();
         voiceStatus.value = 'idle';
         transcript.value = '';
-        currentlySpeakingText.value = '';
-        playbackQueue = []
-        isPlayingAudio = false
     }
 
     onUnmounted(() => {

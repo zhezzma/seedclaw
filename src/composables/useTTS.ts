@@ -22,11 +22,13 @@ import { QwenTTS } from '../utils/tts/qwen-tts'
 import { useUiSettingsStore } from '../stores/setting'
 
 import { cleanTextForTTS, splitText } from '../utils/textUtils'
+import { takeAudioControl, releaseAudioControl } from '../utils/audioManager'
 
 // Shared state
 const currentReadingMsgId = ref<string | null>(null)
 const currentAudio = ref<HTMLAudioElement | { pause: () => void, removeAttribute: () => void } | null>(null)
 let currentPlaybackResolve: (() => void) | null = null
+let playbackSessionId = 0
 
 /**
  * Composable for Text-to-Speech functionality
@@ -53,6 +55,7 @@ export function useTTS() {
             window.speechSynthesis.cancel()
         }
         currentReadingMsgId.value = null
+        releaseAudioControl(stopPlayback)
     }
 
     /**
@@ -74,9 +77,14 @@ export function useTTS() {
             // Stop existing playback
             stopPlayback()
 
+            // Take control of audio
+            takeAudioControl('TTS', stopPlayback)
+
             const cleaned = cleanTextForTTS(text)
             if (!cleaned) return
 
+            // Increment session ID to invalidate any stale playback
+            const sessionId = ++playbackSessionId
             currentReadingMsgId.value = msgId
 
             // Split text if too long
@@ -84,23 +92,23 @@ export function useTTS() {
 
             for (const chunk of chunks) {
                 // Check if we were stopped/interrupted during previous chunk
-                if (currentReadingMsgId.value !== msgId) break
+                if (currentReadingMsgId.value !== msgId || playbackSessionId !== sessionId) break
 
                 if (store.ttsEngine === 'qwen') {
                     // Use Qwen TTS (PCM Streaming)
                     const tts = new QwenTTS()
                     // @ts-ignore
-                    await playWithPCM(tts, chunk, msgId)
+                    await playWithPCM(tts, chunk, msgId, sessionId)
                 } else {
                     // Use Edge TTS (MSE/Blob)
                     const tts = new EdgeTTS()
 
                     if (window.MediaSource && MediaSource.isTypeSupported('audio/mpeg')) {
                         // @ts-ignore
-                        await playWithMSE(tts, chunk, msgId)
+                        await playWithMSE(tts, chunk, msgId, sessionId)
                     } else {
                         // @ts-ignore
-                        await playWithBlob(tts, chunk, msgId)
+                        await playWithBlob(tts, chunk, msgId, sessionId)
                     }
                 }
             }
@@ -118,7 +126,7 @@ export function useTTS() {
     /**
      * Play audio using MediaSource Extensions (streaming)
      */
-    const playWithMSE = (tts: QwenTTS | EdgeTTS, text: string, msgId: string): Promise<void> => {
+    const playWithMSE = (tts: QwenTTS | EdgeTTS, text: string, msgId: string, sessionId: number): Promise<void> => {
         return new Promise((resolve) => {
             // Register global resolve for cancellation
             currentPlaybackResolve = resolve
@@ -164,6 +172,11 @@ export function useTTS() {
 
                     tts.stream(text, {
                         onChunk: (data) => {
+                            // Abort if session changed
+                            if (playbackSessionId !== sessionId) {
+                                if (mediaSource.readyState === 'open') mediaSource.endOfStream()
+                                return
+                            }
                             if (mediaSource.readyState === 'open') {
                                 queue.push(data)
                                 processQueue()
@@ -211,7 +224,7 @@ export function useTTS() {
     /**
      * Play raw PCM audio using AudioContext (True Streaming)
      */
-    const playWithPCM = (tts: QwenTTS, text: string, msgId: string): Promise<void> => {
+    const playWithPCM = (tts: QwenTTS, text: string, msgId: string, sessionId: number): Promise<void> => {
         return new Promise((resolve) => {
             currentPlaybackResolve = resolve
 
@@ -242,7 +255,8 @@ export function useTTS() {
 
             tts.stream(text, {
                 onChunk: (data: Uint8Array) => {
-                    if (currentReadingMsgId.value !== msgId || ctx.state === 'closed') return
+                    // Abort if session changed or message changed
+                    if (currentReadingMsgId.value !== msgId || ctx.state === 'closed' || playbackSessionId !== sessionId) return
 
                     // Convert 16-bit PCM to Float32
                     const numSamples = data.length / 2
@@ -287,11 +301,16 @@ export function useTTS() {
     /**
      * Play audio using Blob (download then play)
      */
-    const playWithBlob = (tts: QwenTTS | EdgeTTS, text: string, msgId: string): Promise<void> => {
+    const playWithBlob = (tts: QwenTTS | EdgeTTS, text: string, msgId: string, sessionId: number): Promise<void> => {
         return new Promise(async (resolve) => {
             currentPlaybackResolve = resolve
 
             try {
+                // Abort if session changed before blob is ready
+                if (playbackSessionId !== sessionId) {
+                    resolve()
+                    return
+                }
                 const blob = await tts.ttsPromise(text)
                 const url = URL.createObjectURL(blob)
                 const audio = new Audio(url)
