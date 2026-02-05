@@ -13,7 +13,9 @@ import {
     ChatBubbleLeftEllipsisIcon,
     ArrowRightOnRectangleIcon,
     MicrophoneIcon,
-    SpeakerWaveIcon
+    SpeakerWaveIcon,
+    DocumentTextIcon,
+    ArrowTopRightOnSquareIcon
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
@@ -98,6 +100,14 @@ const saveTts = () => {
 
 const goBack = () => {
     router.back()
+}
+
+const openHelpDocs = () => {
+    window.open('https://docs.openclaw.ai/', '_blank')
+}
+
+const navigateToLogs = () => {
+    router.push('/logs')
 }
 
 const logout = () => {
@@ -206,26 +216,44 @@ const logout = () => {
 
 
 
+
+
+
+
+                <!-- Debug & Logs -->
+                <div class="space-y-2">
+                    <h4 class="text-sm font-medium text-base-content/60 px-2">调试与日志</h4>
+                    <div class="card bg-base-100 shadow-sm">
+                        <ul class="divide-y divide-base-300">
+                            <li @click="navigateToLogs"
+                                class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors">
+                                <div class="flex items-center gap-3">
+                                    <DocumentTextIcon class="h-5 w-5 text-base-content/60" />
+                                    <div>
+                                        <span class="font-medium">系统日志</span>
+                                        <p class="text-xs text-base-content/50">查看网关运行日志</p>
+                                    </div>
+                                </div>
+                                <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+
+
                 <!-- Help & Feedback -->
                 <div class="space-y-2">
                     <h4 class="text-sm font-medium text-base-content/60 px-2">帮助与反馈</h4>
                     <div class="card bg-base-100 shadow-sm">
                         <ul class="divide-y divide-base-300">
-                            <li
+                            <li @click="openHelpDocs"
                                 class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors">
                                 <div class="flex items-center gap-3">
                                     <QuestionMarkCircleIcon class="h-5 w-5 text-base-content/60" />
                                     <span class="font-medium">使用帮助</span>
                                 </div>
-                                <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
-                            </li>
-                            <li
-                                class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors">
-                                <div class="flex items-center gap-3">
-                                    <ChatBubbleLeftEllipsisIcon class="h-5 w-5 text-base-content/60" />
-                                    <span class="font-medium">意见反馈</span>
-                                </div>
-                                <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
+                                <ArrowTopRightOnSquareIcon class="h-5 w-5 text-base-content/40" />
                             </li>
                         </ul>
                     </div>

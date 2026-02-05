@@ -57,6 +57,7 @@ const defaultForm: CronFormState = {
 const form = ref<CronFormState>({ ...defaultForm })
 const editingId = ref<string | null>(null)
 const runningJobId = ref<string | null>(null)
+const modalError = ref<string | null>(null)
 
 // Logs State
 const logsJob = ref<CronJob | null>(null)
@@ -121,6 +122,7 @@ const closeModal = () => {
 
 const handleOpenAdd = () => {
     editingId.value = null
+    modalError.value = null
     form.value = { ...defaultForm }
     // Default to first agent if available
     if (agents.value.length > 0) {
@@ -163,6 +165,7 @@ const handlePageChange = async (newPage: number) => {
 
 const handleOpenEdit = (job: CronJob) => {
     editingId.value = job.id
+    modalError.value = null
 
     // Map job to form
     const f: CronFormState = { ...defaultForm }
@@ -209,6 +212,7 @@ const handleOpenEdit = (job: CronJob) => {
 
 const handleSave = async () => {
     (gatewayStore as any).cronForm = { ...form.value }
+    modalError.value = null
 
     try {
         if (editingId.value) {
@@ -216,13 +220,10 @@ const handleSave = async () => {
         } else {
             await addCronJob(gatewayStore as any)
         }
+        closeModal()
     }
     catch (err: any) {
-        toastStore.error(err)
-    }
-
-    if (!gatewayStore.cronError) {
-        closeModal()
+        modalError.value = err?.message || String(err)
     }
 }
 
@@ -243,7 +244,7 @@ const handleRun = async (job: CronJob, e: Event) => {
         }
     }
     catch (err: any) {
-        toastStore.error(err)
+        toastStore.error(err?.message || String(err))
     } finally {
         runningJobId.value = null
     }
@@ -311,8 +312,13 @@ onMounted(() => {
                                 <div class="flex items-center justify-between gap-2">
                                     <div class="flex items-center gap-2 min-w-0">
                                         <!-- Status Dot -->
-                                        <div class="w-2 h-2 rounded-full shrink-0"
-                                            :class="job.enabled ? 'bg-success' : 'bg-base-content/20'"></div>
+                                        <button @click="handleToggle(job, $event)"
+                                            class="btn btn-xs btn-ghost tooltip tooltip-left"
+                                            :class="job.enabled ? 'text-success' : 'text-base-content opacity-50'"
+                                            :data-tip="job.enabled ? '点击禁用' : '点击启用'">
+                                            <div class="w-2 h-2 rounded-full"
+                                                :class="job.enabled ? 'bg-success' : 'bg-base-content/30'"></div>
+                                        </button>
 
                                         <h4 class="font-bold text-base truncate"
                                             :class="{ 'opacity-50': !job.enabled }">
@@ -323,31 +329,15 @@ onMounted(() => {
                                                 job.description }}</p>
                                     </div>
 
-                                    <!-- Actions (Always visible) -->
-                                    <div class="flex items-center gap-1">
-                                        <button @click="handleRun(job, $event)"
-                                            class="btn btn-xs btn-ghost border-base-300 tooltip tooltip-left"
-                                            :disabled="runningJobId === job.id" data-tip="立即运行">
-                                            <span v-if="runningJobId === job.id"
-                                                class="loading loading-spinner loading-xs"></span>
-                                            <BoltIcon v-else class="w-3.5 h-3.5" />
-                                        </button>
-                                        <button @click.stop="handleOpenEdit(job)"
-                                            class="btn btn-xs btn-ghost tooltip tooltip-left" data-tip="编辑">
-                                            <PencilSquareIcon class="w-3.5 h-3.5" />
-                                        </button>
-                                        <button @click="handleToggle(job, $event)"
-                                            class="btn btn-xs btn-ghost tooltip tooltip-left"
-                                            :class="job.enabled ? 'text-success' : 'text-base-content opacity-50'"
-                                            :data-tip="job.enabled ? '点击禁用' : '点击启用'">
-                                            <div class="w-2 h-2 rounded-full"
-                                                :class="job.enabled ? 'bg-success' : 'bg-base-content/30'"></div>
-                                        </button>
-                                        <button @click="handleRemove(job, $event)"
-                                            class="btn btn-xs btn-ghost text-error/50 hover:text-error tooltip tooltip-left"
-                                            data-tip="删除">
-                                            <XMarkIcon class="w-3.5 h-3.5" />
-                                        </button>
+                                    <div class="flex items-center gap-1 shrink-0">
+                                        <span v-if="job.agentId && job.agentId !== 'default'"
+                                            class="badge badge-xs badge-neutral badge-outline font-mono opacity-80">
+                                            {{ job.agentId.slice(0, 8) }}
+                                        </span>
+                                        <span v-if="job.sessionTarget !== 'main'"
+                                            class="badge badge-xs badge-outline opacity-60">独立会话</span>
+                                        <span v-if="job.wakeMode === 'now'"
+                                            class="badge badge-xs badge-outline opacity-60">立即唤醒</span>
                                     </div>
                                 </div>
 
@@ -369,15 +359,27 @@ onMounted(() => {
                                                     </span>
                                         </div>
 
-                                        <div class="flex items-center gap-1 shrink-0">
-                                            <span v-if="job.agentId && job.agentId !== 'default'"
-                                                class="badge badge-xs badge-neutral badge-outline font-mono opacity-80">
-                                                {{ job.agentId.slice(0, 8) }}
-                                            </span>
-                                            <span v-if="job.sessionTarget !== 'main'"
-                                                class="badge badge-xs badge-outline opacity-60">独立会话</span>
-                                            <span v-if="job.wakeMode === 'now'"
-                                                class="badge badge-xs badge-outline opacity-60">立即唤醒</span>
+
+
+                                        <!-- Actions (Always visible) -->
+                                        <div class="flex items-center gap-1">
+                                            <button @click="handleRun(job, $event)"
+                                                class="btn btn-xs btn-ghost border-base-300 tooltip tooltip-left"
+                                                :disabled="runningJobId === job.id" data-tip="立即运行">
+                                                <span v-if="runningJobId === job.id"
+                                                    class="loading loading-spinner loading-xs"></span>
+                                                <BoltIcon v-else class="w-3.5 h-3.5" />
+                                            </button>
+                                            <button @click.stop="handleOpenEdit(job)"
+                                                class="btn btn-xs btn-ghost tooltip tooltip-left" data-tip="编辑">
+                                                <PencilSquareIcon class="w-3.5 h-3.5" />
+                                            </button>
+
+                                            <button @click="handleRemove(job, $event)"
+                                                class="btn btn-xs btn-ghost text-error/50 hover:text-error tooltip tooltip-left"
+                                                data-tip="删除">
+                                                <XMarkIcon class="w-3.5 h-3.5" />
+                                            </button>
                                         </div>
                                     </div>
 
@@ -555,6 +557,11 @@ onMounted(() => {
                         </label>
                     </div>
 
+                </div>
+
+                <!-- Error Display -->
+                <div v-if="modalError" class="alert alert-error mt-4">
+                    <span class="text-sm">{{ modalError }}</span>
                 </div>
 
                 <div class="modal-action">

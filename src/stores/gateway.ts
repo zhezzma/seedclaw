@@ -18,6 +18,8 @@ import { loadSessions, patchSession, deleteSession, type SessionsState } from '.
 import { loadCron, type CronState } from '../services/controllers/cron'
 import { loadSkills, type SkillsState } from '../services/controllers/skills'
 import { loadConfig, type ConfigState } from '../services/controllers/config'
+import { loadLogs, type LogsState } from '../services/controllers/logs'
+import type { LogEntry, LogLevel } from '../services/types'
 import {
     addExecApproval,
     parseExecApprovalRequested,
@@ -109,6 +111,19 @@ export interface GatewayState {
     skillsBusyKey: string | null
     skillEdits: Record<string, string>
     skillMessages: Record<string, { kind: "success" | "error"; message: string }>
+
+    // Logs state
+    logsLoading: boolean
+    logsError: string | null
+    logsCursor: number | null
+    logsFile: string | null
+    logsEntries: LogEntry[]
+    logsTruncated: boolean
+    logsLastFetchAt: number | null
+    logsLimit: number
+    logsMaxBytes: number
+    logsLevelFilter: LogLevel | 'all'
+    logsSearchQuery: string
 
     // Assistant identity
     assistantName: string
@@ -234,6 +249,19 @@ export const useGatewayStore = defineStore('gateway', {
         skillsBusyKey: null,
         skillEdits: {},
         skillMessages: {},
+
+        // Logs
+        logsLoading: false,
+        logsError: null,
+        logsCursor: null,
+        logsFile: null,
+        logsEntries: [],
+        logsTruncated: false,
+        logsLastFetchAt: null,
+        logsLimit: 500,
+        logsMaxBytes: 512 * 1024,
+        logsLevelFilter: 'all',
+        logsSearchQuery: '',
 
         // Assistant identity
         assistantName: 'Assistant',
@@ -739,6 +767,19 @@ export const useGatewayStore = defineStore('gateway', {
         // ==================== Skills ====================
         async loadSkills() {
             await loadSkills(this as unknown as SkillsState)
+        },
+
+        // ==================== Logs ====================
+        async loadLogs(opts?: { reset?: boolean; quiet?: boolean }) {
+            await loadLogs(this as unknown as LogsState, opts)
+        },
+
+        resetLogs() {
+            this.logsCursor = null
+            this.logsEntries = []
+            this.logsFile = null
+            this.logsTruncated = false
+            this.logsLastFetchAt = null
         }
     }
 })

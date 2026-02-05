@@ -247,6 +247,7 @@ export async function updateCronJob(state: CronState, id: string) {
         await loadCronStatus(state);
     } catch (err) {
         state.cronError = String(err);
+        throw err;
     } finally {
         state.cronBusy = false;
     }

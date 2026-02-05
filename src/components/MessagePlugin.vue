@@ -34,19 +34,21 @@ const getIcon = (type: ToastType) => {
 </script>
 
 <template>
-    <div class="toast toast-top toast-center z-50 flex flex-col gap-2 pointer-events-none">
-        <TransitionGroup name="toast-fade">
-            <div v-for="toast in toasts" :key="toast.id"
-                class="alert shadow-lg min-w-[300px] pointer-events-auto flex items-center p-3"
-                :class="getAlertClass(toast.type)">
-                <component :is="getIcon(toast.type)" class="w-6 h-6 stroke-current shrink-0" />
-                <span class="flex-1 text-sm font-medium">{{ toast.message }}</span>
-                <button @click="store.remove(toast.id)" class="btn btn-ghost btn-sm btn-circle text-current">
-                    <XMarkIcon class="w-5 h-5" />
-                </button>
-            </div>
-        </TransitionGroup>
-    </div>
+    <Teleport to="body">
+        <div class="toast toast-top toast-center z-[9999] flex flex-col gap-2 pointer-events-none">
+            <TransitionGroup name="toast-fade">
+                <div v-for="toast in toasts" :key="toast.id"
+                    class="alert shadow-lg min-w-[300px] pointer-events-auto flex items-center p-3"
+                    :class="getAlertClass(toast.type)">
+                    <component :is="getIcon(toast.type)" class="w-6 h-6 stroke-current shrink-0" />
+                    <span class="flex-1 text-sm font-medium">{{ toast.message }}</span>
+                    <button @click="store.remove(toast.id)" class="btn btn-ghost btn-sm btn-circle text-current">
+                        <XMarkIcon class="w-5 h-5" />
+                    </button>
+                </div>
+            </TransitionGroup>
+        </div>
+    </Teleport>
 </template>
 
 <style scoped>
