@@ -15,13 +15,16 @@ import {
 import { useGatewayStore } from '../stores/gateway'
 import { useUiSettingsStore } from '../stores/setting'
 import {
-    loadCron,
     addCronJob,
-    updateCronJob,
     toggleCronJob,
     runCronJob,
     removeCronJob,
-    loadCronRuns
+    loadCronRuns,
+    loadCronStatus,
+    loadCronJobs,
+    CronState,
+    buildCronSchedule,
+    buildCronPayload
 } from '../services/controllers/cron'
 import type { CronFormState } from '../services/ui-types'
 import type { CronJob, CronRunLogEntry } from '../services/types'
@@ -31,6 +34,72 @@ const router = useRouter()
 const gatewayStore = useGatewayStore()
 const settingsStore = useUiSettingsStore()
 const toastStore = useToastStore()
+
+
+async function loadCron(host: CronState) {
+    await Promise.all([
+        loadCronStatus(host),
+        loadCronJobs(host),
+    ]);
+}
+
+
+
+export async function updateCronJob(state: CronState, id: string) {
+    if (!state.client || !state.connected || state.cronBusy) {
+        return;
+    }
+    state.cronBusy = true;
+    state.cronError = null;
+    try {
+        const schedule = buildCronSchedule(state.cronForm);
+        const payload = buildCronPayload(state.cronForm);
+        const agentId = state.cronForm.agentId.trim();
+        const delivery =
+            state.cronForm.sessionTarget === "isolated" &&
+                state.cronForm.payloadKind === "agentTurn" &&
+                state.cronForm.deliveryMode
+                ? {
+                    mode: state.cronForm.deliveryMode === "announce" ? "announce" : "none",
+                    channel: state.cronForm.deliveryChannel.trim() || "last",
+                    to: state.cronForm.deliveryTo.trim() || undefined,
+                } as CronJob['delivery']
+                : undefined;
+
+        const patch: Partial<CronJob> = {
+            name: state.cronForm.name.trim(),
+            description: state.cronForm.description.trim() || undefined,
+            agentId: agentId || undefined,
+            enabled: state.cronForm.enabled,
+            schedule,
+            sessionTarget: state.cronForm.sessionTarget,
+            wakeMode: state.cronForm.wakeMode,
+            payload,
+            isolation:
+                state.cronForm.postToMainPrefix.trim() && state.cronForm.sessionTarget === "isolated"
+                    ? { postToMainPrefix: state.cronForm.postToMainPrefix.trim() }
+                    : undefined,
+        };
+
+        if (!patch.name) {
+            throw new Error("Name required.");
+        }
+
+        await state.client.request("cron.update", { id, patch });
+
+        await loadCronJobs(state);
+        await loadCronStatus(state);
+    } catch (err) {
+        state.cronError = String(err);
+        throw err;
+    } finally {
+        state.cronBusy = false;
+    }
+}
+
+
+
+
 // --- Form State ---
 const defaultForm: CronFormState = {
     name: '',
@@ -51,7 +120,10 @@ const defaultForm: CronFormState = {
     channel: '',
     to: '',
     timeoutSeconds: '',
-    postToMainPrefix: ''
+    postToMainPrefix: '',
+    deliveryMode: 'none',
+    deliveryChannel: '',
+    deliveryTo: ''
 }
 
 const form = ref<CronFormState>({ ...defaultForm })
@@ -78,7 +150,7 @@ const agents = computed(() => gatewayStore.agents) // Access agents getter
 const modalTitle = computed(() => editingId.value ? '编辑任务' : '新建任务')
 
 // Simple date formatter
-const formatDate = (ts: number | undefined) => {
+const formatDate = (ts: number | string | undefined) => {
     if (!ts) return '从不'
     return new Date(ts).toLocaleString('zh-CN')
 }
@@ -99,7 +171,6 @@ const cronPayloadToForm = (payload: CronJob['payload'], f: CronFormState) => {
     } else {
         f.payloadKind = 'agentTurn'
         f.payloadText = payload.message
-        f.deliver = !!payload.deliver
         // f.channel = payload.channel // field missing in types?
         // f.to = payload.to
     }
@@ -194,7 +265,7 @@ const handleOpenEdit = (job: CronJob) => {
     } else if (job.schedule.kind === 'at') {
         f.scheduleKind = 'at'
         // Format to datetime-local string YYYY-MM-DDTHH:mm
-        const d = new Date(job.schedule.atMs)
+        const d = new Date(job.schedule.atMs ?? job.schedule.at)
         const pad = (n: number) => n.toString().padStart(2, '0')
         f.scheduleAt = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
     } else if (job.schedule.kind === 'cron') {
@@ -205,6 +276,13 @@ const handleOpenEdit = (job: CronJob) => {
 
     // Payload mapping
     cronPayloadToForm(job.payload, f)
+
+    // Delivery mapping
+    if (job.delivery) {
+        f.deliver = job.delivery.mode === 'announce'
+        f.channel = job.delivery.channel || ''
+        f.to = job.delivery.to || ''
+    }
 
     form.value = f
     openModal()
@@ -352,7 +430,7 @@ onMounted(() => {
                                                     (job.schedule.everyMs / 60000 + 'm') : (Number(job.schedule.everyMs
                                                         / 3600000).toFixed(1).replace(/\.0$/, '') + 'h') }} </span>
                                                     <span class="font-mono" v-else-if="job.schedule.kind === 'at'">
-                                                        {{ formatDate(job.schedule.atMs) }}
+                                                        {{ formatDate(job.schedule.atMs ?? job.schedule.at) }}
                                                     </span>
                                                     <span class="font-mono" v-else>
                                                         {{ job.schedule.expr }}

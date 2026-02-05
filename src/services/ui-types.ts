@@ -29,6 +29,9 @@ export type CronFormState = {
     sessionTarget: "main" | "isolated";
     wakeMode: "next-heartbeat" | "now";
     payloadKind: "systemEvent" | "agentTurn";
+    deliveryMode: "none" | "announce";
+    deliveryChannel: string;
+    deliveryTo: string;
     payloadText: string;
     deliver: boolean;
     channel: string;

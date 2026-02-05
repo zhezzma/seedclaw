@@ -425,7 +425,7 @@ export type SessionsPatchResult = {
 };
 
 export type CronSchedule =
-    | { kind: "at"; at: string }
+    | { kind: "at"; at: string; atMs?: number }
     | { kind: "every"; everyMs: number; anchorMs?: number }
     | { kind: "cron"; expr: string; tz?: string };
 
@@ -439,6 +439,7 @@ export type CronPayload =
         message: string;
         thinking?: string;
         timeoutSeconds?: number;
+        deliver?: boolean;
     };
 
 export type CronDelivery = {
@@ -472,6 +473,9 @@ export type CronJob = {
     payload: CronPayload;
     delivery?: CronDelivery;
     state?: CronJobState;
+    isolation?: {
+        postToMainPrefix?: string;
+    };
 };
 
 export type CronStatus = {
