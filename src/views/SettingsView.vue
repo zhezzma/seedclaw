@@ -161,7 +161,7 @@ const logout = () => {
                                         <span class="font-medium">基本设置</span>
                                         <p class="text-xs text-base-content/50 truncate max-w-48">{{
                                             configStore.gatewayUrl
-                                        }}</p>
+                                            }}</p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
@@ -179,7 +179,7 @@ const logout = () => {
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm text-base-content/60">{{ configStore.isDark ? '深色' : '浅色'
-                                    }}</span>
+                                        }}</span>
                                     <input type="checkbox" class="toggle toggle-primary" :checked="configStore.isDark"
                                         @change="configStore.toggleTheme()" />
                                 </div>
@@ -337,8 +337,10 @@ const logout = () => {
                     <label class="label">
                         <span class="label-text">会话活跃天数</span>
                     </label>
+                    <input type="number" v-model="editForm.sessionsActiveDays" class="input input-bordered w-full"
+                        placeholder="3" min="1" />
                     <label class="label">
-                        <span class="label-text-alt">超过此天数的会话将不会被读取</span>
+                        <span class="label-text-alt opacity-50">超过此天数的会话将不会被读取</span>
                     </label>
                 </div>
                 <div>

@@ -181,12 +181,8 @@ const isSaving = computed(() => store.configSaving)
                                 <optgroup v-for="group in availableModels" :key="group.provider"
                                     :label="group.provider">
                                     <option v-for="model in group.models" :key="model.id" :value="model.id"
-                                        class="w-100">
-                                        <span class="truncate block " :title="model.name">
-                                            {{ model.name }}
-                                            <span class="opacity-50 font-mono ml-1">({{ model.id }})</span>
-                                        </span>
-
+                                        class="w-100 truncate block">
+                                        {{ model.name }} ({{ model.id }})
                                     </option>
                                 </optgroup>
                             </select>

@@ -161,7 +161,7 @@ defineExpose({
                                 d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                         </svg>
                         <span class="text-[9px] w-full truncate text-center opacity-70 leading-tight mt-0.5">{{ att.name
-                        }}</span>
+                            }}</span>
                     </div>
 
                     <!-- Delete Button: Always visible on mobile (using forced opacity or just remove opacity class). 
@@ -200,7 +200,7 @@ defineExpose({
                             <span class="sm:inline">命令</span>
                             <ChevronUpIcon class="h-3 w-3 ml-0.5 opacity-50" />
                         </button>
-                        <ul
+                        <ul v-if="commandDropdownOpen"
                             class="dropdown-content menu p-2 shadow-xl bg-base-100 rounded-box w-56 border border-base-300 mb-2 z-[100]">
                             <li class="menu-title px-4 py-2 text-xs opacity-50">常用指令</li>
                             <li v-for="cmd in COMMANDS" :key="cmd.value">
@@ -220,7 +220,7 @@ defineExpose({
                             <span class="sm:inline">模型</span>
                             <ChevronUpIcon class="h-3 w-3 ml-0.5 opacity-50" />
                         </button>
-                        <ul
+                        <ul v-if="modelDropdownOpen"
                             class="dropdown-content p-2 shadow-xl bg-base-100 rounded-box w-100 border border-base-300 mb-2 z-[100] max-h-[60vh] overflow-y-auto flex flex-col flex-nowrap">
                             <li class="px-4 py-2 text-xs opacity-50 font-bold uppercase tracking-wider block">选择模型</li>
                             <template v-for="group in availableModels" :key="group.provider">
