@@ -15,7 +15,8 @@ import {
     MicrophoneIcon,
     SpeakerWaveIcon,
     DocumentTextIcon,
-    ArrowTopRightOnSquareIcon
+    ArrowTopRightOnSquareIcon,
+    ComputerDesktopIcon
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
@@ -110,6 +111,14 @@ const navigateToLogs = () => {
     router.push('/logs')
 }
 
+const navigateToDevices = () => {
+    router.push('/devices')
+}
+
+const navigateToNodes = () => {
+    router.push('/nodes')
+}
+
 const logout = () => {
     configStore.clear()
     router.push('/setup')
@@ -152,7 +161,7 @@ const logout = () => {
                                         <span class="font-medium">基本设置</span>
                                         <p class="text-xs text-base-content/50 truncate max-w-48">{{
                                             configStore.gatewayUrl
-                                            }}</p>
+                                        }}</p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
@@ -170,7 +179,7 @@ const logout = () => {
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm text-base-content/60">{{ configStore.isDark ? '深色' : '浅色'
-                                        }}</span>
+                                    }}</span>
                                     <input type="checkbox" class="toggle toggle-primary" :checked="configStore.isDark"
                                         @change="configStore.toggleTheme()" />
                                 </div>
@@ -219,6 +228,36 @@ const logout = () => {
 
 
 
+                <!-- Devices & Nodes -->
+                <div class="space-y-2">
+                    <h4 class="text-sm font-medium text-base-content/60 px-2">设备与节点</h4>
+                    <div class="card bg-base-100 shadow-sm">
+                        <ul class="divide-y divide-base-300">
+                            <li @click="navigateToDevices"
+                                class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors">
+                                <div class="flex items-center gap-3">
+                                    <ComputerDesktopIcon class="h-5 w-5 text-base-content/60" />
+                                    <div>
+                                        <span class="font-medium">设备管理</span>
+                                        <p class="text-xs text-base-content/50">管理已配对的客户端设备</p>
+                                    </div>
+                                </div>
+                                <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
+                            </li>
+                            <li @click="navigateToNodes"
+                                class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors">
+                                <div class="flex items-center gap-3">
+                                    <ServerIcon class="h-5 w-5 text-base-content/60" />
+                                    <div>
+                                        <span class="font-medium">节点管理</span>
+                                        <p class="text-xs text-base-content/50">管理计算节点与 worker</p>
+                                    </div>
+                                </div>
+                                <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
+                            </li>
+                        </ul>
+                    </div>
+                </div>
 
                 <!-- Debug & Logs -->
                 <div class="space-y-2">

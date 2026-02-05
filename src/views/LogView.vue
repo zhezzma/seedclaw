@@ -169,7 +169,7 @@ onUnmounted(() => {
         <!-- Header -->
         <div class="shrink-0 navbar bg-base-100 border-b border-base-300">
             <div class="flex-1">
-                <button @click="goBack" class="btn btn-ghost btn-sm btn-circle lg:hidden">
+                <button @click="goBack" class="btn btn-ghost btn-sm btn-circle ">
                     <ArrowLeftIcon class="w-5 h-5" />
                 </button>
                 <span class="text-lg font-semibold px-4">系统日志</span>

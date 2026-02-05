@@ -4,6 +4,7 @@ import { useGatewayStore } from '../../../stores/gateway'
 import { useToastStore } from '../../../stores/toast'
 import { updateConfigFormValue, saveConfig, type ConfigState } from '../../../services/controllers/config'
 import { loadAgentFiles, loadAgentFileContent, saveAgentFile, type AgentFilesState } from '../../../services/controllers/agent-files'
+import { useModels } from '../../../composables/useModels'
 import {
     FingerPrintIcon,
     ExclamationTriangleIcon,
@@ -128,27 +129,7 @@ const currentModel = computed({
 })
 
 // Available models flattened
-const availableModels = computed(() => {
-    const providers = (store.configForm?.models as any)?.providers as Record<string, any> | undefined
-    if (!providers) return []
-
-    // Group by provider for display
-    const groups: { provider: string; models: { id: string; name: string }[] }[] = []
-
-    Object.entries(providers).forEach(([providerKey, provider]) => {
-        if (Array.isArray(provider.models)) {
-            groups.push({
-                provider: providerKey,
-                models: provider.models.map((m: any) => ({
-                    id: `${providerKey}/${m.id}`,
-                    name: m.name || m.id
-                }))
-            })
-        }
-    })
-
-    return groups
-})
+const { availableModels } = useModels()
 
 const isDirty = computed(() => store.configFormDirty)
 const isSaving = computed(() => store.configSaving)
@@ -195,13 +176,17 @@ const isSaving = computed(() => store.configSaving)
                         <span class="font-medium text-base-content/90">主模型</span>
 
                         <div v-if="agentIndex !== -1" class="flex-1 max-w-xs flex flex-col items-end gap-1">
-                            <select v-model="currentModel"
-                                class="select select-bordered select-sm w-full font-mono text-xs ">
+                            <select v-model="currentModel" class="select select-bordered  w-full  ">
                                 <option value="" disabled>选择模型</option>
                                 <optgroup v-for="group in availableModels" :key="group.provider"
                                     :label="group.provider">
-                                    <option v-for="model in group.models" :key="model.id" :value="model.id">
-                                        {{ model.name }} ({{ model.id }})
+                                    <option v-for="model in group.models" :key="model.id" :value="model.id"
+                                        class="w-100">
+                                        <span class="truncate block " :title="model.name">
+                                            {{ model.name }}
+                                            <span class="opacity-50 font-mono ml-1">({{ model.id }})</span>
+                                        </span>
+
                                     </option>
                                 </optgroup>
                             </select>

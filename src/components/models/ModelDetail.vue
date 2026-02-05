@@ -330,7 +330,7 @@ const saveProvider = () => {
             <h2 class="text-lg font-semibold mb-4">模型列表</h2>
 
             <!-- Model Grid -->
-            <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-2">
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                 <!-- Add Model Card -->
                 <div @click="openAddModel"
                     class="aspect-square border-2 border-dashed border-base-300 rounded-lg flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-primary hover:bg-primary/5 transition-all">
@@ -340,27 +340,27 @@ const saveProvider = () => {
 
                 <!-- Model Cards -->
                 <div v-for="(model, index) in models" :key="model.id" @click="openEditModel(model, index)"
-                    class="aspect-square bg-base-200/50 rounded-lg p-2 flex flex-col cursor-pointer hover:bg-base-200 transition-all group relative">
+                    class="aspect-square bg-base-200/50 rounded-lg p-3 sm:p-4 flex flex-col cursor-pointer hover:bg-base-200 transition-all group relative">
 
                     <!-- Delete Button -->
                     <button @click.stop="deleteModel(index, model.id)"
                         class="absolute top-1 right-1 btn btn-ghost btn-xs btn-circle opacity-0 group-hover:opacity-100 transition-opacity text-error">
-                        <XMarkIcon class="w-3 h-3" />
+                        <XMarkIcon class="w-4 h-4" />
                     </button>
 
                     <!-- Model Icon -->
-                    <div class="text-lg mb-1">🤖</div>
+                    <div class="text-xl mb-2">🤖</div>
 
                     <!-- Model Info -->
                     <div class="flex-1 min-w-0">
-                        <div class="font-semibold text-xs truncate">{{ model.name || model.id }}</div>
-                        <div class="text-[10px] text-base-content/50 truncate">{{ model.id }}</div>
+                        <div class="font-semibold text-sm truncate">{{ model.name || model.id }}</div>
+                        <div class="text-xs text-base-content/50 truncate">{{ model.id }}</div>
                     </div>
 
                     <!-- Badges -->
-                    <div class="flex flex-wrap gap-0.5 mt-1">
-                        <span v-if="model.reasoning" class="badge badge-primary text-[8px] h-4 px-1">推理</span>
-                        <span v-if="model.contextWindow" class="badge badge-ghost text-[8px] h-4 px-1">{{
+                    <div class="flex flex-wrap gap-1 mt-2">
+                        <span v-if="model.reasoning" class="badge badge-primary text-[10px] h-5 px-1.5">推理</span>
+                        <span v-if="model.contextWindow" class="badge badge-ghost text-[10px] h-5 px-1.5">{{
                             (model.contextWindow /
                                 1000).toFixed(0) }}K</span>
                     </div>

@@ -11,11 +11,11 @@ import type { SkillStatusReport } from '../services/types'
 import { handleAgentEvent, resetToolStream, type AgentEventPayload, type ToolStreamEntry } from '../services/app-tool-stream'
 import { loadAssistantIdentity, type AssistantIdentityState } from '../services/controllers/assistant-identity'
 import { loadAgents, type AgentsState } from '../services/controllers/agents'
-import { loadNodes, type NodesState } from '../services/controllers/nodes'
-import { loadDevices, type DevicesState } from '../services/controllers/devices'
+import { loadNodes, type NodesState, type NodePairingList } from '../services/controllers/nodes'
+import { loadDevices, type DevicesState, type DevicePairingList } from '../services/controllers/devices'
 import { handleChatEvent, loadChatHistory, type ChatEventPayload, type ChatState } from '../services/controllers/chat'
 import { loadSessions, patchSession, deleteSession, type SessionsState } from '../services/controllers/sessions'
-import { loadCron, type CronState } from '../services/controllers/cron'
+import { loadCronJobs, loadCronStatus, type CronState } from '../services/controllers/cron'
 import { loadSkills, type SkillsState } from '../services/controllers/skills'
 import { loadConfig, type ConfigState } from '../services/controllers/config'
 import { loadLogs, type LogsState } from '../services/controllers/logs'
@@ -72,12 +72,13 @@ export interface GatewayState {
 
     // Nodes state
     nodesLoading: boolean
-    nodes: Array<Record<string, unknown>>
+    nodesError: string | null
+    nodesList: NodePairingList | null
 
     // Devices state
     devicesLoading: boolean
     devicesError: string | null
-    devicesList: { pending: unknown[]; paired: unknown[] } | null
+    devicesList: DevicePairingList | null
 
     // Presence state
     presenceEntries: PresenceEntry[]
@@ -210,7 +211,8 @@ export const useGatewayStore = defineStore('gateway', {
 
         // Nodes
         nodesLoading: false,
-        nodes: [],
+        nodesError: null,
+        nodesList: null,
 
         // Devices
         devicesLoading: false,
@@ -543,11 +545,15 @@ export const useGatewayStore = defineStore('gateway', {
             }
 
             if (evt.event === 'cron') {
-                void loadCron(this as unknown as CronState)
+                void this.loadCron()
             }
 
             if (evt.event === 'device.pair.requested' || evt.event === 'device.pair.resolved') {
                 void loadDevices(this as unknown as DevicesState, { quiet: true })
+            }
+
+            if (evt.event === 'node.pair.requested' || evt.event === 'node.pair.resolved') {
+                void loadNodes(this as unknown as NodesState, { quiet: true })
             }
 
             if (evt.event === 'exec.approval.requested') {
@@ -773,6 +779,17 @@ export const useGatewayStore = defineStore('gateway', {
         async loadLogs(opts?: { reset?: boolean; quiet?: boolean }) {
             await loadLogs(this as unknown as LogsState, opts)
         },
+
+        async loadCron() {
+            await Promise.all([
+                loadCronStatus(this as unknown as CronState),
+                loadCronJobs(this as unknown as CronState),
+            ]);
+        },
+
+
+
+
 
         resetLogs() {
             this.logsCursor = null

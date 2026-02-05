@@ -36,16 +36,10 @@ const settingsStore = useUiSettingsStore()
 const toastStore = useToastStore()
 
 
-async function loadCron(host: CronState) {
-    await Promise.all([
-        loadCronStatus(host),
-        loadCronJobs(host),
-    ]);
-}
 
 
 
-export async function updateCronJob(state: CronState, id: string) {
+async function updateCronJob(state: CronState, id: string) {
     if (!state.client || !state.connected || state.cronBusy) {
         return;
     }
@@ -337,12 +331,12 @@ const handleRemove = async (job: CronJob, e: Event) => {
 
 watch(() => gatewayStore.connected, (connected) => {
     if (connected) {
-        void loadCron(gatewayStore as any)
+        void gatewayStore.loadCron()
     }
 })
 
 onMounted(() => {
-    void loadCron(gatewayStore as any)
+    void gatewayStore.loadCron()
 })
 
 
@@ -391,7 +385,7 @@ onMounted(() => {
                                     <div class="flex items-center gap-2 min-w-0">
                                         <!-- Status Dot -->
                                         <button @click="handleToggle(job, $event)"
-                                            class="btn btn-xs btn-ghost tooltip tooltip-left"
+                                            class="btn btn-xs btn-ghost tooltip tooltip-top"
                                             :class="job.enabled ? 'text-success' : 'text-base-content opacity-50'"
                                             :data-tip="job.enabled ? '点击禁用' : '点击启用'">
                                             <div class="w-2 h-2 rounded-full"
@@ -409,7 +403,7 @@ onMounted(() => {
 
                                     <div class="flex items-center gap-1 shrink-0">
                                         <span v-if="job.agentId && job.agentId !== 'default'"
-                                            class="badge badge-xs badge-neutral badge-outline font-mono opacity-80">
+                                            class="badge badge-xs badge-outline font-mono opacity-80">
                                             {{ job.agentId.slice(0, 8) }}
                                         </span>
                                         <span v-if="job.sessionTarget !== 'main'"
@@ -442,19 +436,19 @@ onMounted(() => {
                                         <!-- Actions (Always visible) -->
                                         <div class="flex items-center gap-1">
                                             <button @click="handleRun(job, $event)"
-                                                class="btn btn-xs btn-ghost border-base-300 tooltip tooltip-left"
+                                                class="btn btn-xs btn-ghost border-base-content/20 tooltip tooltip-top"
                                                 :disabled="runningJobId === job.id" data-tip="立即运行">
                                                 <span v-if="runningJobId === job.id"
                                                     class="loading loading-spinner loading-xs"></span>
                                                 <BoltIcon v-else class="w-3.5 h-3.5" />
                                             </button>
                                             <button @click.stop="handleOpenEdit(job)"
-                                                class="btn btn-xs btn-ghost tooltip tooltip-left" data-tip="编辑">
+                                                class="btn btn-xs btn-ghost tooltip tooltip-top" data-tip="编辑">
                                                 <PencilSquareIcon class="w-3.5 h-3.5" />
                                             </button>
 
                                             <button @click="handleRemove(job, $event)"
-                                                class="btn btn-xs btn-ghost text-error/50 hover:text-error tooltip tooltip-left"
+                                                class="btn btn-xs btn-ghost text-error/50 hover:text-error tooltip tooltip-top"
                                                 data-tip="删除">
                                                 <XMarkIcon class="w-3.5 h-3.5" />
                                             </button>
@@ -621,7 +615,7 @@ onMounted(() => {
 
                     <fieldset class="fieldset w-full">
                         <legend class="fieldset-legend">{{ form.payloadKind === 'systemEvent' ? '系统事件内容' : '消息内容'
-                        }}</legend>
+                            }}</legend>
                         <textarea v-model="form.payloadText" class="textarea w-full h-24"
                             placeholder="输入内容..."></textarea>
                         <div class="label"></div>

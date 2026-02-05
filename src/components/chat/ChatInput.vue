@@ -12,13 +12,50 @@ import {
     SparklesIcon,
     XMarkIcon
 } from '@heroicons/vue/24/outline'
-import { useChatInput, COMMANDS, MODELS } from '../../composables/useChatInput'
+import { useChatInput, COMMANDS } from '../../composables/useChatInput'
+import { useModels } from '../../composables/useModels'
+import { useGatewayStore } from '../../stores/gateway'
+import { updateConfigFormValue, saveConfig, type ConfigState } from '../../services/controllers/config'
+import { computed } from 'vue'
 import { SpeechRecognitionService } from '../../utils/asr/speechRecognition'
 
 const props = defineProps<{
     isBusy: boolean
     disabled: boolean
 }>()
+
+const store = useGatewayStore()
+const { availableModels } = useModels()
+
+// Current agent model binding
+const agentIndex = computed(() => {
+    const list = (store.configForm?.agents as any)?.list as any[] | undefined
+    if (!list) return -1
+    return list.findIndex((a: any) => a.id === store.assistantAgentId)
+})
+
+const currentModel = computed({
+    get: () => {
+        console.log('agentIndex.value', agentIndex.value)
+
+        if (agentIndex.value === -1) return ''
+        const list = (store.configForm?.agents as any)?.list as any[]
+        const model = list[agentIndex.value]?.model?.primary || (store.configForm?.agents as any)?.defaults?.model?.primary
+
+        console.log('model', model)
+
+        return model || ''
+    },
+    set: (val: string) => {
+        if (agentIndex.value === -1) return
+        updateConfigFormValue(
+            store as unknown as ConfigState,
+            ['agents', 'list', agentIndex.value, 'model', 'primary'],
+            val
+        )
+        saveConfig(store as unknown as ConfigState)
+    }
+})
 
 const emit = defineEmits<{
     (e: 'send'): void
@@ -173,26 +210,39 @@ defineExpose({
                     </div>
 
                     <!-- Model -->
-                    <!-- <div class="dropdown dropdown-top" :class="{ 'dropdown-open': modelDropdownOpen }">
-                        <button @click.stop="modelDropdownOpen = !modelDropdownOpen; commandDropdownOpen = false"
-                            class="btn btn-ghost btn-sm gap-1 font-normal rounded-full border border-base-content/20 hover:border-base-content/40 hover:bg-base-300  transition-all"
+                    <!-- Model -->
+                    <div class="dropdown dropdown-top" :class="{ 'dropdown-open': modelDropdownOpen }">
+                        <button
+                            @click.stop="() => { modelDropdownOpen = !modelDropdownOpen; commandDropdownOpen = false }"
+                            class="btn btn-ghost btn-sm gap-1 font-normal rounded-full border border-base-content/20 hover:border-base-content/40 hover:bg-base-300 transition-all"
                             title="模型">
-                            <CpuChipIcon class="h-4 w-4  hidden sm:inline" />
-                            <span class=" sm:inline">模型</span>
+                            <CpuChipIcon class="h-4 w-4 hidden sm:inline" />
+                            <span class="sm:inline">模型</span>
                             <ChevronUpIcon class="h-3 w-3 ml-0.5 opacity-50" />
                         </button>
                         <ul
-                            class="dropdown-content menu p-2 shadow-xl bg-base-100 rounded-box w-48 border border-base-300 mb-2 z-[100]">
-                            <li class="menu-title px-4 py-2 text-xs opacity-50">选择模型</li>
-                            <li v-for="m in MODELS" :key="m.value">
-                                <a @click="selectModel(m.value)" class="rounded-lg justify-between"
-                                    :class="{ 'active': selectedModel === m.value }">
-                                    {{ m.label }}
-                                    <CheckIcon v-if="selectedModel === m.value" class="h-4 w-4" />
-                                </a>
-                            </li>
+                            class="dropdown-content p-2 shadow-xl bg-base-100 rounded-box w-100 border border-base-300 mb-2 z-[100] max-h-[60vh] overflow-y-auto flex flex-col flex-nowrap">
+                            <li class="px-4 py-2 text-xs opacity-50 font-bold uppercase tracking-wider block">选择模型</li>
+                            <template v-for="group in availableModels" :key="group.provider">
+                                <li
+                                    class="px-4 py-1 text-[10px] uppercase tracking-wider bg-base-200/50 mb-1 font-bold block sticky top-0 backdrop-blur-md z-10">
+                                    {{ group.provider }}
+                                </li>
+                                <li v-for="m in group.models" :key="m.id" class="block">
+                                    <a @click="() => { currentModel = m.id; modelDropdownOpen = false }"
+                                        class="flex items-center gap-2 p-2 rounded-lg hover:bg-base-200 transition-colors cursor-pointer"
+                                        :class="{ 'bg-primary/10 text-primary': currentModel === m.id }">
+                                        <CheckIcon v-if="currentModel === m.id" class="h-4 w-4 shrink-0" />
+                                        <span v-else class="w-4 h-4 shrink-0"></span>
+                                        <span class="truncate block text-xs" :title="m.name">
+                                            {{ m.name }}
+                                            <span class="opacity-50  font-mono ml-1">({{ m.id }})</span>
+                                        </span>
+                                    </a>
+                                </li>
+                            </template>
                         </ul>
-                    </div> -->
+                    </div>
 
                     <!-- Think -->
                     <!-- <button @click="isThinking = !isThinking"

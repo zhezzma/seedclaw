@@ -20,11 +20,6 @@ export const COMMANDS: CommandItem[] = [
     { label: '/help (帮助)', value: '/help' }
 ]
 
-export const MODELS: ModelItem[] = [
-    { label: 'GLM-4', value: 'glm' },
-    { label: 'Gemini Pro', value: 'gemini' },
-    { label: 'GPT-4o', value: 'gpt4' }
-]
 
 export function useChatInput() {
     const inputText = ref('')
@@ -206,6 +201,5 @@ export function useChatInput() {
         addAttachment, // Export
         removeAttachment, // Export
         commands: COMMANDS,
-        models: MODELS
     }
 }

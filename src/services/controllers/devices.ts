@@ -16,6 +16,7 @@ export type PendingDevice = {
     deviceId: string;
     displayName?: string;
     role?: string;
+    platform?: string;
     remoteIp?: string;
     isRepair?: boolean;
     ts?: number;
@@ -24,6 +25,7 @@ export type PendingDevice = {
 export type PairedDevice = {
     deviceId: string;
     displayName?: string;
+    platform?: string;
     roles?: string[];
     scopes?: string[];
     remoteIp?: string;
