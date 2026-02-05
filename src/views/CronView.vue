@@ -149,6 +149,12 @@ const formatDate = (ts: number | string | undefined) => {
     return new Date(ts).toLocaleString('zh-CN')
 }
 
+// Shanghai timezone formatter
+const formatDateShanghai = (ts: number | undefined) => {
+    if (!ts) return '-'
+    return new Date(ts).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
+}
+
 const getPayloadText = (payload: CronJob['payload']) => {
     if (payload.kind === 'systemEvent') {
         return payload.text
@@ -306,6 +312,12 @@ const handleToggle = async (job: CronJob, e: Event) => {
 
 const handleRun = async (job: CronJob, e: Event) => {
     e.stopPropagation()
+
+    // 确认弹窗
+    if (!confirm('立即运行可能会导致今天的定时任务被跳过，确定要继续吗？')) {
+        return
+    }
+
     runningJobId.value = job.id
 
     try {
@@ -374,7 +386,8 @@ onMounted(() => {
                         <button @click="handleOpenAdd" class="btn btn-link">创建一个</button>
                     </div>
 
-                    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <div v-else class="grid gap-4"
+                        :class="settingsStore.isWideMode ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3' : 'grid-cols-1 md:grid-cols-2'">
 
                         <div v-for="job in jobs" :key="job.id"
                             class="card bg-base-100 shadow-sm border border-base-200 cursor-pointer hover:border-primary transition-colors hover:shadow-md group h-full"
@@ -455,7 +468,19 @@ onMounted(() => {
                                         </div>
                                     </div>
 
-                                    <!-- Line 2: Payload -->
+                                    <!-- Line 2: Next Run / Last Run -->
+                                    <div class="flex items-center gap-4">
+                                        <div class="flex items-center gap-1" title="下次执行">
+                                            <span class="opacity-60">下次:</span>
+                                            <span>{{ formatDateShanghai(job.state?.nextRunAtMs) }}</span>
+                                        </div>
+                                        <div class="flex items-center gap-1" title="上次执行">
+                                            <span class="opacity-60">上次:</span>
+                                            <span>{{ formatDateShanghai(job.state?.lastRunAtMs) }}</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Line 3: Payload -->
                                     <div class="flex items-center gap-1.5 min-w-0 w-full" title="执行内容">
                                         <span class="opacity-60 shrink-0">{{ job.payload.kind === 'systemEvent' ? '事件' :
                                             '消息' }}:</span>

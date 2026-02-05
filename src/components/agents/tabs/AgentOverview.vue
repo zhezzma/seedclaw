@@ -74,7 +74,8 @@ async function openFile(filename: string) {
     editingFile.value = filename
     showFileModal.value = true
     editingContent.value = '' // Clear previous content while loading
-    await loadAgentFileContent(fileState as unknown as AgentFilesState, props.agent.id, filename)
+    console.log('openFile', filename, props.agent.id)
+    await loadAgentFileContent(fileState as unknown as AgentFilesState, props.agent.id, filename, { force: true })
     editingContent.value = fileState.agentFileContents[filename] || ''
 }
 
