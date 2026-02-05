@@ -27,7 +27,8 @@ const agents = computed(() => {
     return list.map((a: any) => ({
         id: a.id || a.name,
         name: a.name || a.id,
-        icon: a.icon || '🤖',
+        avatarUrl: a.identity?.avatarUrl,
+        icon: a.identity?.emoji || '🤖',
         description: a.description || ''
     }))
 })
@@ -115,7 +116,7 @@ const handleNavClick = (item: any) => {
         <div class="shrink-0 px-5 py-4 flex items-center justify-between">
             <div class="flex items-center gap-2">
                 <span class="text-2xl">🦀</span>
-                <span class="text-lg font-bold tracking-tight">Seedclaw</span>
+                <span class="text-lg font-bold tracking-tight">SeedClaw</span>
             </div>
             <div class="flex gap-1">
                 <button @click="router.push('/settings')" class="btn btn-ghost btn-circle btn-sm hover:bg-base-300">

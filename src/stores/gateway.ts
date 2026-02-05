@@ -4,7 +4,7 @@ import { generateUUID } from '../services/uuid'
 import { extractText } from '../services/chat/message-extract'
 import { useUiSettingsStore } from './setting'
 import type { ChatAttachment, ChatQueueItem } from '../services/ui-types'
-import type { PresenceEntry, HealthSnapshot, StatusSummary, SessionsListResult, AgentsListResult } from '../services/types'
+import type { PresenceEntry, HealthSnapshot, StatusSummary, SessionsListResult, AgentsListResult, ConfigSnapshot, ConfigUiHints } from '../services/types'
 import type { EventLogEntry } from '../services/app-events'
 import type { ExecApprovalRequest } from '../services/controllers/exec-approval'
 import type { SkillStatusReport } from '../services/types'
@@ -17,6 +17,7 @@ import { handleChatEvent, loadChatHistory, type ChatEventPayload, type ChatState
 import { loadSessions, patchSession, deleteSession, type SessionsState } from '../services/controllers/sessions'
 import { loadCron, type CronState } from '../services/controllers/cron'
 import { loadSkills, type SkillsState } from '../services/controllers/skills'
+import { loadConfig, type ConfigState } from '../services/controllers/config'
 import {
     addExecApproval,
     parseExecApprovalRequested,
@@ -121,6 +122,28 @@ export interface GatewayState {
     chatToolMessages: Record<string, unknown>[]
     toolStreamSyncTimer: number | null
 
+    // Config state
+    configLoading: boolean
+    configRaw: string
+    configRawOriginal: string
+    configValid: boolean | null
+    configIssues: unknown[]
+    configSaving: boolean
+    configApplying: boolean
+    updateRunning: boolean
+    configSnapshot: ConfigSnapshot | null
+    configSchema: unknown
+    configSchemaVersion: string | null
+    configSchemaLoading: boolean
+    configUiHints: ConfigUiHints
+    configForm: Record<string, unknown> | null
+    configFormOriginal: Record<string, unknown> | null
+    configFormDirty: boolean
+    configFormMode: "form" | "raw"
+    configSearchQuery: string
+    configActiveSection: string | null
+    configActiveSubsection: string | null
+
     // Misc
     onboarding: boolean
     isNewSessionPending: boolean
@@ -224,6 +247,28 @@ export const useGatewayStore = defineStore('gateway', {
         chatToolMessages: [],
         toolStreamSyncTimer: null,
 
+        // Config
+        configLoading: false,
+        configRaw: '',
+        configRawOriginal: '',
+        configValid: null,
+        configIssues: [],
+        configSaving: false,
+        configApplying: false,
+        updateRunning: false,
+        configSnapshot: null,
+        configSchema: null,
+        configSchemaVersion: null,
+        configSchemaLoading: false,
+        configUiHints: {},
+        configForm: null,
+        configFormOriginal: null,
+        configFormDirty: false,
+        configFormMode: 'form',
+        configSearchQuery: '',
+        configActiveSection: null,
+        configActiveSubsection: null,
+
         // Misc
         onboarding: false,
         isNewSessionPending: false,
@@ -306,6 +351,7 @@ export const useGatewayStore = defineStore('gateway', {
                         resetToolStream(this as unknown as Parameters<typeof resetToolStream>[0])
 
                         // Load initial data
+                        void loadConfig(this as unknown as Parameters<typeof loadConfig>[0]);
                         void this.loadAgents();
                         void this.loadSessions();
                         //开始创建新的session

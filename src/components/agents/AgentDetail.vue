@@ -11,7 +11,7 @@ import {
 
 // Tab components
 import AgentOverview from './tabs/AgentOverview.vue'
-import AgentFiles from './tabs/AgentFiles.vue'
+
 import AgentTools from './tabs/AgentTools.vue'
 import AgentSkills from './tabs/AgentSkills.vue'
 
@@ -39,15 +39,16 @@ const agent = computed(() => {
         return null
     }
 
-    // Fix type casting or property access
     const typedAgent = rawAgent as any
+    const identity = typedAgent.identity || {}
 
     console.log('[AgentDetail] Agent found:', typedAgent)
     return {
         id: typedAgent.id || typedAgent.name,
-        name: typedAgent.identity?.name || typedAgent.name || typedAgent.id,
+        name: identity.name || typedAgent.name || typedAgent.id,
+        avatarUrl: identity.avatarUrl,
         // Icon logic: emoji > avatar > defaults
-        icon: typedAgent.identity?.emoji || '🤖',
+        icon: identity.emoji || '🤖',
         description: typedAgent.description || '', // Description might not be in type but maybe in runtime
         isDefault: (typedAgent.id || typedAgent.name) === gatewayStore.defaultAgentId
     }
@@ -58,7 +59,6 @@ const activeTab = ref('overview')
 
 const tabs = [
     { id: 'overview', label: '概览', component: AgentOverview },
-    { id: 'files', label: '文件', component: AgentFiles },
     { id: 'tools', label: '工具', component: AgentTools },
     { id: 'skills', label: '技能', component: AgentSkills },
 ]
@@ -68,12 +68,14 @@ const tabs = [
     <div v-if="agent" class="h-full flex flex-col bg-base-100">
         <!-- Detail Header -->
         <div class="px-6 py-6 border-b border-base-200">
-            <div class="flex flex-col items-center gap-4 lg:gap-6">
+            <div class="flex flex-col items-center gap-4">
                 <!-- Avatar -->
                 <div class="relative shrink-0">
                     <div
-                        class="w-12 h-12 lg:w-15 lg:h-15 rounded-full bg-base-200/50 flex items-center justify-center text-4xl lg:text-5xl shadow-sm ring-4 ring-base-100">
-                        {{ agent.icon }}
+                        class="w-12 h-12 lg:w-15 lg:h-15 rounded-full bg-base-200/50 flex items-center justify-center shadow-sm ring-4 ring-base-100 overflow-hidden">
+                        <img v-if="agent.avatarUrl" :src="agent.avatarUrl" :alt="agent.name"
+                            class="w-full h-full object-cover" />
+                        <span v-else class="text-4xl lg:text-5xl select-none">{{ agent.icon }}</span>
                     </div>
                 </div>
 
@@ -89,13 +91,13 @@ const tabs = [
                         </div>
                     </div>
 
-                    <p class="text-base-content/60 text-sm leading-relaxed max-w-2xl mx-auto">{{
-                        agent.description || '这个智能体还很神秘，没有描述。' }}</p>
+                    <!-- <p class="text-base-content/60 text-sm leading-relaxed max-w-2xl mx-auto">{{
+                        agent.description || '这个智能体还很神秘，没有描述。' }}</p> -->
                 </div>
             </div>
 
             <!-- Tabs -->
-            <div class="mt-6 flex justify-center w-full">
+            <!-- <div class="mt-6 flex justify-center w-full">
                 <div role="tablist" class="bg-base-200/50 p-1 rounded-full inline-flex relative shadow-inner">
                     <a role="tab" v-for="tab in tabs" :key="tab.id" @click="activeTab = tab.id"
                         class="px-5 lg:px-10 py-2 rounded-full text-sm font-semibold transition-all duration-300 ease-out cursor-pointer select-none text-center min-w-[4rem]"
@@ -103,7 +105,7 @@ const tabs = [
                         {{ tab.label }}
                     </a>
                 </div>
-            </div>
+            </div> -->
         </div>
 
         <!-- Content Area -->

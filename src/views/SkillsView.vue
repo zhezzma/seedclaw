@@ -151,36 +151,28 @@ const getGroupIcon = (group: string) => {
 <template>
     <div class="flex flex-col h-full bg-base-200">
         <!-- Header -->
-        <div class="shrink-0 navbar bg-base-100 border-b border-base-300">
-            <div class="flex-1">
-                <button @click="goBack" class="btn btn-ghost btn-sm btn-circle lg:hidden">
+        <div class="shrink-0 navbar bg-base-100 border-b border-base-300 min-h-[4rem]">
+            <div class="flex-none lg:hidden">
+                <button @click="goBack" class="btn btn-ghost btn-sm btn-circle">
                     <ArrowLeftIcon class="w-5 h-5" />
                 </button>
-                <div class="flex flex-col px-4">
-                    <span class="text-lg font-semibold">技能列表</span>
-                </div>
+            </div>
+            <div class="flex-1 px-2 mx-2">
+                <span class="text-lg font-semibold truncate">技能列表</span>
             </div>
             <div class="flex-none gap-2">
-                <div class="relative hidden sm:block">
+                <div class="relative">
                     <MagnifyingGlassIcon
                         class="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-base-content/40 z-10" />
-                    <input v-model="filter" type="text" placeholder="搜索技能..."
-                        class="input input-sm input-bordered pl-9 w-48 focus:w-64 transition-all" />
+                    <input v-model="filter" type="text" placeholder="搜索..."
+                        class="input input-sm input-bordered pl-9 w-32 focus:w-48 sm:w-48 sm:focus:w-64 transition-all" />
                 </div>
             </div>
         </div>
 
         <!-- Content -->
         <div class="flex-1 overflow-y-auto p-4 md:p-6">
-            <div class="mx-auto space-y-8 w-full" :class="{ 'max-w-6xl': !settingsStore.isWideMode }">
-
-                <!-- Mobile Search (Visible only on small screens) -->
-                <div class="sm:hidden relative">
-                    <MagnifyingGlassIcon
-                        class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-base-content/40 z-10" />
-                    <input v-model="filter" type="text" placeholder="搜索技能..."
-                        class="input input-bordered w-full pl-10" />
-                </div>
+            <div class="mx-auto space-y-6 w-full" :class="{ 'max-w-6xl': !settingsStore.isWideMode }">
 
                 <!-- Loading State -->
                 <div v-if="gatewayStore.skillsLoading && !gatewayStore.skillsReport" class="flex justify-center py-12">

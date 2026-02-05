@@ -1,4 +1,5 @@
 import { generateSecMsGecToken, TRUSTED_CLIENT_TOKEN, CHROMIUM_FULL_VERSION } from './drm.ts'
+import { TTSEngine } from './types'
 
 type configure = {
   voice?: string
@@ -10,7 +11,7 @@ type configure = {
   timeout?: number
 }
 
-class EdgeTTS {
+class EdgeTTS implements TTSEngine {
   private voice: string
   private lang: string
   private outputFormat: string

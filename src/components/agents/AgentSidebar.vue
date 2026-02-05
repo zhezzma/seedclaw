@@ -25,6 +25,7 @@ const agents = computed(() => {
     return list.map((a: any) => ({
         id: a.id || a.name,
         name: a.identity?.name || a.name || a.id,
+        avatarUrl: a.identity?.avatarUrl,
         icon: a.identity?.emoji || '🤖',
         description: a.description || '',
         isDefault: (a.id || a.name) === gatewayStore.defaultAgentId
@@ -62,8 +63,10 @@ const isLoading = computed(() => gatewayStore.agentsLoading)
 
                         <!-- Avatar -->
                         <div
-                            class="self-center shrink-0 w-12 h-12 rounded-full bg-base-200 flex items-center justify-center text-3xl border border-base-200 shadow-sm my-3 mr-3">
-                            {{ agent.icon }}
+                            class="self-center shrink-0 w-12 h-12 rounded-full bg-base-200 flex items-center justify-center border border-base-200 shadow-sm my-3 mr-3 overflow-hidden">
+                            <img v-if="agent.avatarUrl" :src="agent.avatarUrl" :alt="agent.name"
+                                class="w-full h-full object-cover" />
+                            <span v-else class="text-3xl select-none">{{ agent.icon }}</span>
                         </div>
 
                         <!-- Content with Inset Divider -->
@@ -74,13 +77,12 @@ const isLoading = computed(() => gatewayStore.agentsLoading)
                                     :class="selectedId === agent.id ? 'text-primary' : ''">
                                     {{ agent.name }}
                                 </span>
+                            </div>
+                            <div class="text-sm text-base-content/60 truncate pr-2 leading-tight">
                                 <span
                                     class="badge badge-sm border-blue-100 bg-blue-50 text-blue-600 text-[10px] h-5 px-1.5 font-normal">
                                     {{ agent.id }}
                                 </span>
-                            </div>
-                            <div class="text-sm text-base-content/60 truncate pr-2 leading-tight">
-                                {{ agent.description || '暂无描述' }}
                             </div>
                         </div>
                     </li>

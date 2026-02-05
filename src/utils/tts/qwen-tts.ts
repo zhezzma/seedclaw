@@ -1,13 +1,14 @@
 import { useUiSettingsStore } from '../../stores/setting'
+import { TTSEngine } from './types'
 
-export class QwenTTS {
+export class QwenTTS implements TTSEngine {
     private apiKey: string
     private model: string
 
     constructor() {
         const store = useUiSettingsStore()
         this.apiKey = store.ttsToken || import.meta.env.VITE_TTSTOKEN || ''
-        this.model = 'qwen3-tts-flash-realtime-2025-11-27'
+        this.model = store.ttsModel || 'qwen3-tts-flash-realtime-2025-11-27'
     }
 
     private getWebSocketUrl(): string {

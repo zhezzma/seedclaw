@@ -11,7 +11,9 @@ import {
     MoonIcon,
     QuestionMarkCircleIcon,
     ChatBubbleLeftEllipsisIcon,
-    ArrowRightOnRectangleIcon
+    ArrowRightOnRectangleIcon,
+    MicrophoneIcon,
+    SpeakerWaveIcon
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
@@ -21,23 +23,48 @@ const editForm = ref({
     gatewayUrl: '',
     token: '',
     sessionsActiveDays: 3,
+    silenceDuration: 1500,
+    // ASR
     asrToken: '',
+    asrEngine: '',
+    asrModel: '',
+    // TTS
     ttsEngine: 'qwen' as 'qwen' | 'edge',
     ttsToken: '',
-    silenceDuration: 1500
+    ttsModel: ''
 })
 
 const openConnectionModal = () => {
     editForm.value = {
+        ...editForm.value,
         gatewayUrl: configStore.gatewayUrl,
         token: configStore.token,
         sessionsActiveDays: configStore.sessionsActiveDays,
-        asrToken: configStore.asrToken,
-        ttsEngine: configStore.ttsEngine,
-        ttsToken: configStore.ttsToken,
         silenceDuration: configStore.silenceDuration
     }
     const modal = document.getElementById('basic_settings_modal') as HTMLDialogElement
+    if (modal) modal.showModal()
+}
+
+const openAsrModal = () => {
+    editForm.value = {
+        ...editForm.value,
+        asrToken: configStore.asrToken,
+        asrEngine: configStore.asrEngine || 'fun-asr',
+        asrModel: configStore.asrModel
+    }
+    const modal = document.getElementById('asr_settings_modal') as HTMLDialogElement
+    if (modal) modal.showModal()
+}
+
+const openTtsModal = () => {
+    editForm.value = {
+        ...editForm.value,
+        ttsEngine: configStore.ttsEngine,
+        ttsToken: configStore.ttsToken,
+        ttsModel: configStore.ttsModel
+    }
+    const modal = document.getElementById('tts_settings_modal') as HTMLDialogElement
     if (modal) modal.showModal()
 }
 
@@ -46,16 +73,27 @@ const saveConnection = () => {
         gatewayUrl: editForm.value.gatewayUrl,
         token: editForm.value.token,
         sessionsActiveDays: Number(editForm.value.sessionsActiveDays),
-        asrToken: editForm.value.asrToken,
-        ttsEngine: editForm.value.ttsEngine,
-        ttsToken: editForm.value.ttsToken,
         silenceDuration: Number(editForm.value.silenceDuration)
     })
-    // Force reload to apply changes if needed, or just let store reactivity handle it
-    // For gateway URL changes, we might want to reconnect
     if (window.location.protocol !== 'file:') {
         window.location.reload()
     }
+}
+
+const saveAsr = () => {
+    configStore.save({
+        asrToken: editForm.value.asrToken,
+        asrEngine: editForm.value.asrEngine,
+        asrModel: editForm.value.asrModel
+    })
+}
+
+const saveTts = () => {
+    configStore.save({
+        ttsEngine: editForm.value.ttsEngine,
+        ttsToken: editForm.value.ttsToken,
+        ttsModel: editForm.value.ttsModel
+    })
 }
 
 const goBack = () => {
@@ -105,6 +143,38 @@ const logout = () => {
                                         <p class="text-xs text-base-content/50 truncate max-w-48">{{
                                             configStore.gatewayUrl
                                             }}</p>
+                                    </div>
+                                </div>
+                                <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Voice Settings -->
+                <div class="space-y-2">
+                    <h4 class="text-sm font-medium text-base-content/60 px-2">语音设置</h4>
+                    <div class="card bg-base-100 shadow-sm">
+                        <ul class="divide-y divide-base-300">
+                            <li class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors"
+                                @click="openAsrModal">
+                                <div class="flex items-center gap-3">
+                                    <MicrophoneIcon class="h-5 w-5 text-base-content/60" />
+                                    <div>
+                                        <span class="font-medium">语音识别 (ASR)</span>
+                                        <p class="text-xs text-base-content/50">{{ configStore.asrEngine || 'Default' }}
+                                        </p>
+                                    </div>
+                                </div>
+                                <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
+                            </li>
+                            <li class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors"
+                                @click="openTtsModal">
+                                <div class="flex items-center gap-3">
+                                    <SpeakerWaveIcon class="h-5 w-5 text-base-content/60" />
+                                    <div>
+                                        <span class="font-medium">语音合成 (TTS)</span>
+                                        <p class="text-xs text-base-content/50">{{ configStore.ttsEngine }}</p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
@@ -218,26 +288,65 @@ const logout = () => {
                         <span class="label-text-alt opacity-50">说话停顿多少毫秒后自动发送</span>
                     </label>
                 </div>
+            </div>
+            <div class="modal-action">
+                <form method="dialog">
+                    <button class="btn btn-ghost mr-2">取消</button>
+                    <button class="btn btn-primary" @click="saveConnection">保存</button>
+                </form>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <!-- ASR Settings Modal -->
+    <dialog id="asr_settings_modal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg mb-4">语音识别 (ASR)</h3>
+            <div class="form-control w-full space-y-4">
                 <div>
                     <label class="label">
-                        <span class="label-text">ASR API Key</span>
+                        <span class="label-text">ASR 引擎</span>
+                    </label>
+                    <select v-model="editForm.asrEngine" class="select select-bordered w-full">
+                        <option value="fun-asr">FunASR (Aliyun Realtime)</option>
+                        <!-- Future engines can be added here -->
+                    </select>
+                </div>
+                <div>
+                    <label class="label">
+                        <span class="label-text">API Key</span>
                     </label>
                     <input type="password" v-model="editForm.asrToken" placeholder="sk-..."
                         class="input input-bordered w-full" />
-                    <label class="label">
-                        <span class="label-text-alt opacity-50">留空则使用默认配置</span>
-                    </label>
                 </div>
                 <div>
                     <label class="label">
-                        <span class="label-text">TTS API Key (Qwen)</span>
+                        <span class="label-text">模型 ID</span>
                     </label>
-                    <input type="password" v-model="editForm.ttsToken" placeholder="sk-..."
+                    <input type="text" v-model="editForm.asrModel" placeholder="默认: fun-asr-realtime-2025-11-07"
                         class="input input-bordered w-full" />
-                    <label class="label">
-                        <span class="label-text-alt opacity-50">留空则使用默认配置</span>
-                    </label>
                 </div>
+            </div>
+            <div class="modal-action">
+                <form method="dialog">
+                    <button class="btn btn-ghost mr-2">取消</button>
+                    <button class="btn btn-primary" @click="saveAsr">保存</button>
+                </form>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <!-- TTS Settings Modal -->
+    <dialog id="tts_settings_modal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg mb-4">语音合成 (TTS)</h3>
+            <div class="form-control w-full space-y-4">
                 <div>
                     <label class="label">
                         <span class="label-text">TTS 引擎</span>
@@ -247,11 +356,28 @@ const logout = () => {
                         <option value="edge">Edge TTS (流式MSE/免费)</option>
                     </select>
                 </div>
+                <div v-if="editForm.ttsEngine === 'qwen'">
+                    <label class="label">
+                        <span class="label-text">API Key</span>
+                    </label>
+                    <input type="password" v-model="editForm.ttsToken" placeholder="sk-..."
+                        class="input input-bordered w-full" />
+                </div>
+                <div v-if="editForm.ttsEngine === 'qwen'">
+                    <label class="label">
+                        <span class="label-text">模型 ID</span>
+                    </label>
+                    <input type="text" v-model="editForm.ttsModel" placeholder="默认: qwen3-tts-flash-realtime-2025-11-27"
+                        class="input input-bordered w-full" />
+                </div>
+                <div v-if="editForm.ttsEngine === 'edge'" class="text-xs text-base-content/50 px-1">
+                    Edge TTS 无需 API Key，使用微软 Edge 浏览器接口。
+                </div>
             </div>
             <div class="modal-action">
                 <form method="dialog">
                     <button class="btn btn-ghost mr-2">取消</button>
-                    <button class="btn btn-primary" @click="saveConnection">保存</button>
+                    <button class="btn btn-primary" @click="saveTts">保存</button>
                 </form>
             </div>
         </div>

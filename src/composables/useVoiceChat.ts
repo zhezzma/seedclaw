@@ -59,8 +59,8 @@
 
 import { ref, watch, onUnmounted } from 'vue'
 import { SpeechRecognitionService } from '../utils/asr/speechRecognition'
-import { EdgeTTS } from '../utils/tts/edge-tts'
-import { QwenTTS } from '../utils/tts/qwen-tts'
+import { createTTSEngine } from '../utils/tts'
+import { TTSEngine } from '../utils/tts/types'
 import { useUiSettingsStore } from '../stores/setting'
 import { cleanTextForTTS, splitText, MAX_TTS_CHARS } from '../utils/textUtils'
 import { takeAudioControl, releaseAudioControl } from '../utils/audioManager'
@@ -269,7 +269,7 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
 
         segment.status = 'fetching'
         try {
-            const ttsService = store.ttsEngine === 'qwen' ? new QwenTTS() : new EdgeTTS()
+            const ttsService = createTTSEngine()
             const blob = await ttsService.ttsPromise(segment.text)
             segment.blob = blob
             segment.audioUrl = URL.createObjectURL(blob)

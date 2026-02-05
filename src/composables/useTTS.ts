@@ -17,8 +17,8 @@
  *    - 实现：playWithBlob
  */
 import { ref } from 'vue'
-import { EdgeTTS } from '../utils/tts/edge-tts'
-import { QwenTTS } from '../utils/tts/qwen-tts'
+import { TTSEngine } from '../utils/tts/types'
+import { createTTSEngine } from '../utils/tts'
 import { useUiSettingsStore } from '../stores/setting'
 
 import { cleanTextForTTS, splitText } from '../utils/textUtils'
@@ -108,20 +108,15 @@ export function useTTS() {
                 // Check if we were stopped/interrupted during previous chunk
                 if (currentReadingMsgId.value !== msgId || playbackSessionId !== sessionId) break
 
+                let tts: TTSEngine = createTTSEngine()
                 if (store.ttsEngine === 'qwen') {
                     // Use Qwen TTS (PCM Streaming)
-                    const tts = new QwenTTS()
-                    // @ts-ignore
                     await playWithPCM(tts, chunk, msgId, sessionId)
                 } else {
                     // Use Edge TTS (MSE/Blob)
-                    const tts = new EdgeTTS()
-
                     if (window.MediaSource && MediaSource.isTypeSupported('audio/mpeg')) {
-                        // @ts-ignore
                         await playWithMSE(tts, chunk, msgId, sessionId)
                     } else {
-                        // @ts-ignore
                         await playWithBlob(tts, chunk, msgId, sessionId)
                     }
                 }
@@ -140,7 +135,7 @@ export function useTTS() {
     /**
      * Play audio using MediaSource Extensions (streaming)
      */
-    const playWithMSE = (tts: QwenTTS | EdgeTTS, text: string, msgId: string, sessionId: number): Promise<void> => {
+    const playWithMSE = (tts: TTSEngine, text: string, msgId: string, sessionId: number): Promise<void> => {
         return new Promise((resolve) => {
             // Register global resolve for cancellation
             currentPlaybackResolve = resolve
@@ -241,7 +236,7 @@ export function useTTS() {
     /**
      * Play raw PCM audio using AudioContext (True Streaming)
      */
-    const playWithPCM = (tts: QwenTTS, text: string, msgId: string, sessionId: number): Promise<void> => {
+    const playWithPCM = (tts: TTSEngine, text: string, msgId: string, sessionId: number): Promise<void> => {
         return new Promise((resolve) => {
             currentPlaybackResolve = resolve
 
@@ -318,7 +313,7 @@ export function useTTS() {
     /**
      * Play audio using Blob (download then play)
      */
-    const playWithBlob = (tts: QwenTTS | EdgeTTS, text: string, msgId: string, sessionId: number): Promise<void> => {
+    const playWithBlob = (tts: TTSEngine, text: string, msgId: string, sessionId: number): Promise<void> => {
         return new Promise(async (resolve) => {
             currentPlaybackResolve = resolve
 

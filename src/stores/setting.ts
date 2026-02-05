@@ -12,8 +12,11 @@ export interface UiSettings {
     showBottomNav: boolean
     sessionsActiveDays: number
     asrToken: string // ASR API Key
+    asrEngine: string
+    asrModel: string
     ttsEngine: 'qwen' | 'edge'
     ttsToken: string // TTS API Key (if different from ASR)
+    ttsModel: string
     silenceDuration: number // Auto-send delay in ms
 }
 
@@ -31,8 +34,11 @@ const getDefaultSettings = (): UiSettings => ({
     showBottomNav: true,
     sessionsActiveDays: 3,
     asrToken: '',
+    asrEngine: 'fun-asr',
+    asrModel: '',
     ttsEngine: 'edge',
     ttsToken: '',
+    ttsModel: '',
     silenceDuration: 3000
 })
 

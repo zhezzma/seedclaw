@@ -38,7 +38,12 @@ const selectAgent = (id: string) => {
                 <a v-for="agent in visibleAgents" :key="agent.id" @click="selectAgent(agent.id)"
                     class="flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer transition-colors"
                     :class="activeAgentId === agent.id && currentSessionKey && isAgentMainSession(currentSessionKey) ? 'bg-primary/20 text-primary' : 'hover:bg-base-300'">
-                    <span class="text-base">{{ agent.icon }}</span>
+                    <div
+                        class="w-5 h-5 rounded-full flex items-center justify-center bg-base-100/50 overflow-hidden shrink-0">
+                        <img v-if="agent.avatarUrl" :src="agent.avatarUrl" :alt="agent.name"
+                            class="w-full h-full object-cover" />
+                        <span v-else class="text-sm select-none">{{ agent.icon }}</span>
+                    </div>
                     <span class="text-sm font-medium truncate">{{ agent.name }}</span>
                 </a>
             </div>
