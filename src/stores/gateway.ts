@@ -7,6 +7,7 @@ import type { ChatAttachment, ChatQueueItem } from '../services/ui-types'
 import type { PresenceEntry, HealthSnapshot, StatusSummary, SessionsListResult, AgentsListResult } from '../services/types'
 import type { EventLogEntry } from '../services/app-events'
 import type { ExecApprovalRequest } from '../services/controllers/exec-approval'
+import type { SkillStatusReport } from '../services/types'
 import { handleAgentEvent, resetToolStream, type AgentEventPayload, type ToolStreamEntry } from '../services/app-tool-stream'
 import { loadAssistantIdentity, type AssistantIdentityState } from '../services/controllers/assistant-identity'
 import { loadAgents, type AgentsState } from '../services/controllers/agents'
@@ -15,6 +16,7 @@ import { loadDevices, type DevicesState } from '../services/controllers/devices'
 import { handleChatEvent, loadChatHistory, type ChatEventPayload, type ChatState } from '../services/controllers/chat'
 import { loadSessions, patchSession, deleteSession, type SessionsState } from '../services/controllers/sessions'
 import { loadCron, type CronState } from '../services/controllers/cron'
+import { loadSkills, type SkillsState } from '../services/controllers/skills'
 import {
     addExecApproval,
     parseExecApprovalRequested,
@@ -96,7 +98,16 @@ export interface GatewayState {
     cronForm: unknown
     cronRunsJobId: string | null
     cronRuns: unknown[]
+    cronRunsTotal: number
     cronBusy: boolean
+
+    // Skills state
+    skillsLoading: boolean
+    skillsReport: SkillStatusReport | null
+    skillsError: string | null
+    skillsBusyKey: string | null
+    skillEdits: Record<string, string>
+    skillMessages: Record<string, { kind: "success" | "error"; message: string }>
 
     // Assistant identity
     assistantName: string
@@ -190,7 +201,16 @@ export const useGatewayStore = defineStore('gateway', {
         cronForm: null,
         cronRunsJobId: null,
         cronRuns: [],
+        cronRunsTotal: 0,
         cronBusy: false,
+
+        // Skills
+        skillsLoading: false,
+        skillsReport: null,
+        skillsError: null,
+        skillsBusyKey: null,
+        skillEdits: {},
+        skillMessages: {},
 
         // Assistant identity
         assistantName: 'Assistant',
@@ -218,12 +238,12 @@ export const useGatewayStore = defineStore('gateway', {
         // Get default agent ID from session defaults
         defaultAgentId: (state) => {
             const snapshot = state.hello?.snapshot as { sessionDefaults?: { defaultAgentId?: string } } | undefined
-            return snapshot?.sessionDefaults?.defaultAgentId?.trim() || state.agentsList?.agents[0]?.id || 'main'
+            return snapshot?.sessionDefaults?.defaultAgentId?.trim() || state.agentsList?.agents?.[0]?.id || 'main'
         },
         defaultSessionKey: (state) => {
             const snapshot = state.hello?.snapshot as { sessionDefaults?: { defaultAgentId?: string, mainSessionKey?: string } } | undefined
 
-            const agentId = snapshot?.sessionDefaults?.defaultAgentId?.trim() || state.agentsList?.agents[0]?.id || 'main';
+            const agentId = snapshot?.sessionDefaults?.defaultAgentId?.trim() || state.agentsList?.agents?.[0]?.id || 'main';
 
             return snapshot?.sessionDefaults?.mainSessionKey?.trim() || createAgentMainSessionKey(agentId)
         },
@@ -286,10 +306,8 @@ export const useGatewayStore = defineStore('gateway', {
                         resetToolStream(this as unknown as Parameters<typeof resetToolStream>[0])
 
                         // Load initial data
-                        void loadAgents(this as unknown as AgentsState)
-                        void loadNodes(this as unknown as NodesState, { quiet: true })
-                        void loadDevices(this as unknown as DevicesState, { quiet: true })
-                        void this.loadSessions()
+                        void this.loadAgents();
+                        void this.loadSessions();
                         //开始创建新的session
                         //this.createNewSession();
 
@@ -572,13 +590,13 @@ export const useGatewayStore = defineStore('gateway', {
             settings.sessionKey = key
             settings.lastActiveSessionKey = key
             settings.persist()
-            void loadAssistantIdentity(this as unknown as AssistantIdentityState)
+            this.loadAssistantIdentity()
             // Mark to refresh sessions after first chat for new sessions
             this.isNewSessionPending = !!opts?.isNewSession
             if (this.isNewSessionPending) {
                 return
             }
-            void loadChatHistory(this as unknown as ChatState)
+            this.loadChatHistory();
         },
 
         async createNewSession() {
@@ -668,9 +686,13 @@ export const useGatewayStore = defineStore('gateway', {
             return await deleteSession(this as unknown as SessionsState, key)
         },
 
-        // ==================== Agents ====================
         async loadAgents() {
             await loadAgents(this as unknown as AgentsState)
+        },
+
+        // ==================== Skills ====================
+        async loadSkills() {
+            await loadSkills(this as unknown as SkillsState)
         }
     }
 })

@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
 import {
+    ArrowLeftIcon,
     XMarkIcon,
     ChevronRightIcon,
     ServerIcon,
@@ -72,15 +73,18 @@ const logout = () => {
         <!-- Header - fixed -->
         <div class="shrink-0 navbar bg-base-100 border-b border-base-300">
             <div class="flex-1">
+                <button @click="goBack" class="btn btn-ghost btn-sm btn-circle lg:hidden">
+                    <ArrowLeftIcon class="w-5 h-5" />
+                </button>
                 <span class="text-lg font-semibold px-4">设置</span>
             </div>
             <!-- Close button - PC only -->
             <!-- <div class="flex-none hidden lg:flex"> -->
-            <div class="flex-none  lg:flex">
+            <!-- <div class="flex-none  lg:flex">
                 <button @click="goBack" class="btn btn-ghost btn-circle">
                     <XMarkIcon class="h-5 w-5" />
                 </button>
-            </div>
+            </div> -->
         </div>
 
         <!-- Content - scrollable -->

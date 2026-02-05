@@ -13,6 +13,7 @@ export type CronState = {
     cronForm: CronFormState;
     cronRunsJobId: string | null;
     cronRuns: CronRunLogEntry[];
+    cronRunsTotal: number;
     cronBusy: boolean;
 };
 
@@ -147,6 +148,7 @@ export async function addCronJob(state: CronState) {
         await loadCronStatus(state);
     } catch (err) {
         state.cronError = String(err);
+        throw err;
     } finally {
         state.cronBusy = false;
     }
@@ -180,6 +182,7 @@ export async function runCronJob(state: CronState, job: CronJob) {
         await loadCronRuns(state, job.id);
     } catch (err) {
         state.cronError = String(err);
+        throw err;
     } finally {
         state.cronBusy = false;
     }
@@ -196,7 +199,50 @@ export async function removeCronJob(state: CronState, job: CronJob) {
         if (state.cronRunsJobId === job.id) {
             state.cronRunsJobId = null;
             state.cronRuns = [];
+            state.cronRunsTotal = 0;
         }
+        await loadCronJobs(state);
+        await loadCronStatus(state);
+    } catch (err) {
+        state.cronError = String(err);
+    } finally {
+        state.cronBusy = false;
+    }
+}
+
+
+export async function updateCronJob(state: CronState, id: string) {
+    if (!state.client || !state.connected || state.cronBusy) {
+        return;
+    }
+    state.cronBusy = true;
+    state.cronError = null;
+    try {
+        const schedule = buildCronSchedule(state.cronForm);
+        const payload = buildCronPayload(state.cronForm);
+        const agentId = state.cronForm.agentId.trim();
+
+        const patch: Partial<CronJob> = {
+            name: state.cronForm.name.trim(),
+            description: state.cronForm.description.trim() || undefined,
+            agentId: agentId || undefined,
+            enabled: state.cronForm.enabled,
+            schedule,
+            sessionTarget: state.cronForm.sessionTarget,
+            wakeMode: state.cronForm.wakeMode,
+            payload,
+            isolation:
+                state.cronForm.postToMainPrefix.trim() && state.cronForm.sessionTarget === "isolated"
+                    ? { postToMainPrefix: state.cronForm.postToMainPrefix.trim() }
+                    : undefined,
+        };
+
+        if (!patch.name) {
+            throw new Error("Name required.");
+        }
+
+        await state.client.request("cron.update", { id, patch });
+
         await loadCronJobs(state);
         await loadCronStatus(state);
     } catch (err) {
@@ -211,13 +257,18 @@ export async function loadCronRuns(state: CronState, jobId: string) {
         return;
     }
     try {
-        const res: { entries: CronRunLogEntry[] } = await state.client.request("cron.runs", {
+        const res: { entries: CronRunLogEntry[], total?: number } = await state.client.request("cron.runs", {
             id: jobId,
             limit: 50,
         });
+
         state.cronRunsJobId = jobId;
-        state.cronRuns = Array.isArray(res.entries) ? res.entries : [];
+        const entries = Array.isArray(res.entries) ? res.entries : [];
+        entries.sort((a, b) => b.ts - a.ts);
+        state.cronRuns = entries;
+        state.cronRunsTotal = entries.length; // Fallback since pagination is temporarily disabled
     } catch (err) {
+        console.error("loadCronRuns error:", err);
         state.cronError = String(err);
     }
 }

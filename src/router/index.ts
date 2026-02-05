@@ -9,7 +9,6 @@ import SetupView from '../views/SetupView.vue'
 import HomeView from '../views/HomeView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import AgentsView from '../views/AgentsView.vue'
-import NodesView from '../views/NodesView.vue'
 import SkillsView from '../views/SkillsView.vue'
 import CronView from '../views/CronView.vue'
 import OpenClawTest from '../views/OpenClawTest.vue'
@@ -46,11 +45,6 @@ const router = createRouter({
                     path: 'agents',
                     name: 'agents',
                     component: AgentsView
-                },
-                {
-                    path: 'nodes',
-                    name: 'nodes',
-                    component: NodesView
                 },
                 {
                     path: 'skills',

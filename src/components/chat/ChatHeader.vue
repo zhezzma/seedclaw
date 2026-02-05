@@ -93,7 +93,7 @@ defineExpose({
                 </ul>
             </details>
             <!-- Session name (for specific sessions like agent:xxx:session:xxx) -->
-            <span v-else class=" pl-5 font-semibold">
+            <span v-else class=" lg:pl-5 font-semibold">
                 {{ currentSessionName }}
             </span>
         </div>

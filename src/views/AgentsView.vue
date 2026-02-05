@@ -1,29 +1,39 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useGatewayStore } from '../stores/gateway'
-import { SparklesIcon } from '@heroicons/vue/24/outline'
-import { createAgentMainSessionKey } from '../services/includes/session-key-utils'
+import { Bars3Icon, ArrowLeftIcon } from '@heroicons/vue/24/outline'
+
+// Components
+import AgentSidebar from '../components/agents/AgentSidebar.vue'
+import AgentDetail from '../components/agents/AgentDetail.vue'
 
 const router = useRouter()
+const route = useRoute()
 const gatewayStore = useGatewayStore()
 
-// Get agents from gateway store
-const agents = computed(() => {
-    const list = gatewayStore.agentsList?.agents || []
-    return list.map((a: any) => ({
-        id: a.id || a.name,
-        name: a.name || a.id,
-        icon: a.icon || '🤖',
-        description: a.description || ''
-    }))
+// Selected Agent from Query Params - this is the source of truth for navigation state
+const selectedAgentId = computed(() => {
+    return (route.query.agentId as string) || undefined
 })
 
-const isLoading = computed(() => gatewayStore.agentsLoading)
+const selectedAgentName = computed(() => {
+    if (!selectedAgentId.value) return ''
+    const list = gatewayStore.agentsList?.agents || []
+    const agent = list.find((a: any) => (a.id || a.name) === selectedAgentId.value)
+    return agent?.identity?.name || agent?.name || agent?.id || 'Agent'
+})
 
 const selectAgent = (agentId: string) => {
-    // Navigate to home with sessionkey parameter
-    router.push({ name: 'home', query: { sessionkey: createAgentMainSessionKey(agentId) } })
+    // Update URL query parameter
+    router.replace({ query: { ...route.query, agentId } })
+}
+
+const clearSelection = () => {
+    // Return to list view (Mobile)
+    const query = { ...route.query }
+    delete query.agentId
+    router.replace({ query })
 }
 
 // Load agents when connected
@@ -38,45 +48,74 @@ watch(() => gatewayStore.connected, (connected) => {
         gatewayStore.loadAgents()
     }
 })
+
+// Default selection logic for Desktop
+// If no agent selected and we have agents, select the first one on large screens
+watch(() => [gatewayStore.agentsList?.agents, route.query.agentId], ([agents, currentId]) => {
+    // strict check for desktop using matchMedia to match Tailwind 'lg' breakpoint
+    const isDesktop = window.matchMedia('(min-width: 1024px)').matches
+
+    if (isDesktop && !currentId && agents && (agents as any[]).length > 0) {
+        // Only redirect if we are strictly on desktop and have no selection
+        const firstId = (agents as any[])[0].id || (agents as any[])[0].name
+        router.replace({ query: { ...route.query, agentId: firstId } })
+    }
+}, { immediate: true })
+
 </script>
 
 <template>
-    <div class="flex flex-col h-full bg-base-200">
-        <!-- Header - fixed -->
-        <div class="shrink-0 navbar bg-base-100 border-b border-base-300">
-            <div class="flex-1">
-                <span class="text-lg font-semibold px-4">智能体</span>
-            </div>
+    <!-- Simplified Master-Detail Layout -->
+    <div class="flex h-full w-full overflow-hidden bg-base-200">
+
+        <!-- Sidebar Container -->
+        <!-- 
+            Mobile: 
+                - If !selectedAgentId: Visible (w-full)
+                - If selectedAgentId: Hidden
+            Desktop (lg):
+                - Always Visible (w-80)
+        -->
+        <div class="h-full bg-base-100 border-r border-base-200 flex flex-col shrink-0" :class="[
+            selectedAgentId ? 'hidden lg:flex lg:w-80' : 'w-full lg:w-80 flex'
+        ]">
+            <AgentSidebar :selected-id="selectedAgentId" @select="selectAgent" />
         </div>
 
-        <!-- Content - scrollable -->
-        <div class="flex-1 overflow-y-auto p-4">
-            <!-- Loading state -->
-            <div v-if="isLoading" class="flex items-center justify-center py-8">
-                <span class="loading loading-spinner loading-lg"></span>
+        <!-- Detail Container -->
+        <!-- 
+            Mobile:
+                - If !selectedAgentId: Hidden
+                - If selectedAgentId: Visible (w-full)
+            Desktop (lg):
+                - Always Visible (flex-1)
+        -->
+        <div class="h-full bg-base-50 flex flex-col min-w-0" :class="[
+            selectedAgentId ? 'w-full flex lg:flex-1' : 'hidden lg:flex lg:flex-1'
+        ]">
+
+            <!-- Mobile Back Button Header (Only on Mobile + Selected) -->
+            <div class="lg:hidden bg-base-100 border-b border-base-200 p-2 flex items-center gap-2 shrink-0">
+                <button @click="clearSelection" class="btn btn-ghost btn-sm btn-circle">
+                    <ArrowLeftIcon class="w-5 h-5" />
+                </button>
+                <span class="font-bold truncate">{{ selectedAgentName }}</span>
             </div>
 
-            <!-- Empty state -->
-            <div v-else-if="agents.length === 0" class="flex flex-col items-center justify-center py-8 text-center">
-                <SparklesIcon class="h-12 w-12 text-base-content/30 mb-4" />
-                <p class="text-base-content/60">暂无可用的智能体</p>
-                <p class="text-sm text-base-content/40 mt-1">请确保网关已正确配置</p>
-            </div>
+            <AgentDetail v-if="selectedAgentId" :agent-id="selectedAgentId" class="flex-1 overflow-hidden" />
 
-            <!-- Agents Grid -->
-            <div v-else class="grid grid-cols-1 gap-3">
-                <div v-for="agent in agents" :key="agent.id" @click="selectAgent(agent.id)"
-                    class="card bg-base-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer active:scale-[0.98]">
-                    <div class="card-body p-4 flex-row items-center gap-4">
-                        <div class="text-3xl">{{ agent.icon }}</div>
-                        <div class="flex-1">
-                            <h3 class="font-semibold">{{ agent.name }}</h3>
-                            <p class="text-sm text-base-content/60">{{ agent.description }}</p>
-                        </div>
-                        <SparklesIcon class="h-5 w-5 text-primary opacity-50" />
-                    </div>
+            <!-- Empty State for Desktop (if no selection) -->
+            <div v-else class="hidden lg:flex flex-1 items-center justify-center text-base-content/40">
+                <div class="text-center">
+                    <div class="text-6xl mb-4">👈</div>
+                    <p>Select an agent to view details</p>
                 </div>
             </div>
         </div>
     </div>
 </template>
+
+<style scoped>
+/* Custom transitions for smooth master-detail switch on mobile could be added here if needed, 
+   but simplistic v-if/class toggling is usually robust enough. */
+</style>

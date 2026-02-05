@@ -43,14 +43,6 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         showInBottomNav: true
     },
     {
-        label: '节点',
-        icon: DeviceTabletIcon,
-        activeIcon: DeviceTabletIconSolid,
-        route: 'nodes',
-        showInSidebar: true,
-        showInBottomNav: false
-    },
-    {
         label: '技能',
         icon: SparklesIcon,
         activeIcon: SparklesIconSolid,
