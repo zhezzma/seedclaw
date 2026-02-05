@@ -75,7 +75,7 @@ const emit = defineEmits<{
         </div>
         <!-- User Actions (Hover) -->
         <div v-if="message.role === 'user'"
-            class="chat-footer opacity-0 group-hover:opacity-100 transition-all duration-200 mt-1">
+            class="chat-footer opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all duration-200 mt-1">
             <button @click="emit('copy', message)"
                 class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-primary hover:bg-base-200"
                 title="复制">
