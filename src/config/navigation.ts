@@ -4,7 +4,8 @@ import {
     SparklesIcon,
     DocumentIcon,
     HomeIcon,
-    Cog6ToothIcon
+    Cog6ToothIcon,
+    CubeIcon
 } from '@heroicons/vue/24/outline'
 
 import {
@@ -13,7 +14,8 @@ import {
     Cog6ToothIcon as Cog6ToothIconSolid,
     DeviceTabletIcon as DeviceTabletIconSolid,
     SparklesIcon as SparklesIconSolid,
-    DocumentIcon as DocumentIconSolid
+    DocumentIcon as DocumentIconSolid,
+    CubeIcon as CubeIconSolid
 } from '@heroicons/vue/24/solid'
 
 export interface NavItem {
@@ -41,6 +43,14 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         route: 'agents',
         showInSidebar: true,
         showInBottomNav: true
+    },
+    {
+        label: '模型',
+        icon: CubeIcon,
+        activeIcon: CubeIconSolid,
+        route: 'models',
+        showInSidebar: true,
+        showInBottomNav: false
     },
     {
         label: '技能',

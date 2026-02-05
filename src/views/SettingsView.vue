@@ -147,6 +147,27 @@ const logout = () => {
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
                             </li>
+
+                            <li class="flex items-center justify-between p-4">
+                                <div class="flex items-center gap-3">
+                                    <template v-if="configStore.isDark">
+                                        <MoonIcon class="h-5 w-5 text-base-content/60" />
+                                    </template>
+                                    <template v-else>
+                                        <SunIcon class="h-5 w-5 text-base-content/60" />
+                                    </template>
+                                    <span class="font-medium">主题设置</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm text-base-content/60">{{ configStore.isDark ? '深色' : '浅色'
+                                        }}</span>
+                                    <input type="checkbox" class="toggle toggle-primary" :checked="configStore.isDark"
+                                        @change="configStore.toggleTheme()" />
+                                </div>
+                            </li>
+
+
+
                         </ul>
                     </div>
                 </div>
@@ -183,32 +204,7 @@ const logout = () => {
                     </div>
                 </div>
 
-                <!-- General Settings -->
-                <div class="space-y-2">
-                    <h4 class="text-sm font-medium text-base-content/60 px-2">通用设置</h4>
-                    <div class="card bg-base-100 shadow-sm">
-                        <ul class="divide-y divide-base-300">
-                            <li class="flex items-center justify-between p-4">
-                                <div class="flex items-center gap-3">
-                                    <template v-if="configStore.isDark">
-                                        <MoonIcon class="h-5 w-5 text-base-content/60" />
-                                    </template>
-                                    <template v-else>
-                                        <SunIcon class="h-5 w-5 text-base-content/60" />
-                                    </template>
-                                    <span class="font-medium">主题设置</span>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <span class="text-sm text-base-content/60">{{ configStore.isDark ? '深色' : '浅色'
-                                        }}</span>
-                                    <input type="checkbox" class="toggle toggle-primary" :checked="configStore.isDark"
-                                        @change="configStore.toggleTheme()" />
-                                </div>
-                            </li>
 
-                        </ul>
-                    </div>
-                </div>
 
                 <!-- Help & Feedback -->
                 <div class="space-y-2">
