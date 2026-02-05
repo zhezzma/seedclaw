@@ -2,9 +2,7 @@ import type { GatewayHelloOk } from "./gateway";
 import type { ChatAttachment, ChatQueueItem } from "./ui-types";
 import { parseAgentSessionKey } from "./includes/session-key-utils";
 import { resetToolStream } from "./app-tool-stream";
-import { abortChatRun, loadChatHistory, sendChatMessage } from "./controllers/chat";
-import { loadSessions } from "./controllers/sessions";
-import { normalizeBasePath } from "./utils";
+import { abortChatRun, sendChatMessage } from "./controllers/chat";
 import { generateUUID } from "./uuid";
 
 export type ChatHost = {
@@ -193,16 +191,7 @@ export async function handleSendChat(
     });
 }
 
-export async function refreshChat(host: ChatHost) {
-    const activeMinutes = ((host as any).settings?.sessionsActiveDays ?? 3) * 24 * 60;
-    await Promise.all([
-        loadChatHistory(host as any),
-        loadSessions(host as any, {
-            activeMinutes,
-        }),
-        refreshChatAvatar(host),
-    ]);
-}
+
 
 export const flushChatQueueForEvent = flushChatQueue;
 
@@ -222,34 +211,5 @@ function resolveAgentIdForSession(host: ChatHost): string | null {
     return fallback || "main";
 }
 
-function buildAvatarMetaUrl(basePath: string, agentId: string): string {
-    const base = normalizeBasePath(basePath);
-    const encoded = encodeURIComponent(agentId);
-    return base ? `${base}/avatar/${encoded}?meta=1` : `/avatar/${encoded}?meta=1`;
-}
 
-export async function refreshChatAvatar(host: ChatHost) {
-    if (!host.connected) {
-        host.chatAvatarUrl = null;
-        return;
-    }
-    const agentId = resolveAgentIdForSession(host);
-    if (!agentId) {
-        host.chatAvatarUrl = null;
-        return;
-    }
-    host.chatAvatarUrl = null;
-    const url = buildAvatarMetaUrl(host.basePath, agentId);
-    try {
-        const res = await fetch(url, { method: "GET" });
-        if (!res.ok) {
-            host.chatAvatarUrl = null;
-            return;
-        }
-        const data = (await res.json()) as { avatarUrl?: unknown };
-        const avatarUrl = typeof data.avatarUrl === "string" ? data.avatarUrl.trim() : "";
-        host.chatAvatarUrl = avatarUrl || null;
-    } catch {
-        host.chatAvatarUrl = null;
-    }
-}
+

@@ -13,25 +13,26 @@ import {
     BellIcon as BellIconSolid,
     Cog6ToothIcon as Cog6ToothIconSolid
 } from '@heroicons/vue/24/solid'
+import { BOTTOM_NAV_ITEMS } from '../config/navigation'
+import { useGatewayStore } from '../stores/gateway'
 
 const router = useRouter()
 const route = useRoute()
+const gatewayStore = useGatewayStore()
 
-const tabs = [
-    { id: 'chat', route: '/', label: '问AI', icon: ChatBubbleLeftRightIcon, iconActive: ChatBubbleLeftRightIconSolid },
-    { id: 'agents', route: '/agents', label: '智能体', icon: SparklesIcon, iconActive: SparklesIconSolid },
-    { id: 'messages', route: '/messages', label: '消息', icon: BellIcon, iconActive: BellIconSolid },
-    { id: 'settings', route: '/settings', label: '设置', icon: Cog6ToothIcon, iconActive: Cog6ToothIconSolid },
-]
+const tabs = BOTTOM_NAV_ITEMS
 
 const activeTab = computed(() => {
-    const currentPath = route.path
-    const tab = tabs.find(t => t.route === currentPath)
-    return tab?.id || 'chat'
+    return route.name
 })
 
 const navigateTo = (tab: typeof tabs[0]) => {
-    router.push(tab.route)
+    if (tab.route === 'home') {
+        // Navigate to home with default session key
+        router.push({ name: 'home', query: { sessionkey: gatewayStore.defaultSessionKey } })
+    } else {
+        router.push({ name: tab.route })
+    }
 }
 </script>
 
@@ -41,14 +42,14 @@ const navigateTo = (tab: typeof tabs[0]) => {
         <!-- Glassmorphism background -->
         <div class="bg-base-100/80 backdrop-blur-xl border-t border-base-300/50 shadow-lg">
             <div class="flex items-center justify-around px-2 py-2 safe-area-bottom">
-                <button v-for="tab in tabs" :key="tab.id" @click="navigateTo(tab)"
+                <button v-for="tab in tabs" :key="tab.route" @click="navigateTo(tab)"
                     class="flex flex-col items-center justify-center gap-1 px-4 py-2 rounded-2xl transition-all duration-200"
-                    :class="activeTab === tab.id
+                    :class="activeTab === tab.route
                         ? 'text-primary bg-primary/10'
                         : 'text-base-content/60 hover:text-base-content hover:bg-base-200'">
-                    <component :is="activeTab === tab.id ? tab.iconActive : tab.icon"
+                    <component :is="activeTab === tab.route ? tab.activeIcon : tab.icon"
                         class="w-6 h-6 transition-transform duration-200"
-                        :class="activeTab === tab.id ? 'scale-110' : ''" />
+                        :class="activeTab === tab.route ? 'scale-110' : ''" />
                     <span class="text-xs font-medium">{{ tab.label }}</span>
                 </button>
             </div>

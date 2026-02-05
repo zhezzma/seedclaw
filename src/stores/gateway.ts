@@ -22,8 +22,8 @@ import {
     removeExecApproval,
 } from '../services/controllers/exec-approval'
 import { GATEWAY_CLIENT_IDS } from '../services/includes/client-info'
-import { handleSendChat, handleAbortChat, refreshChat, type ChatHost } from '../services/app-chat'
-import { parseAgentSessionKey, isAgentMainSession } from '../services/includes/session-key-utils'
+import { handleSendChat, handleAbortChat, type ChatHost } from '../services/app-chat'
+import { parseAgentSessionKey, isAgentMainSession, createAgentMainSessionKey } from '../services/includes/session-key-utils'
 
 // ==================== Types ====================
 export interface GatewayState {
@@ -218,7 +218,14 @@ export const useGatewayStore = defineStore('gateway', {
         // Get default agent ID from session defaults
         defaultAgentId: (state) => {
             const snapshot = state.hello?.snapshot as { sessionDefaults?: { defaultAgentId?: string } } | undefined
-            return snapshot?.sessionDefaults?.defaultAgentId?.trim() || 'main'
+            return snapshot?.sessionDefaults?.defaultAgentId?.trim() || state.agentsList?.agents[0]?.id || 'main'
+        },
+        defaultSessionKey: (state) => {
+            const snapshot = state.hello?.snapshot as { sessionDefaults?: { defaultAgentId?: string, mainSessionKey?: string } } | undefined
+
+            const agentId = snapshot?.sessionDefaults?.defaultAgentId?.trim() || state.agentsList?.agents[0]?.id || 'main';
+
+            return snapshot?.sessionDefaults?.mainSessionKey?.trim() || createAgentMainSessionKey(agentId)
         },
         // Expose settings store for app-chat.ts compatibility
         settings: () => useUiSettingsStore()
@@ -233,6 +240,7 @@ export const useGatewayStore = defineStore('gateway', {
                 throw new Error('网关地址未配置')
             }
 
+            this.basePath = settings.gatewayUrl.replace("ws://", 'http://').replace("wss://", 'https://');
             this.connecting = true
             this.lastError = null
             this.hello = null
@@ -257,15 +265,19 @@ export const useGatewayStore = defineStore('gateway', {
                         reject(err)
                     },
                     onHello: (hello) => {
+                        //@ts-ignore
+                        window.host = this.$state
                         if (connectionTimeout) {
                             window.clearTimeout(connectionTimeout)
                             connectionTimeout = null
                         }
+
                         this.connecting = false
                         this.connected = true
                         this.lastError = null
                         this.hello = hello
                         this.applySnapshot(hello)
+
 
                         // Reset orphaned chat run state
                         this.chatRunId = null
@@ -274,10 +286,12 @@ export const useGatewayStore = defineStore('gateway', {
                         resetToolStream(this as unknown as Parameters<typeof resetToolStream>[0])
 
                         // Load initial data
-                        void loadAssistantIdentity(this as unknown as AssistantIdentityState)
                         void loadAgents(this as unknown as AgentsState)
                         void loadNodes(this as unknown as NodesState, { quiet: true })
                         void loadDevices(this as unknown as DevicesState, { quiet: true })
+                        void this.loadSessions()
+                        //开始创建新的session
+                        //this.createNewSession();
 
                         resolve()
                     },
@@ -465,7 +479,7 @@ export const useGatewayStore = defineStore('gateway', {
             }
         },
 
-        // Helper function to normalize session keys
+        //检查了value是否是agent:defaultAgentId:mainKey的别名..比如是main,或者是mainkey,或者是agent:defaultAgentId:mainKey..都返回mainSessionKey
         normalizeSessionKey(value: string | undefined, defaults: { defaultAgentId?: string; mainKey?: string; mainSessionKey?: string }): string {
             const raw = (value ?? '').trim()
             const mainSessionKey = defaults.mainSessionKey?.trim()
@@ -533,8 +547,15 @@ export const useGatewayStore = defineStore('gateway', {
             await handleAbortChat(this as unknown as ChatHost)
         },
 
-        async refreshChat() {
-            await refreshChat(this as unknown as ChatHost)
+
+
+        async loadAssistantIdentity() {
+            await loadAssistantIdentity(this as unknown as AssistantIdentityState)
+            this.chatAvatarUrl = `${this.basePath}${this.assistantAvatar}`;
+        },
+
+        async loadChatHistory() {
+            await loadChatHistory(this as unknown as ChatState)
         },
 
         async setSessionKey(key: string, opts?: { isNewSession?: boolean }) {

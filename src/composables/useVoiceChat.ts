@@ -79,6 +79,7 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
     const errorMessage = ref('')
     const transcript = ref('')
     const currentlySpeakingText = ref('')
+    const isWaitingForAudio = ref(false)
 
     const asrService = new SpeechRecognitionService()
     const store = useUiSettingsStore()
@@ -110,7 +111,10 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
         }
         isPlayingAudio = false
         playbackQueue = []
+        isPlayingAudio = false
+        playbackQueue = []
         currentlySpeakingText.value = ''
+        isWaitingForAudio.value = false
         isAudioInterrupted = true
     }
 
@@ -246,6 +250,10 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
         }
         playbackQueue.push(segment)
 
+        if (!isPlayingAudio) {
+            isWaitingForAudio.value = true
+        }
+
         // Trigger fetch immediately in background
         fetchSegmentAudio(segment)
 
@@ -336,6 +344,7 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
             takeAudioControl('VoiceChat', stopAudioOnly)
 
             isPlayingAudio = true
+            isWaitingForAudio.value = false // Audio started
 
             // Remove from queue primarily, BUT we hold reference to play
             playbackQueue.shift()
@@ -503,6 +512,7 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
         errorMessage,
         transcript,
         currentlySpeakingText,
+        isWaitingForAudio,
         start,
         stop,
         speak,

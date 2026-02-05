@@ -22,10 +22,8 @@ const agents = computed(() => {
 const isLoading = computed(() => gatewayStore.agentsLoading)
 
 const selectAgent = (agentId: string) => {
-    // Set session key to agent's default session
-    gatewayStore.setSessionKey(createAgentMainSessionKey(agentId))
-    // Navigate to home/chat
-    router.push('/')
+    // Navigate to home with sessionkey parameter
+    router.push({ name: 'home', query: { sessionkey: createAgentMainSessionKey(agentId) } })
 }
 
 // Load agents when connected

@@ -28,7 +28,7 @@ const getDefaultSettings = (): UiSettings => ({
     theme: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
     isSidebarOpen: false,
     isWideMode: false,
-    showBottomNav: false,
+    showBottomNav: true,
     sessionsActiveDays: 3,
     asrToken: '',
     ttsEngine: 'edge',

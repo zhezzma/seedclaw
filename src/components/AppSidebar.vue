@@ -7,10 +7,12 @@ import {
     PlusIcon,
     ChevronDownIcon,
     ChatBubbleLeftRightIcon,
-    TrashIcon
+    TrashIcon,
 } from '@heroicons/vue/24/outline'
+import { SIDEBAR_ITEMS } from '../config/navigation'
 import { useGatewayStore } from '../stores/gateway'
 import { isAgentMainSession, createAgentMainSessionKey } from '../services/includes/session-key-utils'
+import AgentGrid from './sidebar/AgentGrid.vue'
 
 const router = useRouter()
 const gatewayStore = useGatewayStore()
@@ -55,25 +57,25 @@ const sessions = computed(() => {
 const currentSessionKey = computed(() => gatewayStore.sessionKey)
 const activeAgentId = computed(() => gatewayStore.assistantAgentId)
 
-const selectAgent = (agentId: string) => {
-    gatewayStore.setSessionKey(createAgentMainSessionKey(agentId))
-    // Close sidebar on mobile
+const closeSidebarDrawer = () => {
     const drawer = document.getElementById('sidebar-drawer') as HTMLInputElement
     if (drawer) drawer.checked = false
+}
+
+const selectAgent = (agentId: string) => {
+    router.push({ name: 'home', query: { sessionkey: createAgentMainSessionKey(agentId) } })
+    closeSidebarDrawer()
 }
 
 const selectSession = (key: string) => {
-    gatewayStore.setSessionKey(key)
-    // Close sidebar on mobile
-    const drawer = document.getElementById('sidebar-drawer') as HTMLInputElement
-    if (drawer) drawer.checked = false
+    router.push({ name: 'home', query: { sessionkey: key } })
+    closeSidebarDrawer()
 }
 
-const createNewSession = async () => {
-    await gatewayStore.createNewSession()
-    // Close sidebar on mobile
-    const drawer = document.getElementById('sidebar-drawer') as HTMLInputElement
-    if (drawer) drawer.checked = false
+const createNewSession = () => {
+    // Navigate to home without sessionkey to trigger new session creation
+    router.push({ name: 'home', query: { new: '1' } })
+    closeSidebarDrawer()
 }
 
 const handleDeleteSession = async (key: string, event: Event) => {
@@ -87,22 +89,24 @@ const handleDeleteSession = async (key: string, event: Event) => {
     console.log(`deleteSession result:`, result)
     // Only switch to default if deletion was successful
     if (result.deleted && gatewayStore.sessionKey === key) {
-        gatewayStore.setSessionKey(createAgentMainSessionKey(gatewayStore.defaultAgentId))
+        router.push({ name: 'home', query: { sessionkey: gatewayStore.defaultSessionKey } })
     }
 }
 
-// Load sessions when connected
-onMounted(() => {
-    if (gatewayStore.connected) {
-        gatewayStore.loadSessions()
-    }
-})
+const navItems = SIDEBAR_ITEMS
 
-watch(() => gatewayStore.connected, (connected) => {
-    if (connected) {
-        gatewayStore.loadSessions()
+const handleNavClick = (item: any) => {
+    if (item.route) {
+        if (item.route === 'home') {
+            // Navigate to home with default session key
+            router.push({ name: 'home', query: { sessionkey: gatewayStore.defaultSessionKey } })
+        } else {
+            router.push({ name: item.route })
+        }
     }
-})
+}
+
+
 </script>
 
 <template>
@@ -134,8 +138,26 @@ watch(() => gatewayStore.connected, (connected) => {
             <div class="border-t border-base-300"></div>
         </div>
 
+
+        <!-- Nav -->
+        <div class="shrink-0 px-3 flex flex-col gap-1.5">
+            <button v-for="item in navItems" :key="item.label" @click="handleNavClick(item)"
+                class="group flex items-center gap-3  p-1 w-full rounded-2xl text-left transition-all duration-200 hover:bg-base-100 hover:shadow-sm border border-transparent hover:border-base-200/50 active:scale-[0.98] cursor-pointer"
+                :class="{ 'bg-base-100 shadow-sm border-base-200/50': $route.name === item.route }">
+                <div class="p-1 rounded-xl transition-colors duration-200 group-hover:bg-primary/10 group-hover:text-primary text-base-content/60"
+                    :class="{ 'bg-primary/10 text-primary': $route.name === item.route }">
+                    <component :is="item.icon" class="h-5 w-5" />
+                </div>
+                <span class="font-medium text-sm text-base-content/70 group-hover:text-base-content transition-colors"
+                    :class="{ 'text-base-content font-semibold': $route.name === item.route }">
+                    {{ item.label }}
+                </span>
+            </button>
+        </div>
+
+
         <!-- Agents Section -->
-        <div class="shrink-0 px-4">
+        <!-- <div class="shrink-0 px-4">
             <div class="flex items-center justify-between mb-2">
                 <span class="text-sm font-medium text-base-content/70 uppercase tracking-wider">智能体</span>
                 <button v-if="hasMoreAgents"
@@ -144,36 +166,12 @@ watch(() => gatewayStore.connected, (connected) => {
                     <ChevronDownIcon class="h-4 w-4" />
                 </button>
             </div>
-        </div>
+        </div> -->
 
         <!-- Agents List - 2 columns -->
-        <div class="shrink-0 px-3 pb-2">
-            <!-- Loading state -->
-            <div v-if="gatewayStore.agentsLoading" class="flex items-center justify-center py-4">
-                <span class="loading loading-spinner loading-sm"></span>
-            </div>
-            <!-- Empty state -->
-            <div v-else-if="agents.length === 0" class="text-center py-4 text-base-content/50 text-sm">
-                暂无智能体
-            </div>
-            <!-- Agents grid -->
-            <template v-else>
-                <div class="grid grid-cols-2 gap-1">
-                    <a v-for="agent in visibleAgents" :key="agent.id" @click="selectAgent(agent.id)"
-                        class="flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer transition-colors"
-                        :class="activeAgentId === agent.id && isAgentMainSession(currentSessionKey) ? 'bg-primary/20 text-primary' : 'hover:bg-base-300'">
-                        <span class="text-base">{{ agent.icon }}</span>
-                        <span class="text-sm font-medium truncate">{{ agent.name }}</span>
-                    </a>
-                </div>
-                <a v-if="hasMoreAgents && !isAgentsExpanded"
-                    class="flex items-center justify-center gap-2 px-3 py-2 mt-1 rounded-xl cursor-pointer hover:bg-base-300 transition-colors text-base-content/60"
-                    @click="isAgentsExpanded = true">
-                    <span class="text-sm">展开更多</span>
-                    <span class="badge badge-sm badge-ghost">+{{ agents.length - MAX_VISIBLE_AGENTS }}</span>
-                </a>
-            </template>
-        </div>
+        <!-- <AgentGrid :loading="gatewayStore.agentsLoading" :agents="agents" :visible-agents="visibleAgents"
+            :active-agent-id="activeAgentId" :current-session-key="currentSessionKey" :has-more-agents="hasMoreAgents"
+            v-model:expanded="isAgentsExpanded" :max-visible-agents="MAX_VISIBLE_AGENTS" @select-agent="selectAgent" /> -->
 
         <!-- Divider -->
         <div class="shrink-0 px-4 py-2">

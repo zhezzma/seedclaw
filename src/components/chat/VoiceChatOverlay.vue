@@ -6,6 +6,8 @@ const props = defineProps<{
     status: 'idle' | 'listening' | 'processing' | 'speaking' | 'error'
     transcript: string
     isOpen: boolean
+    speakingText?: string
+    isWaiting?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -20,7 +22,10 @@ const statusText = computed(() => {
     switch (props.status) {
         case 'listening': return '我在听...'
         case 'processing': return '思考中...'
-        case 'speaking': return '正在回复...'
+        case 'speaking':
+            if (props.speakingText) return '正在朗读'
+            if (props.isWaiting) return '正在请求语音...'
+            return 'AI正在回复...'
         case 'error': return '出错了'
         default: return '准备就绪'
     }
@@ -38,9 +43,12 @@ const statusColor = computed(() => {
 </script>
 
 <template>
-    <div v-if="isOpen" class="fixed inset-0 z-50 flex flex-col items-center justify-center transition-all duration-300"
+    <div v-if="isOpen"
+        class="fixed inset-0 z-50 flex flex-col items-center justify-center transition-all duration-300 select-none"
+        style="-webkit-touch-callout: none;"
         :class="isPeeking ? 'bg-transparent backdrop-blur-none' : 'bg-base-100/50 backdrop-blur-sm'"
-        @pointerdown="startPeek" @pointerup="endPeek" @pointerleave="endPeek" @pointercancel="endPeek">
+        @pointerdown="startPeek" @pointerup="endPeek" @pointerleave="endPeek" @pointercancel="endPeek"
+        @contextmenu.prevent>
 
         <!-- Main Content Wrapper to hide during peek -->
         <div class="w-full h-full flex flex-col items-center justify-center transition-opacity duration-300 pointer-events-none"
@@ -71,7 +79,7 @@ const statusColor = computed(() => {
                 <div class="text-center space-y-2">
                     <h2 class="text-2xl font-bold transition-colors" :class="statusColor">{{ statusText }}</h2>
                     <p class="text-base-content/60 min-h-[1.5em] px-4 break-words line-clamp-3">
-                        {{ transcript || (status === 'speaking' ? 'AI正在回复...' : '') }}
+                        {{ transcript || speakingText || (status === 'speaking' ? '...' : '') }}
                     </p>
                 </div>
             </div>

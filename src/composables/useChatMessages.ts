@@ -167,7 +167,9 @@ export function useChatMessages(messagesContainerRef: Ref<HTMLDivElement | null>
 
     // Refresh chat and scroll
     const refreshChatAndScroll = async () => {
-        await gatewayStore.refreshChat()
+        await gatewayStore.loadAssistantIdentity()
+        await gatewayStore.loadChatHistory();
+
         scrollToBottom()
     }
 

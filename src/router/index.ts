@@ -9,7 +9,9 @@ import SetupView from '../views/SetupView.vue'
 import HomeView from '../views/HomeView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import AgentsView from '../views/AgentsView.vue'
-import MessagesView from '../views/MessagesView.vue'
+import NodesView from '../views/NodesView.vue'
+import SkillsView from '../views/SkillsView.vue'
+import CronView from '../views/CronView.vue'
 import OpenClawTest from '../views/OpenClawTest.vue'
 
 const router = createRouter({
@@ -46,9 +48,19 @@ const router = createRouter({
                     component: AgentsView
                 },
                 {
-                    path: 'messages',
-                    name: 'messages',
-                    component: MessagesView
+                    path: 'nodes',
+                    name: 'nodes',
+                    component: NodesView
+                },
+                {
+                    path: 'skills',
+                    name: 'skills',
+                    component: SkillsView
+                },
+                {
+                    path: 'cron',
+                    name: 'cron',
+                    component: CronView
                 }
             ]
         }
