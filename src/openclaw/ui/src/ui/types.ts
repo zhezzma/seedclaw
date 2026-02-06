@@ -652,11 +652,11 @@ export type CronWakeMode = "next-heartbeat" | "now";
 export type CronPayload =
   | { kind: "systemEvent"; text: string }
   | {
-    kind: "agentTurn";
-    message: string;
-    thinking?: string;
-    timeoutSeconds?: number;
-  };
+      kind: "agentTurn";
+      message: string;
+      thinking?: string;
+      timeoutSeconds?: number;
+    };
 
 export type CronDelivery = {
   mode: "none" | "announce";

@@ -108,13 +108,13 @@ export async function addCronJob(state: CronState) {
     const payload = buildCronPayload(state.cronForm);
     const delivery =
       state.cronForm.sessionTarget === "isolated" &&
-        state.cronForm.payloadKind === "agentTurn" &&
-        state.cronForm.deliveryMode
+      state.cronForm.payloadKind === "agentTurn" &&
+      state.cronForm.deliveryMode
         ? {
-          mode: state.cronForm.deliveryMode === "announce" ? "announce" : "none",
-          channel: state.cronForm.deliveryChannel.trim() || "last",
-          to: state.cronForm.deliveryTo.trim() || undefined,
-        }
+            mode: state.cronForm.deliveryMode === "announce" ? "announce" : "none",
+            channel: state.cronForm.deliveryChannel.trim() || "last",
+            to: state.cronForm.deliveryTo.trim() || undefined,
+          }
         : undefined;
     const agentId = state.cronForm.agentId.trim();
     const job = {

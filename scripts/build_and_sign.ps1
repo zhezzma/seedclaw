@@ -3,7 +3,7 @@
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Get project root directory (where this script is located)
-$projectRoot = $PSScriptRoot
+$projectRoot = Split-Path -Parent $PSScriptRoot
 
 # 1. Build Release APK (Unsigned)
 Write-Host "`n🚀 Building Unsigned APK..."

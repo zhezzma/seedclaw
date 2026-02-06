@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host",
     "tcs": " vue-tsc --noEmit &&  tsc --noEmit --skipLibCheck",
-    "build": "npm run tcs && npm run sync && vite build",
+    "build": "npm run sync && npm run tcs && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "sync": "node scripts/sync_openclaw.js"

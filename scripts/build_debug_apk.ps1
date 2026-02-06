@@ -7,7 +7,7 @@ Write-Host "Checking Java version..."
 java -version
 
 # Get project root directory (where this script is located)
-$projectRoot = $PSScriptRoot
+$projectRoot = Split-Path -Parent $PSScriptRoot
 
 # Run Tauri Android build (Debug)
 Write-Host "Building Debug APK..."
