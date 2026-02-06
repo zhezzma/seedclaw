@@ -20,9 +20,11 @@ export const COMMANDS: CommandItem[] = [
     { label: '/help (帮助)', value: '/help' }
 ]
 
+// Global state for persistence
+const inputText = ref('')
+const attachments = ref<{ id: string; name: string; dataUrl: string; mimeType: string }[]>([])
 
 export function useChatInput() {
-    const inputText = ref('')
     const isRecording = ref(false)
     const isThinking = ref(true)
     const selectedModel = ref('glm')
@@ -76,18 +78,11 @@ export function useChatInput() {
             if (speechService) {
                 await speechService.stop();
             }
-            // Release control (though we don't have play audio, we silenced others)
-            // Actually 'ChatInput' doesn't play audio, so just releasing is fine.
-            // But we don't hold a "playing" lock. We just wanted to stop others.
-            // So we can just release immediately after taking? 
-            // Better: Hold it while recording? No, just "Stop Others" is enough.
-            // But if we hold it, others can't start. That's good.
             releaseAudioControl(stopRecording)
             return;
         }
 
         // START RECORDING
-        // Stop any playing audio (TTS, Voice Chat)
         takeAudioControl('ChatInput', stopRecording)
 
         isRecording.value = true;
@@ -95,27 +90,10 @@ export function useChatInput() {
 
         try {
             const currentBaseText = inputText.value;
-            // Pass accumulated to service? No, service sends text.
-            // But we want to handle "session" text properly.
-            // We will let the service handle the accumulation logic mostly, 
-            // or we expect the callback to give us the *Latest Sentence*?
-            // User reported bug: New text overwrites old.
-            // If we change service to return FULL text, we can just set it.
-            // But better: Service returns "Diff" or "Current Sentence"?
-            // If service returns "Current Sentence", we need to append it.
-            // We will modify Service to handle accumulation separately. 
-            // Here, we just expect `text` to be the *full appended text* for this session?
-            // Or we handle it here.
-
-            // Let's assume we fix the Service to return the "Full Text of Current Session".
-            // Then we append that to `currentBaseText`.
 
             await speechService.start((text: string, isFinal: boolean) => {
                 resetSilenceTimer(); // Reset on activity
 
-                // Logic: 
-                // Service now returns the FULL accumulated session text.
-                // So we just append it to the base text (text present before recording started).
                 const separator = (currentBaseText && !currentBaseText.endsWith('\n') && !currentBaseText.endsWith(' ')) ? ' ' : '';
                 inputText.value = currentBaseText + separator + text;
             });
@@ -133,12 +111,6 @@ export function useChatInput() {
         }
     }
 
-    // Stop recording on send?
-    // Usually handled by caller calling handleMicClick or checking isRecording.
-    // We'll export a stopRecording function or just reuse handleMicClick logic in onSend?
-    // But handleMicClick is a toggle.
-    // Let's ensure stop.
-
     const stopRecording = async () => {
         if (isRecording.value) {
             await handleMicClick();
@@ -153,16 +125,12 @@ export function useChatInput() {
             stopRecording(); // Stop if recording
             onSend()
         }
-        // Enter 键默认行为是换行，不需要阻止
     }
 
     const closeDropdowns = () => {
         commandDropdownOpen.value = false
         modelDropdownOpen.value = false
     }
-
-    // Attachments
-    const attachments = ref<{ id: string; name: string; dataUrl: string; mimeType: string }[]>([])
 
     const addAttachment = (file: File) => {
         // Allow all files
@@ -193,7 +161,7 @@ export function useChatInput() {
         selectedModel,
         commandDropdownOpen,
         modelDropdownOpen,
-        attachments, // Export
+        attachments,
         selectCommand,
         selectModel,
         handleMicClick,
@@ -201,8 +169,8 @@ export function useChatInput() {
         handleKeydown,
         closeDropdowns,
         stopRecording,
-        addAttachment, // Export
-        removeAttachment, // Export
+        addAttachment,
+        removeAttachment,
         commands: COMMANDS,
     }
 }

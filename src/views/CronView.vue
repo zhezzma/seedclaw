@@ -69,6 +69,7 @@ async function updateCronJob(state: CronState, id: string) {
             sessionTarget: state.cronForm.sessionTarget,
             wakeMode: state.cronForm.wakeMode,
             payload,
+            delivery,
             isolation:
                 state.cronForm.postToMainPrefix.trim() && state.cronForm.sessionTarget === "isolated"
                     ? { postToMainPrefix: state.cronForm.postToMainPrefix.trim() }
@@ -640,7 +641,7 @@ onMounted(() => {
 
                     <fieldset class="fieldset w-full">
                         <legend class="fieldset-legend">{{ form.payloadKind === 'systemEvent' ? '系统事件内容' : '消息内容'
-                            }}</legend>
+                        }}</legend>
                         <textarea v-model="form.payloadText" class="textarea w-full h-24"
                             placeholder="输入内容..."></textarea>
                         <div class="label"></div>

@@ -112,7 +112,7 @@ const handleSend = async () => {
         chatInputRef.value.inputText = ''
         // Clear attachments in UI
         if (chatInputRef.value.attachments) {
-            chatInputRef.value.attachments.length = 0
+            chatInputRef.value.attachments = []
         }
     }
 
