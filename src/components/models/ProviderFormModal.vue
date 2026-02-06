@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline'
-import { useGatewayStore } from '../../stores/gateway'
+import { useGateway } from '../../composables/useGateway'
+import { useConfigState } from '../../composables/useConfigState'
+import { updateConfigFormValue, saveConfig } from '../../openclaw/ui/src/ui/controllers/config'
 
 const props = defineProps<{
     show: boolean
@@ -20,7 +22,8 @@ const emit = defineEmits<{
     (e: 'saved', providerId: string): void
 }>()
 
-const store = useGatewayStore()
+const store = useGateway()
+const configState = useConfigState()
 
 // Form data
 const formData = ref({
@@ -92,7 +95,7 @@ const handleSubmit = async () => {
 
     if (props.mode === 'add') {
         // Check for duplicate ID
-        const providersObj = (store.configForm?.models as any)?.providers as Record<string, any> | undefined
+        const providersObj = (configState.configForm?.models as any)?.providers as Record<string, any> | undefined
         if (providersObj && providersObj[providerId]) {
             alert('提供商 ID 已存在，请使用其他 ID')
             return
@@ -109,38 +112,44 @@ const handleSubmit = async () => {
             providerConfig.headers = headersObj
         }
 
-        store.updateConfigFormValue(
+        updateConfigFormValue(
+            configState as any,
             ['models', 'providers', providerId],
             providerConfig
         )
     } else {
         // Edit mode: update existing provider
-        store.updateConfigFormValue(
+        updateConfigFormValue(
+            configState as any,
             ['models', 'providers', providerId, 'baseUrl'],
             formData.value.baseUrl
         )
-        store.updateConfigFormValue(
+        updateConfigFormValue(
+            configState as any,
             ['models', 'providers', providerId, 'apiKey'],
             formData.value.apiKey
         )
-        store.updateConfigFormValue(
+        updateConfigFormValue(
+            configState as any,
             ['models', 'providers', providerId, 'api'],
             formData.value.api
         )
         if (headersObj) {
-            store.updateConfigFormValue(
+            updateConfigFormValue(
+                configState as any,
                 ['models', 'providers', providerId, 'headers'],
                 headersObj
             )
         } else {
-            store.updateConfigFormValue(
+            updateConfigFormValue(
+                configState as any,
                 ['models', 'providers', providerId, 'headers'],
                 undefined
             )
         }
     }
 
-    await store.saveConfig()
+    await saveConfig(configState as any)
     emit('saved', providerId)
     emit('close')
 }

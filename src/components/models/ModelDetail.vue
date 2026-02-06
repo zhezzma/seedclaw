@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { PlusIcon, PencilIcon, TrashIcon, XMarkIcon, EyeIcon, EyeSlashIcon, ArrowPathIcon } from '@heroicons/vue/24/outline'
-import { useGatewayStore } from '../../stores/gateway'
+import { useGateway } from '../../composables/useGateway'
 import ProviderFormModal from './ProviderFormModal.vue'
+import { useConfigState } from '../../composables/useConfigState'
+import { updateConfigFormValue, saveConfig } from '../../openclaw/ui/src/ui/controllers/config'
 
 interface ModelConfig {
     id: string
@@ -26,11 +28,12 @@ const props = defineProps<{
     providerId: string
 }>()
 
-const store = useGatewayStore()
+const store = useGateway()
+const configState = useConfigState()
 
 // Get provider from configForm
 const provider = computed(() => {
-    const providersObj = (store.configForm?.models as any)?.providers as Record<string, any> | undefined
+    const providersObj = (configState.configForm?.models as any)?.providers as Record<string, any> | undefined
     if (!providersObj || !providersObj[props.providerId]) return null
     return {
         id: props.providerId,
@@ -116,12 +119,13 @@ const syncModels = async () => {
 
         const mergedModels = Array.from(modelMap.values())
 
-        store.updateConfigFormValue(
+        updateConfigFormValue(
+            configState as any,
             ['models', 'providers', props.providerId, 'models'],
             mergedModels
         )
         syncAgentsDefaultModels()
-        await store.saveConfig()
+        await saveConfig(configState as any)
 
     } catch (err: any) {
         syncError.value = err.message || '同步失败'
@@ -191,12 +195,13 @@ const saveModel = async () => {
         currentModels.push({ ...modelForm.value })
     }
 
-    store.updateConfigFormValue(
+    updateConfigFormValue(
+        configState as any,
         ['models', 'providers', props.providerId, 'models'],
         currentModels
     )
     syncAgentsDefaultModels()
-    await store.saveConfig()
+    await saveConfig(configState as any)
 
     showModelModal.value = false
 }
@@ -206,12 +211,13 @@ const deleteModel = async (index: number, modelId: string) => {
         const currentModels = [...models.value]
         currentModels.splice(index, 1)
 
-        store.updateConfigFormValue(
+        updateConfigFormValue(
+            configState as any,
             ['models', 'providers', props.providerId, 'models'],
             currentModels
         )
         syncAgentsDefaultModels()
-        await store.saveConfig()
+        await saveConfig(configState as any)
     }
 }
 

@@ -1,4 +1,4 @@
-import { useToastStore } from '../../stores/toast'
+import { useToast } from '../../composables/useToast'
 
 class MarkdownWorkerWrapper {
     private worker: Worker;
@@ -109,7 +109,7 @@ class MarkdownWorkerWrapper {
             this.isWorkerReady = true;
         } catch (error) {
             console.error('Failed to restart markdown worker:', error);
-            useToastStore().error('Markdown rendering engine failed to restart');
+            useToast().error('Markdown rendering engine failed to restart');
         }
     }
 }

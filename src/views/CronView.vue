@@ -12,32 +12,37 @@ import {
     ChevronLeftIcon,
     ChevronRightIcon
 } from '@heroicons/vue/24/outline'
-import { useGatewayStore } from '../stores/gateway'
+import { useGateway } from '../composables/useGateway'
 import { useUiSettingsStore } from '../stores/setting'
-import { CronState } from '../openclaw/ui/src/ui/controllers/cron'
+import { CronState, buildCronSchedule, buildCronPayload } from '../openclaw/ui/src/ui/controllers/cron'
 import type { CronFormState } from '~openclaw/ui/src/ui/ui-types'
 import type { CronJob, CronRunLogEntry } from '~openclaw/ui/src/ui/types'
-import { useToastStore } from '../stores/toast'
+import { useToast } from '../composables/useToast'
+import { useCronState } from '../composables/useCronState'
+import { useAgentsState } from '../composables/useAgentsState'
 
 
 const router = useRouter()
-const gatewayStore = useGatewayStore()
+const gatewayStore = useGateway()
 const settingsStore = useUiSettingsStore()
-const toastStore = useToastStore()
+const toastStore = useToast()
+
+const cronState = useCronState()
+const agentsState = useAgentsState()
 
 
 
 
 
-async function updateCronJob(state: CronState, id: string) {
+async function updateCronJob(state: any, id: string) {
     if (!state.client || !state.connected || state.cronBusy) {
         return;
     }
     state.cronBusy = true;
     state.cronError = null;
     try {
-        const schedule = gatewayStore.buildCronSchedule(state.cronForm);
-        const payload = gatewayStore.buildCronPayload(state.cronForm);
+        const schedule = buildCronSchedule(state.cronForm);
+        const payload = buildCronPayload(state.cronForm);
         const agentId = state.cronForm.agentId.trim();
         const delivery =
             state.cronForm.sessionTarget === "isolated" &&
@@ -67,7 +72,8 @@ async function updateCronJob(state: CronState, id: string) {
         }
 
         await state.client.request("cron.update", { id, patch });
-        await gatewayStore.loadCron();
+        await state.client.request("cron.update", { id, patch });
+        await cronState.loadCron();
     } catch (err) {
         state.cronError = String(err);
         throw err;
@@ -109,19 +115,19 @@ const modalError = ref<string | null>(null)
 // Logs State
 const logsJob = ref<CronJob | null>(null)
 const logsLoading = ref(false)
-const cronRunLogs = computed(() => gatewayStore.cronRuns as CronRunLogEntry[])
-const cronRunsTotal = computed(() => (gatewayStore as any).cronRunsTotal || 0)
+const cronRunLogs = computed(() => cronState.cronRuns as CronRunLogEntry[])
+const cronRunsTotal = computed(() => (cronState as any).cronRunsTotal || 0)
 
 const page = ref(1)
 const pageSize = ref(20)
 const totalPages = computed(() => Math.ceil(cronRunsTotal.value / pageSize.value))
 
 // --- Computed & Helpers ---
-const isLoading = computed(() => gatewayStore.cronLoading)
-const isBusy = computed(() => gatewayStore.cronBusy)
+const isLoading = computed(() => cronState.cronLoading)
+const isBusy = computed(() => cronState.cronBusy)
 
-const jobs = computed(() => gatewayStore.cronJobs as CronJob[])
-const agents = computed(() => gatewayStore.agents) // Access agents getter
+const jobs = computed(() => cronState.cronJobs as CronJob[])
+const agents = computed(() => agentsState.agentsList?.agents || []) // Access agents from local state with null check
 const modalTitle = computed(() => editingId.value ? '编辑任务' : '新建任务')
 
 // Simple date formatter
@@ -193,7 +199,7 @@ const handleViewLogs = async (job: CronJob) => {
     if (modal) modal.showModal()
 
     try {
-        await gatewayStore.loadCronRuns(job.id)
+        await cronState.loadCronRuns(job.id)
     } finally {
         logsLoading.value = false
     }
@@ -264,14 +270,14 @@ const handleOpenEdit = (job: CronJob) => {
 }
 
 const handleSave = async () => {
-    (gatewayStore as any).cronForm = { ...form.value }
+    cronState.cronForm = { ...form.value }
     modalError.value = null
 
     try {
         if (editingId.value) {
-            await updateCronJob(gatewayStore as any, editingId.value)
+            await updateCronJob(cronState, editingId.value)
         } else {
-            await gatewayStore.addCronJob()
+            await cronState.addCronJob()
         }
         closeModal()
     }
@@ -282,7 +288,7 @@ const handleSave = async () => {
 
 const handleToggle = async (job: CronJob, e: Event) => {
     e.stopPropagation() // Prevent opening edit modal
-    await gatewayStore.toggleCronJob(job, !job.enabled)
+    await cronState.toggleCronJob(job, !job.enabled)
 }
 
 const handleRun = async (job: CronJob, e: Event) => {
@@ -296,10 +302,10 @@ const handleRun = async (job: CronJob, e: Event) => {
     runningJobId.value = job.id
 
     try {
-        await gatewayStore.runCronJob(job)
+        await cronState.runCronJob(job)
         // If logs open for this job, refresh them
         if (logsJob.value?.id === job.id) {
-            void gatewayStore.loadCronRuns(job.id)
+            void cronState.loadCronRuns(job.id)
         }
     }
     catch (err: any) {
@@ -312,18 +318,20 @@ const handleRun = async (job: CronJob, e: Event) => {
 const handleRemove = async (job: CronJob, e: Event) => {
     e.stopPropagation()
     if (!confirm('确定要删除此任务吗？')) return
-    await gatewayStore.removeCronJob(job)
+    await cronState.removeCronJob(job)
 }
 
 
 watch(() => gatewayStore.connected, (connected) => {
     if (connected) {
-        void gatewayStore.loadCron()
+        void cronState.loadCron()
+        void agentsState.loadAgents()
     }
 })
 
 onMounted(() => {
-    void gatewayStore.loadCron()
+    void cronState.loadCron()
+    void agentsState.loadAgents()
 })
 
 
@@ -353,9 +361,9 @@ onMounted(() => {
 
                 <!-- Jobs List -->
                 <div>
-                    <p v-if="gatewayStore.cronLoading && jobs.length === 0" class="text-center py-8 opacity-50">加载中...
+                    <p v-if="cronState.cronLoading && jobs.length === 0" class="text-center py-8 opacity-50">加载中...
                     </p>
-                    <div v-if="!gatewayStore.cronLoading && jobs.length === 0" class="text-center py-12 opacity-50">
+                    <div v-if="!cronState.cronLoading && jobs.length === 0" class="text-center py-12 opacity-50">
                         <div class="text-6xl mb-4">💤</div>
                         <p>暂无定时任务</p>
                         <button @click="handleOpenAdd" class="btn btn-link">创建一个</button>
@@ -665,8 +673,8 @@ onMounted(() => {
                     <span class="loading loading-spinner loading-lg"></span>
                 </div>
 
-                <div v-else-if="gatewayStore.cronError" class="alert alert-error my-4">
-                    <span>{{ gatewayStore.cronError }}</span>
+                <div v-else-if="cronState.cronError" class="alert alert-error my-4">
+                    <span>{{ cronState.cronError }}</span>
                 </div>
 
                 <div v-else-if="cronRunLogs.length === 0" class="text-center py-8 opacity-50">

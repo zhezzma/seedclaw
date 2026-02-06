@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, reactive, toRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
-import { useGatewayStore } from '../stores/gateway'
+import { useGateway } from '../composables/useGateway'
 import { useChatMessages, type DisplayMessage } from '../composables/useChatMessages'
 import { useTTS } from '../composables/useTTS'
 import { useVoiceChat } from '../composables/useVoiceChat'
@@ -12,11 +12,27 @@ import ChatInput from '../components/chat/ChatInput.vue'
 import VoiceChatOverlay from '../components/chat/VoiceChatOverlay.vue'
 import AppSidebar from '../components/AppSidebar.vue'
 import { createAgentMainSessionKey, isAgentMainSession } from '../utils/session-key-helpers'
+import { useChatState } from '../composables/useChatState'
+import { useSessionsState } from '../composables/useSessionsState'
+import { useAgentsState } from '../composables/useAgentsState'
 
 const route = useRoute()
 const router = useRouter()
 const settingsStore = useUiSettingsStore()
-const gatewayStore = useGatewayStore()
+const gatewayStore = useGateway()
+
+const chatState = useChatState()
+const sessionsState = useSessionsState()
+const agentsState = useAgentsState()
+
+// Misc Local State
+const refreshSessionsAfterChat = new Set<string>()
+// Flag to prevent watch from resetting session after query parameter is cleared
+const sessionSwitchedByQuery = ref(false)
+
+// Helper to access delegated props that were in localState
+const isNewSessionPending = toRef(chatState, 'isNewSessionPending')
+const hello = toRef(gatewayStore, 'hello')
 
 // Refs
 const messagesContainerRef = ref<HTMLDivElement | null>(null)
@@ -32,7 +48,7 @@ const {
     scrollToBottom,
     setupScrollWatchers,
     refreshChatAndScroll
-} = useChatMessages(messagesContainerRef)
+} = useChatMessages(chatState as any, messagesContainerRef)
 
 // TTS
 const { currentReadingMsgId, readAloud: ttsReadAloud } = useTTS()
@@ -40,48 +56,72 @@ const { currentReadingMsgId, readAloud: ttsReadAloud } = useTTS()
 // Agent selection
 const selectedAgentId = ref('')
 
-// Get available agents from gateway (using store getter)
-const agents = computed(() => gatewayStore.agents)
+// Get available agents from local state
+const agents = computed(() => {
+    const list = agentsState.agentsList?.agents || []
+    const defaultId = (hello.value?.snapshot as any)?.sessionDefaults?.defaultAgentId?.trim() || list[0]?.id || 'main'
+    return list.map((a: any) => ({
+        id: a.id,
+        name: a.name || a.identity?.name || a.id,
+        avatarUrl: a.identity?.avatarUrl,
+        icon: a.identity?.emoji || '🤖',
+        description: a.identity?.theme || '还未设定哟',
+        isDefault: (a.id || a.name) === defaultId
+    }))
+})
 
 
 const selectedAgent = computed(() => {
-    return agents.value.find(a => a.id === selectedAgentId.value) || agents.value[0] || { id: 'main', name: 'Assistant', icon: '🤖' }
+    return agents.value.find((a: any) => a.id === selectedAgentId.value) || agents.value[0] || { id: 'main', name: 'Assistant', icon: '🤖' }
 })
 
 // Check if current session is an agent main session (show dropdown) or a specific session (show session name)
-const showAgentDropdown = computed(() => isAgentMainSession(gatewayStore.sessionKey) || gatewayStore.isNewSessionPending)
+const showAgentDropdown = computed(() => isAgentMainSession(chatState.sessionKey) || isNewSessionPending.value)
 
 // Get current session name from sessions list
 const currentSessionName = computed(() => {
-    const sessionKey = gatewayStore.sessionKey
+    const sessionKey = chatState.sessionKey
     if (!sessionKey) return 'Chat Session'
 
-    if (gatewayStore.isNewSessionPending) {
-        const agentId = gatewayStore.assistantAgentId
+    if (isNewSessionPending.value) {
+        const agentId = chatState.assistantAgentId
         const agent = agents.value.find(a => a.id === agentId)
         return `新会话(${agent?.name || 'Assistant'})`
     }
 
-    const sessions = gatewayStore.sessionsResult?.sessions || []
+    const sessions = sessionsState.sessionsResult?.sessions || []
     const session = sessions.find((s: any) => s.key === sessionKey)
     return session?.displayName || session?.label || 'Chat Session'
 })
+
+// Sessions list for sidebar
+const sessions = computed(() => sessionsState.sessionsResult?.sessions || [])
+
+// Handle session deletion
+const handleDeleteSession = async (key: string) => {
+    // AppSidebar handles confirmation before emitting
+    const result = await sessionsState.deleteSession(key)
+    if (result?.deleted && chatState.sessionKey === key) {
+        router.push({ name: 'home', query: { sessionkey: gatewayStore.defaultSessionKey } })
+    }
+}
+
 
 // Agent selection handler
 const handleSelectAgent = (agentId: string) => {
     selectedAgentId.value = agentId
 
-    if (gatewayStore.isNewSessionPending) {
-        gatewayStore.assistantAgentId = agentId
+    if (isNewSessionPending.value) {
+        chatState.assistantAgentId = agentId
         return
     }
 
     // Switch to agent's main session
-    gatewayStore.setSessionKey(createAgentMainSessionKey(agentId))
+    chatState.setSessionKey(createAgentMainSessionKey(agentId))
 }
 
 // Watch for assistant identity changes to update selection
-watch(() => gatewayStore.assistantAgentId, (newId) => {
+watch(() => chatState.assistantAgentId, (newId) => {
     if (newId) {
         selectedAgentId.value = newId
     }
@@ -94,12 +134,12 @@ const handleSend = async () => {
 
     if (isBusy.value) {
         // If busy, abort the current run
-        await gatewayStore.abortChat()
+        await chatState.abortChat()
         return
     }
 
-    if (gatewayStore.isNewSessionPending) {
-        await gatewayStore.commitNewSession(inputText)
+    if (isNewSessionPending.value) {
+        await chatState.commitNewSession(inputText)
     }
 
     // Clone attachments immediately to avoid reference issues when clearing
@@ -114,7 +154,7 @@ const handleSend = async () => {
     }
 
     // We need to clone attachments because we clear the UI state immediately
-    await gatewayStore.sendMessage(inputText, [...attachments])
+    await chatState.sendMessage(inputText, [...attachments])
 
     // Clear attachments in UI (actually we should do it here to completely reset)
     if (chatInputRef.value && chatInputRef.value.attachments) {
@@ -142,7 +182,7 @@ const readAloud = (msg: DisplayMessage) => {
 
 // Create new session
 const createNewSession = async () => {
-    await gatewayStore.createNewSession()
+    await chatState.createNewSession()
 }
 
 // Voice Chat
@@ -154,7 +194,7 @@ const handleRecognizedText = async (text: string) => {
         await handleSend()
     } else {
         // Fallback if ref is missing
-        await gatewayStore.sendMessage(text)
+        await chatState.sendMessage(text)
         scrollToBottom()
     }
 }
@@ -212,37 +252,80 @@ const handleClickOutside = (event: MouseEvent) => {
     chatInputRef.value?.handleToolbarClickOutside(event)
 }
 
-onMounted(() => {
+
+onMounted(async () => {
     document.addEventListener('click', handleClickOutside)
     setupScrollWatchers()
-
 })
 
 onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside)
 })
 
-// Watch for connection and load chat
-watch(() => gatewayStore.connected, (connected) => {
-    if (connected) {
-        refreshChatAndScroll()
-    }
-})
+
 
 // Handle route query parameters for session switching
 watch(() => route.query, async (query) => {
+
+    console.log("[HomeView] watch route.query", query)
     if (query.sessionkey && typeof query.sessionkey === 'string') {
         // Switch to the specified session
-        gatewayStore.setSessionKey(query.sessionkey)
+        chatState.setSessionKey(query.sessionkey)
+        // Mark that we just switched session via query, so we don't reset it when query is cleared
+        sessionSwitchedByQuery.value = true
         // Clear the query parameter after processing
         router.replace({ name: 'home' })
     } else if (query.new === '1') {
         // Create a new session
-        await gatewayStore.createNewSession()
+        await chatState.createNewSession()
+        sessionSwitchedByQuery.value = true
         // Clear the query parameter after processing
         router.replace({ name: 'home' })
     }
+    else if (sessionSwitchedByQuery.value) {
+        // Query was cleared after sessionkey/new was processed, don't reset session
+        sessionSwitchedByQuery.value = false
+    }
+    else {
+        // Wait for gateway to be connected before applying default behavior
+        if (!gatewayStore.connected) {
+            console.log('[HomeView] Gateway not connected yet, waiting...')
+            return
+        }
+        await applyDefaultSessionBehavior()
+    }
+
 }, { immediate: true })
+
+// Watch for gateway connection to apply default session behavior
+watch(() => gatewayStore.connected, async (connected, wasConnected) => {
+    // Only trigger when just connected (false -> true) and no session is set yet
+    if (connected && !wasConnected && !chatState.sessionKey) {
+        console.log('[HomeView] Gateway connected, applying default session behavior')
+        await applyDefaultSessionBehavior()
+    }
+})
+
+// Helper function to apply default session behavior based on settings
+async function applyDefaultSessionBehavior() {
+    // Default behavior based on settings
+    if (settingsStore.homePageBehavior === 'new_session') {
+        await chatState.createNewSession()
+        // Clear the query parameter after processing
+        router.replace({ name: 'home' })
+    } else if (settingsStore.homePageBehavior === 'default_session') {
+        // Load explicitly default session
+        console.log('Default: default session', gatewayStore.defaultSessionKey)
+        chatState.setSessionKey(gatewayStore.defaultSessionKey)
+        router.replace({ name: 'home' })
+    } else {
+        // Default: last active session
+        const targetKey = settingsStore.lastActiveSessionKey || gatewayStore.defaultSessionKey
+        console.log('Default: last active session', targetKey)
+        chatState.setSessionKey(targetKey)
+        router.replace({ name: 'home' })
+    }
+}
 </script>
 
 <template>
@@ -253,7 +336,10 @@ watch(() => route.query, async (query) => {
             <div class="drawer-side pointer-events-auto h-full">
                 <label for="sidebar-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
                 <div class="w-80 h-full bg-base-200">
-                    <AppSidebar />
+                    <AppSidebar :sessions="sessions" :loading="sessionsState.sessionsLoading"
+                        :current-session-key="chatState.sessionKey"
+                        :default-session-key="gatewayStore.defaultSessionKey" :agents="agents"
+                        :active-agent-id="selectedAgentId" @delete-session="handleDeleteSession" />
                 </div>
             </div>
         </div>

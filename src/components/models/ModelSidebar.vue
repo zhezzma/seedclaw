@@ -2,8 +2,10 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeftIcon, PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
-import { useGatewayStore } from '../../stores/gateway'
+import { useGateway } from '../../composables/useGateway'
 import ProviderFormModal from './ProviderFormModal.vue'
+import { useConfigState } from '../../composables/useConfigState'
+import { updateConfigFormValue, saveConfig } from '../../openclaw/ui/src/ui/controllers/config'
 
 const props = defineProps<{
     selectedId?: string
@@ -14,7 +16,8 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
-const store = useGatewayStore()
+const store = useGateway()
+const configState = useConfigState()
 
 const goBack = () => {
     router.back()
@@ -22,7 +25,7 @@ const goBack = () => {
 
 // Get providers from configForm
 const providers = computed(() => {
-    const providersObj = (store.configForm?.models as any)?.providers as Record<string, any> | undefined
+    const providersObj = (configState.configForm?.models as any)?.providers as Record<string, any> | undefined
     if (!providersObj) return []
     return Object.entries(providersObj).map(([id, config]) => ({
         id,
@@ -48,17 +51,18 @@ const deleteProvider = async (id: string, event: Event) => {
     event.stopPropagation()
     if (confirm(`确定要删除提供商 "${id}" 吗？这将同时删除其所有模型配置。`)) {
         // Get current providers, remove the one with id, then set
-        const providersObj = (store.configForm?.models as any)?.providers as Record<string, any> | undefined
+        const providersObj = (configState.configForm?.models as any)?.providers as Record<string, any> | undefined
         if (providersObj && providersObj[id]) {
             const newProviders = { ...providersObj }
             delete newProviders[id]
-            store.updateConfigFormValue(
+            updateConfigFormValue(
+                configState as any,
                 ['models', 'providers'],
                 newProviders
             )
             // Sync agents.defaults.models
             syncAgentsDefaultModels(newProviders)
-            await store.saveConfig()
+            await saveConfig(configState as any)
         }
     }
 }

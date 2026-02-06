@@ -7,7 +7,7 @@ import {
 import { computed } from 'vue'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ToolInvocation from './ToolInvocation.vue'
-import { useGatewayStore } from '../../stores/gateway'
+import { useChatState } from '../../composables/useChatState'
 import { useTTS } from '../../composables/useTTS'
 import type { DisplayMessage } from '../../composables/useChatMessages'
 
@@ -21,7 +21,7 @@ const emit = defineEmits<{
     (e: 'read-aloud', msg: DisplayMessage): void
 }>()
 
-const gatewayStore = useGatewayStore()
+const chatState = useChatState()
 const { currentReadingMsgId } = useTTS()
 
 // Helper functions
@@ -36,8 +36,8 @@ const isAvatarUrl = (avatar: string | null | undefined): boolean => {
     return avatar.startsWith('http') || avatar.startsWith('data:') || avatar.startsWith('/')
 }
 
-const assistantName = computed(() => gatewayStore.assistantName || 'Assistant')
-const assistantAvatar = computed(() => isAvatarUrl(gatewayStore.assistantAvatar) ? gatewayStore.chatAvatarUrl : gatewayStore.assistantAvatar)
+const assistantName = computed(() => chatState.assistantName || 'Assistant')
+const assistantAvatar = computed(() => isAvatarUrl(chatState.assistantAvatar) ? chatState.chatAvatarUrl : chatState.assistantAvatar)
 </script>
 
 <template>

@@ -14,7 +14,9 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useChatInput, COMMANDS } from '../../composables/useChatInput'
 import { useModels } from '../../composables/useModels'
-import { useGatewayStore } from '../../stores/gateway'
+import { useChatState } from '../../composables/useChatState'
+import { useConfigState } from '../../composables/useConfigState'
+import { updateConfigFormValue, saveConfig } from '../../openclaw/ui/src/ui/controllers/config'
 import { useUiSettingsStore } from '../../stores/setting'
 import { computed } from 'vue'
 
@@ -23,15 +25,16 @@ const props = defineProps<{
     disabled: boolean
 }>()
 
-const store = useGatewayStore()
+const chatState = useChatState()
+const configState = useConfigState()
 const settingsStore = useUiSettingsStore()
 const { availableModels } = useModels()
 
 // Current agent model binding
 const agentIndex = computed(() => {
-    const list = (store.configForm?.agents as any)?.list as any[] | undefined
+    const list = (configState.configForm?.agents as any)?.list as any[] | undefined
     if (!list) return -1
-    return list.findIndex((a: any) => a.id === store.assistantAgentId)
+    return list.findIndex((a: any) => a.id === chatState.assistantAgentId)
 })
 
 const currentModel = computed({
@@ -39,8 +42,8 @@ const currentModel = computed({
         console.log('agentIndex.value', agentIndex.value)
 
         if (agentIndex.value === -1) return ''
-        const list = (store.configForm?.agents as any)?.list as any[]
-        const model = list[agentIndex.value]?.model?.primary || (store.configForm?.agents as any)?.defaults?.model?.primary
+        const list = (configState.configForm?.agents as any)?.list as any[]
+        const model = list[agentIndex.value]?.model?.primary || (configState.configForm?.agents as any)?.defaults?.model?.primary
 
         console.log('model', model)
 
@@ -48,11 +51,12 @@ const currentModel = computed({
     },
     set: async (val: string) => {
         if (agentIndex.value === -1) return
-        store.updateConfigFormValue(
+        updateConfigFormValue(
+            configState as any,
             ['agents', 'list', `${agentIndex.value}`, 'model', 'primary'],
             val
         )
-        await store.saveConfig()
+        await saveConfig(configState as any)
     }
 })
 
@@ -174,7 +178,7 @@ defineExpose({
                                 d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                         </svg>
                         <span class="text-[9px] w-full truncate text-center opacity-70 leading-tight mt-0.5">{{ att.name
-                        }}</span>
+                            }}</span>
                     </div>
 
                     <!-- Delete Button: Always visible on mobile (using forced opacity or just remove opacity class). 

@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { storeToRefs } from 'pinia'
-import { useToastStore, type ToastType } from '../stores/toast'
+import { useToast, type ToastType } from '../composables/useToast'
 import {
     CheckCircleIcon,
     XCircleIcon,
@@ -9,8 +8,7 @@ import {
     XMarkIcon
 } from '@heroicons/vue/24/outline'
 
-const store = useToastStore()
-const { toasts } = storeToRefs(store)
+const { toasts, remove } = useToast()
 
 const getAlertClass = (type: ToastType) => {
     switch (type) {
@@ -42,7 +40,7 @@ const getIcon = (type: ToastType) => {
                     :class="getAlertClass(toast.type)">
                     <component :is="getIcon(toast.type)" class="w-6 h-6 stroke-current shrink-0" />
                     <span class="flex-1 text-sm font-medium">{{ toast.message }}</span>
-                    <button @click="store.remove(toast.id)" class="btn btn-ghost btn-sm btn-circle text-current">
+                    <button @click="remove(toast.id)" class="btn btn-ghost btn-sm btn-circle text-current">
                         <XMarkIcon class="w-5 h-5" />
                     </button>
                 </div>

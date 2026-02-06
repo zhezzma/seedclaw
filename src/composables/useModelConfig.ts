@@ -1,11 +1,14 @@
-import { useGatewayStore } from '../stores/gateway'
+import { useGateway } from './useGateway'
+
+import { useConfigState } from './useConfigState'
+import { updateConfigFormValue } from '../openclaw/ui/src/ui/controllers/config'
 
 export function useModelConfig() {
-    const store = useGatewayStore()
+    const configState = useConfigState()
 
     // Sync agents.defaults.models with all available models from providers
     const syncAgentsDefaultModels = (explicitProvidersObj?: Record<string, any>) => {
-        const providersObj = explicitProvidersObj || (store.configForm?.models as any)?.providers as Record<string, any> | undefined
+        const providersObj = explicitProvidersObj || (configState.configForm?.models as any)?.providers as Record<string, any> | undefined
         if (!providersObj) return
 
         const allModels: Record<string, object> = {}
@@ -19,7 +22,8 @@ export function useModelConfig() {
             })
         })
 
-        store.updateConfigFormValue(
+        updateConfigFormValue(
+            configState as any,
             ['agents', 'defaults', 'models'],
             allModels
         )

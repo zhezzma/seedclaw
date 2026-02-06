@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onErrorCaptured } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useGatewayStore } from '../../stores/gateway'
+import { useGateway } from '../../composables/useGateway'
 import {
     InformationCircleIcon,
     DocumentTextIcon,
@@ -18,9 +18,12 @@ import AgentFormModal from './AgentFormModal.vue'
 
 const props = defineProps<{
     agentId: string
+    agentsList?: any
+    configState?: any
+    defaultAgentId?: string
 }>()
 
-const gatewayStore = useGatewayStore()
+const gatewayStore = useGateway()
 
 onErrorCaptured((err, instance, info) => {
     console.error('[AgentDetail Error]', err)
@@ -32,7 +35,7 @@ onErrorCaptured((err, instance, info) => {
 // Get full agent object
 const agent = computed(() => {
     console.log('[AgentDetail] Computing agent for ID:', props.agentId)
-    const list = gatewayStore.agentsList?.agents || []
+    const list = props.agentsList?.agents || []
 
     const rawAgent = list.find((a: any) => (a.id || a.name) === props.agentId)
     if (!rawAgent) {
@@ -51,13 +54,13 @@ const agent = computed(() => {
         // Icon logic: emoji > avatar > defaults
         icon: identity.emoji || '🤖',
         description: typedAgent.description || '', // Description might not be in type but maybe in runtime
-        isDefault: (typedAgent.id || typedAgent.name) === gatewayStore.defaultAgentId
+        isDefault: (typedAgent.id || typedAgent.name) === props.defaultAgentId
     }
 })
 
 // Get raw agent data for editing
 const rawAgentData = computed(() => {
-    const list = gatewayStore.agentsList?.agents || []
+    const list = props.agentsList?.agents || []
     return list.find((a: any) => (a.id || a.name) === props.agentId)
 })
 
@@ -134,7 +137,8 @@ const openEditModal = () => {
             <div class="flex-1 overflow-y-auto bg-base-50/50 p-4 md:px-8 md:py-6">
                 <div class="w-full h-full max-w-6xl">
                     <keep-alive>
-                        <component :is="tabs.find(t => t.id === activeTab)?.component" :agent="agent" />
+                        <component :is="tabs.find(t => t.id === activeTab)?.component" :agent="agent"
+                            :config-state="props.configState" />
                     </keep-alive>
                 </div>
             </div>

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { useGatewayStore } from '../stores/gateway'
+import { useGateway } from '../composables/useGateway'
 import { useUiSettingsStore } from '../stores/setting'
 import type { LogEntry, LogLevel } from '~openclaw/ui/src/ui/types'
+import { useLogsState } from '../composables/useLogsState'
 import {
     ArrowLeftIcon,
     ArrowPathIcon,
@@ -19,7 +20,8 @@ import {
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
-const store = useGatewayStore()
+const store = useGateway()
+const logsState = useLogsState()
 const settingsStore = useUiSettingsStore()
 
 const searchQuery = ref('')
@@ -42,16 +44,16 @@ const goBack = () => {
 }
 
 const handleRefresh = () => {
-    store.loadLogs({ reset: true })
+    logsState.loadLogs({ reset: true })
 }
 
 const handleLoadMore = () => {
-    store.loadLogs({ quiet: true })
+    logsState.loadLogs({ quiet: true })
 }
 
 // Filter logs based on search and level
 const filteredLogs = computed(() => {
-    let logs = store.logsEntries as LogEntry[]
+    let logs = logsState.logsEntries as LogEntry[]
 
     // Apply level filter
     if (levelFilter.value !== 'all') {
@@ -145,7 +147,7 @@ const formatDate = (time: string | null | undefined): string => {
 watch(autoRefresh, (enabled) => {
     if (enabled) {
         refreshInterval = window.setInterval(() => {
-            store.loadLogs({ quiet: true })
+            logsState.loadLogs({ quiet: true })
         }, 3000)
     } else if (refreshInterval) {
         window.clearInterval(refreshInterval)
@@ -154,7 +156,7 @@ watch(autoRefresh, (enabled) => {
 })
 
 onMounted(() => {
-    store.loadLogs({ reset: true })
+    logsState.loadLogs({ reset: true })
 })
 
 onUnmounted(() => {
@@ -184,8 +186,8 @@ onUnmounted(() => {
                 </label>
                 <!-- Manual refresh -->
                 <button @click="handleRefresh" class="btn btn-ghost btn-sm btn-circle tooltip tooltip-bottom"
-                    :class="{ 'loading': store.logsLoading }" :disabled="store.logsLoading" data-tip="刷新">
-                    <ArrowPathIcon v-if="!store.logsLoading" class="w-5 h-5" />
+                    :class="{ 'loading': logsState.logsLoading }" :disabled="logsState.logsLoading" data-tip="刷新">
+                    <ArrowPathIcon v-if="!logsState.logsLoading" class="w-5 h-5" />
                 </button>
             </div>
         </div>
@@ -211,10 +213,10 @@ onUnmounted(() => {
                 </div>
             </div>
             <!-- File info -->
-            <div v-if="store.logsFile" class="mt-2 text-xs text-base-content/50 truncate">
-                📄 {{ store.logsFile }}
-                <span v-if="store.logsLastFetchAt">
-                    · 更新于 {{ new Date(store.logsLastFetchAt).toLocaleTimeString('zh-CN') }}
+            <div v-if="logsState.logsFile" class="mt-2 text-xs text-base-content/50 truncate">
+                📄 {{ logsState.logsFile }}
+                <span v-if="logsState.logsLastFetchAt">
+                    · 更新于 {{ new Date(logsState.logsLastFetchAt).toLocaleTimeString('zh-CN') }}
                 </span>
             </div>
         </div>
@@ -223,15 +225,15 @@ onUnmounted(() => {
         <div class="flex-1 overflow-y-auto p-4 md:p-6">
             <div class="mx-auto space-y-4" :class="{ 'max-w-4xl': !settingsStore.isWideMode }">
                 <!-- Loading state -->
-                <div v-if="store.logsLoading && !store.logsEntries.length"
+                <div v-if="logsState.logsLoading && !logsState.logsEntries.length"
                     class="flex items-center justify-center py-12">
                     <span class="loading loading-spinner loading-lg"></span>
                 </div>
 
                 <!-- Error state -->
-                <div v-else-if="store.logsError" class="alert alert-error">
+                <div v-else-if="logsState.logsError" class="alert alert-error">
                     <XCircleIcon class="w-5 h-5" />
-                    <span>{{ store.logsError }}</span>
+                    <span>{{ logsState.logsError }}</span>
                 </div>
 
                 <!-- Empty state -->
@@ -277,9 +279,9 @@ onUnmounted(() => {
                     </div>
 
                     <!-- Load more -->
-                    <div v-if="!store.logsTruncated && store.logsEntries.length > 0" class="text-center py-4">
+                    <div v-if="!logsState.logsTruncated && logsState.logsEntries.length > 0" class="text-center py-4">
                         <button @click="handleLoadMore" class="btn btn-ghost btn-sm"
-                            :class="{ 'loading': store.logsLoading }" :disabled="store.logsLoading">
+                            :class="{ 'loading': logsState.logsLoading }" :disabled="logsState.logsLoading">
                             加载更多
                         </button>
                     </div>

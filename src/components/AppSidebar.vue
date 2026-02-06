@@ -1,44 +1,50 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import {
     MagnifyingGlassIcon,
     Cog6ToothIcon,
     PlusIcon,
-    ChevronDownIcon,
     ChatBubbleLeftRightIcon,
     TrashIcon,
 } from '@heroicons/vue/24/outline'
 import { SIDEBAR_ITEMS } from '../config/navigation'
-import { useGatewayStore } from '../stores/gateway'
-
-import AgentGrid from './sidebar/AgentGrid.vue'
 import { createAgentMainSessionKey, isAgentMainSession } from '../utils/session-key-helpers'
 
 const router = useRouter()
-const gatewayStore = useGatewayStore()
+
+const props = defineProps<{
+    sessions: any[],
+    loading?: boolean,
+    currentSessionKey: string,
+    defaultSessionKey: string,
+    agents?: any[],
+    activeAgentId?: string,
+}>()
+
+const emit = defineEmits<{
+    (e: 'delete-session', key: string): void
+}>()
 
 // Agents expand/collapse state
 const isAgentsExpanded = ref(false)
 const MAX_VISIBLE_AGENTS = 4
 
-// Get agents from gateway store (using store getter)
-const agents = computed(() => gatewayStore.agents)
-
+// Computed wrappers for props (optional, can use props directly)
+const agentsList = computed(() => props.agents || [])
 
 const visibleAgents = computed(() => {
-    if (isAgentsExpanded.value || agents.value.length <= MAX_VISIBLE_AGENTS) {
-        return agents.value
+    if (isAgentsExpanded.value || agentsList.value.length <= MAX_VISIBLE_AGENTS) {
+        return agentsList.value
     }
-    return agents.value.slice(0, MAX_VISIBLE_AGENTS)
+    return agentsList.value.slice(0, MAX_VISIBLE_AGENTS)
 })
 
-const hasMoreAgents = computed(() => agents.value.length > MAX_VISIBLE_AGENTS)
+const hasMoreAgents = computed(() => agentsList.value.length > MAX_VISIBLE_AGENTS)
 
-// Get sessions from gateway store (filter out agent main sessions)
-const sessions = computed(() => {
-    const list = gatewayStore.sessionsResult?.sessions || []
-    return list
+// Filter sessions for display (exclude agent main sessions if needed, logic copied)
+const displaySessions = computed(() => {
+    return props.sessions
         .filter((s: any) => !isAgentMainSession(s.key))
         .map((s: any) => ({
             key: s.key,
@@ -46,10 +52,6 @@ const sessions = computed(() => {
             lastActiveAt: s.lastActiveAt || s.updatedAt
         }))
 })
-
-
-const currentSessionKey = computed(() => gatewayStore.sessionKey)
-const activeAgentId = computed(() => gatewayStore.assistantAgentId)
 
 const closeSidebarDrawer = () => {
     const drawer = document.getElementById('sidebar-drawer') as HTMLInputElement
@@ -79,28 +81,21 @@ const handleDeleteSession = async (key: string, event: Event) => {
         return
     }
 
-    const result = await gatewayStore.deleteSession(key)
-    console.log(`deleteSession result:`, result)
-    // Only switch to default if deletion was successful
-    if (result?.deleted && gatewayStore.sessionKey === key) {
-        router.push({ name: 'home', query: { sessionkey: gatewayStore.defaultSessionKey } })
-    }
+    emit('delete-session', key)
 }
 
 const navItems = SIDEBAR_ITEMS
 
 const handleNavClick = (item: any) => {
     if (item.route) {
+        // ... navigation logic
         if (item.route === 'home') {
-            // Navigate to home with default session key
-            router.push({ name: 'home', query: { sessionkey: gatewayStore.defaultSessionKey } })
+            router.push({ name: 'home', query: { sessionkey: props.defaultSessionKey } })
         } else {
             router.push({ name: item.route })
         }
     }
 }
-
-
 </script>
 
 <template>
@@ -183,16 +178,16 @@ const handleNavClick = (item: any) => {
         <!-- Conversations List - scrollable -->
         <div class="flex-1 overflow-y-auto px-3 pb-4 min-h-0">
             <!-- Loading state -->
-            <div v-if="gatewayStore.sessionsLoading" class="flex items-center justify-center py-4">
+            <div v-if="props.loading" class="flex items-center justify-center py-4">
                 <span class="loading loading-spinner loading-sm"></span>
             </div>
             <!-- Empty state -->
-            <div v-else-if="sessions.length === 0" class="text-center py-4 text-base-content/50 text-sm">
+            <div v-else-if="displaySessions.length === 0" class="text-center py-4 text-base-content/50 text-sm">
                 暂无对话记录
             </div>
             <!-- Sessions list -->
             <div v-else class="space-y-1">
-                <a v-for="session in sessions" :key="session.key" @click="selectSession(session.key)"
+                <a v-for="session in displaySessions" :key="session.key" @click="selectSession(session.key)"
                     class="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-base-300 transition-colors group"
                     :class="{ 'bg-base-300': currentSessionKey === session.key }">
                     <ChatBubbleLeftRightIcon class="h-5 w-5 opacity-50 shrink-0" />

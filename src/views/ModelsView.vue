@@ -2,7 +2,8 @@
 import { computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ArrowLeftIcon } from '@heroicons/vue/24/outline'
-import { useGatewayStore } from '../stores/gateway'
+import { useGateway } from '../composables/useGateway'
+import { useConfigState } from '../composables/useConfigState'
 
 // Components
 import ModelSidebar from '../components/models/ModelSidebar.vue'
@@ -10,7 +11,8 @@ import ModelDetail from '../components/models/ModelDetail.vue'
 
 const router = useRouter()
 const route = useRoute()
-const store = useGatewayStore()
+const store = useGateway()
+const configState = useConfigState()
 
 // Selected Provider from Query Params
 const selectedProviderId = computed(() => {
@@ -23,7 +25,7 @@ const selectedProviderName = computed(() => {
 
 // Get providers from configForm
 const providers = computed(() => {
-    const providersObj = (store.configForm?.models as any)?.providers as Record<string, any> | undefined
+    const providersObj = (configState.configForm?.models as any)?.providers as Record<string, any> | undefined
     if (!providersObj) return []
     return Object.keys(providersObj)
 })

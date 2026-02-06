@@ -136,7 +136,7 @@ async function sendChatMessageNow(
         //     host as unknown as Parameters<typeof setLastActiveSessionKey>[0],
         //     host.sessionKey,
         // );
-        (host as any).settings.lastActiveSessionKey = host.sessionKey;
+        (host as any).settings.setLastActiveSessionKey(host.sessionKey);
     }
     if (ok && opts?.restoreDraft && opts.previousDraft?.trim()) {
         host.chatMessage = opts.previousDraft;

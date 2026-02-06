@@ -4,7 +4,6 @@ import { defineStore } from 'pinia'
 export interface UiSettings {
     gatewayUrl: string
     token: string
-    sessionKey: string
     lastActiveSessionKey: string
     theme: 'light' | 'dark'
     isSidebarOpen: boolean
@@ -19,6 +18,7 @@ export interface UiSettings {
     ttsModel: string
     silenceDuration: number // Auto-send delay in ms
     autoSendCommands: boolean // Whether to auto-send after selecting a command
+    homePageBehavior: 'new_session' | 'last_active_session' | 'default_session' // Default action on home page
 }
 
 // ==================== Constants ====================
@@ -27,7 +27,6 @@ const CONFIG_KEY = 'openclaw_config'
 const getDefaultSettings = (): UiSettings => ({
     gatewayUrl: '',
     token: '',
-    sessionKey: '',
     lastActiveSessionKey: '',
     theme: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
     isSidebarOpen: false,
@@ -41,7 +40,8 @@ const getDefaultSettings = (): UiSettings => ({
     ttsToken: '',
     ttsModel: '',
     silenceDuration: 2000,
-    autoSendCommands: true
+    autoSendCommands: true,
+    homePageBehavior: 'default_session'
 })
 
 const loadConfig = (): UiSettings => {
@@ -83,6 +83,12 @@ export const useUiSettingsStore = defineStore('ui-settings', {
             localStorage.removeItem(CONFIG_KEY)
         },
 
+        // Session Key
+        setLastActiveSessionKey(key: string) {
+            this.lastActiveSessionKey = key
+            this.persist()
+        },
+
         // Sidebar
         toggleSidebar() {
             this.isSidebarOpen = !this.isSidebarOpen
@@ -121,3 +127,4 @@ export const useUiSettingsStore = defineStore('ui-settings', {
         }
     }
 })
+

@@ -14,11 +14,11 @@ import {
     Cog6ToothIcon as Cog6ToothIconSolid
 } from '@heroicons/vue/24/solid'
 import { BOTTOM_NAV_ITEMS } from '../config/navigation'
-import { useGatewayStore } from '../stores/gateway'
+import { useGateway } from '../composables/useGateway'
 
 const router = useRouter()
 const route = useRoute()
-const gatewayStore = useGatewayStore()
+const gatewayStore = useGateway()
 
 const tabs = BOTTOM_NAV_ITEMS
 

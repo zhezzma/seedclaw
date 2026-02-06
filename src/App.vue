@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { watch } from 'vue'
 import { useUiSettingsStore } from './stores/setting'
-import { useGatewayStore } from './stores/gateway'
-import { useToastStore } from './stores/toast'
+import { useGateway } from './composables/useGateway'
+import { useToast } from './composables/useToast'
 import MessagePlugin from './components/MessagePlugin.vue'
 
 // Initialize theme at app root
 useUiSettingsStore().initTheme()
 
-const gatewayStore = useGatewayStore()
-const toastStore = useToastStore()
+const gatewayStore = useGateway()
+const toastStore = useToast()
 
 // Global error handler
 watch(() => gatewayStore.lastError, (error: any) => {

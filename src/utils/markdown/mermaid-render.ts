@@ -1,7 +1,7 @@
 import mermaid, { MermaidConfig } from 'mermaid'
 import { nextTick, watch } from 'vue'  // 添加watch以监视变化
 import { useUiSettingsStore } from '../../stores/setting'
-import { useToastStore } from '../../stores/toast'
+import { useToast } from '../../composables/useToast'
 
 //该文件不放在./markdown-it-mermaid中因为使用document..不能被works引用
 
@@ -151,10 +151,10 @@ function setupGlobalMermaidEventHandlers() {
                     URL.revokeObjectURL(url)
                 } catch (error) {
                     console.error('下载SVG图表失败:', error)
-                    useToastStore().error("下载失败，请稍后再试。")
+                    useToast().error("下载失败，请稍后再试。")
                 }
             } else {
-                useToastStore().error("无法下载图表，因为图表渲染失败或不存在。")
+                useToast().error("无法下载图表，因为图表渲染失败或不存在。")
             }
         }
         else if (button.classList.contains('mermaid-copy')) {
@@ -165,8 +165,8 @@ function setupGlobalMermaidEventHandlers() {
                 ''
             )
             navigator.clipboard.writeText(originalCode)
-                .then(() => useToastStore().success("图表代码已复制到剪贴板!"))
-                .catch(() => useToastStore().error("复制失败，请手动选择并复制。"))
+                .then(() => useToast().success("图表代码已复制到剪贴板!"))
+                .catch(() => useToast().error("复制失败，请手动选择并复制。"))
         }
     }, true) // 使用捕获阶段以确保事件被处理
 

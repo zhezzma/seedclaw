@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { useGatewayStore } from '../stores/gateway'
+import { useGateway } from '../composables/useGateway'
 import { useUiSettingsStore } from '../stores/setting'
+import { useSkillsState } from '../composables/useSkillsState'
 import {
     ArrowLeftIcon,
     MagnifyingGlassIcon,
@@ -20,8 +21,10 @@ import type { SkillStatusEntry, SkillInstallOption } from '~openclaw/ui/src/ui/t
 
 
 const router = useRouter()
-const gatewayStore = useGatewayStore()
+const gatewayStore = useGateway()
 const settingsStore = useUiSettingsStore()
+
+const skillsState = useSkillsState()
 
 const filter = ref('')
 const isRefreshing = ref(false)
@@ -35,7 +38,7 @@ const goBack = () => {
 
 const loadData = () => {
     if (gatewayStore.connected) {
-        gatewayStore.loadSkills()
+        skillsState.loadSkills()
     }
 }
 
@@ -52,7 +55,7 @@ watch(() => gatewayStore.connected, (connected) => {
 
 const refreshSkills = async () => {
     isRefreshing.value = true
-    await gatewayStore.loadSkills()
+    await skillsState.loadSkills()
     isRefreshing.value = false
 }
 
@@ -67,33 +70,34 @@ const saveApiKeyFromModal = async () => {
     const key = editingSkill.value.skillKey
     const value = apiKeyInput.value.trim()
 
-    gatewayStore.updateSkillEdit(key, value)
-    await gatewayStore.saveSkillApiKey(key)
+    skillsState.updateSkillEdit(key, value)
+    await skillsState.saveSkillApiKey(key)
     apiKeyModal.value?.close()
 }
 
 const handleToggleSkill = async (skill: SkillStatusEntry) => {
     // If currently disabled (true), we want to enable it (true).
     // If currently enabled (disabled=false), we want to disable it (false).
-    await gatewayStore.updateSkillEnabled(skill.skillKey, skill.disabled)
+    await skillsState.updateSkillEnabled(skill.skillKey, skill.disabled)
 }
 
 const handleInstallSkill = async (skill: SkillStatusEntry, opt: SkillInstallOption) => {
-    await gatewayStore.installSkill(skill.skillKey, skill.name, opt.id)
+    // Cast to any to avoid type errors with unknown gatewayStore signature
+    await skillsState.installSkill({ skillName: skill.name, optionId: opt.id, skillKey: skill.skillKey } as any)
 }
 
 const getSkillMessage = (skillKey: string) => {
-    return gatewayStore.skillMessages?.[skillKey]
+    return (skillsState.skillMessages as any)?.[skillKey]
 }
 
 
 // Filter skills
 const filteredSkills = computed(() => {
-    const rawSkills = gatewayStore.skillsReport?.skills || []
+    const rawSkills = (skillsState.skillsReport as any)?.skills || []
     if (!filter.value.trim()) return rawSkills
 
     const lowerFilter = filter.value.toLowerCase()
-    return rawSkills.filter(skill =>
+    return rawSkills.filter((skill: any) =>
         skill.name.toLowerCase().includes(lowerFilter) ||
         skill.description.toLowerCase().includes(lowerFilter) ||
         skill.source.toLowerCase().includes(lowerFilter)
@@ -107,7 +111,7 @@ const skillGroups = computed(() => {
         'workspace': []
     }
 
-    filteredSkills.value.forEach(skill => {
+    filteredSkills.value.forEach((skill: any) => {
         if (skill.source.includes('bundled')) {
             groups['bundled'].push(skill)
         } else if (skill.source.includes('managed')) {
@@ -169,7 +173,7 @@ const getGroupIcon = (group: string) => {
             <div class="mx-auto space-y-6 w-full" :class="{ 'max-w-6xl': !settingsStore.isWideMode }">
 
                 <!-- Loading State -->
-                <div v-if="gatewayStore.skillsLoading && !gatewayStore.skillsReport" class="flex justify-center py-12">
+                <div v-if="skillsState.skillsLoading && !skillsState.skillsReport" class="flex justify-center py-12">
                     <span class="loading loading-spinner loading-lg"></span>
                 </div>
 
@@ -257,7 +261,7 @@ const getGroupIcon = (group: string) => {
                                             <div v-if="skill.install && skill.install.length > 0"
                                                 class="dropdown dropdown-end dropdown-top">
                                                 <div tabindex="0" role="button" class="btn btn-xs btn-outline"
-                                                    :class="{ 'btn-disabled': gatewayStore.skillsBusyKey === skill.skillKey }">
+                                                    :class="{ 'btn-disabled': skillsState.skillsBusyKey === skill.skillKey }">
                                                     安装</div>
                                                 <ul tabindex="0"
                                                     class="dropdown-content z-[10] menu p-2 shadow bg-base-100 rounded-box w-52">
@@ -272,9 +276,9 @@ const getGroupIcon = (group: string) => {
 
                                             <button @click="handleToggleSkill(skill)" class="btn btn-xs" :class="[
                                                 skill.disabled ? 'btn-neutral' : 'btn-ghost btn-active',
-                                                gatewayStore.skillsBusyKey === skill.skillKey ? 'loading' : ''
-                                            ]" :disabled="gatewayStore.skillsBusyKey === skill.skillKey">
-                                                {{ gatewayStore.skillsBusyKey === skill.skillKey ? '' : (skill.disabled
+                                                skillsState.skillsBusyKey === skill.skillKey ? 'loading' : ''
+                                            ]" :disabled="skillsState.skillsBusyKey === skill.skillKey">
+                                                {{ skillsState.skillsBusyKey === skill.skillKey ? '' : (skill.disabled
                                                     ? '启用' : '禁用') }}
                                             </button>
                                         </div>

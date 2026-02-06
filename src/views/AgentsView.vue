@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, watch, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useGatewayStore } from '../stores/gateway'
+import { useGateway } from '../composables/useGateway'
+import { useAgentsState } from '../composables/useAgentsState'
+import { useConfigState } from '../composables/useConfigState'
 import { Bars3Icon, ArrowLeftIcon } from '@heroicons/vue/24/outline'
 
 // Components
@@ -10,7 +12,10 @@ import AgentDetail from '../components/agents/AgentDetail.vue'
 
 const router = useRouter()
 const route = useRoute()
-const gatewayStore = useGatewayStore()
+const gatewayStore = useGateway()
+
+const agentsState = useAgentsState()
+const configState = useConfigState()
 
 // Selected Agent from Query Params - this is the source of truth for navigation state
 const selectedAgentId = computed(() => {
@@ -19,7 +24,7 @@ const selectedAgentId = computed(() => {
 
 const selectedAgentName = computed(() => {
     if (!selectedAgentId.value) return ''
-    const list = gatewayStore.agentsList?.agents || []
+    const list = agentsState.agentsList?.agents || []
     const agent = list.find((a: any) => (a.id || a.name) === selectedAgentId.value)
     return agent?.identity?.name || agent?.name || agent?.id || 'Agent'
 })
@@ -36,24 +41,28 @@ const clearSelection = () => {
     router.replace({ query })
 }
 
-// Load agents when connected
+// Load agents and config when connected
 onMounted(() => {
     if (gatewayStore.connected) {
-        gatewayStore.loadAgents()
+        agentsState.loadAgents()
+        configState.loadConfig()
     }
 })
 
 watch(() => gatewayStore.connected, (connected) => {
     if (connected) {
-        gatewayStore.loadAgents()
+        agentsState.loadAgents()
+        configState.loadConfig()
     }
 })
 
 // Default selection logic for Desktop
 // If no agent selected and we have agents, select the first one on large screens
-watch(() => [gatewayStore.agentsList?.agents, route.query.agentId], ([agents, currentId]) => {
+watch(() => [agentsState.agentsList, route.query.agentId], ([agentsList, currentId]) => {
     // strict check for desktop using matchMedia to match Tailwind 'lg' breakpoint
     const isDesktop = window.matchMedia('(min-width: 1024px)').matches
+
+    const agents = (agentsList as any)?.agents // Extract agents array
 
     if (isDesktop && !currentId && agents && (agents as any[]).length > 0) {
         // Only redirect if we are strictly on desktop and have no selection
@@ -79,7 +88,8 @@ watch(() => [gatewayStore.agentsList?.agents, route.query.agentId], ([agents, cu
         <div class="h-full bg-base-100 border-r border-base-200 flex flex-col shrink-0" :class="[
             selectedAgentId ? 'hidden lg:flex lg:w-80' : 'w-full lg:w-80 flex'
         ]">
-            <AgentSidebar :selected-id="selectedAgentId" @select="selectAgent" />
+            <AgentSidebar :selected-id="selectedAgentId" :agents-list="agentsState.agentsList"
+                :config-state="configState" @select="selectAgent" />
         </div>
 
         <!-- Detail Container -->
@@ -102,7 +112,9 @@ watch(() => [gatewayStore.agentsList?.agents, route.query.agentId], ([agents, cu
                 <span class="font-bold truncate">{{ selectedAgentName }}</span>
             </div>
 
-            <AgentDetail v-if="selectedAgentId" :agent-id="selectedAgentId" class="flex-1 overflow-hidden" />
+            <AgentDetail v-if="selectedAgentId" :agent-id="selectedAgentId" :agents-list="agentsState.agentsList"
+                :config-state="configState" :default-agent-id="gatewayStore.defaultAgentId"
+                class="flex-1 overflow-hidden" />
 
             <!-- Empty State for Desktop (if no selection) -->
             <div v-else class="hidden lg:flex flex-1 items-center justify-center text-base-content/40">

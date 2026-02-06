@@ -1,5 +1,7 @@
-import { computed, watch, nextTick, ref, type Ref } from 'vue'
-import { useGatewayStore } from '../stores/gateway'
+import { computed, watch, nextTick, ref, type Ref, type Reactive } from 'vue'
+import { useGateway } from './useGateway'
+import { useChatState } from './useChatState'
+import type { ChatState } from '~openclaw/ui/src/ui/controllers/chat'
 
 // Types for internal display
 export interface DisplayBlock {
@@ -26,13 +28,13 @@ export interface DisplayMessage {
     timestamp?: number
 }
 
-export function useChatMessages(messagesContainerRef: Ref<HTMLDivElement | null>) {
-    const gatewayStore = useGatewayStore()
+export function useChatMessages(state: ChatState & { chatToolMessages?: any[] }, messagesContainerRef: Ref<HTMLDivElement | null>) {
+    const gatewayStore = useGateway()
 
     // Transform raw messages into display messages with merged tool results
     const processedMessages = computed(() => {
-        const rawMessages = gatewayStore.chatMessages as any[]
-        const toolMessages = gatewayStore.chatToolMessages as any[]
+        const rawMessages = state.chatMessages || []
+        const toolMessages = state.chatToolMessages || []
         if (toolMessages.length > 0) {
             console.log(`[useChatMessages] Recomputing. Tool messages: ${toolMessages.length}`, toolMessages)
         }
@@ -118,16 +120,7 @@ export function useChatMessages(messagesContainerRef: Ref<HTMLDivElement | null>
                     } else if (item.type === 'toolResult' || item.type === 'toolresult') {
                         // Some formats might include toolresult inline
                         const id = item.toolCallId || item.name // fallback to name if ID missing? warning: unreliable
-                        // We really need toolCallId.
-                        // But for now let's assume if we see toolresult here we might need to update previous block?
-                        // Actually, standard structure usually separates them or puts them in separate messages.
-                        // The app-tool-stream structure puts toolcall and toolresult in the SAME content array sometimes?
-                        // buildToolStreamMessage puts BOTH toolcall and toolresult in content array.
 
-                        // If we are processing a combined message (toolcall + result in one message)
-                        // We need to find the toolcall block we just added (or previously added)
-
-                        // If it's in the same blocks array:
                         const prevBlock = blocks.find(b => b.type === 'tool' && b.toolName === item.name) // imperfect matching
                         if (prevBlock) {
                             prevBlock.toolResult = item.text
@@ -155,7 +148,7 @@ export function useChatMessages(messagesContainerRef: Ref<HTMLDivElement | null>
                     lastMsg.blocks.push(...blocks)
                 } else {
                     displayMessages.push({
-                        id: msg.id || `${gatewayStore.sessionKey || 'temp'}-msg-${displayMessages.length}`,
+                        id: msg.id || `${state.sessionKey || 'temp'}-msg-${displayMessages.length}`,
                         role: msg.role as 'user' | 'assistant',
                         blocks,
                         timestamp: msg.timestamp
@@ -165,25 +158,25 @@ export function useChatMessages(messagesContainerRef: Ref<HTMLDivElement | null>
         }
 
         // Append streaming text
-        if (gatewayStore.chatStream) {
+        if (state.chatStream) {
             const lastMsg = displayMessages.length > 0 ? displayMessages[displayMessages.length - 1] : null
             if (lastMsg && lastMsg.role === 'assistant') {
                 // Try to append to last text block if possible
                 const lastBlock = lastMsg.blocks.length > 0 ? lastMsg.blocks[lastMsg.blocks.length - 1] : null
                 if (lastBlock && lastBlock.type === 'text') {
-                    lastBlock.text += gatewayStore.chatStream
+                    lastBlock.text += state.chatStream
                 } else {
-                    lastMsg.blocks.push({ type: 'text', text: gatewayStore.chatStream })
+                    lastMsg.blocks.push({ type: 'text', text: state.chatStream })
                 }
             } else {
                 displayMessages.push({
                     id: 'streaming-pending',
                     role: 'assistant',
-                    blocks: [{ type: 'text', text: gatewayStore.chatStream }],
+                    blocks: [{ type: 'text', text: state.chatStream }],
                     timestamp: Date.now()
                 })
             }
-        } else if (gatewayStore.isChatBusy) {
+        } else if (isBusy.value) {
             // Show pending state if busy
             const lastMsg = displayMessages.length > 0 ? displayMessages[displayMessages.length - 1] : null
             if (lastMsg && lastMsg.role === 'assistant') {
@@ -201,9 +194,9 @@ export function useChatMessages(messagesContainerRef: Ref<HTMLDivElement | null>
         return displayMessages
     })
 
-    const isLoading = computed(() => gatewayStore.chatLoading)
-    const isBusy = computed(() => gatewayStore.isChatBusy)
-    const streamingText = computed(() => gatewayStore.chatStream)
+    const isLoading = computed(() => state.chatLoading)
+    const isBusy = computed(() => state.chatSending || Boolean(state.chatRunId))
+    const streamingText = computed(() => state.chatStream)
 
     // Scroll to bottom when new messages arrive
     const scrollToBottom = () => {
@@ -243,9 +236,11 @@ export function useChatMessages(messagesContainerRef: Ref<HTMLDivElement | null>
     }
 
     // Refresh chat and scroll
+    // Note: Assistant identity and history loading now require compatible state
     const refreshChatAndScroll = async () => {
-        await gatewayStore.loadAssistantIdentity()
-        await gatewayStore.loadChatHistory();
+        const chatState = useChatState()
+        await chatState.loadAssistantIdentity()
+        await chatState.loadChatHistory()
 
         scrollToBottom()
     }

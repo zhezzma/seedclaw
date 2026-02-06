@@ -35,7 +35,8 @@ const editForm = ref({
     // TTS
     ttsEngine: 'qwen' as 'qwen' | 'edge',
     ttsToken: '',
-    ttsModel: ''
+    ttsModel: '',
+    homePageBehavior: 'last_active_session' as 'last_active_session' | 'new_session' | 'default_session'
 })
 
 const openConnectionModal = () => {
@@ -44,7 +45,8 @@ const openConnectionModal = () => {
         gatewayUrl: configStore.gatewayUrl,
         token: configStore.token,
         sessionsActiveDays: configStore.sessionsActiveDays,
-        silenceDuration: configStore.silenceDuration
+        silenceDuration: configStore.silenceDuration,
+        homePageBehavior: configStore.homePageBehavior || 'last_active_session'
     }
     const modal = document.getElementById('basic_settings_modal') as HTMLDialogElement
     if (modal) modal.showModal()
@@ -77,7 +79,8 @@ const saveConnection = () => {
         gatewayUrl: editForm.value.gatewayUrl,
         token: editForm.value.token,
         sessionsActiveDays: Number(editForm.value.sessionsActiveDays),
-        silenceDuration: Number(editForm.value.silenceDuration)
+        silenceDuration: Number(editForm.value.silenceDuration),
+        homePageBehavior: editForm.value.homePageBehavior
     })
     if (window.location.protocol !== 'file:') {
         window.location.reload()
@@ -363,6 +366,16 @@ const logout = () => {
                     <label class="label">
                         <span class="label-text-alt opacity-50">说话停顿多少毫秒后自动发送</span>
                     </label>
+                </div>
+                <div>
+                    <label class="label">
+                        <span class="label-text">首页默认行为</span>
+                    </label>
+                    <select v-model="editForm.homePageBehavior" class="select select-bordered w-full">
+                        <option value="last_active_session">加载上次会话</option>
+                        <option value="default_session">加载默认会话</option>
+                        <option value="new_session">新建会话</option>
+                    </select>
                 </div>
             </div>
             <div class="modal-action">

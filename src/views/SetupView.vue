@@ -2,7 +2,8 @@
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
-import { useGatewayStore } from '../stores/gateway'
+import { useGateway } from '../composables/useGateway'
+import { useDevicesState } from '../composables/useDevicesState'
 import {
     ArrowRightIcon,
     EyeIcon,
@@ -12,7 +13,8 @@ import {
 
 const router = useRouter()
 const configStore = useUiSettingsStore()
-const gatewayStore = useGatewayStore()
+const gatewayStore = useGateway()
+const devicesState = useDevicesState()
 
 const gatewayUrl = ref('ws://localhost:18789')
 const authToken = ref('')
@@ -74,7 +76,7 @@ const handleSubmit = async () => {
         // Handle pairing requirement
         if (e.code === 'NOT_PAIRED') {
             try {
-                const identity = await gatewayStore.loadOrCreateDeviceIdentity()
+                const identity = await devicesState.loadOrCreateDeviceIdentity()
                 pairingState.value = {
                     isPairing: true,
                     deviceId: identity.deviceId,

@@ -12,7 +12,8 @@ import {
     PhoneIcon
 } from '@heroicons/vue/24/outline'
 import { useUiSettingsStore } from '../../stores/setting'
-import { useGatewayStore } from '../../stores/gateway'
+import { useGateway } from '../../composables/useGateway'
+import { useChatState } from '../../composables/useChatState'
 
 interface Agent {
     id: string
@@ -34,8 +35,10 @@ const emit = defineEmits<{
     (e: 'start-voice-chat'): void
 }>()
 
+
 const settingsStore = useUiSettingsStore()
-const gatewayStore = useGatewayStore()
+const gatewayStore = useGateway()
+const chatState = useChatState()
 const dropdownRef = ref<HTMLDetailsElement | null>(null)
 
 const selectedAgentId = computed(() => props.selectedAgent?.id || '')
@@ -95,8 +98,8 @@ defineExpose({
             <!-- Session name (for specific sessions like agent:xxx:session:xxx) -->
             <span v-else class=" lg:pl-5 font-semibold flex items-center gap-2">
                 {{ currentSessionName }}
-                <span v-if="gatewayStore.assistantAgentId" class="badge badge-sm badge-ghost">{{
-                    gatewayStore.assistantAgentId }}</span>
+                <span v-if="chatState.assistantAgentId" class="badge badge-sm badge-ghost">{{
+                    chatState.assistantAgentId }}</span>
             </span>
         </div>
         <!-- Connection status indicator -->

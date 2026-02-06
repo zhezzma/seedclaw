@@ -1,5 +1,5 @@
 import { computed } from 'vue'
-import { useGatewayStore } from '../stores/gateway'
+import { useGateway } from './useGateway'
 
 export interface ModelOption {
     id: string
@@ -11,11 +11,13 @@ export interface ModelGroup {
     models: ModelOption[]
 }
 
+import { useConfigState } from './useConfigState'
+
 export function useModels() {
-    const store = useGatewayStore()
+    const configState = useConfigState()
 
     const availableModels = computed(() => {
-        const providers = (store.configForm?.models as any)?.providers as Record<string, any> | undefined
+        const providers = (configState.configForm?.models as any)?.providers as Record<string, any> | undefined
         if (!providers) return []
 
         // Group by provider for display

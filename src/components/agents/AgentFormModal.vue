@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { useGatewayStore } from '../../stores/gateway'
+import { useGateway } from '../../composables/useGateway'
+import { useConfigState } from '../../composables/useConfigState'
 
 const props = defineProps<{
     show: boolean
@@ -14,6 +15,7 @@ const props = defineProps<{
             emoji?: string
         }
     }
+    configState?: any
 }>()
 
 const emit = defineEmits<{
@@ -21,7 +23,8 @@ const emit = defineEmits<{
     (e: 'saved', agentId: string): void
 }>()
 
-const gatewayStore = useGatewayStore()
+const gatewayStore = useGateway()
+const configStore = useConfigState()
 
 // Form data
 const formData = ref({
@@ -77,6 +80,10 @@ const isFormValid = computed(() => {
 
 const handleSubmit = async () => {
     if (!isFormValid.value) return
+    if (!props.configState) {
+        console.error('configState not provided')
+        return
+    }
 
     const agentId = formData.value.id.trim()
 
@@ -88,8 +95,8 @@ const handleSubmit = async () => {
         }
     }
 
-    // Get current agents list
-    const currentList = ((gatewayStore.configForm?.agents as any)?.list as any[]) || []
+    // Get current agents list from configState
+    const currentList = ((props.configState.configForm?.agents as any)?.list as any[]) || []
 
     if (props.mode === 'add') {
         // Check for duplicate ID
@@ -111,7 +118,7 @@ const handleSubmit = async () => {
 
         // Add to list
         const updatedList = [...currentList, newAgentConfig]
-        gatewayStore.updateConfigFormValue(['agents', 'list'], updatedList)
+        configStore.updateConfigFormValue(['agents', 'list'], updatedList)
     } else {
         // Edit mode: update existing agent
         const updatedList = currentList.map((a: any) => {
@@ -129,10 +136,10 @@ const handleSubmit = async () => {
             }
             return a
         })
-        gatewayStore.updateConfigFormValue(['agents', 'list'], updatedList)
+        configStore.updateConfigFormValue(['agents', 'list'], updatedList)
     }
 
-    await gatewayStore.saveConfig()
+    await configStore.saveConfig()
     emit('saved', agentId)
     emit('close')
 }
@@ -197,7 +204,7 @@ const handleClose = () => {
             <div class="modal-action">
                 <button @click="handleClose" class="btn">取消</button>
                 <button @click="handleSubmit" class="btn btn-primary" :disabled="!isFormValid">{{ submitLabel
-                }}</button>
+                    }}</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop">

@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { useUiSettingsStore } from '../stores/setting'
-import { useGatewayStore } from '../stores/gateway'
+import { useGateway } from '../composables/useGateway'
+import { useAppInit } from '../composables/useAppInit'
 
 // Async load layouts
 const MobileLayout = defineAsyncComponent(() => import('./MobileLayout.vue'))
 const DesktopLayout = defineAsyncComponent(() => import('./DesktopLayout.vue'))
 
 const settingsStore = useUiSettingsStore()
-const gatewayStore = useGatewayStore()
+const gatewayStore = useGateway()
 
 const isDesktop = ref(window.matchMedia('(min-width: 1024px)').matches)
 
@@ -23,12 +24,9 @@ onMounted(() => {
     mediaQuery = window.matchMedia('(min-width: 1024px)')
     mediaQuery.addEventListener('change', updateLayout)
 
-    // Auto-connect logic (moved from original MainLayout)
-    if (settingsStore.isConfigured && !gatewayStore.connected && !gatewayStore.connecting) {
-        gatewayStore.connect().catch((err) => {
-            console.error('[MainLayout] Auto-connect failed:', err)
-        })
-    }
+    // Initialize app and connect
+    const { init } = useAppInit()
+    init()
 })
 
 onUnmounted(() => {

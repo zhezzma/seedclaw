@@ -2,12 +2,17 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { SparklesIcon, ArrowLeftIcon, PlusIcon } from '@heroicons/vue/24/outline'
-import { useGatewayStore } from '../../stores/gateway'
+import { useGateway } from '../../composables/useGateway'
 import AgentFormModal from './AgentFormModal.vue'
 import { createAgentMainSessionKey } from '~/src/utils/session-key-helpers'
 
 const props = defineProps<{
     selectedId?: string
+    agentsList?: any // Array inside object or just array? Store had agentsList properties. agentsList: { agents: [] }?
+    // In store: agentsList IS the state object? No. state.agentsList.
+    // In AgentsView, I'll pass localState.agentsList.
+    // So prop type: any (AgentsState)
+    configState?: any
 }>()
 
 const emit = defineEmits<{
@@ -15,14 +20,24 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
-const gatewayStore = useGatewayStore()
+const gatewayStore = useGateway()
 
 const goBack = () => {
     router.back()
 }
 
-// Get agents from gateway store (using store getter)
-const agents = computed(() => gatewayStore.agents)
+// Compute display agents from props
+const agents = computed(() => {
+    const list = props.agentsList?.agents || []
+    return list.map((a: any) => ({
+        id: a.id,
+        name: a.name || a.identity?.name || a.id,
+        avatarUrl: a.identity?.avatarUrl,
+        icon: a.identity?.emoji || '🤖',
+        description: a.identity?.theme || '',
+        // isDefault not used in sidebar
+    }))
+})
 
 
 // Add Agent Modal
@@ -110,6 +125,7 @@ const handleAgentSaved = (agentId: string) => {
         </div>
 
         <!-- Add Agent Modal -->
-        <AgentFormModal :show="showAddModal" mode="add" @close="showAddModal = false" @saved="handleAgentSaved" />
+        <AgentFormModal :show="showAddModal" mode="add" :config-state="props.configState" @close="showAddModal = false"
+            @saved="handleAgentSaved" />
     </div>
 </template>

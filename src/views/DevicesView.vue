@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useGatewayStore } from '../stores/gateway'
+import { useGateway } from '../composables/useGateway'
 import { useUiSettingsStore } from '../stores/setting'
 import {
     ArrowLeftIcon,
@@ -13,9 +13,11 @@ import {
     TrashIcon
 } from '@heroicons/vue/24/outline'
 import { PairedDevice, PendingDevice } from '~openclaw/ui/src/ui/controllers/devices'
+import { useDevicesState } from '../composables/useDevicesState'
 
 const router = useRouter()
-const store = useGatewayStore()
+const store = useGateway()
+const devicesState = useDevicesState()
 const settingsStore = useUiSettingsStore()
 
 const goBack = () => {
@@ -23,26 +25,26 @@ const goBack = () => {
 }
 
 const handleRefresh = () => {
-    store.loadDevices()
+    devicesState.loadDevices()
 }
 
 const handleApprove = async (req: PendingDevice) => {
-    await store.approveDevicePairing(req.requestId)
+    await devicesState.approveDevicePairing(req.requestId)
 }
 
 const handleReject = async (req: PendingDevice) => {
-    await store.rejectDevicePairing(req.requestId)
+    await devicesState.rejectDevicePairing(req.requestId)
 }
 
 const handleRotate = async (device: PairedDevice, tokenRole: string) => {
-    await store.rotateDeviceToken({
+    await devicesState.rotateDeviceToken({
         deviceId: device.deviceId,
         role: tokenRole
     })
 }
 
 const handleRevoke = async (device: PairedDevice, tokenRole: string) => {
-    await store.revokeDeviceToken({
+    await devicesState.revokeDeviceToken({
         deviceId: device.deviceId,
         role: tokenRole
     })
@@ -67,7 +69,7 @@ const getRelativeTime = (ts?: number) => {
 }
 
 onMounted(async () => {
-    await store.loadDevices()
+    await devicesState.loadDevices()
 })
 </script>
 
@@ -83,8 +85,8 @@ onMounted(async () => {
             </div>
             <div class="flex-none">
                 <button @click="handleRefresh" class="btn btn-ghost btn-sm btn-circle"
-                    :class="{ 'loading': store.devicesLoading }" :disabled="store.devicesLoading">
-                    <ArrowPathIcon v-if="!store.devicesLoading" class="w-5 h-5" />
+                    :class="{ 'loading': devicesState.devicesLoading }" :disabled="devicesState.devicesLoading">
+                    <ArrowPathIcon v-if="!devicesState.devicesLoading" class="w-5 h-5" />
                 </button>
             </div>
         </div>
@@ -94,9 +96,9 @@ onMounted(async () => {
             <div class="mx-auto space-y-6" :class="{ 'max-w-4xl': !settingsStore.isWideMode }">
 
                 <!-- Error State -->
-                <div v-if="store.devicesError" class="alert alert-error shadow-sm">
+                <div v-if="devicesState.devicesError" class="alert alert-error shadow-sm">
                     <XCircleIcon class="w-6 h-6" />
-                    <span>{{ store.devicesError }}</span>
+                    <span>{{ devicesState.devicesError }}</span>
                 </div>
 
                 <!-- Intro/Description -->
@@ -106,10 +108,10 @@ onMounted(async () => {
                 </div>
 
                 <!-- Pending Requests -->
-                <div v-if="store.devicesList?.pending?.length" class="space-y-4">
+                <div v-if="devicesState.devicesList?.pending?.length" class="space-y-4">
                     <h4 class="text-sm font-bold text-warning uppercase tracking-wider px-1">待审批请求</h4>
                     <div class="space-y-3">
-                        <div v-for="req in store.devicesList.pending" :key="req.requestId"
+                        <div v-for="req in devicesState.devicesList.pending" :key="req.requestId"
                             class="card bg-base-100 shadow-sm border border-warning/20">
                             <div class="card-body p-4 sm:p-5">
                                 <div
@@ -117,7 +119,7 @@ onMounted(async () => {
                                     <div class="space-y-1 w-full min-w-0">
                                         <div class="flex items-center gap-2">
                                             <span class="font-bold text-lg">{{ req.displayName || '未知设备'
-                                                }}</span>
+                                            }}</span>
                                             <!-- <span v-if="req.platform" class="badge badge-sm badge-ghost">{{ req.platform
                                             }}</span> -->
                                             <span class="text-xs text-base-content/40 font-mono hidden sm:inline">{{
@@ -128,7 +130,7 @@ onMounted(async () => {
                                         </div>
                                         <div class="text-sm text-base-content/70">
                                             申请角色: <span class="font-medium text-primary">{{ req.role
-                                            }}</span>
+                                                }}</span>
                                             <span class="text-base-content/40 mx-2">•</span>
                                             申请于 {{ getRelativeTime(req.ts) }}
                                         </div>
@@ -153,13 +155,13 @@ onMounted(async () => {
                 <div class="space-y-4">
                     <h4 class="text-sm font-bold text-base-content/40 uppercase tracking-wider px-1">已配对设备</h4>
 
-                    <div v-if="!store.devicesList?.paired?.length" class="text-center py-8 opacity-50">
+                    <div v-if="!devicesState.devicesList?.paired?.length" class="text-center py-8 opacity-50">
                         <ComputerDesktopIcon class="w-12 h-12 mx-auto mb-2 opacity-50" />
                         <p>暂无已配对设备</p>
                     </div>
 
                     <div v-else class="space-y-3">
-                        <div v-for="device in store.devicesList.paired" :key="device.deviceId"
+                        <div v-for="device in (devicesState.devicesList?.paired || [])" :key="device.deviceId"
                             class="card bg-base-100 shadow-sm">
                             <div class="card-body p-4 sm:p-5">
                                 <div class="space-y-4">
@@ -168,7 +170,7 @@ onMounted(async () => {
                                         <div>
                                             <div class="flex items-center gap-2 flex-wrap">
                                                 <span class="font-bold text-lg">{{ device.displayName || '未知设备'
-                                                    }}</span>
+                                                }}</span>
                                                 <span v-if="device.roles?.length" class="flex gap-1">
                                                     <span v-for="r in device.roles" :key="r"
                                                         class="badge badge-sm badge-primary badge-outline">

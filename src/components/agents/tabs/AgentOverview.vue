@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, reactive, watch, ref, onMounted } from 'vue'
-import { useGatewayStore } from '../../../stores/gateway'
-import { useToastStore } from '../../../stores/toast'
+import { useGateway } from '../../../composables/useGateway'
+import { useToast } from '../../../composables/useToast'
 import { type AgentFilesState } from '~openclaw/ui/src/ui/controllers/agent-files'
 import { useModels } from '../../../composables/useModels'
+import { useAgentsState } from '../../../composables/useAgentsState'
+import { useConfigState } from '../../../composables/useConfigState'
 import {
     FingerPrintIcon,
     ExclamationTriangleIcon,
@@ -16,10 +18,13 @@ import {
 // Props
 const props = defineProps<{
     agent: any
+    configState?: any
 }>()
 
-const store = useGatewayStore()
-const toast = useToastStore()
+const store = useGateway()
+const toast = useToast()
+const agentsState = useAgentsState()
+const configStore = useConfigState()
 
 // File Management
 const ROLE_FILES = [
@@ -33,18 +38,6 @@ const ROLE_FILES = [
     { name: 'MEMORY.md', label: '记忆存储' },
 ]
 
-const fileState = reactive<AgentFilesState>({
-    client: null,
-    connected: false,
-    agentFilesLoading: false,
-    agentFilesError: null,
-    agentFilesList: null,
-    agentFileContents: {},
-    agentFileDrafts: {},
-    agentFileActive: null,
-    agentFileSaving: false
-})
-
 const showFileModal = ref(false)
 const editingFile = ref('')
 const editingContent = ref('')
@@ -55,17 +48,11 @@ const editingFileLabel = computed(() => {
 
 const editingFileName = computed(() => editingFile.value)
 
-// Sync with store
-watch(() => [store.client, store.connected], ([client, connected]) => {
-    fileState.client = client as any
-    fileState.connected = connected as boolean
-}, { immediate: true })
-
 // Load files when agent changes
 // Load files when agent changes
 watch(() => props.agent.id, (newId) => {
     if (newId) {
-        store.loadAgentFiles(fileState as any, newId)
+        agentsState.loadAgentFiles(newId)
     }
 }, { immediate: true })
 
@@ -74,8 +61,8 @@ async function openFile(filename: string) {
     showFileModal.value = true
     editingContent.value = '' // Clear previous content while loading
     console.log('openFile', filename, props.agent.id)
-    await store.loadAgentFileContent(fileState as any, props.agent.id, filename, { force: true })
-    editingContent.value = fileState.agentFileContents[filename] || ''
+    await agentsState.loadAgentFileContent(props.agent.id, filename, { force: true })
+    editingContent.value = agentsState.agentFileContents[filename] || ''
 }
 
 function closeFileModal() {
@@ -85,25 +72,25 @@ function closeFileModal() {
 }
 
 async function saveCurrentFile() {
-    await store.saveAgentFile(fileState as any, props.agent.id, editingFile.value, editingContent.value)
-    if (!fileState.agentFilesError) {
+    await agentsState.saveAgentFile(props.agent.id, editingFile.value, editingContent.value)
+    if (!agentsState.agentFilesError) {
         toast.success('已保存')
         closeFileModal()
     } else {
-        toast.error(fileState.agentFilesError)
+        toast.error(agentsState.agentFilesError)
     }
 }
 
 // Helper to find the agent in the config list
 const agentIndex = computed(() => {
-    const list = (store.configForm?.agents as any)?.list as any[] | undefined
+    const list = (props.configState?.configForm?.agents as any)?.list as any[] | undefined
     if (!list) return -1
     return list.findIndex((a: any) => a.id === props.agent.id)
 })
 
 const agentConfig = computed(() => {
     if (agentIndex.value === -1) return null
-    const list = (store.configForm?.agents as any)?.list as any[]
+    const list = (props.configState?.configForm?.agents as any)?.list as any[]
     return list[agentIndex.value]
 })
 
@@ -111,27 +98,27 @@ const agentConfig = computed(() => {
 const currentModel = computed({
     get: () => {
         if (agentIndex.value === -1) return ''
-        const list = (store.configForm?.agents as any)?.list as any[]
-        var model = list[agentIndex.value]?.model?.primary || (store.configForm?.agents as any)?.defaults?.model?.primary
+        const list = (props.configState?.configForm?.agents as any)?.list as any[]
+        var model = list[agentIndex.value]?.model?.primary || (props.configState?.configForm?.agents as any)?.defaults?.model?.primary
         console.log('model', model)
         return model;
     },
     set: async (val: string) => {
         console.log('set model', val)
-        if (agentIndex.value === -1) return
-        store.updateConfigFormValue(
+        if (agentIndex.value === -1 || !props.configState) return
+        configStore.updateConfigFormValue(
             ['agents', 'list', `${agentIndex.value}`, 'model', 'primary'],
             val
         )
-        await store.saveConfig()
+        await configStore.saveConfig()
     }
 })
 
 // Available models flattened
 const { availableModels } = useModels()
 
-const isDirty = computed(() => store.configFormDirty)
-const isSaving = computed(() => store.configSaving)
+const isDirty = computed(() => props.configState?.configFormDirty)
+const isSaving = computed(() => props.configState?.configSaving)
 
 
 </script>
@@ -224,13 +211,14 @@ const isSaving = computed(() => store.configSaving)
 
                             <div class="flex items-center gap-3">
                                 <!-- Status Badge -->
-                                <div v-if="fileState.agentFilesList?.files.find(f => f.name === file.name)?.missing"
+                                <div v-if="agentsState.agentFilesList?.files.find(f => f.name === file.name)?.missing"
                                     class="badge badge-warning badge-xs gap-1">
                                     缺失
                                 </div>
                                 <div v-else class="badge badge-ghost badge-xs opacity-50">
-                                    {{(fileState.agentFilesList?.files.find(f => f.name === file.name)?.size || 0) > 0 ?
-                                        (fileState.agentFilesList?.files.find(f => f.name === file.name)?.size + ' B') :
+                                    {{(agentsState.agentFilesList?.files.find(f => f.name === file.name)?.size || 0) > 0
+                                        ?
+                                        (agentsState.agentFilesList?.files.find(f => f.name === file.name)?.size + ' B') :
                                         '空'}}
                                 </div>
 
@@ -264,21 +252,22 @@ const isSaving = computed(() => store.configSaving)
 
                 <!-- Content -->
                 <div class="flex-1 overflow-hidden relative">
-                    <div v-if="fileState.agentFilesLoading"
+                    <div v-if="agentsState.agentFilesLoading"
                         class="absolute inset-0 flex items-center justify-center bg-base-100 z-10">
                         <span class="loading loading-spinner loading-lg text-primary"></span>
                     </div>
                     <textarea v-model="editingContent"
                         class="w-full h-full resize-none p-6 font-mono text-sm leading-relaxed focus:outline-none bg-base-100"
-                        :disabled="fileState.agentFilesLoading" placeholder="输入内容..." spellcheck="false"></textarea>
+                        :disabled="agentsState.agentFilesLoading" placeholder="输入内容..." spellcheck="false"></textarea>
                 </div>
 
                 <!-- Footer -->
                 <div class="px-6 py-4 border-t border-base-200 flex justify-end gap-2 bg-base-100">
                     <button class="btn btn-ghost" @click="closeFileModal">取消</button>
                     <button class="btn btn-primary gap-2"
-                        :disabled="fileState.agentFileSaving || fileState.agentFilesLoading" @click="saveCurrentFile">
-                        <span v-if="fileState.agentFileSaving" class="loading loading-spinner loading-sm"></span>
+                        :disabled="agentsState.agentFileSaving || agentsState.agentFilesLoading"
+                        @click="saveCurrentFile">
+                        <span v-if="agentsState.agentFileSaving" class="loading loading-spinner loading-sm"></span>
                         保存
                     </button>
                 </div>
