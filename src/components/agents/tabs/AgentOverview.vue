@@ -65,7 +65,7 @@ watch(() => [store.client, store.connected], ([client, connected]) => {
 // Load files when agent changes
 watch(() => props.agent.id, (newId) => {
     if (newId) {
-        store.loadAgentFiles(newId)
+        store.loadAgentFiles(fileState as any, newId)
     }
 }, { immediate: true })
 
@@ -74,7 +74,7 @@ async function openFile(filename: string) {
     showFileModal.value = true
     editingContent.value = '' // Clear previous content while loading
     console.log('openFile', filename, props.agent.id)
-    await store.loadAgentFileContent(props.agent.id, filename, { force: true })
+    await store.loadAgentFileContent(fileState as any, props.agent.id, filename, { force: true })
     editingContent.value = fileState.agentFileContents[filename] || ''
 }
 
@@ -85,7 +85,7 @@ function closeFileModal() {
 }
 
 async function saveCurrentFile() {
-    await store.saveAgentFile(props.agent.id, editingFile.value, editingContent.value)
+    await store.saveAgentFile(fileState as any, props.agent.id, editingFile.value, editingContent.value)
     if (!fileState.agentFilesError) {
         toast.success('已保存')
         closeFileModal()

@@ -878,18 +878,18 @@ export const useGatewayStore = defineStore('gateway', {
             await loadAgents(this as unknown as AgentsState)
         },
 
-        async loadAgentFiles(agentId: string) {
-            await loadAgentFiles(this as unknown as AgentFilesState, agentId)
+        async loadAgentFiles(state: AgentFilesState, agentId: string) {
+            await loadAgentFiles(state, agentId)
         },
 
-        async loadAgentFileContent(agentId: string,
+        async loadAgentFileContent(state: AgentFilesState, agentId: string,
             name: string,
             opts?: { force?: boolean; preserveDraft?: boolean },) {
-            await loadAgentFileContent(this as unknown as AgentFilesState, agentId, name, opts)
+            await loadAgentFileContent(state, agentId, name, opts)
         },
 
-        async saveAgentFile(agentId: string, name: string, content: string) {
-            await saveAgentFile(this as unknown as AgentFilesState, agentId, name, content)
+        async saveAgentFile(state: AgentFilesState, agentId: string, name: string, content: string) {
+            await saveAgentFile(state, agentId, name, content)
         },
 
         // ==================== Skills ====================
