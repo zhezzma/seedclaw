@@ -43,16 +43,9 @@ const { currentReadingMsgId, readAloud: ttsReadAloud } = useTTS()
 // Agent selection
 const selectedAgentId = ref('')
 
-// Get available agents from gateway
-const agents = computed(() => {
-    const list = gatewayStore.agentsList?.agents || []
-    return list.map((a: any) => ({
-        id: a.id || a.name,
-        name: a.name || a.id,
-        icon: a.icon || '🤖',
-        description: a.description || ''
-    }))
-})
+// Get available agents from gateway (using store getter)
+const agents = computed(() => gatewayStore.agents)
+
 
 const selectedAgent = computed(() => {
     return agents.value.find(a => a.id === selectedAgentId.value) || agents.value[0] || { id: 'main', name: 'Assistant', icon: '🤖' }

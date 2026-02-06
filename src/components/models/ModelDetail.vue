@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { PlusIcon, PencilIcon, TrashIcon, XMarkIcon, EyeIcon, EyeSlashIcon, ArrowPathIcon } from '@heroicons/vue/24/outline'
 import { useGatewayStore } from '../../stores/gateway'
 import { updateConfigFormValue, saveConfig, type ConfigState } from '../../services/controllers/config'
+import ProviderFormModal from './ProviderFormModal.vue'
 
 interface ModelConfig {
     id: string
@@ -235,68 +236,9 @@ const deleteModel = (index: number, modelId: string) => {
 
 // Edit Provider Modal
 const showProviderModal = ref(false)
-const providerForm = ref({
-    baseUrl: '',
-    apiKey: '',
-    api: '',
-    headers: ''
-})
-const showApiKey = ref(false)
 
 const openEditProvider = () => {
-    if (!provider.value) return
-    // Convert headers object to JSON string for editing
-    let headersStr = ''
-    if (provider.value.headers && typeof provider.value.headers === 'object') {
-        headersStr = JSON.stringify(provider.value.headers, null, 2)
-    }
-    providerForm.value = {
-        baseUrl: provider.value.baseUrl || '',
-        apiKey: provider.value.apiKey || '',
-        api: provider.value.api || 'openai-completions',
-        headers: headersStr
-    }
     showProviderModal.value = true
-}
-
-const saveProvider = () => {
-    updateConfigFormValue(
-        store as unknown as ConfigState,
-        ['models', 'providers', props.providerId, 'baseUrl'],
-        providerForm.value.baseUrl
-    )
-    updateConfigFormValue(
-        store as unknown as ConfigState,
-        ['models', 'providers', props.providerId, 'apiKey'],
-        providerForm.value.apiKey
-    )
-    updateConfigFormValue(
-        store as unknown as ConfigState,
-        ['models', 'providers', props.providerId, 'api'],
-        providerForm.value.api
-    )
-    // Parse and save headers
-    if (providerForm.value.headers.trim()) {
-        try {
-            const headersObj = JSON.parse(providerForm.value.headers)
-            updateConfigFormValue(
-                store as unknown as ConfigState,
-                ['models', 'providers', props.providerId, 'headers'],
-                headersObj
-            )
-        } catch (e) {
-            console.error('Invalid headers JSON:', e)
-        }
-    } else {
-        // Remove headers if empty
-        updateConfigFormValue(
-            store as unknown as ConfigState,
-            ['models', 'providers', props.providerId, 'headers'],
-            undefined
-        )
-    }
-    saveConfig(store as unknown as ConfigState)
-    showProviderModal.value = false
 }
 </script>
 
@@ -431,57 +373,6 @@ const saveProvider = () => {
     </dialog>
 
     <!-- Provider Edit Modal -->
-    <dialog :class="{ 'modal modal-open': showProviderModal, 'modal': !showProviderModal }">
-        <div class="modal-box max-w-xl">
-            <h3 class="font-bold text-lg mb-6">编辑提供商</h3>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="form-control md:col-span-2">
-                    <label class="label"><span class="label-text">Base URL</span></label>
-                    <input v-model="providerForm.baseUrl" type="text" placeholder="https://api.openai.com/v1"
-                        class="input input-bordered w-full" />
-                </div>
-
-
-
-                <div class="form-control">
-                    <label class="label"><span class="label-text">API 类型</span></label>
-                    <select v-model="providerForm.api" class="select select-bordered w-full">
-                        <option value="openai-completions">OpenAI Completions</option>
-                        <option value="anthropic">Anthropic</option>
-                    </select>
-                </div>
-
-                <div class="form-control">
-                    <label class="label"><span class="label-text">API Key</span></label>
-                    <div class="join w-full">
-                        <input v-model="providerForm.apiKey" :type="showApiKey ? 'text' : 'password'"
-                            placeholder="sk-..." class="input input-bordered join-item flex-1" />
-                        <button type="button" @click="showApiKey = !showApiKey" class="btn btn-ghost join-item">
-                            <EyeSlashIcon v-if="showApiKey" class="w-4 h-4" />
-                            <EyeIcon v-else class="w-4 h-4" />
-                        </button>
-                    </div>
-                </div>
-
-                <div class="form-control md:col-span-2">
-                    <label class="label">
-                        <span class="label-text">自定义请求头 (JSON)</span>
-                        <span class="label-text-alt text-base-content/50">可选</span>
-                    </label>
-                    <textarea v-model="providerForm.headers" rows="3"
-                        class="textarea textarea-bordered w-full font-mono text-sm"
-                        placeholder='{"X-Proxy-Region": "us-west"}'></textarea>
-                </div>
-            </div>
-
-            <div class="modal-action">
-                <button @click="showProviderModal = false" class="btn">取消</button>
-                <button @click="saveProvider" class="btn btn-primary">保存</button>
-            </div>
-        </div>
-        <form method="dialog" class="modal-backdrop">
-            <button @click="showProviderModal = false">close</button>
-        </form>
-    </dialog>
+    <ProviderFormModal :show="showProviderModal" mode="edit" :provider-id="providerId" :provider-data="provider"
+        @close="showProviderModal = false" />
 </template>

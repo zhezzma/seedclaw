@@ -6,14 +6,15 @@ import {
     InformationCircleIcon,
     DocumentTextIcon,
     WrenchScrewdriverIcon,
-    SparklesIcon
+    SparklesIcon,
+    PencilIcon
 } from '@heroicons/vue/24/outline'
 
 // Tab components
 import AgentOverview from './tabs/AgentOverview.vue'
-
 import AgentTools from './tabs/AgentTools.vue'
 import AgentSkills from './tabs/AgentSkills.vue'
+import AgentFormModal from './AgentFormModal.vue'
 
 const props = defineProps<{
     agentId: string
@@ -54,6 +55,12 @@ const agent = computed(() => {
     }
 })
 
+// Get raw agent data for editing
+const rawAgentData = computed(() => {
+    const list = gatewayStore.agentsList?.agents || []
+    return list.find((a: any) => (a.id || a.name) === props.agentId)
+})
+
 // Tab navigation state
 const activeTab = ref('overview')
 
@@ -62,6 +69,13 @@ const tabs = [
     { id: 'tools', label: '工具', component: AgentTools },
     { id: 'skills', label: '技能', component: AgentSkills },
 ]
+
+// Edit modal state
+const showEditModal = ref(false)
+
+const openEditModal = () => {
+    showEditModal.value = true
+}
 </script>
 
 <template>
@@ -69,14 +83,19 @@ const tabs = [
         <!-- Detail Header -->
         <div class="px-6 py-6 border-b border-base-200">
             <div class="flex flex-col items-center gap-4">
-                <!-- Avatar -->
-                <div class="relative shrink-0">
+                <!-- Avatar with Edit Button -->
+                <div class="relative shrink-0 group">
                     <div
                         class="w-12 h-12 lg:w-15 lg:h-15 rounded-full bg-base-200/50 flex items-center justify-center shadow-sm ring-4 ring-base-100 overflow-hidden">
                         <img v-if="agent.avatarUrl" :src="agent.avatarUrl" :alt="agent.name"
                             class="w-full h-full object-cover" />
                         <span v-else class="text-4xl lg:text-5xl select-none">{{ agent.icon }}</span>
                     </div>
+                    <!-- Edit Button -->
+                    <button @click="openEditModal"
+                        class="absolute -bottom-1 -right-1 btn btn-circle btn-xs btn-primary shadow-md  group-hover:opacity-100 transition-opacity">
+                        <PencilIcon class="w-3 h-3" />
+                    </button>
                 </div>
 
                 <!-- Info -->
@@ -126,4 +145,6 @@ const tabs = [
         </div>
     </div>
 
+    <!-- Edit Agent Modal -->
+    <AgentFormModal :show="showEditModal" mode="edit" :agent-data="rawAgentData" @close="showEditModal = false" />
 </template>

@@ -308,7 +308,18 @@ export const useGatewayStore = defineStore('gateway', {
     getters: {
         isConnected: (state) => state.connected,
         isChatBusy: (state) => state.chatSending || Boolean(state.chatRunId),
-        agents: (state) => state.agentsList?.agents || [],
+        agents: (state) => {
+            const list = state.agentsList?.agents || []
+            const defaultId = (state.hello?.snapshot as any)?.sessionDefaults?.defaultAgentId?.trim() || list[0]?.id || 'main'
+            return list.map((a: any) => ({
+                id: a.id,
+                name: a.name || a.identity?.name || a.id,
+                avatarUrl: a.identity?.avatarUrl,
+                icon: a.identity?.emoji || '🤖',
+                description: a.identity?.theme || '还未设定哟',
+                isDefault: (a.id || a.name) === defaultId
+            }))
+        },
         sessions: (state) => state.sessionsResult?.sessions || [],
         // Get default agent ID from session defaults
         defaultAgentId: (state) => {

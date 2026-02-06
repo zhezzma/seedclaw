@@ -21,17 +21,9 @@ const gatewayStore = useGatewayStore()
 const isAgentsExpanded = ref(false)
 const MAX_VISIBLE_AGENTS = 4
 
-// Get agents from gateway store
-const agents = computed(() => {
-    const list = gatewayStore.agentsList?.agents || []
-    return list.map((a: any) => ({
-        id: a.id || a.name,
-        name: a.name || a.id,
-        avatarUrl: a.identity?.avatarUrl,
-        icon: a.identity?.emoji || '🤖',
-        description: a.description || ''
-    }))
-})
+// Get agents from gateway store (using store getter)
+const agents = computed(() => gatewayStore.agents)
+
 
 const visibleAgents = computed(() => {
     if (isAgentsExpanded.value || agents.value.length <= MAX_VISIBLE_AGENTS) {

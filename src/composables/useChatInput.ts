@@ -146,11 +146,14 @@ export function useChatInput() {
     }
 
     const handleKeydown = (e: KeyboardEvent, onSend: () => void) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
+        // Ctrl+Enter (PC) 发送消息，Enter 换行
+        // 移动端只能通过按钮发送
+        if (e.key === 'Enter' && e.ctrlKey) {
             e.preventDefault()
             stopRecording(); // Stop if recording
             onSend()
         }
+        // Enter 键默认行为是换行，不需要阻止
     }
 
     const closeDropdowns = () => {

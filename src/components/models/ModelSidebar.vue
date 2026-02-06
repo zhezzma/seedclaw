@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeftIcon, PlusIcon, TrashIcon, EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline'
+import { ArrowLeftIcon, PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import { useGatewayStore } from '../../stores/gateway'
 import { updateConfigFormValue, saveConfig, type ConfigState } from '../../services/controllers/config'
+import ProviderFormModal from './ProviderFormModal.vue'
 
 const props = defineProps<{
     selectedId?: string
@@ -35,52 +36,13 @@ const providers = computed(() => {
 
 // Add Provider Modal
 const showAddModal = ref(false)
-const newProvider = ref({
-    id: '',
-    baseUrl: '',
-    apiKey: '',
-    api: 'openai-completions',
-    headers: ''
-})
-const showApiKey = ref(false)
 
 const openAddModal = () => {
-    newProvider.value = { id: '', baseUrl: '', apiKey: '', api: 'openai-completions', headers: '' }
     showAddModal.value = true
 }
 
-const addProvider = () => {
-    if (!newProvider.value.id.trim()) return
-
-    // Parse headers if provided
-    let headersObj = undefined
-    if (newProvider.value.headers.trim()) {
-        try {
-            headersObj = JSON.parse(newProvider.value.headers)
-        } catch (e) {
-            console.error('Invalid headers JSON:', e)
-        }
-    }
-
-    const providerConfig: any = {
-        baseUrl: newProvider.value.baseUrl,
-        apiKey: newProvider.value.apiKey,
-        api: newProvider.value.api,
-        models: []
-    }
-    if (headersObj) {
-        providerConfig.headers = headersObj
-    }
-
-    updateConfigFormValue(
-        store as unknown as ConfigState,
-        ['models', 'providers', newProvider.value.id.trim()],
-        providerConfig
-    )
-    saveConfig(store as unknown as ConfigState)
-
-    showAddModal.value = false
-    emit('select', newProvider.value.id.trim())
+const handleProviderSaved = (providerId: string) => {
+    emit('select', providerId)
 }
 
 const deleteProvider = (id: string, event: Event) => {
@@ -190,61 +152,5 @@ const syncAgentsDefaultModels = (providersObj: Record<string, any>) => {
     </div>
 
     <!-- Add Provider Modal -->
-    <dialog :class="{ 'modal modal-open': showAddModal, 'modal': !showAddModal }">
-        <div class="modal-box max-w-xl">
-            <h3 class="font-bold text-lg mb-6">添加提供商</h3>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="form-control md:col-span-2">
-                    <label class="label"><span class="label-text">提供商 ID</span></label>
-                    <input v-model="newProvider.id" type="text" placeholder="e.g. openai, anthropic"
-                        class="input input-bordered w-full" />
-                </div>
-
-                <div class="form-control md:col-span-2">
-                    <label class="label"><span class="label-text">Base URL</span></label>
-                    <input v-model="newProvider.baseUrl" type="text" placeholder="https://api.openai.com/v1"
-                        class="input input-bordered w-full" />
-                </div>
-
-                <div class="form-control">
-                    <label class="label"><span class="label-text">API Key</span></label>
-                    <div class="join w-full">
-                        <input v-model="newProvider.apiKey" :type="showApiKey ? 'text' : 'password'"
-                            placeholder="sk-..." class="input input-bordered join-item flex-1" />
-                        <button type="button" @click="showApiKey = !showApiKey" class="btn btn-ghost join-item">
-                            <EyeSlashIcon v-if="showApiKey" class="w-4 h-4" />
-                            <EyeIcon v-else class="w-4 h-4" />
-                        </button>
-                    </div>
-                </div>
-
-                <div class="form-control">
-                    <label class="label"><span class="label-text">API 类型</span></label>
-                    <select v-model="newProvider.api" class="select select-bordered w-full">
-                        <option value="openai-completions">OpenAI Completions</option>
-                        <option value="anthropic">Anthropic</option>
-                    </select>
-                </div>
-
-                <div class="form-control md:col-span-2">
-                    <label class="label">
-                        <span class="label-text">自定义请求头 (JSON)</span>
-                        <span class="label-text-alt text-base-content/50">可选</span>
-                    </label>
-                    <textarea v-model="newProvider.headers" rows="3"
-                        class="textarea textarea-bordered w-full font-mono text-sm"
-                        placeholder='{"X-Proxy-Region": "us-west"}'></textarea>
-                </div>
-            </div>
-
-            <div class="modal-action">
-                <button @click="showAddModal = false" class="btn">取消</button>
-                <button @click="addProvider" class="btn btn-primary" :disabled="!newProvider.id.trim()">添加</button>
-            </div>
-        </div>
-        <form method="dialog" class="modal-backdrop">
-            <button @click="showAddModal = false">close</button>
-        </form>
-    </dialog>
+    <ProviderFormModal :show="showAddModal" mode="add" @close="showAddModal = false" @saved="handleProviderSaved" />
 </template>
