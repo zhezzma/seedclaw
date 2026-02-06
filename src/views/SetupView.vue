@@ -3,7 +3,6 @@ import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
 import { useGatewayStore } from '../stores/gateway'
-import { loadOrCreateDeviceIdentity } from '../services/device-identity'
 import {
     ArrowRightIcon,
     EyeIcon,
@@ -75,7 +74,7 @@ const handleSubmit = async () => {
         // Handle pairing requirement
         if (e.code === 'NOT_PAIRED') {
             try {
-                const identity = await loadOrCreateDeviceIdentity()
+                const identity = await gatewayStore.loadOrCreateDeviceIdentity()
                 pairingState.value = {
                     isPairing: true,
                     deviceId: identity.deviceId,

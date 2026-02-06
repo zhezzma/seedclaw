@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeftIcon, PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import { useGatewayStore } from '../../stores/gateway'
-import { updateConfigFormValue, saveConfig, type ConfigState } from '../../services/controllers/config'
 import ProviderFormModal from './ProviderFormModal.vue'
 
 const props = defineProps<{
@@ -45,7 +44,7 @@ const handleProviderSaved = (providerId: string) => {
     emit('select', providerId)
 }
 
-const deleteProvider = (id: string, event: Event) => {
+const deleteProvider = async (id: string, event: Event) => {
     event.stopPropagation()
     if (confirm(`确定要删除提供商 "${id}" 吗？这将同时删除其所有模型配置。`)) {
         // Get current providers, remove the one with id, then set
@@ -53,34 +52,21 @@ const deleteProvider = (id: string, event: Event) => {
         if (providersObj && providersObj[id]) {
             const newProviders = { ...providersObj }
             delete newProviders[id]
-            updateConfigFormValue(
-                store as unknown as ConfigState,
+            store.updateConfigFormValue(
                 ['models', 'providers'],
                 newProviders
             )
             // Sync agents.defaults.models
             syncAgentsDefaultModels(newProviders)
-            saveConfig(store as unknown as ConfigState)
+            await store.saveConfig()
         }
     }
 }
 
 // Sync agents.defaults.models with all available models from providers
-const syncAgentsDefaultModels = (providersObj: Record<string, any>) => {
-    const allModels: Record<string, object> = {}
-    Object.entries(providersObj).forEach(([providerId, providerConfig]) => {
-        const providerModels = providerConfig.models || []
-        providerModels.forEach((model: any) => {
-            allModels[`${providerId}/${model.id}`] = {}
-        })
-    })
+import { useModelConfig } from '../../composables/useModelConfig'
 
-    updateConfigFormValue(
-        store as unknown as ConfigState,
-        ['agents', 'defaults', 'models'],
-        allModels
-    )
-}
+const { syncAgentsDefaultModels } = useModelConfig()
 </script>
 
 <template>

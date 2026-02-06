@@ -12,16 +12,7 @@ import {
     ShieldCheckIcon,
     TrashIcon
 } from '@heroicons/vue/24/outline'
-import {
-    loadDevices,
-    approveDevicePairing,
-    rejectDevicePairing,
-    rotateDeviceToken,
-    revokeDeviceToken,
-    type DevicesState,
-    type PairedDevice,
-    type PendingDevice
-} from '../services/controllers/devices'
+import { PairedDevice, PendingDevice } from '~openclaw/ui/src/ui/controllers/devices'
 
 const router = useRouter()
 const store = useGatewayStore()
@@ -32,26 +23,26 @@ const goBack = () => {
 }
 
 const handleRefresh = () => {
-    loadDevices(store as unknown as DevicesState)
+    store.loadDevices()
 }
 
 const handleApprove = async (req: PendingDevice) => {
-    await approveDevicePairing(store as unknown as DevicesState, req.requestId)
+    await store.approveDevicePairing(req.requestId)
 }
 
 const handleReject = async (req: PendingDevice) => {
-    await rejectDevicePairing(store as unknown as DevicesState, req.requestId)
+    await store.rejectDevicePairing(req.requestId)
 }
 
 const handleRotate = async (device: PairedDevice, tokenRole: string) => {
-    await rotateDeviceToken(store as unknown as DevicesState, {
+    await store.rotateDeviceToken({
         deviceId: device.deviceId,
         role: tokenRole
     })
 }
 
 const handleRevoke = async (device: PairedDevice, tokenRole: string) => {
-    await revokeDeviceToken(store as unknown as DevicesState, {
+    await store.revokeDeviceToken({
         deviceId: device.deviceId,
         role: tokenRole
     })
@@ -75,8 +66,8 @@ const getRelativeTime = (ts?: number) => {
     return Math.floor(hours / 24) + '天前'
 }
 
-onMounted(() => {
-    loadDevices(store as unknown as DevicesState)
+onMounted(async () => {
+    await store.loadDevices()
 })
 </script>
 
@@ -126,9 +117,9 @@ onMounted(() => {
                                     <div class="space-y-1 w-full min-w-0">
                                         <div class="flex items-center gap-2">
                                             <span class="font-bold text-lg">{{ req.displayName || '未知设备'
-                                            }}</span>
-                                            <span v-if="req.platform" class="badge badge-sm badge-ghost">{{ req.platform
-                                            }}</span>
+                                                }}</span>
+                                            <!-- <span v-if="req.platform" class="badge badge-sm badge-ghost">{{ req.platform
+                                            }}</span> -->
                                             <span class="text-xs text-base-content/40 font-mono hidden sm:inline">{{
                                                 req.remoteIp }}</span>
                                         </div>
@@ -137,7 +128,7 @@ onMounted(() => {
                                         </div>
                                         <div class="text-sm text-base-content/70">
                                             申请角色: <span class="font-medium text-primary">{{ req.role
-                                                }}</span>
+                                            }}</span>
                                             <span class="text-base-content/40 mx-2">•</span>
                                             申请于 {{ getRelativeTime(req.ts) }}
                                         </div>
@@ -177,7 +168,7 @@ onMounted(() => {
                                         <div>
                                             <div class="flex items-center gap-2 flex-wrap">
                                                 <span class="font-bold text-lg">{{ device.displayName || '未知设备'
-                                                }}</span>
+                                                    }}</span>
                                                 <span v-if="device.roles?.length" class="flex gap-1">
                                                     <span v-for="r in device.roles" :key="r"
                                                         class="badge badge-sm badge-primary badge-outline">

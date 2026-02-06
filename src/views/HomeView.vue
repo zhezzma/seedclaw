@@ -3,7 +3,6 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
 import { useGatewayStore } from '../stores/gateway'
-import { isAgentMainSession, createAgentMainSessionKey } from '../services/includes/session-key-utils'
 import { useChatMessages, type DisplayMessage } from '../composables/useChatMessages'
 import { useTTS } from '../composables/useTTS'
 import { useVoiceChat } from '../composables/useVoiceChat'
@@ -13,6 +12,7 @@ import ChatInput from '../components/chat/ChatInput.vue'
 import MarkdownRenderer from '../components/chat/MarkdownRenderer.vue'
 import VoiceChatOverlay from '../components/chat/VoiceChatOverlay.vue'
 import AppSidebar from '../components/AppSidebar.vue'
+import { createAgentMainSessionKey, isAgentMainSession } from '../utils/session-key-helpers'
 
 const route = useRoute()
 const router = useRouter()

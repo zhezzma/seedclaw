@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGatewayStore } from '../stores/gateway'
 import { useUiSettingsStore } from '../stores/setting'
-import type { LogEntry, LogLevel } from '../services/types'
+import type { LogEntry, LogLevel } from '~openclaw/ui/src/ui/types'
 import {
     ArrowLeftIcon,
     ArrowPathIcon,

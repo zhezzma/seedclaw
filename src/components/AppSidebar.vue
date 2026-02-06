@@ -11,8 +11,9 @@ import {
 } from '@heroicons/vue/24/outline'
 import { SIDEBAR_ITEMS } from '../config/navigation'
 import { useGatewayStore } from '../stores/gateway'
-import { isAgentMainSession, createAgentMainSessionKey } from '../services/includes/session-key-utils'
+
 import AgentGrid from './sidebar/AgentGrid.vue'
+import { createAgentMainSessionKey, isAgentMainSession } from '../utils/session-key-helpers'
 
 const router = useRouter()
 const gatewayStore = useGatewayStore()
@@ -74,14 +75,14 @@ const createNewSession = () => {
 const handleDeleteSession = async (key: string, event: Event) => {
     event.stopPropagation() // Prevent selecting the session
 
-    if (!window.confirm(`Delete session "${key}"?\n\nDeletes the session entry and archives its transcript.`)) {
+    if (!window.confirm(`确定要删除对话 "${key}" 吗？\n\n这将删除对话条目并归档其记录。`)) {
         return
     }
 
     const result = await gatewayStore.deleteSession(key)
     console.log(`deleteSession result:`, result)
     // Only switch to default if deletion was successful
-    if (result.deleted && gatewayStore.sessionKey === key) {
+    if (result?.deleted && gatewayStore.sessionKey === key) {
         router.push({ name: 'home', query: { sessionkey: gatewayStore.defaultSessionKey } })
     }
 }

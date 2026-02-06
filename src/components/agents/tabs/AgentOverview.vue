@@ -2,8 +2,7 @@
 import { computed, reactive, watch, ref, onMounted } from 'vue'
 import { useGatewayStore } from '../../../stores/gateway'
 import { useToastStore } from '../../../stores/toast'
-import { updateConfigFormValue, saveConfig, type ConfigState } from '../../../services/controllers/config'
-import { loadAgentFiles, loadAgentFileContent, saveAgentFile, type AgentFilesState } from '../../../services/controllers/agent-files'
+import { type AgentFilesState } from '~openclaw/ui/src/ui/controllers/agent-files'
 import { useModels } from '../../../composables/useModels'
 import {
     FingerPrintIcon,
@@ -66,7 +65,7 @@ watch(() => [store.client, store.connected], ([client, connected]) => {
 // Load files when agent changes
 watch(() => props.agent.id, (newId) => {
     if (newId) {
-        loadAgentFiles(fileState as unknown as AgentFilesState, newId)
+        store.loadAgentFiles(newId)
     }
 }, { immediate: true })
 
@@ -75,7 +74,7 @@ async function openFile(filename: string) {
     showFileModal.value = true
     editingContent.value = '' // Clear previous content while loading
     console.log('openFile', filename, props.agent.id)
-    await loadAgentFileContent(fileState as unknown as AgentFilesState, props.agent.id, filename, { force: true })
+    await store.loadAgentFileContent(props.agent.id, filename, { force: true })
     editingContent.value = fileState.agentFileContents[filename] || ''
 }
 
@@ -86,7 +85,7 @@ function closeFileModal() {
 }
 
 async function saveCurrentFile() {
-    await saveAgentFile(fileState as unknown as AgentFilesState, props.agent.id, editingFile.value, editingContent.value)
+    await store.saveAgentFile(props.agent.id, editingFile.value, editingContent.value)
     if (!fileState.agentFilesError) {
         toast.success('已保存')
         closeFileModal()
@@ -117,15 +116,14 @@ const currentModel = computed({
         console.log('model', model)
         return model;
     },
-    set: (val: string) => {
+    set: async (val: string) => {
         console.log('set model', val)
         if (agentIndex.value === -1) return
-        updateConfigFormValue(
-            store as unknown as ConfigState,
-            ['agents', 'list', agentIndex.value, 'model', 'primary'],
+        store.updateConfigFormValue(
+            ['agents', 'list', `${agentIndex.value}`, 'model', 'primary'],
             val
         )
-        saveConfig(store as unknown as ConfigState)
+        await store.saveConfig()
     }
 })
 

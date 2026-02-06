@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useGatewayStore } from '../../stores/gateway'
-import { updateConfigFormValue, saveConfig, type ConfigState } from '../../services/controllers/config'
 
 const props = defineProps<{
     show: boolean
@@ -76,7 +75,7 @@ const isFormValid = computed(() => {
     return formData.value.id.trim() && formData.value.agentName.trim()
 })
 
-const handleSubmit = () => {
+const handleSubmit = async () => {
     if (!isFormValid.value) return
 
     const agentId = formData.value.id.trim()
@@ -112,7 +111,7 @@ const handleSubmit = () => {
 
         // Add to list
         const updatedList = [...currentList, newAgentConfig]
-        updateConfigFormValue(gatewayStore as unknown as ConfigState, ['agents', 'list'], updatedList)
+        gatewayStore.updateConfigFormValue(['agents', 'list'], updatedList)
     } else {
         // Edit mode: update existing agent
         const updatedList = currentList.map((a: any) => {
@@ -130,10 +129,10 @@ const handleSubmit = () => {
             }
             return a
         })
-        updateConfigFormValue(gatewayStore as unknown as ConfigState, ['agents', 'list'], updatedList)
+        gatewayStore.updateConfigFormValue(['agents', 'list'], updatedList)
     }
 
-    saveConfig(gatewayStore as unknown as ConfigState)
+    await gatewayStore.saveConfig()
     emit('saved', agentId)
     emit('close')
 }
@@ -198,7 +197,7 @@ const handleClose = () => {
             <div class="modal-action">
                 <button @click="handleClose" class="btn">取消</button>
                 <button @click="handleSubmit" class="btn btn-primary" :disabled="!isFormValid">{{ submitLabel
-                    }}</button>
+                }}</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop">

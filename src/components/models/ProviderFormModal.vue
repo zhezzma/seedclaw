@@ -2,7 +2,6 @@
 import { ref, watch, computed } from 'vue'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline'
 import { useGatewayStore } from '../../stores/gateway'
-import { updateConfigFormValue, saveConfig, type ConfigState } from '../../services/controllers/config'
 
 const props = defineProps<{
     show: boolean
@@ -74,7 +73,7 @@ const isFormValid = computed(() => {
     return true
 })
 
-const handleSubmit = () => {
+const handleSubmit = async () => {
     if (!isFormValid.value) return
 
     const providerId = props.mode === 'add' ? formData.value.id.trim() : props.providerId!
@@ -110,44 +109,38 @@ const handleSubmit = () => {
             providerConfig.headers = headersObj
         }
 
-        updateConfigFormValue(
-            store as unknown as ConfigState,
+        store.updateConfigFormValue(
             ['models', 'providers', providerId],
             providerConfig
         )
     } else {
         // Edit mode: update existing provider
-        updateConfigFormValue(
-            store as unknown as ConfigState,
+        store.updateConfigFormValue(
             ['models', 'providers', providerId, 'baseUrl'],
             formData.value.baseUrl
         )
-        updateConfigFormValue(
-            store as unknown as ConfigState,
+        store.updateConfigFormValue(
             ['models', 'providers', providerId, 'apiKey'],
             formData.value.apiKey
         )
-        updateConfigFormValue(
-            store as unknown as ConfigState,
+        store.updateConfigFormValue(
             ['models', 'providers', providerId, 'api'],
             formData.value.api
         )
         if (headersObj) {
-            updateConfigFormValue(
-                store as unknown as ConfigState,
+            store.updateConfigFormValue(
                 ['models', 'providers', providerId, 'headers'],
                 headersObj
             )
         } else {
-            updateConfigFormValue(
-                store as unknown as ConfigState,
+            store.updateConfigFormValue(
                 ['models', 'providers', providerId, 'headers'],
                 undefined
             )
         }
     }
 
-    saveConfig(store as unknown as ConfigState)
+    await store.saveConfig()
     emit('saved', providerId)
     emit('close')
 }

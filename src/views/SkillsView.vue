@@ -16,13 +16,7 @@ import {
     KeyIcon
 } from '@heroicons/vue/24/outline'
 
-import {
-    saveSkillApiKey,
-    updateSkillEdit,
-    updateSkillEnabled,
-    installSkill
-} from '../services/controllers/skills'
-import type { SkillStatusEntry, SkillInstallOption } from '../services/types'
+import type { SkillStatusEntry, SkillInstallOption } from '~openclaw/ui/src/ui/types'
 
 
 const router = useRouter()
@@ -73,19 +67,19 @@ const saveApiKeyFromModal = async () => {
     const key = editingSkill.value.skillKey
     const value = apiKeyInput.value.trim()
 
-    updateSkillEdit(gatewayStore as any, key, value)
-    await saveSkillApiKey(gatewayStore as any, key)
+    gatewayStore.updateSkillEdit(key, value)
+    await gatewayStore.saveSkillApiKey(key)
     apiKeyModal.value?.close()
 }
 
 const handleToggleSkill = async (skill: SkillStatusEntry) => {
     // If currently disabled (true), we want to enable it (true).
     // If currently enabled (disabled=false), we want to disable it (false).
-    await updateSkillEnabled(gatewayStore as any, skill.skillKey, skill.disabled)
+    await gatewayStore.updateSkillEnabled(skill.skillKey, skill.disabled)
 }
 
 const handleInstallSkill = async (skill: SkillStatusEntry, opt: SkillInstallOption) => {
-    await installSkill(gatewayStore as any, skill.skillKey, skill.name, opt.id)
+    await gatewayStore.installSkill(skill.skillKey, skill.name, opt.id)
 }
 
 const getSkillMessage = (skillKey: string) => {

@@ -1,5 +1,5 @@
 import { ASREngine } from './types';
-import { generateUUID } from '../../services/uuid';
+import { generateUUID } from '~openclaw/ui/src/ui/uuid';
 import { useUiSettingsStore } from '../../stores/setting';
 
 export class FunASRService implements ASREngine {

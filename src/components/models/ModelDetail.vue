@@ -2,7 +2,6 @@
 import { computed, ref } from 'vue'
 import { PlusIcon, PencilIcon, TrashIcon, XMarkIcon, EyeIcon, EyeSlashIcon, ArrowPathIcon } from '@heroicons/vue/24/outline'
 import { useGatewayStore } from '../../stores/gateway'
-import { updateConfigFormValue, saveConfig, type ConfigState } from '../../services/controllers/config'
 import ProviderFormModal from './ProviderFormModal.vue'
 
 interface ModelConfig {
@@ -44,24 +43,9 @@ const models = computed<ModelConfig[]>(() => {
 })
 
 // Sync agents.defaults.models with all available models from providers
-const syncAgentsDefaultModels = () => {
-    const providersObj = (store.configForm?.models as any)?.providers as Record<string, any> | undefined
-    if (!providersObj) return
+import { useModelConfig } from '../../composables/useModelConfig'
 
-    const allModels: Record<string, object> = {}
-    Object.entries(providersObj).forEach(([providerId, providerConfig]) => {
-        const providerModels = providerConfig.models || []
-        providerModels.forEach((model: ModelConfig) => {
-            allModels[`${providerId}/${model.id}`] = {}
-        })
-    })
-
-    updateConfigFormValue(
-        store as unknown as ConfigState,
-        ['agents', 'defaults', 'models'],
-        allModels
-    )
-}
+const { syncAgentsDefaultModels } = useModelConfig()
 
 // Sync models from OpenAI-compatible API
 const syncing = ref(false)
@@ -132,13 +116,12 @@ const syncModels = async () => {
 
         const mergedModels = Array.from(modelMap.values())
 
-        updateConfigFormValue(
-            store as unknown as ConfigState,
+        store.updateConfigFormValue(
             ['models', 'providers', props.providerId, 'models'],
             mergedModels
         )
         syncAgentsDefaultModels()
-        saveConfig(store as unknown as ConfigState)
+        await store.saveConfig()
 
     } catch (err: any) {
         syncError.value = err.message || '同步失败'
@@ -195,7 +178,7 @@ const openEditModel = (model: ModelConfig, index: number) => {
     showModelModal.value = true
 }
 
-const saveModel = () => {
+const saveModel = async () => {
     if (!modelForm.value.id.trim() || !props.providerId) return
 
     const currentModels = [...models.value]
@@ -208,29 +191,27 @@ const saveModel = () => {
         currentModels.push({ ...modelForm.value })
     }
 
-    updateConfigFormValue(
-        store as unknown as ConfigState,
+    store.updateConfigFormValue(
         ['models', 'providers', props.providerId, 'models'],
         currentModels
     )
     syncAgentsDefaultModels()
-    saveConfig(store as unknown as ConfigState)
+    await store.saveConfig()
 
     showModelModal.value = false
 }
 
-const deleteModel = (index: number, modelId: string) => {
+const deleteModel = async (index: number, modelId: string) => {
     if (confirm(`确定要删除模型 "${modelId}" 吗？`)) {
         const currentModels = [...models.value]
         currentModels.splice(index, 1)
 
-        updateConfigFormValue(
-            store as unknown as ConfigState,
+        store.updateConfigFormValue(
             ['models', 'providers', props.providerId, 'models'],
             currentModels
         )
         syncAgentsDefaultModels()
-        saveConfig(store as unknown as ConfigState)
+        await store.saveConfig()
     }
 }
 

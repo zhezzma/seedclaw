@@ -14,21 +14,11 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useGatewayStore } from '../stores/gateway'
 import { useUiSettingsStore } from '../stores/setting'
-import {
-    addCronJob,
-    toggleCronJob,
-    runCronJob,
-    removeCronJob,
-    loadCronRuns,
-    loadCronStatus,
-    loadCronJobs,
-    CronState,
-    buildCronSchedule,
-    buildCronPayload
-} from '../services/controllers/cron'
-import type { CronFormState } from '../services/ui-types'
-import type { CronJob, CronRunLogEntry } from '../services/types'
+import { CronState } from '../openclaw/ui/src/ui/controllers/cron'
+import type { CronFormState } from '~openclaw/ui/src/ui/ui-types'
+import type { CronJob, CronRunLogEntry } from '~openclaw/ui/src/ui/types'
 import { useToastStore } from '../stores/toast'
+
 
 const router = useRouter()
 const gatewayStore = useGatewayStore()
@@ -46,8 +36,8 @@ async function updateCronJob(state: CronState, id: string) {
     state.cronBusy = true;
     state.cronError = null;
     try {
-        const schedule = buildCronSchedule(state.cronForm);
-        const payload = buildCronPayload(state.cronForm);
+        const schedule = gatewayStore.buildCronSchedule(state.cronForm);
+        const payload = gatewayStore.buildCronPayload(state.cronForm);
         const agentId = state.cronForm.agentId.trim();
         const delivery =
             state.cronForm.sessionTarget === "isolated" &&
@@ -69,11 +59,7 @@ async function updateCronJob(state: CronState, id: string) {
             sessionTarget: state.cronForm.sessionTarget,
             wakeMode: state.cronForm.wakeMode,
             payload,
-            delivery,
-            isolation:
-                state.cronForm.postToMainPrefix.trim() && state.cronForm.sessionTarget === "isolated"
-                    ? { postToMainPrefix: state.cronForm.postToMainPrefix.trim() }
-                    : undefined,
+            delivery
         };
 
         if (!patch.name) {
@@ -81,9 +67,7 @@ async function updateCronJob(state: CronState, id: string) {
         }
 
         await state.client.request("cron.update", { id, patch });
-
-        await loadCronJobs(state);
-        await loadCronStatus(state);
+        await gatewayStore.loadCron();
     } catch (err) {
         state.cronError = String(err);
         throw err;
@@ -111,11 +95,7 @@ const defaultForm: CronFormState = {
     wakeMode: 'next-heartbeat',
     payloadKind: 'systemEvent',
     payloadText: '',
-    deliver: false,
-    channel: '',
-    to: '',
     timeoutSeconds: '',
-    postToMainPrefix: '',
     deliveryMode: 'none',
     deliveryChannel: '',
     deliveryTo: ''
@@ -213,7 +193,7 @@ const handleViewLogs = async (job: CronJob) => {
     if (modal) modal.showModal()
 
     try {
-        await loadCronRuns(gatewayStore as any, job.id)
+        await gatewayStore.loadCronRuns(job.id)
     } finally {
         logsLoading.value = false
     }
@@ -247,7 +227,7 @@ const handleOpenEdit = (job: CronJob) => {
     f.enabled = job.enabled
     f.sessionTarget = job.sessionTarget
     f.wakeMode = job.wakeMode
-    f.postToMainPrefix = job.isolation?.postToMainPrefix || ''
+
 
     // Schedule mapping
     if (job.schedule.kind === 'every') {
@@ -266,7 +246,7 @@ const handleOpenEdit = (job: CronJob) => {
     } else if (job.schedule.kind === 'at') {
         f.scheduleKind = 'at'
         // Format to datetime-local string YYYY-MM-DDTHH:mm
-        const d = new Date(job.schedule.atMs ?? job.schedule.at)
+        const d = new Date(job.schedule.at)
         const pad = (n: number) => n.toString().padStart(2, '0')
         f.scheduleAt = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
     } else if (job.schedule.kind === 'cron') {
@@ -278,12 +258,6 @@ const handleOpenEdit = (job: CronJob) => {
     // Payload mapping
     cronPayloadToForm(job.payload, f)
 
-    // Delivery mapping
-    if (job.delivery) {
-        f.deliver = job.delivery.mode === 'announce'
-        f.channel = job.delivery.channel || ''
-        f.to = job.delivery.to || ''
-    }
 
     form.value = f
     openModal()
@@ -297,7 +271,7 @@ const handleSave = async () => {
         if (editingId.value) {
             await updateCronJob(gatewayStore as any, editingId.value)
         } else {
-            await addCronJob(gatewayStore as any)
+            await gatewayStore.addCronJob()
         }
         closeModal()
     }
@@ -308,7 +282,7 @@ const handleSave = async () => {
 
 const handleToggle = async (job: CronJob, e: Event) => {
     e.stopPropagation() // Prevent opening edit modal
-    await toggleCronJob(gatewayStore as any, job, !job.enabled)
+    await gatewayStore.toggleCronJob(job, !job.enabled)
 }
 
 const handleRun = async (job: CronJob, e: Event) => {
@@ -322,10 +296,10 @@ const handleRun = async (job: CronJob, e: Event) => {
     runningJobId.value = job.id
 
     try {
-        await runCronJob(gatewayStore as any, job)
+        await gatewayStore.runCronJob(job)
         // If logs open for this job, refresh them
         if (logsJob.value?.id === job.id) {
-            void loadCronRuns(gatewayStore as any, job.id)
+            void gatewayStore.loadCronRuns(job.id)
         }
     }
     catch (err: any) {
@@ -338,7 +312,7 @@ const handleRun = async (job: CronJob, e: Event) => {
 const handleRemove = async (job: CronJob, e: Event) => {
     e.stopPropagation()
     if (!confirm('确定要删除此任务吗？')) return
-    await removeCronJob(gatewayStore as any, job)
+    await gatewayStore.removeCronJob(job)
 }
 
 
@@ -438,7 +412,7 @@ onMounted(() => {
                                                     (job.schedule.everyMs / 60000 + 'm') : (Number(job.schedule.everyMs
                                                         / 3600000).toFixed(1).replace(/\.0$/, '') + 'h') }} </span>
                                                     <span class="font-mono" v-else-if="job.schedule.kind === 'at'">
-                                                        {{ formatDate(job.schedule.atMs ?? job.schedule.at) }}
+                                                        {{ formatDate(job.schedule.at) }}
                                                     </span>
                                                     <span class="font-mono" v-else>
                                                         {{ job.schedule.expr }}
@@ -641,7 +615,7 @@ onMounted(() => {
 
                     <fieldset class="fieldset w-full">
                         <legend class="fieldset-legend">{{ form.payloadKind === 'systemEvent' ? '系统事件内容' : '消息内容'
-                        }}</legend>
+                            }}</legend>
                         <textarea v-model="form.payloadText" class="textarea w-full h-24"
                             placeholder="输入内容..."></textarea>
                         <div class="label"></div>

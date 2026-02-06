@@ -1,34 +1,34 @@
 import { defineStore } from 'pinia'
-import { GatewayBrowserClient, type GatewayEventFrame, type GatewayHelloOk } from '../services/gateway'
-import { generateUUID } from '../services/uuid'
-import { extractText } from '../services/chat/message-extract'
+import { GatewayBrowserClient, type GatewayEventFrame, type GatewayHelloOk } from '~openclaw/ui/src/ui/gateway'
+import { generateUUID } from '~openclaw/ui/src/ui/uuid'
+import { extractText } from '~openclaw/ui/src/ui/chat/message-extract'
 import { useUiSettingsStore } from './setting'
-import type { ChatAttachment, ChatQueueItem } from '../services/ui-types'
-import type { PresenceEntry, HealthSnapshot, StatusSummary, SessionsListResult, AgentsListResult, ConfigSnapshot, ConfigUiHints } from '../services/types'
-import type { EventLogEntry } from '../services/app-events'
-import type { ExecApprovalRequest } from '../services/controllers/exec-approval'
-import type { SkillStatusReport } from '../services/types'
-import { handleAgentEvent, resetToolStream, type AgentEventPayload, type ToolStreamEntry } from '../services/app-tool-stream'
-import { loadAssistantIdentity, type AssistantIdentityState } from '../services/controllers/assistant-identity'
-import { loadAgents, type AgentsState } from '../services/controllers/agents'
-import { loadNodes, type NodesState, type NodePairingList } from '../services/controllers/nodes'
-import { loadDevices, type DevicesState, type DevicePairingList } from '../services/controllers/devices'
-import { handleChatEvent, loadChatHistory, type ChatEventPayload, type ChatState } from '../services/controllers/chat'
-import { loadSessions, patchSession, deleteSession, type SessionsState } from '../services/controllers/sessions'
-import { loadCronJobs, loadCronStatus, type CronState } from '../services/controllers/cron'
-import { loadSkills, type SkillsState } from '../services/controllers/skills'
-import { loadConfig, type ConfigState } from '../services/controllers/config'
-import { loadLogs, type LogsState } from '../services/controllers/logs'
-import type { LogEntry, LogLevel } from '../services/types'
+import type { ChatAttachment, ChatQueueItem, CronFormState } from '~openclaw/ui/src/ui/ui-types'
+import type { PresenceEntry, HealthSnapshot, StatusSummary, SessionsListResult, AgentsListResult, ConfigSnapshot, ConfigUiHints, CronJob, SkillInstallOption } from '~openclaw/ui/src/ui/types'
+import type { EventLogEntry } from '~openclaw/ui/src/ui/app-events'
+import type { ExecApprovalRequest } from '~openclaw/ui/src/ui/controllers/exec-approval'
+import type { SkillStatusReport } from '~openclaw/ui/src/ui/types'
+import { handleAgentEvent, resetToolStream, type AgentEventPayload, type ToolStreamEntry } from '~openclaw/ui/src/ui/app-tool-stream'
+import { loadAssistantIdentity, type AssistantIdentityState } from '~openclaw/ui/src/ui/controllers/assistant-identity'
+import { loadAgents, type AgentsState } from '~openclaw/ui/src/ui/controllers/agents'
+import { loadNodes, type NodesState } from '~openclaw/ui/src/ui/controllers/nodes'
+import { approveNodePairing, rejectNodePairing, rotateNodeToken, revokeNodeToken } from './nodes'
+import { loadDevices, approveDevicePairing, rejectDevicePairing, rotateDeviceToken, revokeDeviceToken, type DevicesState, type DevicePairingList } from '~openclaw/ui/src/ui/controllers/devices'
+import { loadOrCreateDeviceIdentity } from '~openclaw/ui/src/ui/device-identity'
+import { handleChatEvent, loadChatHistory, type ChatEventPayload, type ChatState } from '~openclaw/ui/src/ui/controllers/chat'
+import { loadSessions, patchSession, deleteSession, type SessionsState } from '~openclaw/ui/src/ui/controllers/sessions'
 import {
-    addExecApproval,
-    parseExecApprovalRequested,
-    parseExecApprovalResolved,
-    removeExecApproval,
-} from '../services/controllers/exec-approval'
-import { GATEWAY_CLIENT_IDS } from '../services/includes/client-info'
-import { handleSendChat, handleAbortChat, type ChatHost } from '../services/app-chat'
-import { parseAgentSessionKey, isAgentMainSession, createAgentMainSessionKey } from '../services/includes/session-key-utils'
+    loadCronJobs, loadCronStatus, addCronJob, toggleCronJob, runCronJob, removeCronJob, loadCronRuns, buildCronSchedule, buildCronPayload, type CronState
+} from '~openclaw/ui/src/ui/controllers/cron'
+import { loadSkills, saveSkillApiKey, updateSkillEdit, updateSkillEnabled, installSkill, type SkillsState } from '~openclaw/ui/src/ui/controllers/skills'
+import { loadConfig, saveConfig, updateConfigFormValue, type ConfigState } from '~openclaw/ui/src/ui/controllers/config'
+import { loadLogs, type LogsState } from '~openclaw/ui/src/ui/controllers/logs'
+import type { LogEntry, LogLevel } from '~openclaw/ui/src/ui/types'
+import { addExecApproval, parseExecApprovalRequested, parseExecApprovalResolved, removeExecApproval } from '~openclaw/ui/src/ui/controllers/exec-approval'
+import { GATEWAY_CLIENT_IDS } from '~openclaw/src/gateway/protocol/client-info'
+import { handleSendChat, handleAbortChat, type ChatHost } from '~openclaw/ui/src/ui/app-chat'
+import { isAgentMainSession, createAgentMainSessionKey } from '../utils/session-key-helpers'
+import { AgentFilesState, loadAgentFileContent, loadAgentFiles, saveAgentFile } from '~openclaw/ui/src/ui/controllers/agent-files'
 
 // ==================== Types ====================
 export interface GatewayState {
@@ -73,7 +73,7 @@ export interface GatewayState {
     // Nodes state
     nodesLoading: boolean
     nodesError: string | null
-    nodesList: NodePairingList | null
+    nodes: Array<Record<string, unknown>>;
 
     // Devices state
     devicesLoading: boolean
@@ -212,7 +212,7 @@ export const useGatewayStore = defineStore('gateway', {
         // Nodes
         nodesLoading: false,
         nodesError: null,
-        nodesList: null,
+        nodes: [],
 
         // Devices
         devicesLoading: false,
@@ -365,11 +365,7 @@ export const useGatewayStore = defineStore('gateway', {
                     token: settings.token.trim() ? settings.token : undefined,
                     password: this.password.trim() ? this.password : undefined,
                     clientName: GATEWAY_CLIENT_IDS.WEBCHAT,
-                    displayName: 'SeedClaw-APP',
                     mode: 'webchat',
-                    onConnectError: (err) => {
-                        reject(err)
-                    },
                     onHello: (hello) => {
                         //@ts-ignore
                         window.host = this.$state
@@ -560,11 +556,11 @@ export const useGatewayStore = defineStore('gateway', {
             }
 
             if (evt.event === 'device.pair.requested' || evt.event === 'device.pair.resolved') {
-                void loadDevices(this as unknown as DevicesState, { quiet: true })
+                void this.loadDevices({ quiet: true })
             }
 
             if (evt.event === 'node.pair.requested' || evt.event === 'node.pair.resolved') {
-                void loadNodes(this as unknown as NodesState, { quiet: true })
+                void this.loadNodes({ quiet: true })
             }
 
             if (evt.event === 'exec.approval.requested') {
@@ -649,14 +645,13 @@ export const useGatewayStore = defineStore('gateway', {
 
         // ==================== Chat ====================
         async sendMessage(message?: string, attachments?: ChatAttachment[]) {
-            await handleSendChat(this as unknown as ChatHost, message, { attachments })
+            this.chatAttachments = attachments || []
+            await handleSendChat(this as unknown as ChatHost, message, {})
         },
 
         async abortChat() {
             await handleAbortChat(this as unknown as ChatHost)
         },
-
-
 
         async loadAssistantIdentity() {
             await loadAssistantIdentity(this as unknown as AssistantIdentityState)
@@ -665,57 +660,6 @@ export const useGatewayStore = defineStore('gateway', {
 
         async loadChatHistory() {
             await loadChatHistory(this as unknown as ChatState)
-        },
-
-        async setSessionKey(key: string, opts?: { isNewSession?: boolean }) {
-            this.sessionKey = key
-
-            // Clear ephemeral state to prevent leaks from previous session
-            this.chatRunId = null
-            this.chatStream = null
-            this.chatStreamStartedAt = null
-            this.chatThinkingLevel = null
-            resetToolStream(this as unknown as Parameters<typeof resetToolStream>[0])
-
-            const settings = useUiSettingsStore()
-            settings.sessionKey = key
-            settings.lastActiveSessionKey = key
-            settings.persist()
-            this.loadAssistantIdentity()
-            // Mark to refresh sessions after first chat for new sessions
-            this.isNewSessionPending = !!opts?.isNewSession
-            if (this.isNewSessionPending) {
-                return
-            }
-            this.loadChatHistory();
-        },
-
-        async createNewSession() {
-            this.isNewSessionPending = true
-            this.assistantAgentId = this.defaultAgentId
-            this.chatMessages = []
-            this.chatRunId = null
-            this.chatStream = null
-            this.sessionKey = ''
-        },
-
-        async commitNewSession() {
-            // Create a new session with full agent format to match server's format
-            const newKey = `agent:${this.assistantAgentId}:session:${generateUUID()}`
-            await this.setSessionKey(newKey, { isNewSession: true })
-            // Ensure pending is false after commit (setSessionKey might do it, but let's be safe or rely on setSessionKey logic)
-            // Note: setSessionKey sets isNewSessionPending based on opts.isNewSession. 
-            // In setSessionKey: this.isNewSessionPending = !!opts?.isNewSession
-            // So if we pass true, it stays true? 
-            // Wait, existing setSessionKey logic:
-            // this.isNewSessionPending = !!opts?.isNewSession
-            // If we commit, we are creating a REAL session. key changed.
-            // We want isNewSessionPending to remain true UNTIL the first chat response comes back? 
-            // Or should it be false immediately?
-            // The original logic was: setSessionKey(..., {isNewSession: true}) -> isNewSessionPending = true.
-            // Then in handleGatewayEvent 'chat': if (state === 'final' && this.isNewSessionPending) => triggerAutoRename.
-            // So we DO want isNewSessionPending to be true AFTER commit, so auto-rename happens.
-            // So calling setSessionKey(..., { isNewSession: true }) is correct for commitNewSession.
         },
 
         async triggerAutoRename(targetKey: string) {
@@ -773,12 +717,94 @@ export const useGatewayStore = defineStore('gateway', {
             await this.loadSessions();
         },
 
+        //需要返回删除结果,且openclaw中的里面有弹窗
         async deleteSession(key: string) {
-            return await deleteSession(this as unknown as SessionsState, key)
+            const state = this;
+            if (!state.client || !state.connected) {
+                return { deleted: false };
+            }
+            if (state.sessionsLoading) {
+                return { deleted: false };
+            }
+            state.sessionsLoading = true;
+            state.sessionsError = null;
+            try {
+                const res: any = await state.client.request("sessions.delete", { key, deleteTranscript: true });
+                const deleted = res?.deleted === true;
+                // Only remove from local list if actually deleted
+                if (deleted && state.sessionsResult?.sessions) {
+                    state.sessionsResult = {
+                        ...state.sessionsResult,
+                        sessions: state.sessionsResult.sessions.filter((s: any) => s.key !== key)
+                    };
+                }
+                return { deleted };
+            } catch (err) {
+                state.sessionsError = String(err);
+                return { deleted: false };
+            } finally {
+                state.sessionsLoading = false;
+            }
         },
 
+
+        async setSessionKey(key: string, opts?: { isNewSession?: boolean }) {
+            this.sessionKey = key
+
+            // Clear ephemeral state to prevent leaks from previous session
+            this.chatRunId = null
+            this.chatStream = null
+            this.chatStreamStartedAt = null
+            this.chatThinkingLevel = null
+            resetToolStream(this as unknown as Parameters<typeof resetToolStream>[0])
+
+            const settings = useUiSettingsStore()
+            settings.sessionKey = key
+            settings.lastActiveSessionKey = key
+            settings.persist()
+            this.loadAssistantIdentity()
+            // Mark to refresh sessions after first chat for new sessions
+            this.isNewSessionPending = !!opts?.isNewSession
+            if (this.isNewSessionPending) {
+                return
+            }
+            this.loadChatHistory();
+        },
+
+
+        //创建新session,其实就是清空当前的sessionkey,并设置isNewSessionPending为true
+        async createNewSession() {
+            this.isNewSessionPending = true; //是否是新的session全靠这个进行判断
+            this.assistantAgentId = this.defaultAgentId
+            this.chatMessages = []
+            this.chatRunId = null
+            this.chatStream = null
+            this.sessionKey = ''
+        },
+
+        //只有在第一次发送消息的时候,才是真正创建session
+        async commitNewSession() {
+            const newKey = `agent:${this.assistantAgentId}:session:${generateUUID()}`
+            await this.setSessionKey(newKey, { isNewSession: true })
+        },
+
+        // ==================== Agents ====================
         async loadAgents() {
             await loadAgents(this as unknown as AgentsState)
+        },
+
+        async loadAgentFiles(agentId: string) {
+            await loadAgentFiles(this as unknown as AgentFilesState, agentId)
+        },
+
+        async loadAgentFileContent(agentId: string,
+            name: string,
+            opts?: { force?: boolean; preserveDraft?: boolean },) {
+            await loadAgentFileContent(this as unknown as AgentFilesState, agentId, name, opts)
+        },
+
+        async saveAgentFile(agentId: string, name: string, content: string) {
+            await saveAgentFile(this as unknown as AgentFilesState, agentId, name, content)
         },
 
         // ==================== Skills ====================
@@ -786,11 +812,23 @@ export const useGatewayStore = defineStore('gateway', {
             await loadSkills(this as unknown as SkillsState)
         },
 
-        // ==================== Logs ====================
-        async loadLogs(opts?: { reset?: boolean; quiet?: boolean }) {
-            await loadLogs(this as unknown as LogsState, opts)
+        async saveSkillApiKey(skillKey: string) {
+            await saveSkillApiKey(this as unknown as SkillsState, skillKey)
         },
 
+        updateSkillEdit(skillKey: string, value: string) {
+            updateSkillEdit(this as unknown as SkillsState, skillKey, value)
+        },
+
+        async updateSkillEnabled(skillId: string, enabled: boolean) {
+            await updateSkillEnabled(this as unknown as SkillsState, skillId, enabled)
+        },
+
+        async installSkill(skillKey: string, name: string, installId: string) {
+            await installSkill(this as unknown as SkillsState, skillKey, name, installId)
+        },
+
+        // ==================== Cron ====================
         async loadCron() {
             await Promise.all([
                 loadCronStatus(this as unknown as CronState),
@@ -798,9 +836,88 @@ export const useGatewayStore = defineStore('gateway', {
             ]);
         },
 
+        async addCronJob() {
+            await addCronJob(this as unknown as CronState)
+        },
+
+        async toggleCronJob(job: CronJob, enabled: boolean) {
+            await toggleCronJob(this as unknown as CronState, job, enabled)
+        },
+
+        async runCronJob(job: CronJob) {
+            await runCronJob(this as unknown as CronState, job)
+        },
+
+        async removeCronJob(job: CronJob) {
+            await removeCronJob(this as unknown as CronState, job)
+        },
+
+        async loadCronRuns(jobId: string) {
+            await loadCronRuns(this as unknown as CronState, jobId)
+        },
+
+        buildCronSchedule(form: CronFormState) {
+            return buildCronSchedule(form)
+        },
+
+        buildCronPayload(form: CronFormState) {
+            return buildCronPayload(form)
+        },
 
 
+        // ==================== Devices ====================
 
+        async loadDevices(opts?: { quiet?: boolean }) {
+            await loadDevices(this as unknown as DevicesState, opts)
+        },
+
+        async approveDevicePairing(requestId: string) {
+            await approveDevicePairing(this as unknown as DevicesState, requestId)
+        },
+
+        async rejectDevicePairing(requestId: string) {
+            await rejectDevicePairing(this as unknown as DevicesState, requestId)
+        },
+
+        async rotateDeviceToken(params: { deviceId: string; role: string; scopes?: string[] }) {
+            await rotateDeviceToken(this as unknown as DevicesState, params)
+        },
+
+        async revokeDeviceToken(params: { deviceId: string; role: string }) {
+            await revokeDeviceToken(this as unknown as DevicesState, params)
+        },
+
+        async loadOrCreateDeviceIdentity() {
+            return await loadOrCreateDeviceIdentity()
+        },
+
+        // ==================== Nodes ====================
+
+        async loadNodes(opts?: { quiet?: boolean }) {
+            await loadNodes(this as unknown as NodesState, opts)
+        },
+
+        async approveNodePairing(requestId: string) {
+            await approveNodePairing(this as unknown as NodesState, requestId)
+        },
+
+        async rejectNodePairing(requestId: string) {
+            await rejectNodePairing(this as unknown as NodesState, requestId)
+        },
+
+        async rotateNodeToken(params: { deviceId: string; role: string; scopes?: string[] }) {
+            await rotateNodeToken(this as unknown as NodesState, params)
+        },
+
+        async revokeNodeToken(params: { deviceId: string; role: string }) {
+            await revokeNodeToken(this as unknown as NodesState, params)
+        },
+
+
+        // ==================== Logs ====================
+        async loadLogs(opts?: { reset?: boolean; quiet?: boolean }) {
+            await loadLogs(this as unknown as LogsState, opts)
+        },
 
         resetLogs() {
             this.logsCursor = null
@@ -808,6 +925,17 @@ export const useGatewayStore = defineStore('gateway', {
             this.logsFile = null
             this.logsTruncated = false
             this.logsLastFetchAt = null
-        }
+        },
+
+        // ==================== Config ====================
+        updateConfigFormValue(path: string[], value: unknown) {
+            updateConfigFormValue(this as unknown as ConfigState, path, value)
+        },
+
+        async saveConfig() {
+            await saveConfig(this as unknown as ConfigState)
+        },
+
+
     }
 })

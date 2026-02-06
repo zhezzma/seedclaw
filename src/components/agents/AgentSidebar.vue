@@ -3,8 +3,8 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { SparklesIcon, ArrowLeftIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import { useGatewayStore } from '../../stores/gateway'
-import { createAgentMainSessionKey } from '../../services/includes/session-key-utils'
 import AgentFormModal from './AgentFormModal.vue'
+import { createAgentMainSessionKey } from '~/src/utils/session-key-helpers'
 
 const props = defineProps<{
     selectedId?: string
