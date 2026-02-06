@@ -478,10 +478,12 @@ export const useGatewayStore = defineStore('gateway', {
                         this.refreshSessionsAfterChat.delete(runId);
                         if (state === "final") {
                             void this.loadSessions();
+                            //CHANGE_OPENCLAW: 还要重新加载历史..如果是/new或者是/reset会将runId添加到refreshSessionsAfterChat,这个时候需要加载历史刷新页面
+                            void loadChatHistory(this as unknown as ChatState)
                         }
                     }
                 }
-                // 🔧 修复页面闪烁: 移除loadChatHistory调用
+                // CHANGE_OPENCLAW:🔧 修复页面闪烁: 移除loadChatHistory调用
                 // 原因: 消息已通过delta事件同步到前端，重新加载会导致chatLoading状态闪烁
                 // if (state === 'final') {
                 //     void loadChatHistory(this as unknown as ChatState)
@@ -610,7 +612,7 @@ export const useGatewayStore = defineStore('gateway', {
             await loadChatHistory(this as unknown as ChatState)
         },
 
-        //主要是为了解决,接收完ai消息后,页面会刷新,从chat.ts中分离出来
+        //CHANGE_OPENCLAW:主要是为了解决,接收完ai消息后,页面会刷新,从chat.ts中分离出来
         handleChatEvent(payload?: ChatEventPayload) {
             const state = this;
             if (!payload) {
@@ -674,7 +676,7 @@ export const useGatewayStore = defineStore('gateway', {
             await this.loadSessions();
         },
 
-        //需要返回删除结果,且openclaw中的里面有弹窗,从session控制器中分离出来
+        //CHANGE_OPENCLAW:需要返回删除结果,且openclaw中的里面有弹窗,从session控制器中分离出来
         async deleteSession(key: string) {
             const state = this;
             if (!state.client || !state.connected) {

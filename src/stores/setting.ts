@@ -18,6 +18,7 @@ export interface UiSettings {
     ttsToken: string // TTS API Key (if different from ASR)
     ttsModel: string
     silenceDuration: number // Auto-send delay in ms
+    autoSendCommands: boolean // Whether to auto-send after selecting a command
 }
 
 // ==================== Constants ====================
@@ -39,7 +40,8 @@ const getDefaultSettings = (): UiSettings => ({
     ttsEngine: 'edge',
     ttsToken: '',
     ttsModel: '',
-    silenceDuration: 3000
+    silenceDuration: 3000,
+    autoSendCommands: false
 })
 
 const loadConfig = (): UiSettings => {

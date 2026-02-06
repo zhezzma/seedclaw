@@ -15,6 +15,7 @@ import {
 import { useChatInput, COMMANDS } from '../../composables/useChatInput'
 import { useModels } from '../../composables/useModels'
 import { useGatewayStore } from '../../stores/gateway'
+import { useUiSettingsStore } from '../../stores/setting'
 import { computed } from 'vue'
 
 const props = defineProps<{
@@ -23,6 +24,7 @@ const props = defineProps<{
 }>()
 
 const store = useGatewayStore()
+const settingsStore = useUiSettingsStore()
 const { availableModels } = useModels()
 
 // Current agent model binding
@@ -112,6 +114,20 @@ const onSend = () => {
     emit('send')
 }
 
+const handleCommandSelect = (cmd: string) => {
+    selectCommand(cmd)
+    if (settingsStore.autoSendCommands) {
+        nextTick(() => {
+            onSend()
+        })
+    }
+}
+
+// Persist setting when toggled
+watch(() => settingsStore.autoSendCommands, () => {
+    settingsStore.persist()
+})
+
 const handleInputKeydown = (e: KeyboardEvent) => {
     handleKeydown(e, onSend)
 }
@@ -199,9 +215,20 @@ defineExpose({
                         </button>
                         <ul v-if="commandDropdownOpen"
                             class="dropdown-content menu p-2 shadow-xl bg-base-100 rounded-box w-56 border border-base-300 mb-2 z-[100]">
-                            <li class="menu-title px-4 py-2 text-xs opacity-50">常用指令</li>
+                            <li class="menu-title"><span>常用指令</span></li>
                             <li v-for="cmd in COMMANDS" :key="cmd.value">
-                                <a @click="selectCommand(cmd.value)" class="rounded-lg">{{ cmd.label }}</a>
+                                <a @click="handleCommandSelect(cmd.value)" class="rounded-lg">{{ cmd.label }}</a>
+                            </li>
+                            <!-- Divider -->
+                            <li class="my-1 border-t border-base-200"></li>
+                            <!-- Auto Send Toggle -->
+                            <li class="p-0">
+                                <label
+                                    class="label cursor-pointer justify-between py-2 px-4 hover:bg-base-200 rounded-lg active:bg-base-300 transition-colors">
+                                    <span class="text-xs opacity-70 label-text">自动发送</span>
+                                    <input type="checkbox" class="toggle toggle-xs toggle-primary"
+                                        v-model="settingsStore.autoSendCommands" />
+                                </label>
                             </li>
                         </ul>
                     </div>

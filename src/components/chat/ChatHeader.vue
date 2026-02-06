@@ -78,8 +78,8 @@ defineExpose({
         <div class="flex-1">
             <!-- Agent dropdown (for agent main sessions) -->
             <details v-if="showAgentDropdown" class="dropdown" ref="dropdownRef">
-                <summary class="btn btn-ghost  gap-1 list-none">
-                    <span class="font-semibold">{{ selectedAgent?.name || 'Assistant' }}</span>
+                <summary class="btn btn-ghost gap-1 list-none">
+                    <span class="font-semibold text-lg">{{ selectedAgent?.name || 'Assistant' }}</span>
                     <ChevronDownIcon class="h-4 w-4" />
                 </summary>
                 <ul class="dropdown-content menu bg-base-200 rounded-box z-50 w-52 p-2 shadow-lg">
