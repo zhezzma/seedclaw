@@ -1,8 +1,12 @@
 export function cloneConfigObject<T>(value: T): T {
-  if (typeof structuredClone === "function") {
-    return structuredClone(value);
-  }
-  return JSON.parse(JSON.stringify(value)) as T;
+    try {
+        if (typeof structuredClone === "function") {
+            return structuredClone(value);
+        }
+    } catch (e) {
+        // Fallback if structuredClone fails (e.g. on Proxies or non-clonable types)
+    }
+    return JSON.parse(JSON.stringify(value)) as T;
 }
 
 export function serializeConfigForm(form: Record<string, unknown>): string {

@@ -15,6 +15,7 @@ const excludedFiles = [
     "src/openclaw/ui/src/ui/app-chat.ts"
 ].map(p => path.normalize(p));
 
+ 
 async function main() {
     console.log(`Root Dir: ${rootDir}`);
     console.log(`Repo Dir: ${openClawRepoDir}`);
@@ -110,6 +111,62 @@ async function main() {
         } else {
             console.warn(`[Warning] Source file not found: ${sourcePath}`);
         }
+    }
+
+    // 5. Post-Sync Replacements
+    console.log('--- Post-Sync Replacements ---');
+    const formUtilsPath = path.join(srcOpenClawDir, 'ui/src/ui/controllers/config/form-utils.ts');
+    if (fs.existsSync(formUtilsPath)) {
+        try {
+            console.log('Updating cloneConfigObject in form-utils.ts...');
+            let content = fs.readFileSync(formUtilsPath, 'utf8');
+
+            const oldFunc = `export function cloneConfigObject<T>(value: T): T {
+  if (typeof structuredClone === "function") {
+    return structuredClone(value);
+  }
+  return JSON.parse(JSON.stringify(value)) as T;
+}`;
+
+            const newFunc = `export function cloneConfigObject<T>(value: T): T {
+    try {
+        if (typeof structuredClone === "function") {
+            return structuredClone(value);
+        }
+    } catch (e) {
+        // Fallback if structuredClone fails (e.g. on Proxies or non-clonable types)
+    }
+    return JSON.parse(JSON.stringify(value)) as T;
+}`;
+
+            // Normalize line endings for replacement check
+            const normalizedContent = content.replace(/\r\n/g, '\n');
+            const normalizedOldFunc = oldFunc.replace(/\r\n/g, '\n');
+
+            if (normalizedContent.includes(normalizedOldFunc)) {
+                content = content.replace(oldFunc, newFunc);
+                fs.writeFileSync(formUtilsPath, content, 'utf8');
+                console.log('[Success] cloneConfigObject updated.');
+            } else if (content.includes('try {')) {
+                 console.log('[Info] cloneConfigObject already updated or pattern mismatch.');
+            } else {
+                 // Try a looser replacement if exact match fails (e.g. formatting diffs)
+                console.log('[Warning] Exact match failed. Attempting regex replacement...');
+                 const regex = /export function cloneConfigObject<T>\(value: T\): T \{[\s\S]*?return JSON\.parse\(JSON\.stringify\(value\)\) as T;\s*\}/m;
+                 if (regex.test(content)) {
+                     content = content.replace(regex, newFunc);
+                     fs.writeFileSync(formUtilsPath, content, 'utf8');
+                     console.log('[Success] cloneConfigObject updated via regex.');
+                 } else {
+                     console.error('[Error] Could not find cloneConfigObject pattern to replace.');
+                 }
+            }
+
+        } catch (e) {
+            console.error(`[Error] Failed to update form-utils.ts: ${e.message}`);
+        }
+    } else {
+        console.warn(`[Warning] form-utils.ts not found for post-processing at: ${formUtilsPath}`);
     }
 
     console.log(`--- Sync Complete ---`);
