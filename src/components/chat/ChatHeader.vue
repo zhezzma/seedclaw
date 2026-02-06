@@ -93,8 +93,10 @@ defineExpose({
                 </ul>
             </details>
             <!-- Session name (for specific sessions like agent:xxx:session:xxx) -->
-            <span v-else class=" lg:pl-5 font-semibold">
+            <span v-else class=" lg:pl-5 font-semibold flex items-center gap-2">
                 {{ currentSessionName }}
+                <span v-if="gatewayStore.assistantAgentId" class="badge badge-sm badge-ghost">{{
+                    gatewayStore.assistantAgentId }}</span>
             </span>
         </div>
         <!-- Connection status indicator -->

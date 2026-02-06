@@ -16,7 +16,7 @@ import { approveNodePairing, rejectNodePairing, rotateNodeToken, revokeNodeToken
 import { loadDevices, approveDevicePairing, rejectDevicePairing, rotateDeviceToken, revokeDeviceToken, type DevicesState, type DevicePairingList } from '~openclaw/ui/src/ui/controllers/devices'
 import { loadOrCreateDeviceIdentity } from '~openclaw/ui/src/ui/device-identity'
 import { handleChatEvent, loadChatHistory, type ChatEventPayload, type ChatState } from '~openclaw/ui/src/ui/controllers/chat'
-import { loadSessions, patchSession, deleteSession, type SessionsState } from '~openclaw/ui/src/ui/controllers/sessions'
+import { loadSessions, patchSession, type SessionsState } from '~openclaw/ui/src/ui/controllers/sessions'
 import {
     loadCronJobs, loadCronStatus, addCronJob, toggleCronJob, runCronJob, removeCronJob, loadCronRuns, buildCronSchedule, buildCronPayload, type CronState
 } from '~openclaw/ui/src/ui/controllers/cron'
@@ -26,13 +26,13 @@ import { loadLogs, type LogsState } from '~openclaw/ui/src/ui/controllers/logs'
 import type { LogEntry, LogLevel } from '~openclaw/ui/src/ui/types'
 import { addExecApproval, parseExecApprovalRequested, parseExecApprovalResolved, removeExecApproval } from '~openclaw/ui/src/ui/controllers/exec-approval'
 import { GATEWAY_CLIENT_IDS } from '~openclaw/src/gateway/protocol/client-info'
-import { handleSendChat, handleAbortChat, type ChatHost } from '~openclaw/ui/src/ui/app-chat'
+import { handleSendChat, handleAbortChat, type ChatHost, flushChatQueueForEvent } from '~openclaw/ui/src/ui/app-chat'
 import { isAgentMainSession, createAgentMainSessionKey } from '../utils/session-key-helpers'
 import { AgentFilesState, loadAgentFileContent, loadAgentFiles, saveAgentFile } from '~openclaw/ui/src/ui/controllers/agent-files'
 
 // ==================== Types ====================
 export interface GatewayState {
-    // Connection state
+    // 连接状态
     client: GatewayBrowserClient | null
     connected: boolean
     connecting: boolean
@@ -40,7 +40,7 @@ export interface GatewayState {
     hello: GatewayHelloOk | null
     password: string
 
-    // Chat state
+    // 聊天状态
     sessionKey: string
     chatLoading: boolean
     chatMessages: unknown[]
@@ -55,7 +55,7 @@ export interface GatewayState {
     chatAvatarUrl: string | null
     basePath: string
 
-    // Sessions state
+    // 会话列表状态 (Sessions)
     sessionsLoading: boolean
     sessionsResult: SessionsListResult | null
     sessionsError: string | null
@@ -65,36 +65,36 @@ export interface GatewayState {
     sessionsIncludeUnknown: boolean
     refreshSessionsAfterChat: Set<string>
 
-    // Agents state
+    // 智能体状态 (Agents)
     agentsLoading: boolean
     agentsError: string | null
     agentsList: AgentsListResult | null
 
-    // Nodes state
+    // 节点状态 (Nodes)
     nodesLoading: boolean
     nodesError: string | null
     nodes: Array<Record<string, unknown>>;
 
-    // Devices state
+    // 设备状态 (Devices)
     devicesLoading: boolean
     devicesError: string | null
     devicesList: DevicePairingList | null
 
-    // Presence state
+    // 在线状态 (Presence)
     presenceEntries: PresenceEntry[]
     presenceError: string | null
     presenceStatus: StatusSummary | null
     debugHealth: HealthSnapshot | null
 
-    // Event log
+    // 事件日志
     eventLogBuffer: EventLogEntry[]
     eventLog: EventLogEntry[]
 
-    // Exec approvals
+    // 执行审批 (Exec Approvals)
     execApprovalQueue: ExecApprovalRequest[]
     execApprovalError: string | null
 
-    // Cron state
+    // 定时任务 (Cron)
     cronLoading: boolean
     cronJobs: unknown[]
     cronStatus: unknown
@@ -105,7 +105,7 @@ export interface GatewayState {
     cronRunsTotal: number
     cronBusy: boolean
 
-    // Skills state
+    // 技能状态 (Skills)
     skillsLoading: boolean
     skillsReport: SkillStatusReport | null
     skillsError: string | null
@@ -113,7 +113,7 @@ export interface GatewayState {
     skillEdits: Record<string, string>
     skillMessages: Record<string, { kind: "success" | "error"; message: string }>
 
-    // Logs state
+    // 系统日志 (Logs)
     logsLoading: boolean
     logsError: string | null
     logsCursor: number | null
@@ -126,19 +126,19 @@ export interface GatewayState {
     logsLevelFilter: LogLevel | 'all'
     logsSearchQuery: string
 
-    // Assistant identity
+    // 助手身份信息
     assistantName: string
     assistantAvatar: string | null
     assistantAgentId: string | null
 
-    // Tool stream state
+    // 工具流状态 (Tool Stream)
     toolStreamData: unknown | null
     toolStreamById: Map<string, ToolStreamEntry>
     toolStreamOrder: string[]
     chatToolMessages: Record<string, unknown>[]
     toolStreamSyncTimer: number | null
 
-    // Config state
+    // 配置状态 (Config)
     configLoading: boolean
     configRaw: string
     configRawOriginal: string
@@ -160,7 +160,7 @@ export interface GatewayState {
     configActiveSection: string | null
     configActiveSubsection: string | null
 
-    // Misc
+    // 杂项
     onboarding: boolean
     isNewSessionPending: boolean
     renameSessionKey: string | null
@@ -171,7 +171,7 @@ const autoNamingRuns = new Map<string, { targetSessionKey: string; titleBuffer: 
 // ==================== Store ====================
 export const useGatewayStore = defineStore('gateway', {
     state: (): GatewayState => ({
-        // Connection
+        // 连接
         client: null,
         connected: false,
         connecting: false,
@@ -179,7 +179,7 @@ export const useGatewayStore = defineStore('gateway', {
         hello: null,
         password: '',
 
-        // Chat
+        // 聊天
         sessionKey: '',
         chatLoading: false,
         chatMessages: [],
@@ -194,7 +194,7 @@ export const useGatewayStore = defineStore('gateway', {
         chatAvatarUrl: null,
         basePath: '',
 
-        // Sessions
+        // 会话列表
         sessionsLoading: false,
         sessionsResult: null,
         sessionsError: null,
@@ -204,36 +204,36 @@ export const useGatewayStore = defineStore('gateway', {
         sessionsIncludeUnknown: false,
         refreshSessionsAfterChat: new Set(),
 
-        // Agents
+        // 智能体
         agentsLoading: false,
         agentsError: null,
         agentsList: null,
 
-        // Nodes
+        // 节点
         nodesLoading: false,
         nodesError: null,
         nodes: [],
 
-        // Devices
+        // 设备
         devicesLoading: false,
         devicesError: null,
         devicesList: null,
 
-        // Presence
+        // 在线状态
         presenceEntries: [],
         presenceError: null,
         presenceStatus: null,
         debugHealth: null,
 
-        // Event log
+        // 事件日志
         eventLogBuffer: [],
         eventLog: [],
 
-        // Exec approvals
+        // 执行审批
         execApprovalQueue: [],
         execApprovalError: null,
 
-        // Cron
+        // 定时任务
         cronLoading: false,
         cronJobs: [],
         cronStatus: null,
@@ -244,7 +244,7 @@ export const useGatewayStore = defineStore('gateway', {
         cronRunsTotal: 0,
         cronBusy: false,
 
-        // Skills
+        // 技能
         skillsLoading: false,
         skillsReport: null,
         skillsError: null,
@@ -252,7 +252,7 @@ export const useGatewayStore = defineStore('gateway', {
         skillEdits: {},
         skillMessages: {},
 
-        // Logs
+        // 系统日志
         logsLoading: false,
         logsError: null,
         logsCursor: null,
@@ -265,19 +265,19 @@ export const useGatewayStore = defineStore('gateway', {
         logsLevelFilter: 'all',
         logsSearchQuery: '',
 
-        // Assistant identity
+        // 助手身份
         assistantName: 'Assistant',
         assistantAvatar: null,
         assistantAgentId: null,
 
-        // Tool stream
+        // 工具流
         toolStreamData: null,
         toolStreamById: new Map(),
         toolStreamOrder: [],
         chatToolMessages: [],
         toolStreamSyncTimer: null,
 
-        // Config
+        // 配置
         configLoading: false,
         configRaw: '',
         configRawOriginal: '',
@@ -299,7 +299,7 @@ export const useGatewayStore = defineStore('gateway', {
         configActiveSection: null,
         configActiveSubsection: null,
 
-        // Misc
+        // 杂项
         onboarding: false,
         isNewSessionPending: false,
         renameSessionKey: null,
@@ -321,7 +321,7 @@ export const useGatewayStore = defineStore('gateway', {
             }))
         },
         sessions: (state) => state.sessionsResult?.sessions || [],
-        // Get default agent ID from session defaults
+        // 从会话默认值获取默认 Agent ID
         defaultAgentId: (state) => {
             const snapshot = state.hello?.snapshot as { sessionDefaults?: { defaultAgentId?: string } } | undefined
             return snapshot?.sessionDefaults?.defaultAgentId?.trim() || state.agentsList?.agents?.[0]?.id || 'main'
@@ -333,12 +333,12 @@ export const useGatewayStore = defineStore('gateway', {
 
             return snapshot?.sessionDefaults?.mainSessionKey?.trim() || createAgentMainSessionKey(agentId)
         },
-        // Expose settings store for app-chat.ts compatibility
+        // 暴露设置 store 以兼容 app-chat.ts
         settings: () => useUiSettingsStore()
     },
 
     actions: {
-        // ==================== Connection ====================
+        // ==================== 连接管理 (Connection) ====================
         async connect(): Promise<void> {
             const settings = useUiSettingsStore()
 
@@ -354,7 +354,7 @@ export const useGatewayStore = defineStore('gateway', {
             this.execApprovalQueue = []
             this.execApprovalError = null
 
-            // Stop existing client
+            // 停止现有客户端
             this.client?.stop()
 
             return new Promise((resolve, reject) => {
@@ -381,17 +381,19 @@ export const useGatewayStore = defineStore('gateway', {
                         this.applySnapshot(hello)
 
 
-                        // Reset orphaned chat run state
+                        // 重置孤立的聊天运行状态
                         this.chatRunId = null
                         this.chatStream = null
                         this.chatStreamStartedAt = null
                         resetToolStream(this as unknown as Parameters<typeof resetToolStream>[0])
 
-                        // Load initial data
-                        void loadConfig(this as unknown as Parameters<typeof loadConfig>[0]);
+                        // 加载初始数据
+                        void this.loadConfig();
                         void this.loadAgents();
                         void this.loadSessions();
-                        //开始创建新的session
+
+
+                        //开始创建新的session,如果想访问首页就是新会话,则取消注释
                         //this.createNewSession();
 
                         resolve()
@@ -412,7 +414,7 @@ export const useGatewayStore = defineStore('gateway', {
                     }
                 })
 
-                // Set connection timeout
+                // 设置连接超时
                 connectionTimeout = window.setTimeout(() => {
                     if (this.connecting) {
                         this.connecting = false
@@ -432,7 +434,7 @@ export const useGatewayStore = defineStore('gateway', {
             this.connecting = false
         },
 
-        // ==================== Event Handling ====================
+        // ==================== 事件处理 (Event Handling) ====================
         handleGatewayEvent(evt: GatewayEventFrame) {
             try {
                 this.handleGatewayEventUnsafe(evt)
@@ -442,50 +444,6 @@ export const useGatewayStore = defineStore('gateway', {
         },
 
         handleGatewayEventUnsafe(evt: GatewayEventFrame) {
-            // Intercept auto-naming events
-            if (evt.event === 'chat') {
-                const payload = evt.payload as ChatEventPayload | undefined
-                if (payload?.runId && autoNamingRuns.has(payload.runId)) {
-                    const ctx = autoNamingRuns.get(payload.runId)!
-
-                    if (payload.state === 'delta') {
-                        const text = extractText(payload.message)
-                        if (text) ctx.titleBuffer += text
-                    } else if (payload.state === 'final') {
-                        // Clean up title (remove quotes, trim)
-                        let title = ctx.titleBuffer.trim()
-                        if (title.startsWith('"') && title.endsWith('"')) {
-                            title = title.slice(1, -1).trim()
-                        }
-
-                        autoNamingRuns.delete(payload.runId);
-
-                        // Execute async update sequentially
-                        (async () => {
-                            try {
-                                // wrapper: Use force option to skip confirmation
-                                if (this.renameSessionKey) {
-                                    await deleteSession(this as unknown as SessionsState, this.renameSessionKey)
-                                }
-
-                            } catch (e) {
-                                console.warn('Failed to cleanup auto-naming session', e)
-                            }
-
-                            if (title) {
-                                // patchSession internally calls loadSessions
-                                await this.patchSession(ctx.targetSessionKey, { label: title })
-                            } else {
-                                await this.loadSessions()
-                            }
-                        })()
-                    } else if (payload.state === 'error' || payload.state === 'aborted') {
-                        autoNamingRuns.delete(payload.runId)
-                    }
-                    return
-                }
-            }
-
             this.eventLogBuffer = [
                 { ts: Date.now(), event: evt.event, payload: evt.payload },
                 ...this.eventLogBuffer
@@ -503,41 +461,31 @@ export const useGatewayStore = defineStore('gateway', {
             if (evt.event === 'chat') {
                 const settings = useUiSettingsStore()
                 const payload = evt.payload as ChatEventPayload | undefined
+                // 拦截自动命名事件
+                if (payload?.runId && autoNamingRuns.has(payload.runId)) {
+                    this.handleSessionNamingEvent(payload)
+                    return
+                }
                 if (payload?.sessionKey) {
                     settings.lastActiveSessionKey = payload.sessionKey
                 }
-                const state = handleChatEvent(this as unknown as ChatState, payload)
+                const state = this.handleChatEvent(payload);
                 if (state === 'final' || state === 'error' || state === 'aborted') {
                     resetToolStream(this as unknown as Parameters<typeof resetToolStream>[0])
-                    // Chat queue will be flushed automatically by app-chat.ts
-                    const runId = payload?.runId
-                    let shouldRefreshSessions = false
-
-                    // Check for specific runId
+                    void flushChatQueueForEvent(this as unknown as Parameters<typeof flushChatQueueForEvent>[0]);
+                    const runId = payload?.runId;
                     if (runId && this.refreshSessionsAfterChat.has(runId)) {
-                        this.refreshSessionsAfterChat.delete(runId)
-                        shouldRefreshSessions = true
-                    }
-
-                    // Check for new session marker
-                    if (this.isNewSessionPending) {
-                        this.isNewSessionPending = false
-
-                        // Trigger auto-rename for this session
-                        if (state === 'final') {
-                            void this.triggerAutoRename(this.sessionKey)
-                            // process will be refreshed by auto-rename logic
+                        this.refreshSessionsAfterChat.delete(runId);
+                        if (state === "final") {
+                            void this.loadSessions();
                         }
                     }
-
-                    if (shouldRefreshSessions && state === 'final') {
-
-                        void this.loadSessions()
-                    }
                 }
-                if (state === 'final') {
-                    void loadChatHistory(this as unknown as ChatState)
-                }
+                // 🔧 修复页面闪烁: 移除loadChatHistory调用
+                // 原因: 消息已通过delta事件同步到前端，重新加载会导致chatLoading状态闪烁
+                // if (state === 'final') {
+                //     void loadChatHistory(this as unknown as ChatState)
+                // }
                 return
             }
 
@@ -643,7 +591,7 @@ export const useGatewayStore = defineStore('gateway', {
             }
         },
 
-        // ==================== Chat ====================
+        // ==================== 聊天 (Chat) ====================
         async sendMessage(message?: string, attachments?: ChatAttachment[]) {
             this.chatAttachments = attachments || []
             await handleSendChat(this as unknown as ChatHost, message, {})
@@ -662,49 +610,58 @@ export const useGatewayStore = defineStore('gateway', {
             await loadChatHistory(this as unknown as ChatState)
         },
 
-        async triggerAutoRename(targetKey: string) {
-            if (!this.client || !this.connected) return
+        //主要是为了解决,接收完ai消息后,页面会刷新,从chat.ts中分离出来
+        handleChatEvent(payload?: ChatEventPayload) {
+            const state = this;
+            if (!payload) {
+                return null;
+            }
+            if (payload.sessionKey !== state.sessionKey) {
+                return null;
+            }
 
-            // Get context from current chat messages
-            const messages = this.chatMessages as any[]
-            if (messages.length === 0) return
-
-            const firstUserMsg = messages.find(m => m.role === 'user')?.content
-            const firstAsstMsg = messages.find(m => m.role === 'assistant')?.content
-
-            // Extract text from content blocks
-            const getText = (content: any) => {
-                if (typeof content === 'string') return content
-                if (Array.isArray(content)) {
-                    return content.map(b => b.text || '').join(' ')
+            // Final from another run (e.g. sub-agent announce): refresh history to show new message.
+            // See https://github.com/openclaw/openclaw/issues/1909
+            if (payload.runId && state.chatRunId && payload.runId !== state.chatRunId) {
+                if (payload.state === "final") {
+                    return "final";
                 }
-                return ''
+                return null;
             }
 
-            const userText = getText(firstUserMsg)
-            const asstText = getText(firstAsstMsg)
-
-            if (!userText) return
-
-            const runId = generateUUID()
-            autoNamingRuns.set(runId, { targetSessionKey: targetKey, titleBuffer: '' })
-
-            try {
-                this.renameSessionKey = `agent:${this.assistantAgentId}:session:rename`
-                // Request title generation from agent:main:session:name
-                await this.client.request('chat.send', {
-                    sessionKey: this.renameSessionKey,
-                    message: `Generate a short title (max 6 words) for this conversation.\nUser: ${userText.substring(0, 500)}\nAssistant: ${asstText.substring(0, 500)}`,
-                    deliver: false,
-                    idempotencyKey: runId
-                })
-            } catch (err) {
-                console.error('Failed to trigger auto-rename', err)
-                autoNamingRuns.delete(runId)
+            if (payload.state === "delta") {
+                const next = extractText(payload.message);
+                if (typeof next === "string") {
+                    const current = state.chatStream ?? "";
+                    if (!current || next.length >= current.length) {
+                        state.chatStream = next;
+                    }
+                }
+            } else if (payload.state === "final") {
+                console.log('💾 [handleChatEvent] final - adding message to chatMessages')
+                // 🔧 修复: 在final时将assistant消息添加到chatMessages
+                // 这样就不需要调用loadChatHistory重新加载了
+                if (payload.message) {
+                    state.chatMessages = [...state.chatMessages, payload.message];
+                }
+                state.chatStream = null;
+                state.chatRunId = null;
+                state.chatStreamStartedAt = null;
+            } else if (payload.state === "aborted") {
+                state.chatStream = null;
+                state.chatRunId = null;
+                state.chatStreamStartedAt = null;
+            } else if (payload.state === "error") {
+                state.chatStream = null;
+                state.chatRunId = null;
+                state.chatStreamStartedAt = null;
+                state.lastError = payload.errorMessage ?? "chat error";
             }
+            return payload.state;
         },
 
-        // ==================== Sessions ====================
+
+        // ==================== 会话 (Sessions) ====================
         async loadSessions() {
             const settings = useUiSettingsStore()
             await loadSessions(this as unknown as SessionsState, {
@@ -717,7 +674,7 @@ export const useGatewayStore = defineStore('gateway', {
             await this.loadSessions();
         },
 
-        //需要返回删除结果,且openclaw中的里面有弹窗
+        //需要返回删除结果,且openclaw中的里面有弹窗,从session控制器中分离出来
         async deleteSession(key: string) {
             const state = this;
             if (!state.client || !state.connected) {
@@ -748,10 +705,10 @@ export const useGatewayStore = defineStore('gateway', {
         },
 
 
-        async setSessionKey(key: string, opts?: { isNewSession?: boolean }) {
+        async setSessionKey(key: string, loadHistory = true) {
             this.sessionKey = key
 
-            // Clear ephemeral state to prevent leaks from previous session
+            // 清除临时状态以防上次会话泄漏
             this.chatRunId = null
             this.chatStream = null
             this.chatStreamStartedAt = null
@@ -763,12 +720,10 @@ export const useGatewayStore = defineStore('gateway', {
             settings.lastActiveSessionKey = key
             settings.persist()
             this.loadAssistantIdentity()
-            // Mark to refresh sessions after first chat for new sessions
-            this.isNewSessionPending = !!opts?.isNewSession
-            if (this.isNewSessionPending) {
-                return
+
+            if (loadHistory) {
+                this.loadChatHistory();
             }
-            this.loadChatHistory();
         },
 
 
@@ -783,9 +738,70 @@ export const useGatewayStore = defineStore('gateway', {
         },
 
         //只有在第一次发送消息的时候,才是真正创建session
-        async commitNewSession() {
+        async commitNewSession(inputText: string) {
             const newKey = `agent:${this.assistantAgentId}:session:${generateUUID()}`
-            await this.setSessionKey(newKey, { isNewSession: true })
+            await this.setSessionKey(newKey, false)
+            void this.triggerSessionRename(this.sessionKey, inputText)
+            this.isNewSessionPending = false;
+        },
+
+        async triggerSessionRename(targetKey: string, userText: string) {
+            if (!this.client || !this.connected || !userText) return
+            const runId = generateUUID()
+            autoNamingRuns.set(runId, { targetSessionKey: targetKey, titleBuffer: '' })
+
+            try {
+                this.renameSessionKey = `agent:${this.assistantAgentId}:session:rename`
+                // 此时请求 agent:main:session:name 生成标题
+                await this.client.request('chat.send', {
+                    sessionKey: this.renameSessionKey,
+                    message: `Generate a short title (max 6 words) for this conversation.\nUser: ${userText.substring(0, 500)}`,
+                    deliver: false,
+                    idempotencyKey: runId
+                })
+            } catch (err) {
+                console.error('Failed to trigger auto-rename', err)
+                autoNamingRuns.delete(runId)
+            }
+        },
+
+        handleSessionNamingEvent(payload: ChatEventPayload) {
+            const ctx = autoNamingRuns.get(payload.runId!)!
+
+            if (payload.state === 'delta') {
+                const text = extractText(payload.message)
+                if (text) ctx.titleBuffer += text
+            } else if (payload.state === 'final') {
+                // 清理标题（去掉引号，修剪）
+                let title = ctx.titleBuffer.trim()
+                if (title.startsWith('"') && title.endsWith('"')) {
+                    title = title.slice(1, -1).trim()
+                }
+
+                autoNamingRuns.delete(payload.runId!);
+
+                // Execute async update sequentially
+                (async () => {
+                    try {
+                        // wrapper: 使用 force 选项跳过确认
+                        if (this.renameSessionKey) {
+                            await this.deleteSession(this.renameSessionKey)
+                        }
+
+                    } catch (e) {
+                        console.warn('Failed to cleanup auto-naming session', e)
+                    }
+
+                    if (title) {
+                        // patchSession 内部调用 loadSessions
+                        await this.patchSession(ctx.targetSessionKey, { label: title })
+                    } else {
+                        await this.loadSessions()
+                    }
+                })()
+            } else if (payload.state === 'error' || payload.state === 'aborted') {
+                autoNamingRuns.delete(payload.runId!)
+            }
         },
 
         // ==================== Agents ====================
@@ -928,6 +944,11 @@ export const useGatewayStore = defineStore('gateway', {
         },
 
         // ==================== Config ====================
+
+        async loadConfig() {
+            await loadConfig(this as unknown as ConfigState)
+        },
+
         updateConfigFormValue(path: string[], value: unknown) {
             updateConfigFormValue(this as unknown as ConfigState, path, value)
         },

@@ -102,7 +102,7 @@ const handleSend = async () => {
     }
 
     if (gatewayStore.isNewSessionPending) {
-        await gatewayStore.commitNewSession()
+        await gatewayStore.commitNewSession(inputText)
     }
 
     // Clone attachments immediately to avoid reference issues when clearing
@@ -285,9 +285,10 @@ watch(() => route.query, async (query) => {
                 </div>
 
                 <!-- Chat messages - only this area scrolls -->
-                <div v-else ref="messagesContainerRef" class="flex-1 overflow-y-auto p-4">
+                <div v-show="processedMessages.length > 0" ref="messagesContainerRef"
+                    class="flex-1 overflow-y-auto p-4">
                     <div class="space-y-4 mx-auto w-full" :class="{ 'max-w-3xl': !settingsStore.isWideMode }">
-                        <MessageBubble v-for="(msg, index) in processedMessages" :key="index" :message="msg"
+                        <MessageBubble v-for="(msg, index) in processedMessages" :key="msg.id" :message="msg"
                             :assistant-name="gatewayStore.assistantName || 'Assistant'"
                             :assistant-avatar="isAvatarUrl(gatewayStore.assistantAvatar) ? gatewayStore.chatAvatarUrl : gatewayStore.assistantAvatar"
                             :current-reading-msg-id="currentReadingMsgId" :format-time="formatTime"
