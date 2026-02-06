@@ -4,23 +4,40 @@ import {
     SpeakerWaveIcon,
     StopIcon
 } from '@heroicons/vue/24/outline'
+import { computed } from 'vue'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ToolInvocation from './ToolInvocation.vue'
+import { useGatewayStore } from '../../stores/gateway'
+import { useTTS } from '../../composables/useTTS'
 import type { DisplayMessage } from '../../composables/useChatMessages'
 
 const props = defineProps<{
     message: DisplayMessage
-    assistantName: string
-    assistantAvatar: string | null | undefined
-    currentReadingMsgId: string | null
-    formatTime: (timestamp?: number) => string
-    isAvatarUrl: (avatar: string | null | undefined) => boolean
+    isLoading?: boolean
 }>()
 
 const emit = defineEmits<{
     (e: 'copy', msg: DisplayMessage): void
     (e: 'read-aloud', msg: DisplayMessage): void
 }>()
+
+const gatewayStore = useGatewayStore()
+const { currentReadingMsgId } = useTTS()
+
+// Helper functions
+const formatTime = (timestamp?: number): string => {
+    if (!timestamp) return ''
+    const date = new Date(timestamp)
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+}
+
+const isAvatarUrl = (avatar: string | null | undefined): boolean => {
+    if (!avatar) return false
+    return avatar.startsWith('http') || avatar.startsWith('data:') || avatar.startsWith('/')
+}
+
+const assistantName = computed(() => gatewayStore.assistantName || 'Assistant')
+const assistantAvatar = computed(() => isAvatarUrl(gatewayStore.assistantAvatar) ? gatewayStore.chatAvatarUrl : gatewayStore.assistantAvatar)
 </script>
 
 <template>
@@ -42,6 +59,7 @@ const emit = defineEmits<{
         <!-- Header -->
         <div class="chat-header opacity-70 text-xs mb-1">
             {{ message.role === 'user' ? '你' : assistantName || 'Assistant' }}
+            <!-- <span v-if="isLoading && message.role !== 'user'" class="ml-1 loading loading-dots loading-xs"></span> -->
             <time v-if="message.timestamp" class="ml-1">{{ formatTime(message.timestamp) }}</time>
         </div>
 
@@ -86,8 +104,11 @@ const emit = defineEmits<{
         <!-- Assistant Message Bubble -->
         <div v-else class="chat-bubble w-full relative">
             <div class="whitespace-normal flex flex-col gap-2">
-                <template v-for="(block, bIndex) in message.blocks" :key="bIndex">
-                    <MarkdownRenderer v-if="block.type === 'text'" :content="block.text || ''" />
+                <!-- Loading indicator if empty or just waiting -->
+                <div v-if="isLoading && (!message.blocks.length || (message.blocks.length === 1 && message.blocks[0].type === 'text' && !message.blocks[0].text))"
+                    class="loading loading-dots loading-sm opacity-50 "></div>
+                <template v-else v-for="(block, bIndex) in message.blocks" :key="bIndex">
+                    <MarkdownRenderer v-if="block.type === 'text'" :content="block.text || ``" />
                     <ToolInvocation v-else-if="block.type === 'tool'" :toolName="block.toolName || 'Unknown Tool'"
                         :args="block.toolArgs || {}" :result="block.toolResult" :state="block.toolState"
                         :errorMessage="block.toolError" />

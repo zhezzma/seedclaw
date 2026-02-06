@@ -32,7 +32,7 @@ const getDefaultSettings = (): UiSettings => ({
     theme: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
     isSidebarOpen: false,
     isWideMode: false,
-    showBottomNav: true,
+    showBottomNav: false,
     sessionsActiveDays: 3,
     asrToken: '',
     asrEngine: 'fun-asr',
@@ -40,8 +40,8 @@ const getDefaultSettings = (): UiSettings => ({
     ttsEngine: 'edge',
     ttsToken: '',
     ttsModel: '',
-    silenceDuration: 3000,
-    autoSendCommands: false
+    silenceDuration: 2000,
+    autoSendCommands: true
 })
 
 const loadConfig = (): UiSettings => {

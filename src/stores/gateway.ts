@@ -612,7 +612,9 @@ export const useGatewayStore = defineStore('gateway', {
             await loadChatHistory(this as unknown as ChatState)
         },
 
-        //CHANGE_OPENCLAW:主要是为了解决,接收完ai消息后,页面会刷新,从chat.ts中分离出来
+        //CHANGE_OPENCLAW:主要是为了解决,接收完ai消息后,页面会刷新,从chat.ts中分离出来,
+        //openclaw的流运行的时候不会传递role==toolResult,以及assistant角色包含type: "toolCall"的内容
+        //只有结束后通过chat.history加载才能看到..但是加载会导致页面刷新.所以这里是获取到数据然后添加进去
         handleChatEvent(payload?: ChatEventPayload) {
             const state = this;
             if (!payload) {
@@ -640,12 +642,77 @@ export const useGatewayStore = defineStore('gateway', {
                     }
                 }
             } else if (payload.state === "final") {
-                console.log('💾 [handleChatEvent] final - adding message to chatMessages')
-                // 🔧 修复: 在final时将assistant消息添加到chatMessages
-                // 这样就不需要调用loadChatHistory重新加载了
+                console.log('💾 [handleChatEvent] final - Smart Syncing tools')
+
+                // 1. Manually append the final text message (to avoid flicker)
                 if (payload.message) {
                     state.chatMessages = [...state.chatMessages, payload.message];
                 }
+
+                // 2. Fetch recent history to find and insert missing tool messages
+                if (state.client && state.connected && payload.message) {
+                    const localMsg = payload.message as any;
+                    state.client.request('chat.history', {
+                        sessionKey: state.sessionKey,
+                        limit: 20
+                    }).then((res: any) => {
+                        const history = (res.messages || []) as any[];
+                        // Find the final message in history
+                        let matchIndex = -1;
+                        if (localMsg.id) {
+                            matchIndex = history.findIndex((m: any) => m.id === localMsg.id);
+                        }
+                        if (matchIndex === -1 && localMsg.timestamp) {
+                            matchIndex = history.findIndex((m: any) =>
+                                m.timestamp === localMsg.timestamp && m.role === localMsg.role
+                            );
+                        }
+                        if (matchIndex === -1) {
+                            // Text content fallback
+                            const localText = extractText(localMsg) || '';
+                            // Search backwards
+                            for (let i = history.length - 1; i >= 0; i--) {
+                                const m = history[i];
+                                if (m.role === localMsg.role) {
+                                    const mText = extractText(m) || '';
+                                    if (mText && (mText === localText || (mText.length > localText.length && mText.endsWith(localText)))) {
+                                        matchIndex = i;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (matchIndex > 0) {
+                            const missingTools: any[] = [];
+                            // Look backwards from the matched message for intermediate tool messages
+                            for (let i = matchIndex - 1; i >= 0; i--) {
+                                const prev = history[i];
+                                // Stop at user message or if we hit an existing message?
+                                // Ideally check if this message is already in state.chatMessages
+                                if (prev.role === 'user') break;
+
+                                // Check duplicates just in case (by ID)
+                                const exists = prev.id && state.chatMessages.some((existing: any) => existing.id === prev.id);
+                                if (exists) break;
+
+                                missingTools.unshift(prev);
+                            }
+
+                            if (missingTools.length > 0) {
+                                console.log(`[SmartSync] Inserting ${missingTools.length} missing tool messages`);
+                                const newMsgList = [...state.chatMessages];
+                                // Insert before the last message (which is localMsg)
+                                const insertPos = newMsgList.length - 1;
+                                if (insertPos >= 0) {
+                                    newMsgList.splice(insertPos, 0, ...missingTools);
+                                    state.chatMessages = newMsgList;
+                                }
+                            }
+                        }
+                    }).catch(e => console.warn("[SmartSync] Failed to sync tools", e));
+                }
+
                 state.chatStream = null;
                 state.chatRunId = null;
                 state.chatStreamStartedAt = null;

@@ -9,7 +9,6 @@ import { useVoiceChat } from '../composables/useVoiceChat'
 import ChatHeader from '../components/chat/ChatHeader.vue'
 import MessageBubble from '../components/chat/MessageBubble.vue'
 import ChatInput from '../components/chat/ChatInput.vue'
-import MarkdownRenderer from '../components/chat/MarkdownRenderer.vue'
 import VoiceChatOverlay from '../components/chat/VoiceChatOverlay.vue'
 import AppSidebar from '../components/AppSidebar.vue'
 import { createAgentMainSessionKey, isAgentMainSession } from '../utils/session-key-helpers'
@@ -32,8 +31,6 @@ const {
     streamingText,
     scrollToBottom,
     setupScrollWatchers,
-    formatTime,
-    isAvatarUrl,
     refreshChatAndScroll
 } = useChatMessages(messagesContainerRef)
 
@@ -251,7 +248,7 @@ watch(() => route.query, async (query) => {
 <template>
     <div class="h-full w-full flex">
         <!-- Sidebar drawer (Mobile) -->
-        <div class="drawer lg:hidden absolute inset-0 pointer-events-none z-50">
+        <div class="drawer lg:hidden absolute inset-0 pointer-events-none z-[100]">
             <input id="sidebar-drawer" type="checkbox" class="drawer-toggle pointer-events-auto" />
             <div class="drawer-side pointer-events-auto h-full">
                 <label for="sidebar-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
@@ -288,33 +285,11 @@ watch(() => route.query, async (query) => {
                 <div v-show="processedMessages.length > 0" ref="messagesContainerRef"
                     class="flex-1 overflow-y-auto p-4">
                     <div class="space-y-4 mx-auto w-full" :class="{ 'max-w-3xl': !settingsStore.isWideMode }">
-                        <MessageBubble v-for="(msg, index) in processedMessages" :key="msg.id" :message="msg"
-                            :assistant-name="gatewayStore.assistantName || 'Assistant'"
-                            :assistant-avatar="isAvatarUrl(gatewayStore.assistantAvatar) ? gatewayStore.chatAvatarUrl : gatewayStore.assistantAvatar"
-                            :current-reading-msg-id="currentReadingMsgId" :format-time="formatTime"
-                            :is-avatar-url="isAvatarUrl" @copy="copyMessage" @read-aloud="readAloud" />
+                        <MessageBubble v-for="(msg, index) in processedMessages" :key="index" :message="msg"
+                            @copy="copyMessage" @read-aloud="readAloud"
+                            :is-loading="isBusy && (index === processedMessages.length - 1)" />
 
-                        <!-- Streaming response -->
-                        <div v-if="streamingText || isBusy" class="chat chat-start">
-                            <div class="chat-image avatar hidden md:block">
-                                <div
-                                    class="w-10 rounded-full bg-base-300 flex items-center justify-center overflow-hidden">
-                                    <img v-if="isAvatarUrl(gatewayStore.assistantAvatar)"
-                                        :src="gatewayStore.chatAvatarUrl || undefined"
-                                        class="w-full h-full object-cover" />
-                                    <span v-else-if="gatewayStore.assistantAvatar" class="text-lg">{{
-                                        gatewayStore.assistantAvatar }}</span>
-                                    <span v-else class="text-lg">🤖</span>
-                                </div>
-                            </div>
-                            <div class="chat-header opacity-70 text-xs mb-1">
-                                {{ gatewayStore.assistantName || 'Assistant' }}
-                                <span class="ml-1 loading loading-dots loading-xs"></span>
-                            </div>
-                            <div class="chat-bubble w-full overflow-hidden" :class="{ 'opacity-50': !streamingText }">
-                                <MarkdownRenderer :content="streamingText || '...'" />
-                            </div>
-                        </div>
+
                     </div>
                 </div>
             </div>

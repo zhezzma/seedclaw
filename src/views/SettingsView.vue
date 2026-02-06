@@ -16,7 +16,8 @@ import {
     SpeakerWaveIcon,
     DocumentTextIcon,
     ArrowTopRightOnSquareIcon,
-    ComputerDesktopIcon
+    ComputerDesktopIcon,
+    ViewColumnsIcon
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
@@ -187,6 +188,16 @@ const logout = () => {
 
 
 
+                            <li class="flex items-center justify-between p-4 lg:hidden">
+                                <div class="flex items-center gap-3">
+                                    <ViewColumnsIcon class="h-5 w-5 text-base-content/60" />
+                                    <span class="font-medium">显示底部导航</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <input type="checkbox" class="toggle toggle-primary"
+                                        v-model="configStore.showBottomNav" @change="configStore.persist()" />
+                                </div>
+                            </li>
                         </ul>
                     </div>
                 </div>

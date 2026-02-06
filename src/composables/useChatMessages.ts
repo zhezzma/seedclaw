@@ -32,15 +32,21 @@ export function useChatMessages(messagesContainerRef: Ref<HTMLDivElement | null>
     // Transform raw messages into display messages with merged tool results
     const processedMessages = computed(() => {
         const rawMessages = gatewayStore.chatMessages as any[]
+        const toolMessages = gatewayStore.chatToolMessages as any[]
+        if (toolMessages.length > 0) {
+            console.log(`[useChatMessages] Recomputing. Tool messages: ${toolMessages.length}`, toolMessages)
+        }
+        const allMessages = [...rawMessages, ...toolMessages]
         const displayMessages: DisplayMessage[] = []
 
         // map toolCallId -> { messageIndex, blockIndex }
         const toolCallRegistry = new Map<string, { msgIdx: number, blockIdx: number }>()
 
-        for (const msg of rawMessages) {
-            if (msg.role === 'toolResult') {
+        for (const msg of allMessages) {
+            if (msg.role === 'toolResult' || msg.role === 'toolresult') {
                 // Find corresponding tool call and update it
-                const reg = toolCallRegistry.get(msg.toolCallId)
+                const toolCallId = msg.toolCallId || (msg.content && msg.content.toolCallId)
+                const reg = toolCallRegistry.get(toolCallId || msg.toolCallId)
                 if (reg) {
                     const targetMsg = displayMessages[reg.msgIdx]
                     if (targetMsg) {
@@ -48,7 +54,19 @@ export function useChatMessages(messagesContainerRef: Ref<HTMLDivElement | null>
                         if (targetBlock && targetBlock.type === 'tool') {
                             targetBlock.toolResult = msg.content
 
-                            // Simple error detection logic
+                            // Check for error in toolresult content
+                            if (msg.content && typeof msg.content === 'object' && msg.content.type === 'toolresult') {
+                                if (msg.content.isError) {
+                                    targetBlock.toolState = 'error'
+                                    targetBlock.toolError = msg.content.text || 'Error'
+                                } else {
+                                    // If we have an explicit toolresult block, use its text as result
+                                    targetBlock.toolResult = msg.content.text
+                                    targetBlock.toolState = 'success'
+                                }
+                            }
+
+                            // Simple error detection logic (fallback)
                             let isError = false
                             let errorMsg = ''
 
@@ -60,8 +78,12 @@ export function useChatMessages(messagesContainerRef: Ref<HTMLDivElement | null>
                                 errorMsg = msg.details.error || 'Unknown error'
                             }
 
-                            targetBlock.toolState = isError ? 'error' : 'success'
-                            targetBlock.toolError = errorMsg
+                            if (isError) {
+                                targetBlock.toolState = 'error'
+                                targetBlock.toolError = errorMsg
+                            } else if (!targetBlock.toolState || targetBlock.toolState === 'calling') {
+                                targetBlock.toolState = 'success'
+                            }
                         }
                     }
                 }
@@ -80,16 +102,37 @@ export function useChatMessages(messagesContainerRef: Ref<HTMLDivElement | null>
                 for (const item of msg.content) {
                     if (item.type === 'text') {
                         if (item.text) blocks.push({ type: 'text', text: item.text })
-                    } else if (item.type === 'toolCall') {
+                    } else if (item.type === 'toolCall' || item.type === 'toolcall') {
                         blocks.push({
                             type: 'tool',
-                            toolCallId: item.id,
+                            toolCallId: item.id || item.toolCallId, // support both
                             toolName: item.name,
                             toolArgs: item.arguments,
                             toolState: 'calling'
                         })
                         // Register location
-                        toolCallRegistry.set(item.id, { msgIdx: targetMsgIdx, blockIdx: baseBlockIdx + blocks.length - 1 })
+                        const id = item.id || item.toolCallId
+                        if (id) {
+                            toolCallRegistry.set(id, { msgIdx: targetMsgIdx, blockIdx: baseBlockIdx + blocks.length - 1 })
+                        }
+                    } else if (item.type === 'toolResult' || item.type === 'toolresult') {
+                        // Some formats might include toolresult inline
+                        const id = item.toolCallId || item.name // fallback to name if ID missing? warning: unreliable
+                        // We really need toolCallId.
+                        // But for now let's assume if we see toolresult here we might need to update previous block?
+                        // Actually, standard structure usually separates them or puts them in separate messages.
+                        // The app-tool-stream structure puts toolcall and toolresult in the SAME content array sometimes?
+                        // buildToolStreamMessage puts BOTH toolcall and toolresult in content array.
+
+                        // If we are processing a combined message (toolcall + result in one message)
+                        // We need to find the toolcall block we just added (or previously added)
+
+                        // If it's in the same blocks array:
+                        const prevBlock = blocks.find(b => b.type === 'tool' && b.toolName === item.name) // imperfect matching
+                        if (prevBlock) {
+                            prevBlock.toolResult = item.text
+                            prevBlock.toolState = 'success'
+                        }
                     } else if (item.type === 'image') {
                         blocks.push({
                             type: 'image',
@@ -112,12 +155,46 @@ export function useChatMessages(messagesContainerRef: Ref<HTMLDivElement | null>
                     lastMsg.blocks.push(...blocks)
                 } else {
                     displayMessages.push({
-                        id: msg.id || `${gatewayStore.sessionKey || 'temp'}-msg-fallback-${displayMessages.length}`,
+                        id: msg.id || `${gatewayStore.sessionKey || 'temp'}-msg-${displayMessages.length}`,
                         role: msg.role as 'user' | 'assistant',
                         blocks,
                         timestamp: msg.timestamp
                     })
                 }
+            }
+        }
+
+        // Append streaming text
+        if (gatewayStore.chatStream) {
+            const lastMsg = displayMessages.length > 0 ? displayMessages[displayMessages.length - 1] : null
+            if (lastMsg && lastMsg.role === 'assistant') {
+                // Try to append to last text block if possible
+                const lastBlock = lastMsg.blocks.length > 0 ? lastMsg.blocks[lastMsg.blocks.length - 1] : null
+                if (lastBlock && lastBlock.type === 'text') {
+                    lastBlock.text += gatewayStore.chatStream
+                } else {
+                    lastMsg.blocks.push({ type: 'text', text: gatewayStore.chatStream })
+                }
+            } else {
+                displayMessages.push({
+                    id: 'streaming-pending',
+                    role: 'assistant',
+                    blocks: [{ type: 'text', text: gatewayStore.chatStream }],
+                    timestamp: Date.now()
+                })
+            }
+        } else if (gatewayStore.isChatBusy) {
+            // Show pending state if busy
+            const lastMsg = displayMessages.length > 0 ? displayMessages[displayMessages.length - 1] : null
+            if (lastMsg && lastMsg.role === 'assistant') {
+                // Already have assistant bubble
+            } else {
+                displayMessages.push({
+                    id: 'streaming-pending',
+                    role: 'assistant',
+                    blocks: [{ type: 'text', text: '' }],
+                    timestamp: Date.now()
+                })
             }
         }
 
