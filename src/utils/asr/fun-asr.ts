@@ -18,7 +18,12 @@ export class FunASRService implements ASREngine {
 
     private getApiKey(): string {
         const store = useUiSettingsStore();
-        return store.asrToken || import.meta.env.VITE_ASRTOKEN || '';
+        // 开发模式下可以使用 .env 中的 VITE_ASRTOKEN，生产环境只用 store 
+        //Vite 的 tree-shaking 会在生产构建时移除 import.meta.env.DEV 分支的代码，因为它是静态的 false。
+        if (import.meta.env.DEV) {
+            return store.asrToken || import.meta.env.VITE_ASRTOKEN || '';
+        }
+        return store.asrToken || '';
     }
 
     private getModel(): string {
