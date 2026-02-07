@@ -28,7 +28,7 @@ export class FunASRService implements ASREngine {
 
     private getModel(): string {
         const store = useUiSettingsStore();
-        return store.asrModel || 'fun-asr-realtime-2025-11-07';
+        return store.asrModel;
     }
 
     async start(onResult: (text: string, isFinal: boolean) => void): Promise<void> {

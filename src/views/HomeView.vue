@@ -383,13 +383,12 @@ async function applyDefaultSessionBehavior() {
             <!-- Main content area -->
             <div class="flex-1 flex flex-col min-h-0">
                 <!-- Loading state -->
-                <div v-if="isLoading && processedMessages.length === 0" class="flex-1 flex items-center justify-center">
+                <div v-if="isLoading" class="flex-1 flex items-center justify-center">
                     <span class="loading loading-spinner loading-lg"></span>
                 </div>
 
                 <!-- Welcome message when no messages -->
-                <div v-else-if="processedMessages.length === 0"
-                    class="flex-1 flex flex-col items-center justify-center p-4">
+                <div v-else-if="isNewSessionPending" class="flex-1 flex flex-col items-center justify-center p-4">
                     <div class="text-center">
                         <h1 class="text-3xl font-bold mb-2">Hi, 欢迎使用 SeedClaw</h1>
                         <p class="text-base-content/60">我是 SeedClaw，聊天、写作、搜索都在行，助你灵感无限</p>
@@ -397,8 +396,7 @@ async function applyDefaultSessionBehavior() {
                 </div>
 
                 <!-- Chat messages - only this area scrolls -->
-                <div v-show="processedMessages.length > 0" ref="messagesContainerRef"
-                    class="flex-1 overflow-y-auto p-4">
+                <div v-else ref="messagesContainerRef" class="flex-1 overflow-y-auto p-4">
                     <div class="space-y-4 mx-auto w-full" :class="{ 'max-w-3xl': !settingsStore.isWideMode }">
                         <MessageBubble v-for="(msg, index) in processedMessages" :key="index" :message="msg"
                             @copy="copyMessage" @read-aloud="readAloud"

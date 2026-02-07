@@ -55,12 +55,21 @@
  * - 连续标点 !!! ？？？ → 最多保留2个
  * 
  * ============================================================================
+ * VAD (Voice Activity Detection) 模式
+ * ============================================================================
+ * 
+ * 【说话打断】
+ * - 麦克风始终保持开启，持续监听音频
+ * - 使用音量阈值检测用户是否在说话
+ * - 当检测到用户说话时，立即停止 TTS 播放
+ * - 动态连接/断开 ASR 以节省资源
+ * 
+ * ============================================================================
  */
 
 import { ref, watch, onUnmounted } from 'vue'
 import { SpeechRecognitionService } from '../utils/asr/speechRecognition'
 import { createTTSEngine } from '../utils/tts'
-import { TTSEngine } from '../utils/tts/types'
 import { useUiSettingsStore } from '../stores/setting'
 import { cleanTextForTTS, splitText, MAX_TTS_CHARS } from '../utils/textUtils'
 import { takeAudioControl, releaseAudioControl } from '../utils/audioManager'
@@ -84,7 +93,6 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
 
     const asrService = new SpeechRecognitionService()
     const store = useUiSettingsStore()
-    // const ttsService = new EdgeTTS() // Default settings for now
 
     // Streaming TTS State
     interface AudioSegment {
@@ -103,6 +111,7 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
     let textBuffer = ''
     let silenceTimer: number | null = null;
     let autoRestartListeningTimeout: number | null = null;
+    let isASRConnected = false;
 
     // Helper to stop only audio playback part (compatible with AudioManager)
     const stopAudioOnly = () => {
@@ -112,18 +121,79 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
         }
         isPlayingAudio = false
         playbackQueue = []
-        isPlayingAudio = false
-        playbackQueue = []
         currentlySpeakingText.value = ''
         isWaitingForAudio.value = false
         isAudioInterrupted = true
     }
 
+    /**
+     * Handle voice start detected by VAD
+     * - Interrupt TTS playback
+     * - Connect ASR
+     */
+    const handleVoiceStart = async () => {
+        if (!isVoiceChatActive.value) return;
+
+        console.log('[VoiceChat] Voice start detected');
+
+        // Interrupt TTS if playing
+        if (voiceStatus.value === 'speaking' || isPlayingAudio) {
+            console.log('[VoiceChat] Interrupting TTS playback');
+            stopAudioOnly();
+            releaseAudioControl(stopAudioOnly);
+        }
+
+        // Switch to listening mode
+        voiceStatus.value = 'listening';
+        transcript.value = '';
+        currentlySpeakingText.value = '';
+        errorMessage.value = '';
+
+        // Clear any pending silence timer
+        if (silenceTimer) {
+            clearTimeout(silenceTimer);
+            silenceTimer = null;
+        }
+
+        // Connect ASR if not already connected
+        if (!isASRConnected) {
+            try {
+                await asrService.connectASR();
+                isASRConnected = true;
+                console.log('[VoiceChat] ASR connected on voice start');
+            } catch (e: any) {
+                console.error('Failed to connect ASR:', e);
+                errorMessage.value = e.message || 'Failed to connect ASR';
+            }
+        }
+    }
+
+    /**
+     * Handle voice end detected by VAD
+     * - Start silence timer for speech end detection
+     */
+    const handleVoiceEnd = () => {
+        if (!isVoiceChatActive.value || voiceStatus.value !== 'listening') return;
+
+        console.log('[VoiceChat] Voice end detected, starting silence timer');
+
+        // Start silence timer
+        if (silenceTimer) clearTimeout(silenceTimer);
+
+        silenceTimer = window.setTimeout(() => {
+            handleSpeechEnd();
+        }, store.silenceDuration || 1500);
+    }
+
     const stopListening = async () => {
-        try {
-            await asrService.stop()
-        } catch (e) {
-            console.error('Error stopping ASR:', e)
+        // Disconnect ASR to save resources
+        if (isASRConnected) {
+            try {
+                await asrService.disconnectASR();
+                isASRConnected = false;
+            } catch (e) {
+                console.error('Error disconnecting ASR:', e);
+            }
         }
     }
 
@@ -135,21 +205,16 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
         currentlySpeakingText.value = ''
         errorMessage.value = ''
 
-        try {
-            await asrService.start((text, isFinal) => {
-                transcript.value = text;
-            });
-        } catch (e: any) {
-            console.error('ASR Start Error:', e)
-            voiceStatus.value = 'error'
-            errorMessage.value = e.message || 'Failed to start microphone'
-            isVoiceChatActive.value = false;
-        }
+        // In VAD mode, microphone is already running
+        // We just wait for voice detection to connect ASR
+        console.log('[VoiceChat] Listening mode active (VAD waiting for voice)');
     }
 
+    // Watch transcript changes from ASR
     watch(transcript, (newText, oldText) => {
         if (!isVoiceChatActive.value || voiceStatus.value !== 'listening') return;
 
+        // Reset silence timer on each transcript change
         if (silenceTimer) clearTimeout(silenceTimer);
 
         if (newText && newText !== oldText) {
@@ -160,9 +225,14 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
     });
 
     const handleSpeechEnd = async () => {
-        if (!transcript.value.trim()) return;
+        if (!transcript.value.trim()) {
+            // No text recognized, just disconnect ASR and keep listening
+            await stopListening();
+            voiceStatus.value = 'listening';
+            return;
+        }
 
-        // Stop listening temporarily
+        // Stop ASR
         await stopListening();
         voiceStatus.value = 'processing';
 
@@ -227,7 +297,6 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
         // Keep unprocessed part in buffer
         if (startIndex > 0) {
             textBuffer = textBuffer.substring(startIndex)
-            //console.log('[TTS] Remaining buffer:', cleanTextForTTS(textBuffer))
         }
     }
 
@@ -462,11 +531,9 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
 
     const onTurnComplete = () => {
         if (isVoiceChatActive.value) {
-            // currentlySpeakingText.value = ''; 
-            voiceStatus.value = 'idle'
-            autoRestartListeningTimeout = window.setTimeout(() => {
-                startListening()
-            }, 300)
+            voiceStatus.value = 'listening'
+            // Mic is already active in VAD mode, just wait for voice detection
+            console.log('[VoiceChat] Turn complete, waiting for voice (VAD mode)');
         }
     }
 
@@ -477,7 +544,7 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
         finishStream()
     }
 
-    const start = () => {
+    const start = async () => {
         if (!store.asrToken || !store.asrModel) {
             const toast = useToast()
             toast.error('请先在设置中配置语音识别及模型 (ASR Token & Model)')
@@ -490,7 +557,27 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
         takeAudioControl('VoiceChat', stopAudioOnly)
 
         isVoiceChatActive.value = true;
-        startListening();
+        isAudioInterrupted = false;
+
+        try {
+            // Start microphone with VAD mode
+            await asrService.startMicrophoneOnly({
+                onResult: (text, isFinal) => {
+                    transcript.value = text;
+                },
+                onVoiceStart: handleVoiceStart,
+                onVoiceEnd: handleVoiceEnd
+            });
+
+            voiceStatus.value = 'listening';
+            console.log('[VoiceChat] Started in VAD mode');
+
+        } catch (e: any) {
+            console.error('Failed to start voice chat:', e);
+            voiceStatus.value = 'error';
+            errorMessage.value = e.message || 'Failed to start microphone';
+            isVoiceChatActive.value = false;
+        }
     }
 
     const stop = async () => {
@@ -499,12 +586,13 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
         if (silenceTimer) clearTimeout(silenceTimer);
         if (autoRestartListeningTimeout) clearTimeout(autoRestartListeningTimeout);
 
-
-
         stopAudioOnly()
         releaseAudioControl(stopAudioOnly)
 
-        await stopListening();
+        // Stop microphone and ASR
+        await asrService.stop();
+        isASRConnected = false;
+
         voiceStatus.value = 'idle';
         transcript.value = '';
     }
