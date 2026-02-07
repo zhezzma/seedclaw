@@ -129,8 +129,11 @@ watch(() => chatState.assistantAgentId, (newId) => {
 
 // Send message handler
 const handleSend = async () => {
-    const inputText = chatInputRef.value?.inputText?.trim() || ''
-    if (!inputText && !isBusy.value) return
+    let inputText = chatInputRef.value?.inputText?.trim() || ''
+    // Check if there are any attachments
+    const hasAttachments = (chatInputRef.value?.attachments?.length ?? 0) > 0
+
+    if (!inputText && !hasAttachments && !isBusy.value) return
 
     if (isBusy.value) {
         // If busy, abort the current run
@@ -142,8 +145,26 @@ const handleSend = async () => {
         await chatState.commitNewSession(inputText)
     }
 
-    // Clone attachments immediately to avoid reference issues when clearing
-    const attachments = [...(chatInputRef.value?.attachments ?? [])]
+    // Process attachments:
+    // - Images: Keep as attachments
+    // - Files: Append content to inputText
+    const rawAttachments = chatInputRef.value?.attachments ?? []
+    const imageAttachments: any[] = []
+
+    // Process file content appending
+    let appendedText = ''
+    for (const att of rawAttachments) {
+        if (att.mimeType.startsWith('image/')) {
+            imageAttachments.push(att)
+        } else if (att.content) {
+            appendedText += `\n=== File Content: ${att.name || "attachment"} ===\n${att.content}\n==============================\n`
+        }
+    }
+
+    if (appendedText) {
+        if (inputText) inputText += '\n'
+        inputText += appendedText
+    }
 
     if (chatInputRef.value) {
         chatInputRef.value.inputText = ''
@@ -154,7 +175,8 @@ const handleSend = async () => {
     }
 
     // We need to clone attachments because we clear the UI state immediately
-    await chatState.sendMessage(inputText, [...attachments])
+    // Only send image attachments to the backend as "attachments"
+    await chatState.sendMessage(inputText, [...imageAttachments])
 
     // Clear attachments in UI (actually we should do it here to completely reset)
     if (chatInputRef.value && chatInputRef.value.attachments) {

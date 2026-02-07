@@ -21,14 +21,17 @@
     "@vscode/markdown-it-katex": "^1.1.2",
     "dotenv": "^17.2.3",
     "highlight.js": "^11.11.1",
+    "mammoth": "^1.11.0",
     "markdown-it": "^14.1.0",
     "markdown-it-highlightjs": "^4.2.0",
     "markdown-it-link-attributes": "^4.0.1",
     "mermaid": "^11.12.2",
+    "pdfjs-dist": "^5.4.624",
     "pinia": "^3.0.4",
     "tailwindcss": "^4.1.18",
     "vue": "^3.5.13",
-    "vue-router": "^5.0.1"
+    "vue-router": "^5.0.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.10.0",

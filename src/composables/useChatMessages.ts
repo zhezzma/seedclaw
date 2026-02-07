@@ -126,16 +126,15 @@ export function useChatMessages(state: ChatState & { chatToolMessages?: any[] },
                             prevBlock.toolState = 'success'
                         }
                     } else if (item.type === 'image') {
+                        // Both local and API format use: data (raw base64) + mimeType
                         blocks.push({
                             type: 'image',
-                            source: item.source
-                        })
-                    } else if (item.type === 'file') {
-                        blocks.push({
-                            type: 'file',
-                            source: item.source,
-                            text: item.text // Optional fallback text
-                        })
+                            source: {
+                                type: 'base64',
+                                media_type: item.mimeType || item.source?.media_type,
+                                data: item.data || item.source?.data
+                            }
+                        } as DisplayBlock)
                     }
                 }
             } else if (typeof msg.content === 'string') {

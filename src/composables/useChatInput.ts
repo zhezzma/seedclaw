@@ -3,6 +3,7 @@ import { SpeechRecognitionService } from '../utils/asr/speechRecognition'
 import { takeAudioControl, releaseAudioControl } from '../utils/audioManager'
 import { useUiSettingsStore } from '../stores/setting'
 import { useToast } from './useToast'
+import { readFile } from '../utils/fileReader'
 
 export interface CommandItem {
     label: string
@@ -24,7 +25,7 @@ export const COMMANDS: CommandItem[] = [
 
 // Global state for persistence
 const inputText = ref('')
-const attachments = ref<{ id: string; name: string; dataUrl: string; mimeType: string }[]>([])
+const attachments = ref<{ id: string; name: string; dataUrl: string; mimeType: string; content?: string }[]>([])
 
 export function useChatInput() {
     const isRecording = ref(false)
@@ -141,22 +142,36 @@ export function useChatInput() {
         modelDropdownOpen.value = false
     }
 
-    const addAttachment = (file: File) => {
-        // Allow all files
-        // if (!file.type.startsWith('image/')) return 
-
-        const reader = new FileReader()
-        reader.onload = (e) => {
-            if (e.target?.result && typeof e.target.result === 'string') {
-                attachments.value.push({
-                    id: crypto.randomUUID(),
-                    name: file.name,
-                    dataUrl: e.target.result,
-                    mimeType: file.type || 'application/octet-stream'
-                })
+    const addAttachment = async (file: File) => {
+        try {
+            const isImage = file.type.startsWith('image/')
+            if (isImage && file.size > 1024 * 500) {
+                const toast = useToast()
+                toast.error(`图片大小不能超过 500KB: ${file.name}`)
+                return
             }
+
+            const result = await readFile(file)
+
+            // For images, result is DataURL (content preview) and also content for API
+            // For docs, result is text content
+
+            // However, readFile implementation returns:
+            // - DataURL for images
+            // - Text for docs
+
+            attachments.value.push({
+                id: crypto.randomUUID(),
+                name: file.name,
+                mimeType: file.type || 'application/octet-stream',
+                dataUrl: isImage ? result : '', // Preview URL only for images? Or we might need a file icon
+                content: isImage ? undefined : result // Store text content for docs
+            })
+        } catch (e) {
+            console.error('Failed to read file', e)
+            const toast = useToast()
+            toast.error(`读取文件失败: ${file.name}`)
         }
-        reader.readAsDataURL(file)
     }
 
     const removeAttachment = (id: string) => {

@@ -149,8 +149,11 @@ function ensureInit() {
 
 
 const sendMessage = async (message?: string, attachments?: ChatAttachment[]) => {
+    state.chatMessage = message || ""
     state.chatAttachments = attachments || []
-    await handleSendChat(state as unknown as ChatHost, message, {})
+    // Passing undefined as messageOverride forces handleSendChat to use state.chatMessage and state.chatAttachments
+    // This is required because handleSendChat ignores state.chatAttachments if messageOverride is provided
+    await handleSendChat(state as unknown as ChatHost, undefined, {})
 }
 
 const abortChat = async () => {
