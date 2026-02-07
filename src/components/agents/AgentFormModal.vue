@@ -2,6 +2,7 @@
 import { ref, watch, computed } from 'vue'
 import { useGateway } from '../../composables/useGateway'
 import { useConfigState } from '../../composables/useConfigState'
+import { useToast } from '../../composables/useToast'
 
 const props = defineProps<{
     show: boolean
@@ -15,7 +16,6 @@ const props = defineProps<{
             emoji?: string
         }
     }
-    configState?: any
 }>()
 
 const emit = defineEmits<{
@@ -25,6 +25,7 @@ const emit = defineEmits<{
 
 const gatewayStore = useGateway()
 const configStore = useConfigState()
+const toast = useToast()
 
 // Form data
 const formData = ref({
@@ -80,28 +81,24 @@ const isFormValid = computed(() => {
 
 const handleSubmit = async () => {
     if (!isFormValid.value) return
-    if (!props.configState) {
-        console.error('configState not provided')
-        return
-    }
 
     const agentId = formData.value.id.trim()
 
     // Validate ID format (only for add mode)
     if (props.mode === 'add') {
         if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(agentId)) {
-            alert('智能体 ID 必须以英文字母开头，只能包含英文字母、数字、下划线和连字符')
+            toast.error('智能体 ID 必须以英文字母开头，只能包含英文字母、数字、下划线和连字符')
             return
         }
     }
 
     // Get current agents list from configState
-    const currentList = ((props.configState.configForm?.agents as any)?.list as any[]) || []
+    const currentList = ((configStore.configForm?.agents as any)?.list as any[]) || []
 
     if (props.mode === 'add') {
         // Check for duplicate ID
         if (currentList.some((a: any) => a.id === agentId)) {
-            alert('智能体 ID 已存在，请使用其他 ID')
+            toast.error('智能体 ID 已存在，请使用其他 ID')
             return
         }
 

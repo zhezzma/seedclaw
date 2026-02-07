@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { SparklesIcon, ArrowLeftIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import { useGateway } from '../../composables/useGateway'
+import { useToast } from '../../composables/useToast'
 import AgentFormModal from './AgentFormModal.vue'
 import { createAgentMainSessionKey } from '~/src/utils/session-key-helpers'
 
@@ -12,7 +13,6 @@ const props = defineProps<{
     // In store: agentsList IS the state object? No. state.agentsList.
     // In AgentsView, I'll pass localState.agentsList.
     // So prop type: any (AgentsState)
-    configState?: any
 }>()
 
 const emit = defineEmits<{
@@ -21,6 +21,7 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const gatewayStore = useGateway()
+const toast = useToast()
 
 const goBack = () => {
     router.back()
@@ -50,7 +51,7 @@ const openAddModal = () => {
 const handleAgentSaved = (agentId: string) => {
     emit('select', agentId)
     // Show prompt and redirect to chat
-    alert('要先和我说句话，才能进行角色设定哟 ✨')
+    toast.info('要先和我说句话，才能进行角色设定哟 ✨')
     router.push({ name: 'home', query: { sessionkey: createAgentMainSessionKey(agentId) } })
 }
 </script>
@@ -125,7 +126,6 @@ const handleAgentSaved = (agentId: string) => {
         </div>
 
         <!-- Add Agent Modal -->
-        <AgentFormModal :show="showAddModal" mode="add" :config-state="props.configState" @close="showAddModal = false"
-            @saved="handleAgentSaved" />
+        <AgentFormModal :show="showAddModal" mode="add" @close="showAddModal = false" @saved="handleAgentSaved" />
     </div>
-</template>
+</template>>

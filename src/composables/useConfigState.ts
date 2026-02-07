@@ -4,7 +4,8 @@ import type { ConfigState } from '../openclaw/ui/src/ui/controllers/config'
 import {
     loadConfig as _loadConfig,
     saveConfig as _saveConfig,
-    updateConfigFormValue as _updateConfigFormValue
+    updateConfigFormValue as _updateConfigFormValue,
+    removeConfigFormValue as _removeConfigFormValue
 } from '~openclaw/ui/src/ui/controllers/config'
 
 const state = reactive<ConfigState>({
@@ -13,7 +14,8 @@ const state = reactive<ConfigState>({
     configLoading: false,
     configForm: null,
     configFormDirty: false,
-    configSaving: false
+    configSaving: false,
+    configFormMode: 'form'
 } as any)
 
 let initialized = false
@@ -46,10 +48,15 @@ export function useConfigState() {
         await loadConfig()
     }
 
+    const removeConfigFormValue = (path: Array<string | number>) => {
+        _removeConfigFormValue(state as any, path)
+    }
+
     return reactive({
         ...toRefs(state),
         loadConfig,
         updateConfigFormValue,
+        removeConfigFormValue,
         saveConfig
     })
 

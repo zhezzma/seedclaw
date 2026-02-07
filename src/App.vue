@@ -4,6 +4,7 @@ import { useUiSettingsStore } from './stores/setting'
 import { useGateway } from './composables/useGateway'
 import { useToast } from './composables/useToast'
 import MessagePlugin from './components/MessagePlugin.vue'
+import ConfirmPlugin from './components/ConfirmPlugin.vue'
 
 // Initialize theme at app root
 useUiSettingsStore().initTheme()
@@ -31,6 +32,8 @@ watch(() => gatewayStore.lastError, (error: any) => {
     <div class="fixed inset-0 pt-[env(safe-area-inset-top)] bg-base-100 overflow-hidden">
         <router-view />
         <MessagePlugin />
+        <ExecApprovalModal />
+        <ConfirmPlugin />
     </div>
 </template>
 

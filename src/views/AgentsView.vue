@@ -41,20 +41,7 @@ const clearSelection = () => {
     router.replace({ query })
 }
 
-// Load agents and config when connected
-onMounted(() => {
-    if (gatewayStore.connected) {
-        agentsState.loadAgents()
-        configState.loadConfig()
-    }
-})
 
-watch(() => gatewayStore.connected, (connected) => {
-    if (connected) {
-        agentsState.loadAgents()
-        configState.loadConfig()
-    }
-})
 
 // Default selection logic for Desktop
 // If no agent selected and we have agents, select the first one on large screens

@@ -299,10 +299,17 @@ watch(() => route.query, async (query) => {
 
 // Watch for gateway connection to apply default session behavior
 watch(() => gatewayStore.connected, async (connected, wasConnected) => {
-    // Only trigger when just connected (false -> true) and no session is set yet
-    if (connected && !wasConnected && !chatState.sessionKey) {
+    if (!connected || wasConnected) return
+
+    // Only trigger when just connected (false -> true)
+    if (!chatState.sessionKey) {
         console.log('[HomeView] Gateway connected, applying default session behavior')
         await applyDefaultSessionBehavior()
+    } else {
+        // If session key is already set (e.g. from URL), load history now that we are connected
+        console.log('[HomeView] Gateway connected, loading history for existing session', chatState.sessionKey)
+        await chatState.loadAssistantIdentity()
+        await chatState.loadChatHistory()
     }
 })
 

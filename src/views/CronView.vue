@@ -20,12 +20,14 @@ import type { CronJob, CronRunLogEntry } from '~openclaw/ui/src/ui/types'
 import { useToast } from '../composables/useToast'
 import { useCronState } from '../composables/useCronState'
 import { useAgentsState } from '../composables/useAgentsState'
+import { useConfirm } from '../composables/useConfirm'
 
 
 const router = useRouter()
 const gatewayStore = useGateway()
 const settingsStore = useUiSettingsStore()
 const toastStore = useToast()
+const { confirm } = useConfirm()
 
 const cronState = useCronState()
 const agentsState = useAgentsState()
@@ -34,53 +36,7 @@ const agentsState = useAgentsState()
 
 
 
-async function updateCronJob(state: any, id: string) {
-    if (!state.client || !state.connected || state.cronBusy) {
-        return;
-    }
-    state.cronBusy = true;
-    state.cronError = null;
-    try {
-        const schedule = buildCronSchedule(state.cronForm);
-        const payload = buildCronPayload(state.cronForm);
-        const agentId = state.cronForm.agentId.trim();
-        const delivery =
-            state.cronForm.sessionTarget === "isolated" &&
-                state.cronForm.payloadKind === "agentTurn" &&
-                state.cronForm.deliveryMode
-                ? {
-                    mode: state.cronForm.deliveryMode === "announce" ? "announce" : "none",
-                    channel: state.cronForm.deliveryChannel.trim() || "last",
-                    to: state.cronForm.deliveryTo.trim() || undefined,
-                } as CronJob['delivery']
-                : undefined;
 
-        const patch: Partial<CronJob> = {
-            name: state.cronForm.name.trim(),
-            description: state.cronForm.description.trim() || undefined,
-            agentId: agentId || undefined,
-            enabled: state.cronForm.enabled,
-            schedule,
-            sessionTarget: state.cronForm.sessionTarget,
-            wakeMode: state.cronForm.wakeMode,
-            payload,
-            delivery
-        };
-
-        if (!patch.name) {
-            throw new Error("Name required.");
-        }
-
-        await state.client.request("cron.update", { id, patch });
-        await state.client.request("cron.update", { id, patch });
-        await cronState.loadCron();
-    } catch (err) {
-        state.cronError = String(err);
-        throw err;
-    } finally {
-        state.cronBusy = false;
-    }
-}
 
 
 
@@ -111,6 +67,20 @@ const form = ref<CronFormState>({ ...defaultForm })
 const editingId = ref<string | null>(null)
 const runningJobId = ref<string | null>(null)
 const modalError = ref<string | null>(null)
+
+// --- Smart Switching ---
+// Rule: main cron jobs require payload.kind="systemEvent"
+watch(() => form.value.sessionTarget, (newTarget) => {
+    if (newTarget === 'main' && form.value.payloadKind !== 'systemEvent') {
+        form.value.payloadKind = 'systemEvent'
+    }
+})
+
+watch(() => form.value.payloadKind, (newKind) => {
+    if (newKind === 'agentTurn' && form.value.sessionTarget === 'main') {
+        form.value.sessionTarget = 'isolated'
+    }
+})
 
 // Logs State
 const logsJob = ref<CronJob | null>(null)
@@ -270,12 +240,18 @@ const handleOpenEdit = (job: CronJob) => {
 }
 
 const handleSave = async () => {
+    // Validation: Rule "main cron jobs require payload.kind=\"systemEvent\""
+    if (form.value.sessionTarget === 'main' && form.value.payloadKind !== 'systemEvent') {
+        modalError.value = 'Main session jobs require "System Event" payload.'
+        return
+    }
+
     cronState.cronForm = { ...form.value }
     modalError.value = null
 
     try {
         if (editingId.value) {
-            await updateCronJob(cronState, editingId.value)
+            await cronState.updateCronJob(editingId.value)
         } else {
             await cronState.addCronJob()
         }
@@ -295,7 +271,7 @@ const handleRun = async (job: CronJob, e: Event) => {
     e.stopPropagation()
 
     // 确认弹窗
-    if (!confirm('立即运行可能会导致今天的定时任务被跳过，确定要继续吗？')) {
+    if (!await confirm('立即运行可能会导致今天的定时任务被跳过，确定要继续吗？')) {
         return
     }
 
@@ -317,7 +293,7 @@ const handleRun = async (job: CronJob, e: Event) => {
 
 const handleRemove = async (job: CronJob, e: Event) => {
     e.stopPropagation()
-    if (!confirm('确定要删除此任务吗？')) return
+    if (!await confirm('确定要删除此任务吗？')) return
     await cronState.removeCronJob(job)
 }
 
@@ -325,13 +301,11 @@ const handleRemove = async (job: CronJob, e: Event) => {
 watch(() => gatewayStore.connected, (connected) => {
     if (connected) {
         void cronState.loadCron()
-        void agentsState.loadAgents()
     }
 })
 
 onMounted(() => {
     void cronState.loadCron()
-    void agentsState.loadAgents()
 })
 
 
@@ -620,10 +594,53 @@ onMounted(() => {
                         </label>
                     </div>
 
+                    <!-- Delivery Settings (Only for Agent Turn) -->
+                    <div v-if="form.payloadKind === 'agentTurn'"
+                        class="bg-base-200/50 p-4 rounded-lg space-y-4 border border-base-200 mt-2">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <label class="form-control w-full">
+                                <div class="label">
+                                    <span class="label-text">投递模式 (Delivery)</span>
+                                </div>
+                                <select v-model="form.deliveryMode" class="select select-bordered w-full">
+                                    <option value="announce">公告摘要 (Announce)</option>
+                                    <option value="none">无 (None - Internal)</option>
+                                </select>
+                            </label>
+
+                            <label class="form-control w-full">
+                                <div class="label">
+                                    <span class="label-text">超时时间 (秒)</span>
+                                </div>
+                                <input v-model="form.timeoutSeconds" type="number" class="input input-bordered w-full"
+                                    placeholder="例如: 30" />
+                            </label>
+                        </div>
+
+                        <div v-if="form.deliveryMode === 'announce'" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <label class="form-control w-full">
+                                <div class="label">
+                                    <span class="label-text">频道 (Channel)</span>
+                                </div>
+                                <!-- Ideally this should be a select of available channels -->
+                                <input v-model="form.deliveryChannel" type="text" class="input input-bordered w-full"
+                                    placeholder="last (默认)" />
+                            </label>
+
+                            <label class="form-control w-full">
+                                <div class="label">
+                                    <span class="label-text">发送给 (To)</span>
+                                </div>
+                                <input v-model="form.deliveryTo" type="text" class="input input-bordered w-full"
+                                    placeholder="+1555… 或 chat id" />
+                            </label>
+                        </div>
+                    </div>
+
 
                     <fieldset class="fieldset w-full">
                         <legend class="fieldset-legend">{{ form.payloadKind === 'systemEvent' ? '系统事件内容' : '消息内容'
-                            }}</legend>
+                        }}</legend>
                         <textarea v-model="form.payloadText" class="textarea w-full h-24"
                             placeholder="输入内容..."></textarea>
                         <div class="label"></div>

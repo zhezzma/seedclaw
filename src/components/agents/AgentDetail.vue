@@ -49,7 +49,7 @@ const agent = computed(() => {
     console.log('[AgentDetail] Agent found:', typedAgent)
     return {
         id: typedAgent.id || typedAgent.name,
-        name: identity.name || typedAgent.name || typedAgent.id,
+        name: typedAgent.name || identity.name || typedAgent.id,
         avatarUrl: identity.avatarUrl,
         // Icon logic: emoji > avatar > defaults
         icon: identity.emoji || '🤖',
@@ -106,7 +106,7 @@ const openEditModal = () => {
                     <div class="flex-1 text-center space-y-1.5 min-w-0">
                         <div class="flex flex-row items-center gap-2 justify-center">
                             <h1 class="text-xl lg:text-2xl font-bold tracking-tight truncate max-w-full">{{ agent.name
-                                }}
+                            }}
                             </h1>
                             <!-- Compact ID & Default Badge -->
                             <div class="flex items-center gap-2">

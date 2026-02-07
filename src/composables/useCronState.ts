@@ -94,10 +94,58 @@ export function useCronState() {
         await loadCronRuns(state as any, jobId)
     }
 
+    const updateCronJob = async (id: string) => {
+        if (!state.client || !state.connected || state.cronBusy) {
+            return;
+        }
+        state.cronBusy = true;
+        state.cronError = null;
+        try {
+            const schedule = buildCronSchedule(state.cronForm);
+            const payload = buildCronPayload(state.cronForm);
+            const agentId = state.cronForm.agentId.trim();
+            const delivery =
+                state.cronForm.sessionTarget === "isolated" &&
+                    state.cronForm.payloadKind === "agentTurn" &&
+                    state.cronForm.deliveryMode
+                    ? {
+                        mode: state.cronForm.deliveryMode === "announce" ? "announce" : "none",
+                        channel: state.cronForm.deliveryChannel.trim() || "last",
+                        to: state.cronForm.deliveryTo.trim() || undefined,
+                    } as CronJob['delivery']
+                    : undefined;
+
+            const patch: Partial<CronJob> = {
+                name: state.cronForm.name.trim(),
+                description: state.cronForm.description.trim() || undefined,
+                agentId: agentId || undefined,
+                enabled: state.cronForm.enabled,
+                schedule,
+                sessionTarget: state.cronForm.sessionTarget,
+                wakeMode: state.cronForm.wakeMode,
+                payload,
+                delivery
+            };
+
+            if (!patch.name) {
+                throw new Error("Name required.");
+            }
+
+            await state.client.request("cron.update", { id, patch });
+            await loadCron();
+        } catch (err: any) {
+            state.cronError = String(err);
+            throw err;
+        } finally {
+            state.cronBusy = false;
+        }
+    }
+
     return reactive({
         ...toRefs(state),
         loadCron,
         addCronJob,
+        updateCronJob,
         toggleCronJob,
         runCronJob,
         removeCronJob,
@@ -105,5 +153,4 @@ export function useCronState() {
         buildCronSchedule,
         buildCronPayload
     })
-
 }

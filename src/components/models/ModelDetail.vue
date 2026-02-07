@@ -4,7 +4,8 @@ import { PlusIcon, PencilIcon, TrashIcon, XMarkIcon, EyeIcon, EyeSlashIcon, Arro
 import { useGateway } from '../../composables/useGateway'
 import ProviderFormModal from './ProviderFormModal.vue'
 import { useConfigState } from '../../composables/useConfigState'
-import { updateConfigFormValue, saveConfig } from '../../openclaw/ui/src/ui/controllers/config'
+import { useConfirm } from '../../composables/useConfirm'
+
 
 interface ModelConfig {
     id: string
@@ -30,6 +31,7 @@ const props = defineProps<{
 
 const store = useGateway()
 const configState = useConfigState()
+const { confirm } = useConfirm()
 
 // Get provider from configForm
 const provider = computed(() => {
@@ -46,9 +48,9 @@ const models = computed<ModelConfig[]>(() => {
 })
 
 // Sync agents.defaults.models with all available models from providers
-import { useModelConfig } from '../../composables/useModelConfig'
+import { useModels } from '../../composables/useModels'
 
-const { syncAgentsDefaultModels } = useModelConfig()
+const { syncAgentsDefaultModels } = useModels()
 
 // Sync models from OpenAI-compatible API
 const syncing = ref(false)
@@ -119,13 +121,12 @@ const syncModels = async () => {
 
         const mergedModels = Array.from(modelMap.values())
 
-        updateConfigFormValue(
-            configState as any,
+        configState.updateConfigFormValue(
             ['models', 'providers', props.providerId, 'models'],
             mergedModels
         )
         syncAgentsDefaultModels()
-        await saveConfig(configState as any)
+        await configState.saveConfig()
 
     } catch (err: any) {
         syncError.value = err.message || '同步失败'
@@ -195,30 +196,38 @@ const saveModel = async () => {
         currentModels.push({ ...modelForm.value })
     }
 
-    updateConfigFormValue(
-        configState as any,
+    configState.updateConfigFormValue(
         ['models', 'providers', props.providerId, 'models'],
         currentModels
     )
     syncAgentsDefaultModels()
-    await saveConfig(configState as any)
+    await configState.saveConfig()
 
     showModelModal.value = false
 }
 
 const deleteModel = async (index: number, modelId: string) => {
-    if (confirm(`确定要删除模型 "${modelId}" 吗？`)) {
+    if (await confirm(`确定要删除模型 "${modelId}" 吗？`)) {
         const currentModels = [...models.value]
         currentModels.splice(index, 1)
 
-        updateConfigFormValue(
-            configState as any,
+        configState.updateConfigFormValue(
             ['models', 'providers', props.providerId, 'models'],
             currentModels
         )
         syncAgentsDefaultModels()
-        await saveConfig(configState as any)
+        await configState.saveConfig()
     }
+}
+
+const toggleInputCapability = (capability: string) => {
+    const current = new Set(modelForm.value.input || [])
+    if (current.has(capability)) {
+        current.delete(capability)
+    } else {
+        current.add(capability)
+    }
+    modelForm.value.input = Array.from(current)
 }
 
 // Edit Provider Modal
@@ -274,7 +283,7 @@ const openEditProvider = () => {
 
                         <!-- Delete Button -->
                         <button @click.stop="deleteModel(index, model.id)"
-                            class="absolute top-1 right-1 btn btn-ghost btn-xs btn-circle opacity-0 group-hover:opacity-100 transition-opacity text-error">
+                            class="absolute top-1 right-1 btn btn-ghost btn-xs btn-circle opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity text-error">
                             <XMarkIcon class="w-4 h-4" />
                         </button>
 
@@ -289,6 +298,10 @@ const openEditProvider = () => {
 
                         <!-- Badges -->
                         <div class="flex flex-wrap gap-1 mt-2">
+                            <span v-if="model.input?.includes('text')"
+                                class="badge badge-ghost badge-outline text-[10px] h-5 px-1.5">文本</span>
+                            <span v-if="model.input?.includes('image')"
+                                class="badge badge-secondary text-[10px] h-5 px-1.5">图片</span>
                             <span v-if="model.reasoning" class="badge badge-primary text-[10px] h-5 px-1.5">推理</span>
                             <span v-if="model.contextWindow" class="badge badge-ghost text-[10px] h-5 px-1.5">{{
                                 (model.contextWindow /
@@ -347,6 +360,22 @@ const openEditProvider = () => {
                                 class="checkbox checkbox-primary" />
                             <span class="label-text">支持 Developer Role</span>
                         </label>
+                    </div>
+
+                    <div class="form-control md:col-span-2">
+                        <label class="label"><span class="label-text">输入能力 (Input Capabilities)</span></label>
+                        <div class="flex gap-4">
+                            <label class="label cursor-pointer gap-2 justify-start">
+                                <input type="checkbox" class="checkbox" :checked="modelForm.input?.includes('text')"
+                                    @change="toggleInputCapability('text')" />
+                                <span class="label-text">文本 (Text)</span>
+                            </label>
+                            <label class="label cursor-pointer gap-2 justify-start">
+                                <input type="checkbox" class="checkbox" :checked="modelForm.input?.includes('image')"
+                                    @change="toggleInputCapability('image')" />
+                                <span class="label-text">图片 (Image)</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
 

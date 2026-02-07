@@ -15,19 +15,21 @@ import { resetToolStream, type ToolStreamEntry } from '~openclaw/ui/src/ui/app-t
 const autoNamingRuns = new Map<string, { targetSessionKey: string; titleBuffer: string }>()
 
 const state = reactive<ChatState & ChatHost & {
+    sessionKey: string; // Ensure sessionKey is here
+
     assistantName: string;
     assistantAvatar: string | null;
-    chatAvatarUrl: string;
     assistantAgentId: string | null;
-    chatToolMessages: any[];
-    sessionKey: string; // Ensure sessionKey is here
+
+    //ToolStreamHost
     toolStreamById: Map<string, ToolStreamEntry>;
     toolStreamOrder: string[];
-
+    chatToolMessages: any[];
     toolStreamSyncTimer: number | null;
+
+    //SessionManagement
     isNewSessionPending: boolean;
     renameSessionKey: string | null;
-
     settings: ReturnType<typeof useUiSettingsStore> | null;
 
 }>({
@@ -86,7 +88,7 @@ function ensureInit() {
         state.connected = connected as boolean
         if (connected) {
             // Reset orphaned chat state equivalent to resetToolStream
-            resetChat()
+            resetState()
         }
     }, { immediate: true })
 
@@ -275,32 +277,35 @@ const handleChatEvent = (payload?: ChatEventPayload) => {
     }
     return payload.state;
 }
-const resetChat = () => {
+
+
+
+
+const resetState = () => {
     state.chatRunId = null
     state.chatStream = null
     state.chatStreamStartedAt = null
     state.chatThinkingLevel = null
     resetToolStream(state as unknown as Parameters<typeof resetToolStream>[0])
-    state.chatMessages = []
 }
+
 
 const setSessionKey = async (key: string, loadHistory = true) => {
     // Reset Chat State
-    resetChat()
+    resetState()
+    state.isNewSessionPending = false
+    state.chatMessages = []
+    state.sessionKey = key
 
-    console.log("[useChatState] setSessionKey", key)
     // Update Settings
     const settings = useUiSettingsStore()
     settings.setLastActiveSessionKey(key)
 
-    // Sync local state
-    state.sessionKey = key
-
     // Update Identity
     await loadAssistantIdentity()
 
+
     if (loadHistory) {
-        console.log("[useChatState] loadChatHistory")
         await loadChatHistory();
     }
 }
@@ -310,11 +315,10 @@ const createNewSession = async () => {
     const gatewayStore = useGateway() // Lazy load to avoid circular dependency issues if any
     state.isNewSessionPending = true;
     state.assistantAgentId = gatewayStore.defaultAgentId
-    state.chatMessages = []
-    state.chatRunId = null
-    state.chatStream = null
-    state.sessionKey = ''
 
+    resetState()
+    state.sessionKey = ''
+    state.chatMessages = []
     const settings = useUiSettingsStore()
     settings.setLastActiveSessionKey("")
 }
@@ -325,7 +329,6 @@ const commitNewSession = async (inputText: string) => {
     const newKey = `agent:${state.assistantAgentId}:session:${generateUUID()}`
     await setSessionKey(newKey, false)
     void triggerSessionRename(state.sessionKey, inputText)
-    state.isNewSessionPending = false;
 }
 
 const triggerSessionRename = async (targetKey: string, userText: string) => {
@@ -400,7 +403,6 @@ export function useChatState() {
         loadAssistantIdentity,
         loadChatHistory,
         handleChatEvent,
-        resetChat,
         setSessionKey,
         createNewSession,
         commitNewSession,

@@ -10,8 +10,10 @@ import {
 } from '@heroicons/vue/24/outline'
 import { SIDEBAR_ITEMS } from '../config/navigation'
 import { createAgentMainSessionKey, isAgentMainSession } from '../utils/session-key-helpers'
+import { useConfirm } from '../composables/useConfirm'
 
 const router = useRouter()
+const { confirm } = useConfirm()
 
 const props = defineProps<{
     sessions: any[],
@@ -77,7 +79,7 @@ const createNewSession = () => {
 const handleDeleteSession = async (key: string, event: Event) => {
     event.stopPropagation() // Prevent selecting the session
 
-    if (!window.confirm(`确定要删除对话 "${key}" 吗？\n\n这将删除对话条目并归档其记录。`)) {
+    if (!await confirm(`确定要删除对话 "${key}" 吗？\n\n这将删除对话条目并归档其记录。`)) {
         return
     }
 
@@ -94,6 +96,7 @@ const handleNavClick = (item: any) => {
         } else {
             router.push({ name: item.route })
         }
+        closeSidebarDrawer()
     }
 }
 </script>

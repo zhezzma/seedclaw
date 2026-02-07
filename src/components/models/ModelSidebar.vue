@@ -5,8 +5,9 @@ import { ArrowLeftIcon, PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import { useGateway } from '../../composables/useGateway'
 import ProviderFormModal from './ProviderFormModal.vue'
 import { useConfigState } from '../../composables/useConfigState'
-import { updateConfigFormValue, saveConfig } from '../../openclaw/ui/src/ui/controllers/config'
+import { useConfirm } from '../../composables/useConfirm'
 
+import { useModels } from '../../composables/useModels'
 const props = defineProps<{
     selectedId?: string
 }>()
@@ -18,6 +19,10 @@ const emit = defineEmits<{
 const router = useRouter()
 const store = useGateway()
 const configState = useConfigState()
+const { confirm } = useConfirm()
+
+
+const { syncAgentsDefaultModels } = useModels()
 
 const goBack = () => {
     router.back()
@@ -49,28 +54,21 @@ const handleProviderSaved = (providerId: string) => {
 
 const deleteProvider = async (id: string, event: Event) => {
     event.stopPropagation()
-    if (confirm(`确定要删除提供商 "${id}" 吗？这将同时删除其所有模型配置。`)) {
-        // Get current providers, remove the one with id, then set
-        const providersObj = (configState.configForm?.models as any)?.providers as Record<string, any> | undefined
-        if (providersObj && providersObj[id]) {
-            const newProviders = { ...providersObj }
-            delete newProviders[id]
-            updateConfigFormValue(
-                configState as any,
-                ['models', 'providers'],
-                newProviders
-            )
-            // Sync agents.defaults.models
-            syncAgentsDefaultModels(newProviders)
-            await saveConfig(configState as any)
+    if (await confirm(`确定要删除提供商 "${id}" 吗？这将同时删除其所有模型配置。`)) {
+        configState.removeConfigFormValue(['models', 'providers', id])
+
+        // Sync implicitly uses updated config state
+        syncAgentsDefaultModels()
+
+        await configState.saveConfig()
+
+        if (props.selectedId === id) {
+            emit('select', '')
         }
     }
 }
 
-// Sync agents.defaults.models with all available models from providers
-import { useModelConfig } from '../../composables/useModelConfig'
 
-const { syncAgentsDefaultModels } = useModelConfig()
 </script>
 
 <template>

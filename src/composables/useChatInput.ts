@@ -1,6 +1,8 @@
 import { ref } from 'vue'
 import { SpeechRecognitionService } from '../utils/asr/speechRecognition'
 import { takeAudioControl, releaseAudioControl } from '../utils/audioManager'
+import { useUiSettingsStore } from '../stores/setting'
+import { useToast } from './useToast'
 
 export interface CommandItem {
     label: string
@@ -64,6 +66,13 @@ export function useChatInput() {
     };
 
     const handleMicClick = async () => {
+        const settingsStore = useUiSettingsStore()
+        if (!settingsStore.asrToken || !settingsStore.asrModel) {
+            const toast = useToast()
+            toast.error('请先在设置中配置语音识别及模型 (ASR Token & Model)')
+            return
+        }
+
         if (!speechService) {
             speechService = new SpeechRecognitionService();
         }

@@ -16,7 +16,6 @@ import { useChatInput, COMMANDS } from '../../composables/useChatInput'
 import { useModels } from '../../composables/useModels'
 import { useChatState } from '../../composables/useChatState'
 import { useConfigState } from '../../composables/useConfigState'
-import { updateConfigFormValue, saveConfig } from '../../openclaw/ui/src/ui/controllers/config'
 import { useUiSettingsStore } from '../../stores/setting'
 import { computed } from 'vue'
 
@@ -51,12 +50,11 @@ const currentModel = computed({
     },
     set: async (val: string) => {
         if (agentIndex.value === -1) return
-        updateConfigFormValue(
-            configState as any,
+        configState.updateConfigFormValue(
             ['agents', 'list', `${agentIndex.value}`, 'model', 'primary'],
             val
         )
-        await saveConfig(configState as any)
+        await configState.saveConfig()
     }
 })
 
@@ -249,7 +247,7 @@ defineExpose({
                             <ChevronUpIcon class="h-3 w-3 ml-0.5 opacity-50" />
                         </button>
                         <ul v-if="modelDropdownOpen"
-                            class="dropdown-content p-2 shadow-xl bg-base-100 rounded-box w-100 border border-base-300 mb-2 z-[100] max-h-[60vh] overflow-y-auto flex flex-col flex-nowrap">
+                            class="dropdown-content p-2 shadow-xl bg-base-100 rounded-box border border-base-300 z-[100] max-h-[50vh] overflow-y-auto flex flex-col flex-nowrap fixed left-4 right-4 bottom-24 sm:absolute sm:left-0 sm:right-auto sm:bottom-[100%] sm:mb-2 sm:w-80">
                             <li class="px-4 py-2 text-xs opacity-50 font-bold uppercase tracking-wider block">选择模型</li>
                             <template v-for="group in availableModels" :key="group.provider">
                                 <li

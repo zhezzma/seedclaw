@@ -124,8 +124,7 @@ async function connect(): Promise<void> {
             clientName: GATEWAY_CLIENT_IDS.WEBCHAT,
             mode: 'webchat',
             onHello: (hello) => {
-                //@ts-ignore
-                window.host = state
+
                 if (connectionTimeout) {
                     window.clearTimeout(connectionTimeout)
                     connectionTimeout = null

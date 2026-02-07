@@ -64,6 +64,7 @@ import { TTSEngine } from '../utils/tts/types'
 import { useUiSettingsStore } from '../stores/setting'
 import { cleanTextForTTS, splitText, MAX_TTS_CHARS } from '../utils/textUtils'
 import { takeAudioControl, releaseAudioControl } from '../utils/audioManager'
+import { useToast } from './useToast'
 
 export type VoiceStatus = 'idle' | 'listening' | 'processing' | 'speaking' | 'error'
 
@@ -477,6 +478,12 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
     }
 
     const start = () => {
+        if (!store.asrToken || !store.asrModel) {
+            const toast = useToast()
+            toast.error('请先在设置中配置语音识别及模型 (ASR Token & Model)')
+            return
+        }
+
         if (isVoiceChatActive.value) return; // Prevent double start
 
         // Take control immediately to stop TTS or others

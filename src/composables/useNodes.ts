@@ -2,6 +2,7 @@ import type { GatewayBrowserClient } from "~openclaw/ui/src/ui/gateway";
 import { clearDeviceAuthToken, storeDeviceAuthToken } from "~openclaw/ui/src/ui/device-auth";
 import { loadOrCreateDeviceIdentity } from "~openclaw/ui/src/ui/device-identity";
 import { loadNodes, type NodesState } from '~openclaw/ui/src/ui/controllers/nodes'
+import { useConfirm } from "./useConfirm";
 // Re-using types from devices.ts as they share the same structure for pairing
 // Ideally these should be in a shared types file, but for now we follow the pattern
 export type NodeTokenSummary = {
@@ -56,7 +57,8 @@ export async function rejectNodePairing(state: NodesState, requestId: string) {
     if (!state.client || !state.connected) {
         return;
     }
-    const confirmed = window.confirm("Reject this node pairing request?");
+    const { confirm } = useConfirm();
+    const confirmed = await confirm("Reject this node pairing request?");
     if (!confirmed) {
         return;
     }
@@ -95,7 +97,8 @@ export async function revokeNodeToken(
     if (!state.client || !state.connected) {
         return;
     }
-    const confirmed = window.confirm(`Revoke token for ${params.deviceId} (${params.role})?`);
+    const { confirm } = useConfirm();
+    const confirmed = await confirm(`Revoke token for ${params.deviceId} (${params.role})?`);
     if (!confirmed) {
         return;
     }

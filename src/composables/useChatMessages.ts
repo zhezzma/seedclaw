@@ -29,7 +29,6 @@ export interface DisplayMessage {
 }
 
 export function useChatMessages(state: ChatState & { chatToolMessages?: any[] }, messagesContainerRef: Ref<HTMLDivElement | null>) {
-    const gatewayStore = useGateway()
 
     // Transform raw messages into display messages with merged tool results
     const processedMessages = computed(() => {

@@ -67,27 +67,28 @@ function ensureInit() {
 export function useExecApproval() {
     ensureInit()
 
-    const approveExec = async (id: string) => {
-        if (!state.client || !state.connected) return
-        try {
-            await state.client.request('exec.approval.approve', { id })
-        } catch (err) {
-            state.execApprovalError = String(err)
-        }
+
+    /**
+     * Submit a command execution request (e.g. for deleting files)
+     * Returns the approval object (containing id) if successful
+     */
+    const submitRequest = async (command: string) => {
+        if (!state.client || !state.connected) throw new Error('Not connected')
+        const res = await state.client.request('exec.approval.request', { command })
+        return res
     }
 
-    const rejectExec = async (id: string) => {
-        if (!state.client || !state.connected) return
-        try {
-            await state.client.request('exec.approval.reject', { id })
-        } catch (err) {
-            state.execApprovalError = String(err)
-        }
+    /**
+     * Resolve an approval request with a decision
+     */
+    const resolveRequest = async (id: string, decision: 'allow-once' | 'allow-always' | 'deny') => {
+        if (!state.client || !state.connected) throw new Error('Not connected')
+        return await state.client.request('exec.approval.resolve', { id, decision })
     }
 
     return reactive({
         ...toRefs(state),
-        approveExec,
-        rejectExec
+        submitRequest,
+        resolveRequest
     })
 }

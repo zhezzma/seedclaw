@@ -3,7 +3,8 @@ import { ref, watch, computed } from 'vue'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline'
 import { useGateway } from '../../composables/useGateway'
 import { useConfigState } from '../../composables/useConfigState'
-import { updateConfigFormValue, saveConfig } from '../../openclaw/ui/src/ui/controllers/config'
+import { useToast } from '../../composables/useToast'
+
 
 const props = defineProps<{
     show: boolean
@@ -24,6 +25,7 @@ const emit = defineEmits<{
 
 const store = useGateway()
 const configState = useConfigState()
+const toast = useToast()
 
 // Form data
 const formData = ref({
@@ -70,10 +72,11 @@ const modalTitle = computed(() => props.mode === 'add' ? '添加提供商' : '�
 const submitLabel = computed(() => props.mode === 'add' ? '添加' : '保存')
 
 const isFormValid = computed(() => {
+    const isBaseUrlValid = formData.value.baseUrl.trim().length > 0
     if (props.mode === 'add') {
-        return formData.value.id.trim().length > 0
+        return formData.value.id.trim().length > 0 && isBaseUrlValid
     }
-    return true
+    return isBaseUrlValid
 })
 
 const handleSubmit = async () => {
@@ -88,7 +91,7 @@ const handleSubmit = async () => {
             headersObj = JSON.parse(formData.value.headers)
         } catch (e) {
             console.error('Invalid headers JSON:', e)
-            alert('自定义请求头 JSON 格式无效')
+            toast.error('自定义请求头 JSON 格式无效')
             return
         }
     }
@@ -97,7 +100,7 @@ const handleSubmit = async () => {
         // Check for duplicate ID
         const providersObj = (configState.configForm?.models as any)?.providers as Record<string, any> | undefined
         if (providersObj && providersObj[providerId]) {
-            alert('提供商 ID 已存在，请使用其他 ID')
+            toast.error('提供商 ID 已存在，请使用其他 ID')
             return
         }
 
@@ -112,44 +115,38 @@ const handleSubmit = async () => {
             providerConfig.headers = headersObj
         }
 
-        updateConfigFormValue(
-            configState as any,
+        configState.updateConfigFormValue(
             ['models', 'providers', providerId],
             providerConfig
         )
     } else {
         // Edit mode: update existing provider
-        updateConfigFormValue(
-            configState as any,
+        configState.updateConfigFormValue(
             ['models', 'providers', providerId, 'baseUrl'],
             formData.value.baseUrl
         )
-        updateConfigFormValue(
-            configState as any,
+        configState.updateConfigFormValue(
             ['models', 'providers', providerId, 'apiKey'],
             formData.value.apiKey
         )
-        updateConfigFormValue(
-            configState as any,
+        configState.updateConfigFormValue(
             ['models', 'providers', providerId, 'api'],
             formData.value.api
         )
         if (headersObj) {
-            updateConfigFormValue(
-                configState as any,
+            configState.updateConfigFormValue(
                 ['models', 'providers', providerId, 'headers'],
                 headersObj
             )
         } else {
-            updateConfigFormValue(
-                configState as any,
+            configState.updateConfigFormValue(
                 ['models', 'providers', providerId, 'headers'],
                 undefined
             )
         }
     }
 
-    await saveConfig(configState as any)
+    await configState.saveConfig()
     emit('saved', providerId)
     emit('close')
 }
@@ -173,7 +170,8 @@ const handleClose = () => {
                 </div>
 
                 <div class="form-control md:col-span-2">
-                    <label class="label"><span class="label-text">Base URL</span></label>
+                    <label class="label"><span class="label-text">Base URL <span
+                                class="text-error">*</span></span></label>
                     <input v-model="formData.baseUrl" type="text" placeholder="https://api.openai.com/v1"
                         class="input input-bordered w-full" />
                 </div>
@@ -212,7 +210,7 @@ const handleClose = () => {
             <div class="modal-action">
                 <button @click="handleClose" class="btn">取消</button>
                 <button @click="handleSubmit" class="btn btn-primary" :disabled="!isFormValid">{{ submitLabel
-                    }}</button>
+                }}</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop">

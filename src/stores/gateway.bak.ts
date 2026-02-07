@@ -12,7 +12,7 @@ import { handleAgentEvent, resetToolStream, type AgentEventPayload, type ToolStr
 import { loadAssistantIdentity, type AssistantIdentityState } from '~openclaw/ui/src/ui/controllers/assistant-identity'
 import { loadAgents, type AgentsState } from '~openclaw/ui/src/ui/controllers/agents'
 import { loadNodes, type NodesState } from '~openclaw/ui/src/ui/controllers/nodes'
-import { approveNodePairing, rejectNodePairing, rotateNodeToken, revokeNodeToken } from './nodes'
+
 import { loadDevices, approveDevicePairing, rejectDevicePairing, rotateDeviceToken, revokeDeviceToken, type DevicesState, type DevicePairingList } from '~openclaw/ui/src/ui/controllers/devices'
 import { loadOrCreateDeviceIdentity } from '~openclaw/ui/src/ui/device-identity'
 import { handleChatEvent, loadChatHistory, type ChatEventPayload, type ChatState } from '~openclaw/ui/src/ui/controllers/chat'
@@ -571,24 +571,24 @@ export const useGatewayStore = defineStore('gateway', {
             if (snapshot?.sessionDefaults) {
                 const defaults = snapshot.sessionDefaults
                 if (defaults.mainSessionKey) {
-                    const resolvedSessionKey = this.normalizeSessionKey(this.sessionKey, defaults)
-                    const resolvedSettingsSessionKey = this.normalizeSessionKey(settings.sessionKey, defaults)
-                    const resolvedLastActiveSessionKey = this.normalizeSessionKey(settings.lastActiveSessionKey, defaults)
-                    const nextSessionKey = resolvedSessionKey || resolvedSettingsSessionKey || this.sessionKey
+                    // const resolvedSessionKey = this.normalizeSessionKey(this.sessionKey, defaults)
+                    // const resolvedSettingsSessionKey = this.normalizeSessionKey(settings.sessionKey, defaults)
+                    // const resolvedLastActiveSessionKey = this.normalizeSessionKey(settings.lastActiveSessionKey, defaults)
+                    // const nextSessionKey = resolvedSessionKey || resolvedSettingsSessionKey || this.sessionKey
 
-                    if (nextSessionKey !== this.sessionKey) {
-                        this.sessionKey = nextSessionKey
-                    }
+                    // if (nextSessionKey !== this.sessionKey) {
+                    //     this.sessionKey = nextSessionKey
+                    // }
 
-                    const newSettingsSessionKey = resolvedSettingsSessionKey || nextSessionKey
-                    const newLastActiveSessionKey = resolvedLastActiveSessionKey || nextSessionKey
+                    // const newSettingsSessionKey = resolvedSettingsSessionKey || nextSessionKey
+                    // const newLastActiveSessionKey = resolvedLastActiveSessionKey || nextSessionKey
 
-                    if (newSettingsSessionKey !== settings.sessionKey) {
-                        settings.sessionKey = newSettingsSessionKey
-                    }
-                    if (newLastActiveSessionKey !== settings.lastActiveSessionKey) {
-                        settings.lastActiveSessionKey = newLastActiveSessionKey
-                    }
+                    // if (newSettingsSessionKey !== settings.sessionKey) {
+                    //     settings.sessionKey = newSettingsSessionKey
+                    // }
+                    // if (newLastActiveSessionKey !== settings.lastActiveSessionKey) {
+                    //     settings.lastActiveSessionKey = newLastActiveSessionKey
+                    // }
                 }
             }
         },
@@ -785,7 +785,7 @@ export const useGatewayStore = defineStore('gateway', {
             resetToolStream(this as unknown as Parameters<typeof resetToolStream>[0])
 
             const settings = useUiSettingsStore()
-            settings.sessionKey = key
+            //settings.sessionKey = key
             settings.lastActiveSessionKey = key
             settings.persist()
             this.loadAssistantIdentity()
@@ -982,21 +982,6 @@ export const useGatewayStore = defineStore('gateway', {
             await loadNodes(this as unknown as NodesState, opts)
         },
 
-        async approveNodePairing(requestId: string) {
-            await approveNodePairing(this as unknown as NodesState, requestId)
-        },
-
-        async rejectNodePairing(requestId: string) {
-            await rejectNodePairing(this as unknown as NodesState, requestId)
-        },
-
-        async rotateNodeToken(params: { deviceId: string; role: string; scopes?: string[] }) {
-            await rotateNodeToken(this as unknown as NodesState, params)
-        },
-
-        async revokeNodeToken(params: { deviceId: string; role: string }) {
-            await revokeNodeToken(this as unknown as NodesState, params)
-        },
 
 
         // ==================== Logs ====================
