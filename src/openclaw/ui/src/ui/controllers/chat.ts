@@ -75,22 +75,17 @@ export async function sendChatMessage(
   const now = Date.now();
 
   // Build user message content blocks
-  const contentBlocks: Array<{ type: string; text?: string; data?: string; mimeType?: string }> = [];
+  const contentBlocks: Array<{ type: string; text?: string; source?: unknown }> = [];
   if (msg) {
     contentBlocks.push({ type: "text", text: msg });
   }
   // Add image previews to the message for display
-  // Use the same format as API history: data (raw base64) + mimeType
   if (hasAttachments) {
     for (const att of attachments) {
-      const parsed = dataUrlToBase64(att.dataUrl);
-      if (parsed) {
-        contentBlocks.push({
-          type: "image",
-          data: parsed.content,
-          mimeType: parsed.mimeType,
-        });
-      }
+      contentBlocks.push({
+        type: "image",
+        source: { type: "base64", media_type: att.mimeType, data: att.dataUrl },
+      });
     }
   }
 
@@ -113,18 +108,18 @@ export async function sendChatMessage(
   // Convert attachments to API format
   const apiAttachments = hasAttachments
     ? attachments
-      .map((att) => {
-        const parsed = dataUrlToBase64(att.dataUrl);
-        if (!parsed) {
-          return null;
-        }
-        return {
-          type: "image",
-          mimeType: parsed.mimeType,
-          content: parsed.content,
-        };
-      })
-      .filter((a): a is NonNullable<typeof a> => a !== null)
+        .map((att) => {
+          const parsed = dataUrlToBase64(att.dataUrl);
+          if (!parsed) {
+            return null;
+          }
+          return {
+            type: "image",
+            mimeType: parsed.mimeType,
+            content: parsed.content,
+          };
+        })
+        .filter((a): a is NonNullable<typeof a> => a !== null)
     : undefined;
 
   try {

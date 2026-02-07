@@ -92,7 +92,7 @@ const userParsedBlocks = computed(() => {
         else if (block.type === 'image') {
             const sourceData = block.source?.data || ''
             const mediaType = block.source?.media_type || 'image/png'
-            const src = sourceData ? `data:${mediaType};base64,${sourceData}` : ''
+            const src = sourceData.startsWith('data:') ? sourceData : (sourceData ? `data:${mediaType};base64,${sourceData}` : '')
 
             result.push({
                 type: 'image',
