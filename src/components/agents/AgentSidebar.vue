@@ -52,7 +52,7 @@ const handleAgentSaved = (agentId: string) => {
     emit('select', agentId)
     // Show prompt and redirect to chat
     toast.info('要先和我说句话，才能进行角色设定哟 ✨')
-    router.push({ name: 'home', query: { sessionkey: createAgentMainSessionKey(agentId) } })
+    router.push({ name: 'chat', params: { sessionkey: createAgentMainSessionKey(agentId) } })
 }
 </script>
 

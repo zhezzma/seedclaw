@@ -61,18 +61,18 @@ const closeSidebarDrawer = () => {
 }
 
 const selectAgent = (agentId: string) => {
-    router.push({ name: 'home', query: { sessionkey: createAgentMainSessionKey(agentId) } })
+    router.push({ name: 'chat', params: { sessionkey: createAgentMainSessionKey(agentId) } })
     closeSidebarDrawer()
 }
 
 const selectSession = (key: string) => {
-    router.push({ name: 'home', query: { sessionkey: key } })
+    router.push({ name: 'chat', params: { sessionkey: key } })
     closeSidebarDrawer()
 }
 
 const createNewSession = () => {
-    // Navigate to home without sessionkey to trigger new session creation
-    router.push({ name: 'home', query: { new: '1' } })
+    // Navigate to new-session route
+    router.push({ name: 'new-session' })
     closeSidebarDrawer()
 }
 
@@ -92,7 +92,7 @@ const handleNavClick = (item: any) => {
     if (item.route) {
         // ... navigation logic
         if (item.route === 'home') {
-            router.push({ name: 'home', query: { sessionkey: props.defaultSessionKey } })
+            router.push({ name: 'chat', params: { sessionkey: props.defaultSessionKey } })
         } else {
             router.push({ name: item.route })
         }

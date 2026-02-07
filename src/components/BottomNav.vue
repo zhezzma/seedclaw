@@ -28,8 +28,8 @@ const activeTab = computed(() => {
 
 const navigateTo = (tab: typeof tabs[0]) => {
     if (tab.route === 'home') {
-        // Navigate to home with default session key
-        router.push({ name: 'home', query: { sessionkey: gatewayStore.defaultSessionKey } })
+        // Navigate to chat with default session key
+        router.push({ name: 'chat', params: { sessionkey: gatewayStore.defaultSessionKey } })
     } else {
         router.push({ name: tab.route })
     }

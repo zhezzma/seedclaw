@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, reactive, toRef } from 'vue'
+import { ref, computed, onMounted, onUnmounted, onActivated, watch, reactive, toRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
 import { useGateway } from '../composables/useGateway'
@@ -27,8 +27,6 @@ const agentsState = useAgentsState()
 
 // Misc Local State
 const refreshSessionsAfterChat = new Set<string>()
-// Flag to prevent watch from resetting session after query parameter is cleared
-const sessionSwitchedByQuery = ref(false)
 
 // Helper to access delegated props that were in localState
 const isNewSessionPending = toRef(chatState, 'isNewSessionPending')
@@ -102,23 +100,10 @@ const handleDeleteSession = async (key: string) => {
     // AppSidebar handles confirmation before emitting
     const result = await sessionsState.deleteSession(key)
     if (result?.deleted && chatState.sessionKey === key) {
-        router.push({ name: 'home', query: { sessionkey: gatewayStore.defaultSessionKey } })
+        router.push({ name: 'chat', params: { sessionkey: gatewayStore.defaultSessionKey } })
     }
 }
 
-
-// Agent selection handler
-const handleSelectAgent = (agentId: string) => {
-    selectedAgentId.value = agentId
-
-    if (isNewSessionPending.value) {
-        chatState.assistantAgentId = agentId
-        return
-    }
-
-    // Switch to agent's main session
-    chatState.setSessionKey(createAgentMainSessionKey(agentId))
-}
 
 // Watch for assistant identity changes to update selection
 watch(() => chatState.assistantAgentId, (newId) => {
@@ -202,10 +187,6 @@ const readAloud = (msg: DisplayMessage) => {
     ttsReadAloud(msg.id, text)
 }
 
-// Create new session
-const createNewSession = async () => {
-    await chatState.createNewSession()
-}
 
 // Voice Chat
 const handleRecognizedText = async (text: string) => {
@@ -277,6 +258,9 @@ const handleClickOutside = (event: MouseEvent) => {
 
 onMounted(async () => {
     document.addEventListener('click', handleClickOutside)
+    scrollToBottom()
+    // Add a delay to ensure scroll happens after transition/layout updates
+    setTimeout(scrollToBottom, 100)
     setupScrollWatchers()
 })
 
@@ -286,36 +270,34 @@ onUnmounted(() => {
 
 
 
-// Handle route query parameters for session switching
-watch(() => route.query, async (query) => {
+// Handle route params for session switching
+watch(() => [route.params.sessionkey, route.name], async ([sessionkey, routeName]) => {
+    console.log("[HomeView] watch route.params", sessionkey, routeName)
 
-    console.log("[HomeView] watch route.query", query)
-    if (query.sessionkey && typeof query.sessionkey === 'string') {
-        // Switch to the specified session
-        chatState.setSessionKey(query.sessionkey)
-        // Mark that we just switched session via query, so we don't reset it when query is cleared
-        sessionSwitchedByQuery.value = true
-        // Clear the query parameter after processing
-        router.replace({ name: 'home' })
-    } else if (query.new === '1') {
-        // Create a new session
+    // Handle new session route
+    if (routeName === 'new-session') {
         await chatState.createNewSession()
-        sessionSwitchedByQuery.value = true
-        // Clear the query parameter after processing
-        router.replace({ name: 'home' })
+        return
     }
-    else if (sessionSwitchedByQuery.value) {
-        // Query was cleared after sessionkey/new was processed, don't reset session
-        sessionSwitchedByQuery.value = false
-    }
-    else {
-        // Wait for gateway to be connected before applying default behavior
-        if (!gatewayStore.connected) {
-            console.log('[HomeView] Gateway not connected yet, waiting...')
+
+    // Handle session key in route params
+    if (sessionkey && typeof sessionkey === 'string') {
+        // Optimize: Don't reload if session key is already set
+        if (chatState.sessionKey === sessionkey) {
+            console.log('[HomeView] Session key unchanged, skipping reload', sessionkey)
             return
         }
-        await applyDefaultSessionBehavior()
+        chatState.setSessionKey(sessionkey)
+        return
     }
+
+    // No session key specified, apply default behavior
+    // Wait for gateway to be connected before applying default behavior
+    if (!gatewayStore.connected) {
+        console.log('[HomeView] Gateway not connected yet, waiting...')
+        return
+    }
+    await applyDefaultSessionBehavior()
 
 }, { immediate: true })
 
@@ -340,19 +322,18 @@ async function applyDefaultSessionBehavior() {
     // Default behavior based on settings
     if (settingsStore.homePageBehavior === 'new_session') {
         await chatState.createNewSession()
-        // Clear the query parameter after processing
-        router.replace({ name: 'home' })
+        router.replace({ name: 'new-session' })
     } else if (settingsStore.homePageBehavior === 'default_session') {
         // Load explicitly default session
         console.log('Default: default session', gatewayStore.defaultSessionKey)
         chatState.setSessionKey(gatewayStore.defaultSessionKey)
-        router.replace({ name: 'home' })
+        router.replace({ name: 'chat', params: { sessionkey: gatewayStore.defaultSessionKey } })
     } else {
         // Default: last active session
         const targetKey = settingsStore.lastActiveSessionKey || gatewayStore.defaultSessionKey
         console.log('Default: last active session', targetKey)
         chatState.setSessionKey(targetKey)
-        router.replace({ name: 'home' })
+        router.replace({ name: 'chat', params: { sessionkey: targetKey } })
     }
 }
 </script>
@@ -377,8 +358,7 @@ async function applyDefaultSessionBehavior() {
         <div class="flex-1 flex flex-col h-full min-w-0">
             <!-- Header -->
             <ChatHeader ref="chatHeaderRef" :selected-agent="selectedAgent" :show-agent-dropdown="showAgentDropdown"
-                :current-session-name="currentSessionName" :agents="agents" @select-agent="handleSelectAgent"
-                @create-session="createNewSession" @start-voice-chat="startVoiceChat" />
+                :current-session-name="currentSessionName" :agents="agents" @start-voice-chat="startVoiceChat" />
 
             <!-- Main content area -->
             <div class="flex-1 flex flex-col min-h-0">

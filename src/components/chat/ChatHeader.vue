@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import {
     Bars3Icon,
     ChevronDownIcon,
@@ -14,6 +15,7 @@ import {
 import { useUiSettingsStore } from '../../stores/setting'
 import { useGateway } from '../../composables/useGateway'
 import { useChatState } from '../../composables/useChatState'
+import { createAgentMainSessionKey } from '../../utils/session-key-helpers'
 
 interface Agent {
     id: string
@@ -36,6 +38,7 @@ const emit = defineEmits<{
 }>()
 
 
+const router = useRouter()
 const settingsStore = useUiSettingsStore()
 const gatewayStore = useGateway()
 const chatState = useChatState()
@@ -44,14 +47,15 @@ const dropdownRef = ref<HTMLDetailsElement | null>(null)
 const selectedAgentId = computed(() => props.selectedAgent?.id || '')
 
 const selectAgent = (agentId: string) => {
-    emit('select-agent', agentId)
+    // Navigate to agent's main session
+    router.push({ name: 'chat', params: { sessionkey: createAgentMainSessionKey(agentId) } })
     if (dropdownRef.value) {
         dropdownRef.value.open = false
     }
 }
 
 const createNewSession = () => {
-    emit('create-session')
+    router.push({ name: 'new-session' })
 }
 
 const startVoiceChat = () => {

@@ -38,6 +38,16 @@ const router = createRouter({
                 {
                     path: '',
                     name: 'home',
+                    redirect: { name: 'chat' }
+                },
+                {
+                    path: 'chat/:sessionkey?',
+                    name: 'chat',
+                    component: HomeView
+                },
+                {
+                    path: 'new',
+                    name: 'new-session',
                     component: HomeView
                 },
                 {

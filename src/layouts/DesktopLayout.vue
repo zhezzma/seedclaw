@@ -34,7 +34,7 @@ const activeAgentId = computed(() => {
 const handleDeleteSession = async (key: string) => {
     const result = await sessionsState.deleteSession(key)
     if (result?.deleted && chatState.sessionKey === key) {
-        router.push({ name: 'home', query: { sessionkey: gatewayStore.defaultSessionKey } })
+        router.push({ name: 'chat', params: { sessionkey: gatewayStore.defaultSessionKey } })
     }
 }
 </script>
