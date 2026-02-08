@@ -83,7 +83,7 @@ const handleSave = async () => {
             <template #actions>
                 <button @click="handleSave" class="btn btn-primary btn-sm" :disabled="state.configSaving">
                     <span v-if="state.configSaving" class="loading loading-spinner loading-xs"></span>
-                    Save
+                    保存
                 </button>
             </template>
         </ViewHeader>
