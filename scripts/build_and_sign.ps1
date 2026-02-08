@@ -34,8 +34,15 @@ if ([string]::IsNullOrWhiteSpace($keyPass)) { $keyPass = "android" }
 
 Write-Host "ANDROID_KEYSTORE_PATH: $env:ANDROID_KEYSTORE_PATH"
 
-
-
+# ==============================================================================
+# [Windows 环境构建说明]
+# 本地构建 Android 版本时，由于使用了 `openssl` (vendored)，需要编译 C 源码。
+# Windows 默认环境缺失 Unix 编译工具 (perl, make)，必须通过 MSYS2 提供。
+# 如果你在新环境部署，请确保：
+# 1. 安装 MSYS2: scoop install msys2
+# 2. 安装编译工具: 进入 msys2 目录或使用 bash 调用 pacman -S --noconfirm perl make
+# (macOS/Linux 无需此步骤，系统自带工具即可)
+# ==============================================================================
 
 # OpenSSL (Android) 构建需要产生 Unix 路径的 Perl (MSYS2/Cygwin)，Strawberry Perl (Windows) 会导致路径错误。
 # 检测并使用 Scoop 安装的 MSYS2 环境
