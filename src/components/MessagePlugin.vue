@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useToast, type ToastType } from '../composables/useToast'
+import { useToast, type Toast, type ToastType } from '../composables/useToast'
 import {
     CheckCircleIcon,
     XCircleIcon,
@@ -29,6 +29,13 @@ const getIcon = (type: ToastType) => {
         default: return InformationCircleIcon
     }
 }
+
+const handleToastClick = (toast: Toast) => {
+    if (toast.onClick) {
+        toast.onClick()
+        remove(toast.id)
+    }
+}
 </script>
 
 <template>
@@ -37,10 +44,11 @@ const getIcon = (type: ToastType) => {
             <TransitionGroup name="toast-fade">
                 <div v-for="toast in toasts" :key="toast.id"
                     class="alert shadow-lg min-w-[300px] pointer-events-auto flex items-center p-3"
-                    :class="getAlertClass(toast.type)">
+                    :class="[getAlertClass(toast.type), { 'cursor-pointer hover:opacity-90': toast.onClick }]"
+                    @click="handleToastClick(toast)">
                     <component :is="getIcon(toast.type)" class="w-6 h-6 stroke-current shrink-0" />
                     <span class="flex-1 text-sm font-medium">{{ toast.message }}</span>
-                    <button @click="remove(toast.id)" class="btn btn-ghost btn-sm btn-circle text-current">
+                    <button @click.stop="remove(toast.id)" class="btn btn-ghost btn-sm btn-circle text-current">
                         <XMarkIcon class="w-5 h-5" />
                     </button>
                 </div>

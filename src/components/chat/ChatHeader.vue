@@ -100,11 +100,11 @@ defineExpose({
                 </ul>
             </details>
             <!-- Session name (for specific sessions like agent:xxx:session:xxx) -->
-            <span v-else class=" lg:pl-5 font-semibold flex items-center gap-2">
-                {{ currentSessionName }}
-                <span v-if="chatState.assistantAgentId" class="badge badge-sm badge-ghost">{{
+            <div v-else class="lg:pl-5 font-semibold flex items-center gap-2 min-w-0">
+                <span class="truncate max-w-[200px] lg:max-w-none">{{ currentSessionName }}</span>
+                <span v-if="chatState.assistantAgentId" class="badge badge-sm badge-ghost shrink-0">{{
                     chatState.assistantAgentId }}</span>
-            </span>
+            </div>
         </div>
         <!-- Connection status indicator -->
         <div class="flex-none flex items-center gap-2 pr-1">

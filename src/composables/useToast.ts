@@ -7,6 +7,7 @@ export interface Toast {
     type: ToastType
     message: string
     duration?: number
+    onClick?: () => void
 }
 
 // Module-level singleton state
@@ -21,9 +22,20 @@ const remove = (id: string) => {
     }
 }
 
-const add = (message: string, type: ToastType = 'info', duration = 3000) => {
+const add = (message: string, type: ToastType = 'info', optionsOrDuration: number | ToastOptions | undefined = 3000) => {
     const id = `toast-${Date.now()}-${idCounter++}`
-    toasts.push({ id, type, message, duration })
+
+    let duration = 3000
+    let onClick: undefined | (() => void)
+
+    if (typeof optionsOrDuration === 'number') {
+        duration = optionsOrDuration
+    } else if (typeof optionsOrDuration === 'object') {
+        duration = optionsOrDuration.duration ?? 3000
+        onClick = optionsOrDuration.onClick
+    }
+
+    toasts.push({ id, type, message, duration, onClick })
 
     if (duration > 0) {
         setTimeout(() => {
@@ -39,6 +51,11 @@ const info = (message: string, duration?: number) => add(message, 'info', durati
 const warning = (message: string, duration?: number) => add(message, 'warning', duration)
 const clear = () => (toasts.length = 0)
 
+export interface ToastOptions {
+    duration?: number
+    onClick?: () => void
+}
+
 export const useToast = () => {
     return {
         // Return computed for readonly access to array, or just reference to reactive array?
@@ -50,10 +67,10 @@ export const useToast = () => {
         toasts: computed(() => toasts), // Readonly view safer? MessagePlugin creates v-for on it.
         add,
         remove,
-        success,
-        error,
-        info,
-        warning,
+        success: (message: string, options?: number | ToastOptions) => add(message, 'success', options),
+        error: (message: string, options?: number | ToastOptions) => add(message, 'error', options),
+        info: (message: string, options?: number | ToastOptions) => add(message, 'info', options),
+        warning: (message: string, options?: number | ToastOptions) => add(message, 'warning', options),
         clear
     }
 }

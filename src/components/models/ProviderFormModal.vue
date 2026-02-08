@@ -149,6 +149,7 @@ const handleSubmit = async () => {
     await configState.saveConfig()
     emit('saved', providerId)
     emit('close')
+    toast.success('保存成功')
 }
 
 const handleClose = () => {
