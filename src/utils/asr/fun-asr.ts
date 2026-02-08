@@ -1,14 +1,21 @@
 import { ASREngine } from './types';
 import { generateUUID } from '~openclaw/ui/src/ui/uuid';
 import { useUiSettingsStore } from '../../stores/setting';
+import { useToast } from '../../composables/useToast';
+import WebSocket from '@tauri-apps/plugin-websocket';
 
 export class FunASRService implements ASREngine {
     private ws: WebSocket | null = null;
     private isConnected: boolean = false;
     private taskId: string = '';
+
+    // 简单的结果状态管理
     private sessionTranscript: string = '';
     private currentSentenceText: string = '';
+    // 当前句子的开始时间，用来区分是否是新句子
+    // DashScope 返回的 sentence.begin_time
     private currentSentenceBeginTime: number = -1;
+
     private onResultCallback: ((text: string, isFinal: boolean) => void) | null = null;
 
     // 北京地域 URL
@@ -18,20 +25,16 @@ export class FunASRService implements ASREngine {
 
     private getApiKey(): string {
         const store = useUiSettingsStore();
-        // 开发模式下可以使用 .env 中的 VITE_ASRTOKEN，生产环境只用 store 
-        //Vite 的 tree-shaking 会在生产构建时移除 import.meta.env.DEV 分支的代码，因为它是静态的 false。
-        if (import.meta.env.DEV) {
-            return store.asrToken || import.meta.env.VITE_ASRTOKEN || '';
-        }
-        return store.asrToken || '';
+        return store.asrToken;
     }
 
     private getModel(): string {
         const store = useUiSettingsStore();
-        return store.asrModel;
+        return store.asrModel || 'fun-asr-realtime';
     }
 
     async start(onResult: (text: string, isFinal: boolean) => void): Promise<void> {
+
         if (this.isConnected) {
             console.warn('FunASR is already running.');
             return;
@@ -40,7 +43,8 @@ export class FunASRService implements ASREngine {
         const apiKey = this.getApiKey();
 
         if (!apiKey) {
-            throw new Error('API Key is missing. Please configure it in settings.');
+            useToast().error('API Key is missing. Please configure it in settings.');
+            throw new Error('API Key is missing');
         }
 
         this.onResultCallback = onResult;
@@ -52,64 +56,61 @@ export class FunASRService implements ASREngine {
         this.currentSentenceBeginTime = -1;
 
         try {
-            // 使用原生 WebSocket 连接，通过 query param 鉴权
-            const url = `${FunASRService.URL}?api_key=${apiKey}`;
-            console.log('Connecting to Aliyun ASR via native WebSocket...');
+            console.log('Connecting to Aliyun ASR via Tauri WebSocket...');
 
-            this.ws = new WebSocket(url);
+            // 使用 Tauri WebSocket 插件连接，支持自定义 Headers
+            this.ws = await WebSocket.connect(FunASRService.URL, {
+                headers: {
+                    Authorization: `bearer ${apiKey}`
+                }
+            });
 
-            // 等待连接打开
-            await new Promise<void>((resolve, reject) => {
-                if (!this.ws) return reject('No WS');
-
-                this.ws.onopen = () => {
-                    console.log('Connected to Aliyun ASR');
-                    resolve();
-                };
-
-                this.ws.onerror = (error) => {
-                    console.error('WebSocket Error:', error);
-                    reject(error);
-                };
-
-                this.ws.onmessage = (msg) => {
-                    if (typeof msg.data === 'string') {
-                        try {
-                            const message = JSON.parse(msg.data);
-                            this.handleMessage(message);
-                        } catch (e) {
-                            console.error('Failed to parse message:', e);
-                        }
+            this.ws.addListener((msg: any) => {
+                if (msg.type === 'Text') {
+                    try {
+                        const message = JSON.parse(msg.data as string);
+                        this.handleMessage(message);
+                    } catch (e) {
+                        console.error('Failed to parse message:', e);
                     }
-                };
-
-                this.ws.onclose = (event) => {
-                    console.log('WebSocket closed:', event.code, event.reason);
+                } else if (msg.type === 'Close') {
+                    console.log('WebSocket closed:', msg.data);
                     this.cleanup();
-                };
+                }
             });
 
             this.isConnected = true;
-            this.sendRunTask();
+            console.log('Connected to Aliyun ASR');
+            await this.sendRunTask();
 
         } catch (error) {
             console.error('Failed to connect to WebSocket:', error);
+            useToast().error('ASR connection failed. Please check your API Key and Network.');
             this.cleanup();
             throw error;
         }
     }
 
-    sendAudio(pcmData: Int16Array): void {
-        if (this.ws && this.isConnected && this.ws.readyState === WebSocket.OPEN) {
-            const buffer = pcmData.buffer;
-            this.ws.send(buffer);
+    async sendAudio(pcmData: Int16Array): Promise<void> {
+        if (this.ws && this.isConnected) {
+            // Tauri WebSocket send accepts string or number[] (for binary)
+            // Need to convert Int16Array to number[] or Uint8Array (as standard WS usually takes ArrayBuffer/Blob)
+            // The plugin document says: send(message: string | number[] | { [key: string]: any })
+            // For binary, we usually send number[] of bytes.
+            const buffer = new Uint8Array(pcmData.buffer); // View as bytes
+            const data = Array.from(buffer); // Convert to number array for plugin
+            try {
+                await this.ws.send(data);
+            } catch (e) {
+                console.error('Failed to send audio data:', e);
+            }
         }
     }
 
     async stop(): Promise<void> {
         if (!this.isConnected) return;
 
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        if (this.ws) {
             const finishTaskMessage = {
                 header: {
                     action: 'finish-task',
@@ -121,7 +122,7 @@ export class FunASRService implements ASREngine {
                 }
             };
             try {
-                this.ws.send(JSON.stringify(finishTaskMessage));
+                await this.ws.send(JSON.stringify(finishTaskMessage));
             } catch (e) {
                 console.error('Error sending finish-task:', e);
             }
@@ -136,41 +137,50 @@ export class FunASRService implements ASREngine {
     private cleanup() {
         if (this.ws) {
             try {
-                this.ws.close();
+                this.ws.disconnect(); // Tauri plugin uses disconnect()
             } catch (e) {
-                // Ignore
+                console.warn('Error disconnecting websocket:', e);
             }
             this.ws = null;
         }
         this.isConnected = false;
+        this.onResultCallback = null;
     }
 
     private handleMessage(message: any) {
+        if (!message || !message.header) return;
+
         switch (message.header.event) {
             case 'task-started':
                 console.log('Task started');
                 break;
             case 'result-generated':
+            case 'result-partially-generated': // Handle partials if needed, though 'result-generated' covers streaming usually in DashScope
                 const sentence = message.payload?.output?.sentence;
-                if (this.onResultCallback && sentence) {
-                    const text = sentence.text;
-                    const beginTime = sentence.begin_time;
+                if (!sentence) return;
 
-                    // 检测是否是新句子 (根据 begin_time 变化)
+                const text = sentence.text;
+                const beginTime = sentence.begin_time;
+                // DashScope sends cumulative text for current sentence usually? 
+                // Wait, logic from before:
+                // "如果 beginTime 变了，说明是新的一句"
+
+                if (this.onResultCallback) {
+                    // Check if new sentence started
                     if (this.currentSentenceBeginTime !== -1 && this.currentSentenceBeginTime !== beginTime) {
-                        // 提交上一句
+                        // Previous sentence finished. Append to transcript.
                         this.sessionTranscript += (this.sessionTranscript ? ' ' : '') + this.currentSentenceText;
                         this.currentSentenceText = text;
                         this.currentSentenceBeginTime = beginTime;
                     } else {
-                        // 更新当前句或初始化
+                        // Same sentence updating or first sentence
                         this.currentSentenceText = text;
                         if (this.currentSentenceBeginTime === -1) {
                             this.currentSentenceBeginTime = beginTime;
                         }
                     }
 
-                    // 返回完整文本 (历史 + 当前流)
+                    // Assemble full text
                     const fullText = this.sessionTranscript + (this.sessionTranscript ? ' ' : '') + this.currentSentenceText;
                     this.onResultCallback(fullText, false);
                 }
@@ -180,16 +190,19 @@ export class FunASRService implements ASREngine {
                 this.cleanup();
                 break;
             case 'task-failed':
-                console.error('Task failed:', message.header.error_message);
+                const errorMsg = message.header.error_message || 'Unknown error';
+                console.error('Task failed:', errorMsg);
+                useToast().error(`ASR Task Failed: ${errorMsg}`);
                 this.cleanup();
                 break;
             default:
+                // console.log('Unhandled event:', message.header.event);
                 break;
         }
     }
 
-    private sendRunTask() {
-        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    private async sendRunTask() {
+        if (!this.ws) return;
 
         const runTaskMessage = {
             header: {
@@ -210,6 +223,10 @@ export class FunASRService implements ASREngine {
             }
         };
 
-        this.ws.send(JSON.stringify(runTaskMessage));
+        try {
+            await this.ws.send(JSON.stringify(runTaskMessage));
+        } catch (e) {
+            console.error("Failed to send run-task:", e);
+        }
     }
 }

@@ -71,7 +71,7 @@ class EdgeTTS implements TTSEngine {
           "Pragma": "no-cache",
           "Cache-Control": "no-cache",
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0",
-          "Origin": "http://localhost:1420",
+          "Origin": "http://localhost:18081",
           "Accept-Encoding": "gzip, deflate, br, zstd",
           "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"
         }

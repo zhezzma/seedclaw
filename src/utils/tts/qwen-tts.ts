@@ -1,14 +1,18 @@
 import { useUiSettingsStore } from '../../stores/setting'
 import { TTSEngine } from './types'
+import WebSocket from '@tauri-apps/plugin-websocket';
 
 export class QwenTTS implements TTSEngine {
-    private apiKey: string
-    private model: string
+    constructor() { }
 
-    constructor() {
+    private getApiKey(): string {
         const store = useUiSettingsStore()
-        this.apiKey = store.ttsToken || import.meta.env.VITE_TTSTOKEN || ''
-        this.model = store.ttsModel || 'qwen3-tts-flash-realtime-2025-11-27'
+        return store.ttsToken
+    }
+
+    private getModel(): string {
+        const store = useUiSettingsStore()
+        return store.ttsModel || 'qwen3-tts-flash-realtime'
     }
 
     private getWebSocketUrl(): string {
@@ -63,7 +67,8 @@ export class QwenTTS implements TTSEngine {
         onEnd: () => void,
         onError: (err: any) => void
     }): Promise<void> {
-        if (!this.apiKey) {
+        const apiKey = this.getApiKey()
+        if (!apiKey) {
             callbacks.onError('Missing API Key for Qwen TTS')
             return
         }
@@ -82,120 +87,138 @@ export class QwenTTS implements TTSEngine {
         }
 
         try {
-            // Use native WebSocket with query param auth
-            const url = `${this.getWebSocketUrl()}?api_key=${this.apiKey}&model=${this.model}`
-            ws = new WebSocket(url)
+            console.log('Connecting to Qwen TTS via Tauri WebSocket...');
+            // Use Tauri WebSocket with Header Auth
+            const url = `${this.getWebSocketUrl()}?model=${this.getModel()}`
+            ws = await WebSocket.connect(url, {
+                headers: {
+                    Authorization: `bearer ${apiKey}`
+                }
+            });
         } catch (e) {
             callbacks.onError(e)
             return
         }
 
-        // Connection timeout
-        const connectionTimeout = setTimeout(() => {
-            if (ws && ws.readyState !== WebSocket.OPEN) {
-                ws.close()
-                callbacks.onError('Connection timeout')
-            }
-        }, 10000)
 
-        const sendEvent = (event: any) => {
-            if (ws && ws.readyState === WebSocket.OPEN) {
+        // Connection timeout logic (manual, as Tauri Connect waits but we might want to enforce our own timeout?)
+        // Tauri connect is await-ed, so if it hangs, we hang. Tauri usually has its own timeout.
+        // We can keep a safety timeout for the *session* flow.
+
+        const connectionTimeout = setTimeout(() => {
+            if (ws && !finished) { // Check finished flag instead of readyState as Tauri WS object doesn't expose readyState property directly effectively in sync way without async check
+                // Tauri WS doesn't have .readyState property compatible with standard WS enum (0,1,2,3) directly on the instance in the same way? 
+                // Actually it does NOT have readyState property.
+                // We rely on our `finished` flag or explicit close.
+                try {
+                    ws.disconnect();
+                } catch (e) { }
+                if (!finished) {
+                    callbacks.onError('Connection/Protocol timeout');
+                    finished = true;
+                }
+            }
+        }, 15000)
+
+        const sendEvent = async (event: any) => {
+            if (ws) {
                 try {
                     // Add event_id as per example
                     event.event_id = `event_${Date.now()}`
-                    ws.send(JSON.stringify(event))
+                    await ws.send(JSON.stringify(event))
                 } catch (e) {
                     console.error('Send event error', e)
                 }
             }
         }
 
-        ws.onopen = async () => {
-            clearTimeout(connectionTimeout)
+        ws.addListener((msg: any) => {
+            if (finished) return;
 
-            // 1. Update Session
-            sendEvent({
-                type: "session.update",
-                session: {
-                    voice: "Serena",
-                    mode: "server_commit",
-                    response_format: "pcm",
-                    sample_rate: 24000,
-                    language_type: "Auto"
+            if (msg.type === 'Text') {
+                try {
+                    const event = JSON.parse(msg.data as string);
+                    // Logic from onmessage
+                    const type = event.type;
+
+                    if (type === 'error') {
+                        const errMsg = event.error?.message || 'Unknown Error'
+                        if (event.error?.code) {
+                            console.error('Qwen Error Code:', event.error.code)
+                        }
+                        if (!finished) {
+                            finished = true
+                            clearTimeout(connectionTimeout);
+                            callbacks.onError(new Error(errMsg))
+                            ws?.disconnect()
+                        }
+                    } else if (type === 'response.audio.delta') {
+                        const b64 = event.delta
+                        if (b64) {
+                            const data = base64ToUint8Array(b64)
+                            callbacks.onChunk(data)
+                        }
+                    } else if (type === 'response.done') {
+                        // Response finished
+                    } else if (type === 'session.finished') {
+                        if (!finished) {
+                            finished = true
+                            clearTimeout(connectionTimeout);
+                            callbacks.onEnd()
+                            ws?.disconnect()
+                        }
+                    }
+                } catch (err) {
+                    console.error('Qwen TTS Msg Error', err)
                 }
-            })
-
-            // 2. Send Text
-            sendEvent({
-                type: "input_text_buffer.append",
-                text: text
-            })
-
-            // 3. Finish (Delay slightly to allow processing)
-            setTimeout(() => {
-                sendEvent({ type: "session.finish" })
-            }, 1000)
-        }
-
-        ws.onmessage = (event: MessageEvent) => {
-            if (finished) return
-
-            try {
-                const msg = JSON.parse(event.data)
-                const type = msg.type
-
-                if (type === 'error') {
-                    const errMsg = msg.error?.message || 'Unknown Error'
-                    if (msg.error?.code) {
-                        console.error('Qwen Error Code:', msg.error.code)
-                    }
-                    if (!finished) {
-                        finished = true
-                        callbacks.onError(new Error(errMsg))
-                        ws?.close()
-                    }
-                } else if (type === 'response.audio.delta') {
-                    const b64 = msg.delta
-                    if (b64) {
-                        const data = base64ToUint8Array(b64)
-                        callbacks.onChunk(data)
-                    }
-                } else if (type === 'response.done') {
-                    // Response finished
-                } else if (type === 'session.finished') {
-                    if (!finished) {
-                        finished = true
-                        callbacks.onEnd()
-                        ws?.close()
+            } else if (msg.type === 'Close') {
+                if (!finished) {
+                    finished = true;
+                    // Check close code if available? msg.data might have code/reason
+                    // msg structure: { type: 'Close', data: { code: number, reason: string } } ??
+                    // Actually Tauri v2 plugin-websocket Close message data: { code: number, reason: string }
+                    const closeData = msg.data as { code: number, reason: string };
+                    if (closeData.code === 1000) {
+                        callbacks.onEnd();
+                    } else {
+                        callbacks.onError(new Error(`WebSocket closed: ${closeData.code} ${closeData.reason}`));
                     }
                 }
-            } catch (err) {
-                console.error('Qwen TTS Msg Error', err)
+                clearTimeout(connectionTimeout);
             }
-        }
+        });
 
-        ws.onerror = (e) => {
-            clearTimeout(connectionTimeout)
-            if (!finished) {
-                finished = true
-                console.error('WebSocket Error', e)
-                callbacks.onError(new Error('WebSocket Connection Error'))
-            }
-        }
+        // On Open logic (Tauri connect resolves when open, so we execute this immediately after await connect)
+        clearTimeout(connectionTimeout); // Clear initial connect timeout if we had one wrapping the connect call, but here we reset it for the SESSION flow.
 
-        ws.onclose = (e) => {
-            clearTimeout(connectionTimeout)
-            if (!finished) {
-                if (e.code === 1000) {
-                    finished = true
-                    callbacks.onEnd()
-                } else {
-                    finished = true
-                    callbacks.onError(new Error(`WebSocket closed: ${e.code} ${e.reason}`))
-                }
+        // Re-set timeout for the session flow duration/response?
+        // Original code had a timeout that cleared on 'open'. 
+        // Here we are 'open' now.
+
+        // 1. Update Session
+        await sendEvent({
+            type: "session.update",
+            session: {
+                voice: "Serena",
+                mode: "server_commit",
+                response_format: "pcm",
+                sample_rate: 24000,
+                language_type: "Auto"
             }
-        }
+        })
+
+        // 2. Send Text
+        await sendEvent({
+            type: "input_text_buffer.append",
+            text: text
+        })
+
+        // 3. Finish (Delay slightly to allow processing)
+        setTimeout(async () => {
+            await sendEvent({ type: "session.finish" })
+        }, 1000)
     }
+
 
     async ttsPromise(text: string): Promise<Blob> {
         return new Promise((resolve, reject) => {
