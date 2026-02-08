@@ -108,15 +108,12 @@ const filteredSkills = computed(() => {
 const skillGroups = computed(() => {
     const groups: Record<string, typeof filteredSkills.value> = {
         'bundled': [],
-        'managed': [],
         'workspace': []
     }
 
     filteredSkills.value.forEach((skill: any) => {
-        if (skill.source.includes('bundled')) {
+        if (skill.bundled === true) {
             groups['bundled'].push(skill)
-        } else if (skill.source.includes('managed')) {
-            groups['managed'].push(skill)
         } else {
             groups['workspace'].push(skill)
         }
@@ -130,7 +127,6 @@ const hasSkills = computed(() => filteredSkills.value.length > 0)
 const getGroupTitle = (group: string) => {
     switch (group) {
         case 'bundled': return '内置技能 (Bundled)'
-        case 'managed': return '托管技能 (Managed)'
         case 'workspace': return '工作区技能 (Workspace)'
         default: return '其他技能'
     }
@@ -139,7 +135,6 @@ const getGroupTitle = (group: string) => {
 const getGroupIcon = (group: string) => {
     switch (group) {
         case 'bundled': return CubeIcon
-        case 'managed': return CpuChipIcon
         case 'workspace': return WrenchScrewdriverIcon
         default: return PuzzlePieceIcon
     }
