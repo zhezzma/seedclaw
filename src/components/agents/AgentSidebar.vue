@@ -8,6 +8,7 @@ import AgentFormModal from './AgentFormModal.vue'
 import { createAgentMainSessionKey } from '~/src/utils/session-key-helpers'
 import ViewHeader from '@/components/ViewHeader.vue'
 import { useUiSettingsStore } from '@/stores/setting'
+import { useAgentsState } from '~/src/composables/useAgentsState'
 
 const props = defineProps<{
     selectedId?: string
@@ -24,7 +25,7 @@ const emit = defineEmits<{
 const router = useRouter()
 const gatewayStore = useGateway()
 const toast = useToast()
-const settingsStore = useUiSettingsStore()
+const agentState = useAgentsState()
 
 const goBack = () => {
     router.back()
@@ -51,8 +52,9 @@ const openAddModal = () => {
     showAddModal.value = true
 }
 
-const handleAgentSaved = (agentId: string) => {
+const handleAgentSaved = async (agentId: string) => {
     emit('select', agentId)
+    await agentState.loadAgents();
     // Show prompt and redirect to chat
     toast.info('要先和我说句话，才能进行角色设定哟 ✨')
     router.push({ name: 'chat', params: { sessionkey: createAgentMainSessionKey(agentId) } })

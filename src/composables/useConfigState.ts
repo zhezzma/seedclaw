@@ -1,9 +1,10 @@
 import { reactive, watch, toRefs } from 'vue'
 import { useGateway } from './useGateway'
-import type { ConfigState } from '../openclaw/ui/src/ui/controllers/config'
+import type { ConfigState } from '~openclaw/ui/src/ui/controllers/config'
 import {
     loadConfig as _loadConfig,
     saveConfig as _saveConfig,
+    applyConfig as _applyConfig,
     updateConfigFormValue as _updateConfigFormValue,
     removeConfigFormValue as _removeConfigFormValue
 } from '~openclaw/ui/src/ui/controllers/config'
@@ -20,15 +21,24 @@ const state = reactive<ConfigState>({
 } as any)
 
 let initialized = false
+
+const parseConfig = () => {
+    //raw里面的maxtoken是有值的
+    state.configForm = JSON.parse(state.configRaw)
+    state.configFormOriginal = JSON.parse(state.configRaw);
+}
+
+
 function ensureInit() {
     if (initialized) return
     initialized = true
     const gatewayStore = useGateway()
-    watch(() => [gatewayStore.client, gatewayStore.connected], ([client, connected]) => {
+    watch(() => [gatewayStore.client, gatewayStore.connected], async ([client, connected]) => {
         state.client = client as any
         state.connected = connected as boolean
         if (connected) {
-            void _loadConfig(state as any)
+            await _loadConfig(state as any)
+            parseConfig()
         }
     }, { immediate: true })
 }
@@ -38,15 +48,21 @@ export function useConfigState() {
 
     const loadConfig = async () => {
         await _loadConfig(state as any)
-    }
-
-    const updateConfigFormValue = (path: string[], value: unknown) => {
-        _updateConfigFormValue(state as any, path, value)
+        parseConfig()
     }
 
     const saveConfig = async () => {
         await _saveConfig(state as any)
-        await loadConfig()
+        parseConfig()
+    }
+
+    const applyConfig = async () => {
+        await _applyConfig(state as any)
+        parseConfig()
+    }
+
+    const updateConfigFormValue = (path: string[], value: unknown) => {
+        _updateConfigFormValue(state as any, path, value)
     }
 
     const removeConfigFormValue = (path: Array<string | number>) => {
@@ -56,9 +72,10 @@ export function useConfigState() {
     return reactive({
         ...toRefs(state),
         loadConfig,
+        saveConfig,
+        applyConfig,
         updateConfigFormValue,
         removeConfigFormValue,
-        saveConfig
     })
 
 }
