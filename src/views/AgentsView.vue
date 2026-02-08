@@ -95,7 +95,7 @@ watch(() => [agentsState.agentsList, route.query.agentId], ([agentsList, current
 
             <!-- Mobile Back Button Header (Only on Mobile + Selected) -->
             <div class="lg:hidden shrink-0">
-                <ViewHeader :title="selectedAgentName" :show-back="true"></ViewHeader>
+                <ViewHeader :title="selectedAgentName"></ViewHeader>
             </div>
 
             <AgentDetail v-if="selectedAgentId" :agent-id="selectedAgentId" :agents-list="agentsState.agentsList"

@@ -72,7 +72,7 @@ watch(() => [providers.value, route.query.providerId], ([providerList, currentId
 
             <!-- Mobile Back Button Header -->
             <div class="lg:hidden shrink-0">
-                <ViewHeader :title="selectedProviderName" :show-back="true"></ViewHeader>
+                <ViewHeader :title="selectedProviderName"></ViewHeader>
             </div>
 
             <ModelDetail v-if="selectedProviderId" :provider-id="selectedProviderId" class="flex-1 overflow-hidden" />

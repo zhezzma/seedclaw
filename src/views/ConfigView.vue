@@ -79,7 +79,7 @@ const handleSave = async () => {
         <component :is="'style'" type="text/css">{{ currentThemeStyle }}</component>
 
         <!-- Header -->
-        <ViewHeader title="配置管理" :show-back="true">
+        <ViewHeader title="配置管理">
             <template #actions>
                 <button @click="handleSave" class="btn btn-primary btn-sm" :disabled="state.configSaving">
                     <span v-if="state.configSaving" class="loading loading-spinner loading-xs"></span>

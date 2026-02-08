@@ -77,7 +77,7 @@ onMounted(async () => {
 <template>
     <div class="flex flex-col h-full bg-base-200">
         <!-- Header -->
-        <ViewHeader title="设备管理" :show-back="true">
+        <ViewHeader title="设备管理">
             <template #actions>
                 <button @click="handleRefresh" class="btn btn-ghost btn-sm btn-circle"
                     :class="{ 'loading': devicesState.devicesLoading }" :disabled="devicesState.devicesLoading">
@@ -114,7 +114,7 @@ onMounted(async () => {
                                     <div class="space-y-1 w-full min-w-0">
                                         <div class="flex items-center gap-2">
                                             <span class="font-bold text-lg">{{ req.displayName || '未知设备'
-                                            }}</span>
+                                                }}</span>
                                             <!-- <span v-if="req.platform" class="badge badge-sm badge-ghost">{{ req.platform
                                             }}</span> -->
                                             <span class="text-xs text-base-content/40 font-mono hidden sm:inline">{{
@@ -125,7 +125,7 @@ onMounted(async () => {
                                         </div>
                                         <div class="text-sm text-base-content/70">
                                             申请角色: <span class="font-medium text-primary">{{ req.role
-                                                }}</span>
+                                            }}</span>
                                             <span class="text-base-content/40 mx-2">•</span>
                                             申请于 {{ getRelativeTime(req.ts) }}
                                         </div>
@@ -165,7 +165,7 @@ onMounted(async () => {
                                         <div>
                                             <div class="flex items-center gap-2 flex-wrap">
                                                 <span class="font-bold text-lg">{{ device.displayName || '未知设备'
-                                                }}</span>
+                                                    }}</span>
                                                 <span v-if="device.roles?.length" class="flex gap-1">
                                                     <span v-for="r in device.roles" :key="r"
                                                         class="badge badge-sm badge-primary badge-outline">

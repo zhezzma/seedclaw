@@ -146,7 +146,7 @@ const getGroupIcon = (group: string) => {
     <div class="flex flex-col h-full bg-base-200">
         <!-- Header -->
         <!-- Header -->
-        <ViewHeader title="技能列表" :show-back="!settingsStore.showBottomNav">
+        <ViewHeader title="技能列表" :is-main-page="true">
             <template #actions>
                 <div class="relative">
                     <MagnifyingGlassIcon

@@ -76,7 +76,7 @@ onMounted(async () => {
 <template>
     <div class="flex flex-col h-full bg-base-200">
         <!-- Header -->
-        <ViewHeader title="节点管理" :show-back="true">
+        <ViewHeader title="节点管理">
             <template #actions>
                 <button @click="handleRefresh" class="btn btn-ghost btn-sm btn-circle"
                     :class="{ 'loading': nodesState.nodesLoading }" :disabled="nodesState.nodesLoading">

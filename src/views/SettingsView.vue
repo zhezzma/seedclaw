@@ -139,7 +139,7 @@ const logout = async () => {
     <div class="flex flex-col h-full bg-base-200">
         <!-- Header - fixed -->
         <!-- Header - fixed -->
-        <ViewHeader title="设置" :show-back="!configStore.showBottomNav">
+        <ViewHeader title="设置" :is-main-page="true">
         </ViewHeader>
 
         <!-- Content - scrollable -->

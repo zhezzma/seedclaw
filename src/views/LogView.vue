@@ -171,7 +171,7 @@ onUnmounted(() => {
     <div class="flex flex-col h-full bg-base-200">
         <!-- Header -->
         <!-- Header -->
-        <ViewHeader title="系统日志" :show-back="true">
+        <ViewHeader title="系统日志">
             <template #actions>
                 <!-- Auto-refresh toggle -->
                 <label class="swap btn btn-ghost btn-sm tooltip tooltip-bottom"

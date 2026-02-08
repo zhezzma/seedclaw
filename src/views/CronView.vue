@@ -316,7 +316,7 @@ onMounted(() => {
     <div class="flex flex-col h-full bg-base-200">
         <!-- Header -->
         <!-- Header -->
-        <ViewHeader title="定时任务" :show-back="!settingsStore.showBottomNav">
+        <ViewHeader title="定时任务" :is-main-page="true">
             <template #actions>
                 <div class="px-2">
                     <button @click="handleOpenAdd" class="btn btn-primary btn-sm gap-2">

@@ -63,7 +63,7 @@ const handleAgentSaved = (agentId: string) => {
     <div class="h-full">
         <div class="h-full flex flex-col bg-base-100 border-r border-base-200">
             <!-- Header -->
-            <ViewHeader title="智能体" :show-back="!settingsStore.showBottomNav">
+            <ViewHeader title="智能体" :is-main-page="true">
                 <template #actions>
                     <button @click="openAddModal" class="btn btn-ghost btn-sm btn-circle">
                         <PlusIcon class="w-5 h-5" />
