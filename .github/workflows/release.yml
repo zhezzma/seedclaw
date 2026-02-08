@@ -126,14 +126,24 @@ jobs:
       - name: setup android-sdk
         uses: android-actions/setup-android@v3
 
-      - name: install NDK
+      - name: Configure Android NDK & OpenSSL Env
         run: |
           sdkmanager "ndk;26.1.10909125"
-          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/26.1.10909125" >> $GITHUB_ENV
-          export NDK_BIN=$ANDROID_SDK_ROOT/ndk/26.1.10909125/toolchains/llvm/prebuilt/linux-x86_64/bin
+          NDK_HOME="$ANDROID_SDK_ROOT/ndk/26.1.10909125"
+          NDK_BIN="$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+
+          echo "ANDROID_NDK_HOME=$NDK_HOME" >> $GITHUB_ENV
           echo "$NDK_BIN" >> $GITHUB_PATH
-          echo "CC_aarch64_linux_android=$NDK_BIN/aarch64-linux-android24-clang" >> $GITHUB_ENV
+
+          # Configure CC/AR for aarch64
+          CLANG="$NDK_BIN/aarch64-linux-android24-clang"
+          echo "CC_aarch64_linux_android=$CLANG" >> $GITHUB_ENV
           echo "AR_aarch64_linux_android=$NDK_BIN/llvm-ar" >> $GITHUB_ENV
+          echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$CLANG" >> $GITHUB_ENV
+
+          # Force OpenSSL to build from source (ignoring pkg-config)
+          echo "OPENSSL_NO_PKG_CONFIG=1" >> $GITHUB_ENV
+          echo "OPENSSL_STATIC=1" >> $GITHUB_ENV
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
