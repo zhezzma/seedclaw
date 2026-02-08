@@ -15,7 +15,8 @@ const state = reactive<ConfigState>({
     configForm: null,
     configFormDirty: false,
     configSaving: false,
-    configFormMode: 'form'
+    configFormMode: 'form',
+    configSnapshot: null
 } as any)
 
 let initialized = false

@@ -116,6 +116,7 @@ async function connect(): Promise<void> {
 
     return new Promise((resolve, reject) => {
         let connectionTimeout: number | null = null
+        let connectError: any = null
 
         state.client = markRaw(new GatewayBrowserClient({
             url: settings.gatewayUrl,
@@ -140,11 +141,16 @@ async function connect(): Promise<void> {
             onClose: ({ code, reason }) => {
                 state.connected = false
                 if (code !== 1012) {
-                    state.lastError = `断开连接 (${code}): ${reason || '无原因'}`
+                    const msg = `断开连接 (${code}): ${reason || '无原因'}`
+                    state.lastError = msg
                 }
                 if (state.connecting) {
                     state.connecting = false
-                    reject(new Error(state.lastError || '连接失败'))
+                    if (connectError) {
+                        reject(connectError)
+                    } else {
+                        reject(new Error(state.lastError || '连接失败'))
+                    }
                 }
             },
             onEvent: (evt) => handleGatewayEvent(evt),
@@ -152,6 +158,46 @@ async function connect(): Promise<void> {
                 state.lastError = `事件序列间隔 (期望 ${expected}, 收到 ${received}); 建议刷新`
             }
         }))
+
+        // Monkey-patch handleMessage to capture RICH error details (code, details)
+        const clientAny = state.client as any
+        const originalHandleMessage = clientAny.handleMessage?.bind(clientAny)
+        const originalRequest = clientAny.request?.bind(clientAny)
+
+        if (originalHandleMessage && originalRequest) {
+            clientAny.handleMessage = (raw: string) => {
+                try {
+                    const parsed = JSON.parse(raw)
+                    // Intercept only failed responses to capture rich error
+                    if (parsed && parsed.type === 'res' && parsed.id && !parsed.ok && parsed.error) {
+                        const pending = clientAny.pending.get(parsed.id)
+                        if (pending) {
+                            clientAny.pending.delete(parsed.id)
+                            const err: any = new Error(parsed.error.message || 'request failed')
+                            // Store the rich details on the error object
+                            err.code = parsed.error.code
+                            err.details = parsed.error.details
+                            pending.reject(err)
+                            return
+                        }
+                    }
+                } catch (e) {
+                    // Ignore parsing errors here, let original handler deal with it
+                }
+                originalHandleMessage(raw)
+            }
+
+            // Intercept request to capture the specific error from 'connect' call
+            clientAny.request = (method: string, params: any) => {
+                const p = originalRequest(method, params)
+                if (method === 'connect') {
+                    p.catch((err: any) => {
+                        connectError = err
+                    })
+                }
+                return p
+            }
+        }
 
         connectionTimeout = window.setTimeout(() => {
             if (state.connecting) {

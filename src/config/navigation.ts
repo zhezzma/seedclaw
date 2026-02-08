@@ -50,7 +50,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         activeIcon: CubeIconSolid,
         route: 'models',
         showInSidebar: true,
-        showInBottomNav: false
+        showInBottomNav: true
     },
     {
         label: '技能',
@@ -58,7 +58,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         activeIcon: SparklesIconSolid,
         route: 'skills',
         showInSidebar: true,
-        showInBottomNav: false
+        showInBottomNav: true
     },
     {
         label: '计划任务',

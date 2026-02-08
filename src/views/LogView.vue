@@ -18,6 +18,7 @@ import {
     PlayIcon,
     PauseIcon
 } from '@heroicons/vue/24/outline'
+import ViewHeader from '@/components/ViewHeader.vue'
 
 const router = useRouter()
 const store = useGateway()
@@ -169,14 +170,9 @@ onUnmounted(() => {
 <template>
     <div class="flex flex-col h-full bg-base-200">
         <!-- Header -->
-        <div class="shrink-0 navbar bg-base-100 border-b border-base-300">
-            <div class="flex-1">
-                <button @click="goBack" class="btn btn-ghost btn-sm btn-circle ">
-                    <ArrowLeftIcon class="w-5 h-5" />
-                </button>
-                <span class="text-lg font-semibold px-4">系统日志</span>
-            </div>
-            <div class="flex-none flex items-center gap-1">
+        <!-- Header -->
+        <ViewHeader title="系统日志" :show-back="true">
+            <template #actions>
                 <!-- Auto-refresh toggle -->
                 <label class="swap btn btn-ghost btn-sm tooltip tooltip-bottom"
                     :data-tip="autoRefresh ? '停止自动刷新' : '开启自动刷新'">
@@ -189,12 +185,12 @@ onUnmounted(() => {
                     :class="{ 'loading': logsState.logsLoading }" :disabled="logsState.logsLoading" data-tip="刷新">
                     <ArrowPathIcon v-if="!logsState.logsLoading" class="w-5 h-5" />
                 </button>
-            </div>
-        </div>
+            </template>
+        </ViewHeader>
 
         <!-- Toolbar -->
         <div class="shrink-0 bg-base-100 border-b border-base-300 p-3">
-            <div class="flex flex-col sm:flex-row gap-3">
+            <div class="flex gap-3">
                 <!-- Search -->
                 <div class="flex-1 relative">
                     <MagnifyingGlassIcon

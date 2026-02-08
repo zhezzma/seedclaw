@@ -88,10 +88,24 @@ const handleDeleteSession = async (key: string, event: Event) => {
 
 const navItems = SIDEBAR_ITEMS
 
+const isHomeActive = computed(() => {
+    // Check if current route is home/chat
+    if (router.currentRoute.value.name !== 'home' && router.currentRoute.value.name !== 'chat') {
+        return false
+    }
+
+    // Check if current session is an agent main session
+    const currentKey = props.currentSessionKey
+    // Also include empty session key (default home) or specific main sessions
+    return !currentKey || isAgentMainSession(currentKey) || currentKey === props.defaultSessionKey
+})
+
 const handleNavClick = (item: any) => {
     if (item.route) {
         // ... navigation logic
         if (item.route === 'home') {
+            // If already on home/chat with a main session, do nothing or reset?
+            // Let's reset to default session
             router.push({ name: 'chat', params: { sessionkey: props.defaultSessionKey } })
         } else {
             router.push({ name: item.route })
@@ -135,13 +149,13 @@ const handleNavClick = (item: any) => {
         <div class="shrink-0 px-3 flex flex-col gap-1.5">
             <button v-for="item in navItems" :key="item.label" @click="handleNavClick(item)"
                 class="group flex items-center gap-3  p-1 w-full rounded-2xl text-left transition-all duration-200 hover:bg-base-100 hover:shadow-sm border border-transparent hover:border-base-200/50 active:scale-[0.98] cursor-pointer"
-                :class="{ 'bg-base-100 shadow-sm border-base-200/50': $route.name === item.route }">
+                :class="{ 'bg-base-100 shadow-sm border-base-200/50': item.route === 'home' ? isHomeActive : $route.name === item.route }">
                 <div class="p-1 rounded-xl transition-colors duration-200 group-hover:bg-primary/10 group-hover:text-primary text-base-content/60"
-                    :class="{ 'bg-primary/10 text-primary': $route.name === item.route }">
+                    :class="{ 'bg-primary/10 text-primary': item.route === 'home' ? isHomeActive : $route.name === item.route }">
                     <component :is="item.icon" class="h-5 w-5" />
                 </div>
                 <span class="font-medium text-sm text-base-content/70 group-hover:text-base-content transition-colors"
-                    :class="{ 'text-base-content font-semibold': $route.name === item.route }">
+                    :class="{ 'text-base-content font-semibold': item.route === 'home' ? isHomeActive : $route.name === item.route }">
                     {{ item.label }}
                 </span>
             </button>

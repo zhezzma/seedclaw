@@ -14,6 +14,7 @@ import {
     Cog6ToothIcon as Cog6ToothIconSolid
 } from '@heroicons/vue/24/solid'
 import { BOTTOM_NAV_ITEMS } from '../config/navigation'
+import { isAgentMainSession } from '../utils/session-key-helpers'
 import { useGateway } from '../composables/useGateway'
 
 const router = useRouter()
@@ -23,7 +24,21 @@ const gatewayStore = useGateway()
 const tabs = BOTTOM_NAV_ITEMS
 
 const activeTab = computed(() => {
-    return route.name
+    // Logic similar to AppSidebar.vue for 'home' activation
+    const currentName = route.name as string
+
+    // Check if we effectively are on 'home' (which includes 'chat' with main session)
+    if (currentName === 'home' || currentName === 'chat') {
+        const currentKey = route.params.sessionkey as string
+        const defaultKey = gatewayStore.defaultSessionKey
+
+        // If no key, or key is main agent session, or key is default session -> it's Home
+        if (!currentKey || isAgentMainSession(currentKey) || currentKey === defaultKey) {
+            return 'home'
+        }
+    }
+
+    return currentName
 })
 
 const navigateTo = (tab: typeof tabs[0]) => {

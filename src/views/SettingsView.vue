@@ -19,9 +19,13 @@ import {
     ComputerDesktopIcon,
     ViewColumnsIcon
 } from '@heroicons/vue/24/outline'
+import ViewHeader from '@/components/ViewHeader.vue'
+
+import { useConfirm } from '../composables/useConfirm'
 
 const router = useRouter()
 const configStore = useUiSettingsStore()
+const { confirm } = useConfirm()
 
 const editForm = ref({
     gatewayUrl: '',
@@ -123,30 +127,20 @@ const navigateToNodes = () => {
     router.push('/nodes')
 }
 
-const logout = () => {
-    configStore.clear()
-    router.push('/setup')
+const logout = async () => {
+    if (await confirm('确定要清空所有数据并退出吗？这将清除本地缓存。', '确认退出')) {
+        configStore.clear()
+        router.push('/setup')
+    }
 }
 </script>
 
 <template>
     <div class="flex flex-col h-full bg-base-200">
         <!-- Header - fixed -->
-        <div class="shrink-0 navbar bg-base-100 border-b border-base-300">
-            <div class="flex-1">
-                <button @click="goBack" class="btn btn-ghost btn-sm btn-circle lg:hidden">
-                    <ArrowLeftIcon class="w-5 h-5" />
-                </button>
-                <span class="text-lg font-semibold px-4">设置</span>
-            </div>
-            <!-- Close button - PC only -->
-            <!-- <div class="flex-none hidden lg:flex"> -->
-            <!-- <div class="flex-none  lg:flex">
-                <button @click="goBack" class="btn btn-ghost btn-circle">
-                    <XMarkIcon class="h-5 w-5" />
-                </button>
-            </div> -->
-        </div>
+        <!-- Header - fixed -->
+        <ViewHeader title="设置" :show-back="!configStore.showBottomNav">
+        </ViewHeader>
 
         <!-- Content - scrollable -->
         <div class="flex-1 overflow-y-auto ">
@@ -166,6 +160,18 @@ const logout = () => {
                                         <p class="text-xs text-base-content/50 truncate max-w-48">{{
                                             configStore.gatewayUrl
                                             }}</p>
+                                    </div>
+                                </div>
+                                <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
+                            </li>
+
+                            <li class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors"
+                                @click="router.push('/config')">
+                                <div class="flex items-center gap-3">
+                                    <DocumentTextIcon class="h-5 w-5 text-base-content/60" />
+                                    <div>
+                                        <span class="font-medium">配置管理</span>
+                                        <p class="text-xs text-base-content/50">查看与编辑网关配置</p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />

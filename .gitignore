@@ -29,3 +29,5 @@ debug.keystore
 .env
 /openclaw
 .codeartsdoer
+
+*.keystore 

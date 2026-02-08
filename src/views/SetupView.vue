@@ -56,6 +56,12 @@ const handleSubmit = async () => {
         return
     }
 
+    // Security check: HTTPS requires WSS
+    if (window.location.protocol === 'https:' && !gatewayUrl.value.startsWith('wss://')) {
+        error.value = '当前网页使用 HTTPS 协议，网关地址必须使用 wss:// 安全连接'
+        return
+    }
+
     isLoading.value = true
     error.value = ''
     pairingState.value.isPairing = false
@@ -74,7 +80,7 @@ const handleSubmit = async () => {
         router.push('/')
     } catch (e: any) {
         // Handle pairing requirement
-        if (e.code === 'NOT_PAIRED') {
+        if (e.code === 'NOT_PAIRED' || e.message?.includes('pairing required') || e.message?.includes('1008')) {
             try {
                 const identity = await devicesState.loadOrCreateDeviceIdentity()
                 pairingState.value = {
@@ -120,6 +126,17 @@ const handleSubmit = async () => {
                     <p class="text-base-content/60 mt-3 text-sm">配置 OpenClaw 网关以开始使用</p>
                 </div>
 
+                <!-- Error message -->
+                <div v-if="error" role="alert" class="alert alert-error alert-soft">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <span>{{ error }}</span>
+                </div>
+
+
                 <!-- Pairing UI -->
                 <div v-if="pairingState.isPairing" class="space-y-6 animate-fade-in">
                     <div class="alert alert-info shadow-sm">
@@ -153,9 +170,6 @@ const handleSubmit = async () => {
                         <span class="text-sm">正在等待批准...</span>
                     </div>
 
-                    <div v-if="error" class="alert alert-error text-sm py-2">
-                        {{ error }}
-                    </div>
 
                     <button @click="pairingState.isPairing = false" class="btn btn-ghost btn-block btn-sm">
                         返回修改配置
@@ -164,6 +178,7 @@ const handleSubmit = async () => {
 
                 <!-- Config Form -->
                 <form v-else @submit.prevent="handleSubmit" class="space-y-6 animate-fade-in">
+
                     <!-- Gateway URL -->
                     <fieldset class="fieldset">
                         <legend class="fieldset-legend text-sm font-medium">
@@ -201,15 +216,7 @@ const handleSubmit = async () => {
                         <p class="label text-xs opacity-60">从 OpenClaw 控制台获取的认证令牌</p>
                     </fieldset>
 
-                    <!-- Error message -->
-                    <!-- <div v-if="error" role="alert" class="alert alert-error alert-soft">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
-                        <span>{{ error }}</span>
-                    </div> -->
+
 
                     <!-- Submit button -->
                     <button type="submit"

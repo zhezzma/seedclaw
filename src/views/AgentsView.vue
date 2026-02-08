@@ -4,7 +4,8 @@ import { useRouter, useRoute } from 'vue-router'
 import { useGateway } from '../composables/useGateway'
 import { useAgentsState } from '../composables/useAgentsState'
 import { useConfigState } from '../composables/useConfigState'
-import { Bars3Icon, ArrowLeftIcon } from '@heroicons/vue/24/outline'
+import { useUiSettingsStore } from '@/stores/setting'
+import ViewHeader from '@/components/ViewHeader.vue'
 
 // Components
 import AgentSidebar from '../components/agents/AgentSidebar.vue'
@@ -16,6 +17,7 @@ const gatewayStore = useGateway()
 
 const agentsState = useAgentsState()
 const configState = useConfigState()
+const settingsStore = useUiSettingsStore()
 
 // Selected Agent from Query Params - this is the source of truth for navigation state
 const selectedAgentId = computed(() => {
@@ -31,7 +33,7 @@ const selectedAgentName = computed(() => {
 
 const selectAgent = (agentId: string) => {
     // Update URL query parameter
-    router.replace({ query: { ...route.query, agentId } })
+    router.push({ query: { ...route.query, agentId } })
 }
 
 const clearSelection = () => {
@@ -92,11 +94,8 @@ watch(() => [agentsState.agentsList, route.query.agentId], ([agentsList, current
         ]">
 
             <!-- Mobile Back Button Header (Only on Mobile + Selected) -->
-            <div class="lg:hidden bg-base-100 border-b border-base-200 p-2 flex items-center gap-2 shrink-0">
-                <button @click="clearSelection" class="btn btn-ghost btn-sm btn-circle">
-                    <ArrowLeftIcon class="w-5 h-5" />
-                </button>
-                <span class="font-bold truncate">{{ selectedAgentName }}</span>
+            <div class="lg:hidden shrink-0">
+                <ViewHeader :title="selectedAgentName" :show-back="true"></ViewHeader>
             </div>
 
             <AgentDetail v-if="selectedAgentId" :agent-id="selectedAgentId" :agents-list="agentsState.agentsList"

@@ -12,6 +12,7 @@ import {
     ShieldCheckIcon,
     TrashIcon
 } from '@heroicons/vue/24/outline'
+import ViewHeader from '@/components/ViewHeader.vue'
 import {
     type NodesState,
 } from '~openclaw/ui/src/ui/controllers/nodes'
@@ -75,20 +76,14 @@ onMounted(async () => {
 <template>
     <div class="flex flex-col h-full bg-base-200">
         <!-- Header -->
-        <div class="shrink-0 navbar bg-base-100 border-b border-base-300">
-            <div class="flex-1">
-                <button @click="goBack" class="btn btn-ghost btn-sm btn-circle">
-                    <ArrowLeftIcon class="w-5 h-5" />
-                </button>
-                <span class="text-lg font-semibold px-4">节点管理</span>
-            </div>
-            <div class="flex-none">
+        <ViewHeader title="节点管理" :show-back="true">
+            <template #actions>
                 <button @click="handleRefresh" class="btn btn-ghost btn-sm btn-circle"
                     :class="{ 'loading': nodesState.nodesLoading }" :disabled="nodesState.nodesLoading">
                     <ArrowPathIcon v-if="!nodesState.nodesLoading" class="w-5 h-5" />
                 </button>
-            </div>
-        </div>
+            </template>
+        </ViewHeader>
 
         <!-- Content -->
         <div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">

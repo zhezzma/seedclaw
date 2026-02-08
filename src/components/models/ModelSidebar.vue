@@ -6,6 +6,8 @@ import { useGateway } from '../../composables/useGateway'
 import ProviderFormModal from './ProviderFormModal.vue'
 import { useConfigState } from '../../composables/useConfigState'
 import { useConfirm } from '../../composables/useConfirm'
+import ViewHeader from '@/components/ViewHeader.vue'
+import { useUiSettingsStore } from '@/stores/setting'
 
 import { useModels } from '../../composables/useModels'
 const props = defineProps<{
@@ -20,6 +22,7 @@ const router = useRouter()
 const store = useGateway()
 const configState = useConfigState()
 const { confirm } = useConfirm()
+const settingsStore = useUiSettingsStore()
 
 
 const { syncAgentsDefaultModels } = useModels()
@@ -75,19 +78,13 @@ const deleteProvider = async (id: string, event: Event) => {
     <div class="h-full">
         <div class="h-full flex flex-col bg-base-100 border-r border-base-200">
             <!-- Header -->
-            <div class="shrink-0 navbar bg-base-100 border-b border-base-200 min-h-[4rem]">
-                <div class="flex-1 flex gap-2 items-center">
-                    <button @click="goBack" class="btn btn-ghost btn-sm btn-circle lg:hidden">
-                        <ArrowLeftIcon class="w-5 h-5" />
-                    </button>
-                    <span class="text-lg font-semibold px-4">模型提供商</span>
-                </div>
-                <div class="flex-none">
+            <ViewHeader title="模型提供商" :show-back="!settingsStore.showBottomNav">
+                <template #actions>
                     <button @click="openAddModal" class="btn btn-ghost btn-sm btn-circle">
                         <PlusIcon class="w-5 h-5" />
                     </button>
-                </div>
-            </div>
+                </template>
+            </ViewHeader>
 
             <!-- Provider List -->
             <div class="flex-1 overflow-y-auto">

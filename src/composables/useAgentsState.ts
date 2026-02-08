@@ -53,7 +53,6 @@ function ensureInit() {
         state.client = client as any
         state.connected = connected as boolean
         if (connected) {
-            console.trace('_loadAgents by watch')
             void _loadAgents(state as any)
         }
     }, { immediate: true })
@@ -69,7 +68,6 @@ export function useAgentsState() {
     ensureInit()
 
     const loadAgents = async () => {
-        console.trace('loadAgents')
         await _loadAgents(state as any)
     }
 

@@ -16,6 +16,7 @@ import {
     CubeIcon,
     KeyIcon
 } from '@heroicons/vue/24/outline'
+import ViewHeader from '@/components/ViewHeader.vue'
 
 import type { SkillStatusEntry, SkillInstallOption } from '~openclaw/ui/src/ui/types'
 
@@ -149,24 +150,17 @@ const getGroupIcon = (group: string) => {
 <template>
     <div class="flex flex-col h-full bg-base-200">
         <!-- Header -->
-        <div class="shrink-0 navbar bg-base-100 border-b border-base-300 min-h-[4rem]">
-            <div class="flex-none lg:hidden">
-                <button @click="goBack" class="btn btn-ghost btn-sm btn-circle">
-                    <ArrowLeftIcon class="w-5 h-5" />
-                </button>
-            </div>
-            <div class="flex-1 px-2 mx-2">
-                <span class="text-lg font-semibold truncate">技能列表</span>
-            </div>
-            <div class="flex-none gap-2">
+        <!-- Header -->
+        <ViewHeader title="技能列表" :show-back="!settingsStore.showBottomNav">
+            <template #actions>
                 <div class="relative">
                     <MagnifyingGlassIcon
                         class="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-base-content/40 z-10" />
                     <input v-model="filter" type="text" placeholder="搜索..."
                         class="input input-sm input-bordered pl-9 w-32 focus:w-48 sm:w-48 sm:focus:w-64 transition-all" />
                 </div>
-            </div>
-        </div>
+            </template>
+        </ViewHeader>
 
         <!-- Content -->
         <div class="flex-1 overflow-y-auto p-4 md:p-6">
@@ -258,7 +252,7 @@ const getGroupIcon = (group: string) => {
                                         </div>
 
                                         <div class="flex gap-2">
-                                            <div v-if="skill.install && skill.install.length > 0"
+                                            <div v-if="skill.install && skill.install.length > 0 && skill.eligible === false"
                                                 class="dropdown dropdown-end dropdown-top">
                                                 <div tabindex="0" role="button" class="btn btn-xs btn-outline"
                                                     :class="{ 'btn-disabled': skillsState.skillsBusyKey === skill.skillKey }">

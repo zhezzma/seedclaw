@@ -12,6 +12,7 @@ import {
     ChevronLeftIcon,
     ChevronRightIcon
 } from '@heroicons/vue/24/outline'
+import ViewHeader from '@/components/ViewHeader.vue'
 import { useGateway } from '../composables/useGateway'
 import { useUiSettingsStore } from '../stores/setting'
 import { CronState, buildCronSchedule, buildCronPayload } from '../openclaw/ui/src/ui/controllers/cron'
@@ -314,20 +315,17 @@ onMounted(() => {
 <template>
     <div class="flex flex-col h-full bg-base-200">
         <!-- Header -->
-        <div class="shrink-0 navbar bg-base-100 border-b border-base-300">
-            <div class="flex-1">
-                <button @click="goBack" class="btn btn-ghost btn-sm btn-circle lg:hidden">
-                    <ArrowLeftIcon class="w-5 h-5" />
-                </button>
-                <span class="text-lg font-semibold px-4">定时任务</span>
-            </div>
-            <div class="flex-none px-2">
-                <button @click="handleOpenAdd" class="btn btn-primary btn-sm gap-2">
-                    <PlusIcon class="w-4 h-4" />
-                    新建任务
-                </button>
-            </div>
-        </div>
+        <!-- Header -->
+        <ViewHeader title="定时任务" :show-back="!settingsStore.showBottomNav">
+            <template #actions>
+                <div class="px-2">
+                    <button @click="handleOpenAdd" class="btn btn-primary btn-sm gap-2">
+                        <PlusIcon class="w-4 h-4" />
+                        新建任务
+                    </button>
+                </div>
+            </template>
+        </ViewHeader>
 
         <!-- Content -->
         <div class="flex-1 overflow-y-auto p-4 md:p-6">
@@ -640,7 +638,7 @@ onMounted(() => {
 
                     <fieldset class="fieldset w-full">
                         <legend class="fieldset-legend">{{ form.payloadKind === 'systemEvent' ? '系统事件内容' : '消息内容'
-                        }}</legend>
+                            }}</legend>
                         <textarea v-model="form.payloadText" class="textarea w-full h-24"
                             placeholder="输入内容..."></textarea>
                         <div class="label"></div>

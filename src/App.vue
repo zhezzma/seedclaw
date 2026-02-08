@@ -5,6 +5,7 @@ import { useGateway } from './composables/useGateway'
 import { useToast } from './composables/useToast'
 import MessagePlugin from './components/MessagePlugin.vue'
 import ConfirmPlugin from './components/ConfirmPlugin.vue'
+import ExecApprovalModal from './components/ExecApprovalModal.vue'
 
 // Initialize theme at app root
 useUiSettingsStore().initTheme()

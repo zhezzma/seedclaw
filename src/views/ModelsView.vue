@@ -2,8 +2,10 @@
 import { computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ArrowLeftIcon } from '@heroicons/vue/24/outline'
+import ViewHeader from '@/components/ViewHeader.vue'
 import { useGateway } from '../composables/useGateway'
 import { useConfigState } from '../composables/useConfigState'
+import { useUiSettingsStore } from '@/stores/setting'
 
 // Components
 import ModelSidebar from '../components/models/ModelSidebar.vue'
@@ -13,6 +15,7 @@ const router = useRouter()
 const route = useRoute()
 const store = useGateway()
 const configState = useConfigState()
+const settingsStore = useUiSettingsStore()
 
 // Selected Provider from Query Params
 const selectedProviderId = computed(() => {
@@ -31,7 +34,7 @@ const providers = computed(() => {
 })
 
 const selectProvider = (providerId: string) => {
-    router.replace({ query: { ...route.query, providerId } })
+    router.push({ query: { ...route.query, providerId } })
 }
 
 const clearSelection = () => {
@@ -68,11 +71,8 @@ watch(() => [providers.value, route.query.providerId], ([providerList, currentId
         ]">
 
             <!-- Mobile Back Button Header -->
-            <div class="lg:hidden bg-base-100 border-b border-base-200 p-2 flex items-center gap-2 shrink-0">
-                <button @click="clearSelection" class="btn btn-ghost btn-sm btn-circle">
-                    <ArrowLeftIcon class="w-5 h-5" />
-                </button>
-                <span class="font-bold truncate">{{ selectedProviderName }}</span>
+            <div class="lg:hidden shrink-0">
+                <ViewHeader :title="selectedProviderName" :show-back="true"></ViewHeader>
             </div>
 
             <ModelDetail v-if="selectedProviderId" :provider-id="selectedProviderId" class="flex-1 overflow-hidden" />

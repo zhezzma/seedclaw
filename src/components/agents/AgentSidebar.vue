@@ -6,6 +6,8 @@ import { useGateway } from '../../composables/useGateway'
 import { useToast } from '../../composables/useToast'
 import AgentFormModal from './AgentFormModal.vue'
 import { createAgentMainSessionKey } from '~/src/utils/session-key-helpers'
+import ViewHeader from '@/components/ViewHeader.vue'
+import { useUiSettingsStore } from '@/stores/setting'
 
 const props = defineProps<{
     selectedId?: string
@@ -22,6 +24,7 @@ const emit = defineEmits<{
 const router = useRouter()
 const gatewayStore = useGateway()
 const toast = useToast()
+const settingsStore = useUiSettingsStore()
 
 const goBack = () => {
     router.back()
@@ -60,19 +63,13 @@ const handleAgentSaved = (agentId: string) => {
     <div class="h-full">
         <div class="h-full flex flex-col bg-base-100 border-r border-base-200">
             <!-- Header -->
-            <div class="shrink-0 navbar bg-base-100 border-b border-base-200 min-h-[4rem]">
-                <div class="flex-1 flex gap-2 items-center">
-                    <button @click="goBack" class="btn btn-ghost btn-sm btn-circle lg:hidden">
-                        <ArrowLeftIcon class="w-5 h-5" />
-                    </button>
-                    <span class="text-lg font-semibold px-4">智能体</span>
-                </div>
-                <div class="flex-none">
+            <ViewHeader title="智能体" :show-back="!settingsStore.showBottomNav">
+                <template #actions>
                     <button @click="openAddModal" class="btn btn-ghost btn-sm btn-circle">
                         <PlusIcon class="w-5 h-5" />
                     </button>
-                </div>
-            </div>
+                </template>
+            </ViewHeader>
 
             <!-- Agent List -->
             <div class="flex-1 overflow-y-auto">

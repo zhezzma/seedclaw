@@ -89,6 +89,11 @@ const router = createRouter({
                     path: 'nodes',
                     name: 'nodes',
                     component: NodesView
+                },
+                {
+                    path: 'config',
+                    name: 'config',
+                    component: () => import('../views/ConfigView.vue')
                 }
             ]
         }
