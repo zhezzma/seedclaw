@@ -35,6 +35,46 @@ if ([string]::IsNullOrWhiteSpace($keyPass)) { $keyPass = "android" }
 Write-Host "ANDROID_KEYSTORE_PATH: $env:ANDROID_KEYSTORE_PATH"
 
 
+
+
+# OpenSSL (Android) 构建需要产生 Unix 路径的 Perl (MSYS2/Cygwin)，Strawberry Perl (Windows) 会导致路径错误。
+# 检测并使用 Scoop 安装的 MSYS2 环境
+$msys2Bin = "D:\Applications\Scoop\apps\msys2\current\usr\bin"
+if (Test-Path "$msys2Bin\perl.exe") {
+    Write-Host "`n⚠️  检测到 MSYS2 环境 (Perl/Unix工具链)，正在优先添加到 PATH 以支持 OpenSSL 交叉编译: $msys2Bin" -ForegroundColor Yellow
+    # 将 MSYS2 bin 放在最前面以覆盖可能的 Windows Perl
+    $env:PATH = "$msys2Bin;$env:PATH"
+}
+
+# 自动检测 NDK 并强制设置 CC/AR/RANLIB 为 Unix 风格路径 (解决 OpenSSL makefile 中反斜杠路径失效问题)
+$ndkRoot = "D:\Install\Android\Sdk\ndk"
+if (Test-Path $ndkRoot) {
+    # 获取最新的 NDK 版本
+    $ndkVer = Get-ChildItem $ndkRoot | Sort-Object Name | Select-Object -Last 1 -ExpandProperty Name
+    $toolchainBin = "$ndkRoot\$ndkVer\toolchains\llvm\prebuilt\windows-x86_64\bin"
+    
+    if (Test-Path $toolchainBin) {
+        # 转换为 Unix 路径 (Forward Slashes)
+        $toolchainBinUnix = $toolchainBin -replace '\\', '/'
+        
+        # 直接使用 clang.exe (Unix Style Path)，因为 Cargo (cc-rs) 需要 Win32 可执行文件，而 Make 需要 Unix 路径。
+        # OpenSSL Configure 会自动添加 --target 参数，所以不需要 NDK wrapper 脚本。
+        $clangExe = "$toolchainBinUnix/clang.exe"
+        $ar = "$toolchainBinUnix/llvm-ar.exe"
+        $ranlib = "$toolchainBinUnix/llvm-ranlib.exe"
+
+        Write-Host "`n⚠️  OpenSSL Cross-Compile Config: 强制设置 NDK 编译器路径 (Unix Style)..." -ForegroundColor Yellow
+        Write-Host "   CC: $clangExe"
+        $env:CC_aarch64_linux_android = $clangExe
+        $env:AR_aarch64_linux_android = $ar
+        $env:RANLIB_aarch64_linux_android = $ranlib
+        
+        # 设置 Cargo 惯用的环境变量
+        $env:CC_aarch64_linux_android = $clangExe
+        $env:AR_aarch64_linux_android = $ar
+    }
+}
+
 # 1. 构建 Release APK (此时可能已由 Gradle 签名，也可能未签名)
 Write-Host "`n🚀 正在构建 Release APK..."
 cd $projectRoot
