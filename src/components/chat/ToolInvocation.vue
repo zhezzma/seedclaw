@@ -49,6 +49,36 @@ const formatJson = (data: any) => {
         return String(data)
     }
 }
+
+/**
+ * 判断结果是否为特定格式：[{ "type": "text", "text": "..." }, ...]
+ * 如果是，则提取其文本内容直接显示。
+ */
+const textResultContent = computed(() => {
+    if (!props.result) return null
+
+    // 如果 result 是数组
+    if (Array.isArray(props.result)) {
+        // 检查是否每一项都是 { type: 'text', text: '...' }
+        const isAllText = props.result.every(item =>
+            item &&
+            typeof item === 'object' &&
+            item.type === 'text' &&
+            typeof item.text === 'string'
+        )
+
+        if (isAllText && props.result.length > 0) {
+            return props.result.map(item => item.text).join('\n')
+        }
+    }
+
+    // 如果 result 本身就是单一的 { type: 'text', text: '...' }
+    if (props.result && typeof props.result === 'object' && props.result.type === 'text' && typeof props.result.text === 'string') {
+        return props.result.text
+    }
+
+    return null
+})
 </script>
 
 <template>
@@ -89,7 +119,15 @@ const formatJson = (data: any) => {
                 <!-- Result -->
                 <div v-if="result">
                     <div class="text-xs font-semibold text-base-content/50 mb-1 uppercase tracking-wider">执行结果</div>
-                    <pre
+
+                    <!-- 优化：如果包含纯文本结果，直接展示 -->
+                    <div v-if="textResultContent !== null"
+                        class="bg-base-300/50 p-2 rounded text-xs text-base-content/80 whitespace-pre-wrap break-words leading-relaxed overflow-x-auto max-h-96">
+                        {{ textResultContent }}
+                    </div>
+
+                    <!-- 否则显示原始 JSON 格式 -->
+                    <pre v-else
                         class="bg-base-300/50 p-2 rounded text-xs font-mono overflow-x-auto max-h-60">{{ formatJson(result) }}</pre>
                 </div>
 

@@ -14,7 +14,6 @@ import SkillsView from '../views/SkillsView.vue'
 import CronView from '../views/CronView.vue'
 import LogView from '../views/LogView.vue'
 import DevicesView from '../views/DevicesView.vue'
-import NodesView from '../views/NodesView.vue'
 import OpenClawTest from '../views/OpenClawTest.vue'
 
 const router = createRouter({
@@ -84,11 +83,6 @@ const router = createRouter({
                     path: 'devices',
                     name: 'devices',
                     component: DevicesView
-                },
-                {
-                    path: 'nodes',
-                    name: 'nodes',
-                    component: NodesView
                 },
                 {
                     path: 'config',

@@ -123,10 +123,6 @@ const navigateToDevices = () => {
     router.push('/devices')
 }
 
-const navigateToNodes = () => {
-    router.push('/nodes')
-}
-
 const logout = async () => {
     if (await confirm('确定要清空所有数据并退出吗？这将清除本地缓存。', '确认退出')) {
         configStore.clear()
@@ -137,7 +133,6 @@ const logout = async () => {
 
 <template>
     <div class="flex flex-col h-full bg-base-200">
-        <!-- Header - fixed -->
         <!-- Header - fixed -->
         <ViewHeader title="设置" :is-main-page="true">
         </ViewHeader>
@@ -159,19 +154,7 @@ const logout = async () => {
                                         <span class="font-medium">基本设置</span>
                                         <p class="text-xs text-base-content/50 truncate max-w-48">{{
                                             configStore.gatewayUrl
-                                            }}</p>
-                                    </div>
-                                </div>
-                                <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
-                            </li>
-
-                            <li class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors"
-                                @click="router.push('/config')">
-                                <div class="flex items-center gap-3">
-                                    <DocumentTextIcon class="h-5 w-5 text-base-content/60" />
-                                    <div>
-                                        <span class="font-medium">配置管理</span>
-                                        <p class="text-xs text-base-content/50">查看与编辑网关配置</p>
+                                        }}</p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
@@ -189,7 +172,7 @@ const logout = async () => {
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm text-base-content/60">{{ configStore.isDark ? '深色' : '浅色'
-                                        }}</span>
+                                    }}</span>
                                     <input type="checkbox" class="toggle toggle-primary" :checked="configStore.isDark"
                                         @change="configStore.toggleTheme()" />
                                 </div>
@@ -243,47 +226,36 @@ const logout = async () => {
                     </div>
                 </div>
 
-
-
-
-
-
-                <!-- Devices & Nodes -->
+                <!-- OPEN CLAW Group -->
                 <div class="space-y-2">
-                    <h4 class="text-sm font-medium text-base-content/60 px-2">设备与节点</h4>
+                    <h4 class="text-sm font-medium text-base-content/60 px-2 uppercase tracking-wide">OPEN CLAW</h4>
                     <div class="card bg-base-100 shadow-sm">
                         <ul class="divide-y divide-base-300">
+                            <!-- 配置管理 -->
+                            <li class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors"
+                                @click="router.push('/config')">
+                                <div class="flex items-center gap-3">
+                                    <DocumentTextIcon class="h-5 w-5 text-base-content/60" />
+                                    <div>
+                                        <span class="font-medium">配置管理</span>
+                                        <p class="text-xs text-base-content/50">查看与编辑网关配置</p>
+                                    </div>
+                                </div>
+                                <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
+                            </li>
+                            <!-- 设备与节点 -->
                             <li @click="navigateToDevices"
                                 class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors">
                                 <div class="flex items-center gap-3">
                                     <ComputerDesktopIcon class="h-5 w-5 text-base-content/60" />
                                     <div>
-                                        <span class="font-medium">设备管理</span>
+                                        <span class="font-medium">设备与节点</span>
                                         <p class="text-xs text-base-content/50">管理已配对的客户端设备</p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
                             </li>
-                            <li @click="navigateToNodes"
-                                class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors">
-                                <div class="flex items-center gap-3">
-                                    <ServerIcon class="h-5 w-5 text-base-content/60" />
-                                    <div>
-                                        <span class="font-medium">节点管理</span>
-                                        <p class="text-xs text-base-content/50">管理计算节点与 worker</p>
-                                    </div>
-                                </div>
-                                <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-
-                <!-- Debug & Logs -->
-                <div class="space-y-2">
-                    <h4 class="text-sm font-medium text-base-content/60 px-2">调试与日志</h4>
-                    <div class="card bg-base-100 shadow-sm">
-                        <ul class="divide-y divide-base-300">
+                            <!-- 系统日志 -->
                             <li @click="navigateToLogs"
                                 class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors">
                                 <div class="flex items-center gap-3">
@@ -298,8 +270,6 @@ const logout = async () => {
                         </ul>
                     </div>
                 </div>
-
-
 
                 <!-- Help & Feedback -->
                 <div class="space-y-2">
@@ -334,7 +304,7 @@ const logout = async () => {
         </div>
     </div>
 
-    <!-- Basic Settings Modal -->
+    <!-- Modals (Basic, ASR, TTS) -->
     <dialog id="basic_settings_modal" class="modal">
         <div class="modal-box">
             <h3 class="font-bold text-lg mb-4">基本设置</h3>
@@ -396,7 +366,6 @@ const logout = async () => {
         </form>
     </dialog>
 
-    <!-- ASR Settings Modal -->
     <dialog id="asr_settings_modal" class="modal">
         <div class="modal-box">
             <h3 class="font-bold text-lg mb-4">语音识别 (ASR)</h3>
@@ -407,7 +376,6 @@ const logout = async () => {
                     </label>
                     <select v-model="editForm.asrEngine" class="select select-bordered w-full">
                         <option value="fun-asr">FunASR (Aliyun Realtime)</option>
-                        <!-- Future engines can be added here -->
                     </select>
                 </div>
                 <div>
@@ -437,7 +405,6 @@ const logout = async () => {
         </form>
     </dialog>
 
-    <!-- TTS Settings Modal -->
     <dialog id="tts_settings_modal" class="modal">
         <div class="modal-box">
             <h3 class="font-bold text-lg mb-4">语音合成 (TTS)</h3>
@@ -464,9 +431,6 @@ const logout = async () => {
                     </label>
                     <input type="text" v-model="editForm.ttsModel" placeholder="默认: qwen3-tts-flash-realtime-2025-11-27"
                         class="input input-bordered w-full" />
-                </div>
-                <div v-if="editForm.ttsEngine === 'edge'" class="text-xs text-base-content/50 px-1">
-                    Edge TTS 无需 API Key，使用微软 Edge 浏览器接口。
                 </div>
             </div>
             <div class="modal-action">
