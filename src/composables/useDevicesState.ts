@@ -1,4 +1,5 @@
-import { reactive, watch, toRefs } from 'vue'
+import { reactive, watch } from 'vue'
+import { createStateProxy } from './utils/stateProxy'
 import { useGateway } from './useGateway'
 import type { DevicesState } from '../openclaw/ui/src/ui/controllers/devices'
 import {
@@ -63,14 +64,15 @@ export function useDevicesState() {
         return await _loadOrCreateDeviceIdentity()
     }
 
-    return reactive({
-        ...toRefs(state),
+    const methods = {
         loadDevices,
         approveDevicePairing,
         rejectDevicePairing,
         rotateDeviceToken,
         revokeDeviceToken,
         loadOrCreateDeviceIdentity
-    })
+    }
+
+    return createStateProxy(state, methods)
 
 }

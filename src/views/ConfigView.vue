@@ -18,6 +18,7 @@ import yaml from 'highlight.js/lib/languages/yaml'
 // Import styles as strings for dynamic injection
 import darkTheme from 'highlight.js/styles/atom-one-dark.css?inline'
 import lightTheme from 'highlight.js/styles/atom-one-light.css?inline'
+import { useGateway } from '../composables/useGateway'
 
 
 hljs.registerLanguage('json', json)
@@ -26,17 +27,25 @@ hljs.registerLanguage('yaml', yaml)
 const router = useRouter()
 const state = useConfigState()
 const configStore = useUiSettingsStore()
-
+const store = useGateway()
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const preRef = ref<HTMLPreElement | null>(null)
 const highlightedCode = ref('')
 const currentThemeStyle = ref('')
 
-onMounted(() => {
-    state.configFormMode = 'raw'
-    if (!state.configSnapshot) {
-        state.loadConfig()
+const showConfig = (newVal: string) => {
+    try {
+        // Try to auto-detect, defaulting to JSON since that's likely the config format
+        const result = hljs.highlightAuto(newVal || '', ['json', 'yaml'])
+        highlightedCode.value = result.value
+    } catch (e) {
+        // Fallback to plain text if highlight fails
+        highlightedCode.value = newVal || ''
     }
+}
+
+onMounted(() => {
+    showConfig(state.configRaw)
 })
 
 // Watch theme to update style
@@ -46,15 +55,9 @@ watch(() => configStore.isDark, (isDark) => {
 
 // Watch configRaw to update highlight
 watch(() => state.configRaw, (newVal) => {
-    try {
-        // Try to auto-detect, defaulting to JSON since that's likely the config format
-        const result = hljs.highlightAuto(newVal || '', ['json', 'yaml'])
-        highlightedCode.value = result.value
-    } catch (e) {
-        // Fallback to plain text if highlight fails
-        highlightedCode.value = newVal || ''
-    }
+    showConfig(newVal)
 }, { immediate: true })
+
 
 
 const handleScroll = () => {
@@ -64,9 +67,6 @@ const handleScroll = () => {
     }
 }
 
-const goBack = () => {
-    router.back()
-}
 
 const handleSave = async () => {
     await state.saveConfig()

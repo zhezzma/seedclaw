@@ -12,28 +12,31 @@ import { SIDEBAR_ITEMS } from '../config/navigation'
 import { createAgentMainSessionKey, isAgentMainSession } from '../utils/session-key-helpers'
 import { useConfirm } from '../composables/useConfirm'
 
+import { useGateway } from '../composables/useGateway'
+import { useSessionsState } from '../composables/useSessionsState'
+import { useChatState } from '../composables/useChatState'
+import { useAgentsState } from '../composables/useAgentsState'
+
 const router = useRouter()
 const { confirm } = useConfirm()
+const gatewayStore = useGateway()
+const sessionsState = useSessionsState()
+const chatState = useChatState()
+const agentsState = useAgentsState()
 
-const props = defineProps<{
-    sessions: any[],
-    loading?: boolean,
-    currentSessionKey: string,
-    defaultSessionKey: string,
-    agents?: any[],
-    activeAgentId?: string,
-}>()
+// No props needed now
+// const props = defineProps<{...}>()
 
-const emit = defineEmits<{
-    (e: 'delete-session', key: string): void
-}>()
+// No emits needed now
+// const emit = defineEmits<{...}>()
 
 // Agents expand/collapse state
 const isAgentsExpanded = ref(false)
 const MAX_VISIBLE_AGENTS = 4
 
-// Computed wrappers for props (optional, can use props directly)
-const agentsList = computed(() => props.agents || [])
+// Computed properties for state
+const sessions = computed(() => sessionsState.sessionsResult?.sessions || [])
+const agentsList = computed(() => agentsState.agentsList?.agents || [])
 
 const visibleAgents = computed(() => {
     if (isAgentsExpanded.value || agentsList.value.length <= MAX_VISIBLE_AGENTS) {
@@ -45,8 +48,9 @@ const visibleAgents = computed(() => {
 const hasMoreAgents = computed(() => agentsList.value.length > MAX_VISIBLE_AGENTS)
 
 // Filter sessions for display (exclude agent main sessions if needed, logic copied)
+// Filter sessions for display (exclude agent main sessions if needed, logic copied)
 const displaySessions = computed(() => {
-    return props.sessions
+    return sessions.value
         .filter((s: any) => !isAgentMainSession(s.key))
         .map((s: any) => ({
             key: s.key,
@@ -79,11 +83,29 @@ const createNewSession = () => {
 const handleDeleteSession = async (key: string, event: Event) => {
     event.stopPropagation() // Prevent selecting the session
 
-    if (!await confirm(`确定要删除对话 "${key}" 吗？\n\n这将删除对话条目并归档其记录。`)) {
+    if (!await confirm(`确定要删除对话 "${key}" 吗？`)) {
         return
     }
 
-    emit('delete-session', key)
+    const result = await sessionsState.deleteSession(key)
+    if (result?.deleted && chatState.sessionKey === key) {
+        router.push({ name: 'chat', params: { sessionkey: gatewayStore.defaultSessionKey } })
+    }
+}
+
+const handleDeleteAllSessions = async () => {
+    const sessions = displaySessions.value
+    if (sessions.length === 0) return
+
+    if (!await confirm(`确定要删除所有显示出的 ${sessions.length} 个对话吗？`)) {
+        return
+    }
+
+    const keys = sessions.map(s => s.key)
+    await sessionsState.deleteSessions(keys)
+    if (chatState.sessionKey && keys.includes(chatState.sessionKey)) {
+        router.push({ name: 'chat', params: { sessionkey: gatewayStore.defaultSessionKey } })
+    }
 }
 
 const navItems = SIDEBAR_ITEMS
@@ -95,9 +117,9 @@ const isHomeActive = computed(() => {
     }
 
     // Check if current session is an agent main session
-    const currentKey = props.currentSessionKey
+    const currentKey = chatState.sessionKey
     // Also include empty session key (default home) or specific main sessions
-    return !currentKey || isAgentMainSession(currentKey) || currentKey === props.defaultSessionKey
+    return !currentKey || isAgentMainSession(currentKey) || currentKey === gatewayStore.defaultSessionKey
 })
 
 const handleNavClick = (item: any) => {
@@ -106,7 +128,7 @@ const handleNavClick = (item: any) => {
         if (item.route === 'home') {
             // If already on home/chat with a main session, do nothing or reset?
             // Let's reset to default session
-            router.push({ name: 'chat', params: { sessionkey: props.defaultSessionKey } })
+            router.push({ name: 'chat', params: { sessionkey: gatewayStore.defaultSessionKey } })
         } else {
             router.push({ name: item.route })
         }
@@ -187,15 +209,22 @@ const handleNavClick = (item: any) => {
         <!-- Conversations Header -->
         <div class="shrink-0 px-4 pt-2 pb-2 flex items-center justify-between">
             <span class="text-sm font-medium text-base-content/70 uppercase tracking-wider">最近对话</span>
-            <button class="btn btn-ghost btn-circle btn-xs hover:bg-base-300">
-                <MagnifyingGlassIcon class="h-4 w-4" />
-            </button>
+            <div class="flex gap-1">
+                <button v-if="displaySessions.length > 0"
+                    class="btn btn-ghost btn-circle btn-xs hover:bg-error/20 hover:text-error" title="删除所有对话"
+                    @click="handleDeleteAllSessions">
+                    <TrashIcon class="h-4 w-4" />
+                </button>
+                <button class="btn btn-ghost btn-circle btn-xs hover:bg-base-300">
+                    <MagnifyingGlassIcon class="h-4 w-4" />
+                </button>
+            </div>
         </div>
 
         <!-- Conversations List - scrollable -->
         <div class="flex-1 overflow-y-auto px-3 pb-4 min-h-0">
             <!-- Loading state -->
-            <div v-if="props.loading" class="flex items-center justify-center py-4">
+            <div v-if="sessionsState.sessionsLoading" class="flex items-center justify-center py-4">
                 <span class="loading loading-spinner loading-sm"></span>
             </div>
             <!-- Empty state -->
@@ -206,7 +235,7 @@ const handleNavClick = (item: any) => {
             <div v-else class="space-y-1">
                 <a v-for="session in displaySessions" :key="session.key" @click="selectSession(session.key)"
                     class="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-base-300 transition-colors group"
-                    :class="{ 'bg-base-300': currentSessionKey === session.key }">
+                    :class="{ 'bg-base-300': chatState.sessionKey === session.key }">
                     <ChatBubbleLeftRightIcon class="h-5 w-5 opacity-50 shrink-0" />
                     <span class="text-sm truncate flex-1">{{ session.label }}</span>
                     <!-- Delete button - visible on hover -->

@@ -4,6 +4,7 @@ import { defineStore } from 'pinia'
 export interface UiSettings {
     gatewayUrl: string
     token: string
+    deviceName: string
     lastActiveSessionKey: string
     theme: 'light' | 'dark'
     isSidebarOpen: boolean
@@ -27,6 +28,7 @@ const CONFIG_KEY = 'openclaw_config'
 const getDefaultSettings = (): UiSettings => ({
     gatewayUrl: '',
     token: '',
+    deviceName: "SeedClaw",
     lastActiveSessionKey: '',
     theme: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
     isSidebarOpen: false,

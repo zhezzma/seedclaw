@@ -1,4 +1,5 @@
-import { reactive, watch, toRefs } from 'vue'
+import { reactive, watch } from 'vue'
+import { createStateProxy } from './utils/stateProxy'
 import { useGateway } from './useGateway'
 import { useToast } from './useToast'
 import router from '../router'
@@ -177,8 +178,7 @@ export function useCronState() {
         }
     }
 
-    return reactive({
-        ...toRefs(state),
+    const methods = {
         loadCron,
         addCronJob,
         updateCronJob,
@@ -188,5 +188,7 @@ export function useCronState() {
         loadCronRuns: loadRuns,
         buildCronSchedule,
         buildCronPayload
-    })
+    }
+
+    return createStateProxy(state, methods)
 }

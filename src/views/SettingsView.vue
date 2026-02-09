@@ -154,7 +154,7 @@ const logout = async () => {
                                         <span class="font-medium">基本设置</span>
                                         <p class="text-xs text-base-content/50 truncate max-w-48">{{
                                             configStore.gatewayUrl
-                                        }}</p>
+                                            }}</p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
@@ -172,7 +172,7 @@ const logout = async () => {
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm text-base-content/60">{{ configStore.isDark ? '深色' : '浅色'
-                                    }}</span>
+                                        }}</span>
                                     <input type="checkbox" class="toggle toggle-primary" :checked="configStore.isDark"
                                         @change="configStore.toggleTheme()" />
                                 </div>
@@ -309,6 +309,16 @@ const logout = async () => {
         <div class="modal-box">
             <h3 class="font-bold text-lg mb-4">基本设置</h3>
             <div class="form-control w-full space-y-4">
+                <div>
+                    <label class="label">
+                        <span class="label-text">设备名称</span>
+                    </label>
+                    <input type="text" :value="configStore.deviceName" disabled
+                        class="input input-bordered w-full opacity-70 cursor-not-allowed" />
+                    <label class="label">
+                        <span class="label-text-alt opacity-50">设备名称在首次配置时设定，暂不支持修改</span>
+                    </label>
+                </div>
                 <div>
                     <label class="label">
                         <span class="label-text">网关地址</span>

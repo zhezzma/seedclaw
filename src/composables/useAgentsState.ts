@@ -1,4 +1,5 @@
-import { reactive, watch, toRefs } from 'vue'
+import { reactive, watch } from 'vue'
+import { createStateProxy } from './utils/stateProxy'
 import { useGateway } from './useGateway'
 import type { AgentsState } from '../openclaw/ui/src/ui/controllers/agents'
 import { loadAgents as _loadAgents } from '~openclaw/ui/src/ui/controllers/agents'
@@ -83,14 +84,15 @@ export function useAgentsState() {
         await _saveAgentFile(state as any, agentId, name, content)
     }
 
-    return reactive({
-        ...toRefs(state),
+    const methods = {
         loadAgents,
         loadAgentFiles,
         loadAgentFileContent,
         saveAgentFile,
         handleAgentEvent: (payload: any) => handleAgentEvent(state as any, payload)
-    })
+    }
+
+    return createStateProxy(state, methods)
 
 
 }

@@ -1,4 +1,5 @@
-import { reactive, watch, toRefs } from 'vue'
+import { reactive, watch } from 'vue'
+import { createStateProxy } from './utils/stateProxy'
 import { useGateway } from './useGateway'
 import type { ChatState, ChatEventPayload } from '~openclaw/ui/src/ui/controllers/chat'
 import { loadChatHistory as _loadChatHistory } from '~openclaw/ui/src/ui/controllers/chat'
@@ -399,8 +400,7 @@ const handleSessionNamingEvent = (payload: ChatEventPayload) => {
 export function useChatState() {
     ensureInit()
 
-    return reactive({
-        ...toRefs(state),
+    const methods = {
         sendMessage,
         abortChat,
         loadAssistantIdentity,
@@ -411,6 +411,8 @@ export function useChatState() {
         commitNewSession,
         triggerSessionRename,
         handleSessionNamingEvent
-    })
+    }
+
+    return createStateProxy(state, methods)
 }
 

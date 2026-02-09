@@ -1,4 +1,5 @@
-import { reactive, watch, toRefs } from 'vue'
+import { reactive, watch } from 'vue'
+import { createStateProxy } from './utils/stateProxy'
 import { useGateway } from './useGateway'
 import type { NodesState } from '../openclaw/ui/src/ui/controllers/nodes'
 import { loadNodes as _loadNodes } from '~openclaw/ui/src/ui/controllers/nodes'
@@ -59,13 +60,14 @@ export function useNodesState() {
         await _revokeNodeToken(state as any, params)
     }
 
-    return reactive({
-        ...toRefs(state),
+    const methods = {
         loadNodes,
         approveNodePairing,
         rejectNodePairing,
         rotateNodeToken,
         revokeNodeToken
-    })
+    }
+
+    return createStateProxy(state, methods)
 
 }

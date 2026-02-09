@@ -1,4 +1,5 @@
-import { reactive, watch, toRefs } from 'vue'
+import { reactive, watch } from 'vue'
+import { createStateProxy } from './utils/stateProxy'
 import { useGateway } from './useGateway'
 import type { PresenceEntry } from '~openclaw/ui/src/ui/types'
 import { loadPresence, type PresenceState } from '~openclaw/ui/src/ui/controllers/presence'
@@ -45,8 +46,9 @@ export function usePresence() {
         await loadPresence(state as any)
     }
 
-    return reactive({
-        ...toRefs(state),
+    const methods = {
         loadPresence: load
-    })
+    }
+
+    return createStateProxy(state, methods)
 }

@@ -1,4 +1,5 @@
-import { reactive, watch, toRefs } from 'vue'
+import { reactive, watch } from 'vue'
+import { createStateProxy } from './utils/stateProxy'
 import { useGateway } from './useGateway'
 import type { SkillsState } from '../openclaw/ui/src/ui/controllers/skills'
 import {
@@ -54,13 +55,14 @@ export function useSkillsState() {
         await _installSkill(state as any, option.skillKey, option.skillName, option.optionId)
     }
 
-    return reactive({
-        ...toRefs(state),
+    const methods = {
         loadSkills,
         saveSkillApiKey,
         updateSkillEdit,
         updateSkillEnabled,
         installSkill
-    })
+    }
+
+    return createStateProxy(state, methods)
 
 }

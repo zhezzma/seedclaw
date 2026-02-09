@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGateway } from '../composables/useGateway'
 import { useUiSettingsStore } from '../stores/setting'
@@ -59,6 +59,14 @@ const getRelativeTime = (ts?: number) => {
 onMounted(async () => {
     await devicesState.loadDevices()
 })
+
+// Watch connection
+watch(() => store.connected, async (connected) => {
+    if (connected) {
+        await devicesState.loadDevices()
+    }
+})
+
 </script>
 
 <template>

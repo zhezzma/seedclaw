@@ -21,6 +21,7 @@ const authToken = ref('')
 const isLoading = ref(false)
 const error = ref('')
 const showPassword = ref(false)
+const deviceName = ref(configStore.deviceName || 'SeedClaw')
 
 const pairingState = ref<{
     isPairing: boolean
@@ -70,7 +71,8 @@ const handleSubmit = async () => {
         // Save configuration first
         configStore.save({
             gatewayUrl: gatewayUrl.value.trim(),
-            token: authToken.value.trim()
+            token: authToken.value.trim(),
+            deviceName: deviceName.value.trim() || 'SeedClaw'
         })
 
         // Attempt to connect to the gateway
@@ -214,6 +216,17 @@ const handleSubmit = async () => {
                             </button>
                         </div>
                         <p class="label text-xs opacity-60">从 OpenClaw 控制台获取的认证令牌</p>
+                    </fieldset>
+
+                    <!-- Device Name -->
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend text-sm font-medium">
+                            <DevicePhoneMobileIcon class="w-4 h-4 inline mr-1" />
+                            设备名称 (可选)
+                        </legend>
+                        <input v-model="deviceName" type="text" class="input w-full focus:input-primary transition-all"
+                            placeholder="SeedClaw Web" />
+                        <p class="label text-xs opacity-60">显示在网关的设备标识名称</p>
                     </fieldset>
 
 

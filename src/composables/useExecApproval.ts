@@ -1,4 +1,5 @@
-import { reactive, watch, toRefs } from 'vue'
+import { reactive, watch } from 'vue'
+import { createStateProxy } from './utils/stateProxy'
 import { useGateway } from './useGateway'
 import {
     addExecApproval,
@@ -86,9 +87,10 @@ export function useExecApproval() {
         return await state.client.request('exec.approval.resolve', { id, decision })
     }
 
-    return reactive({
-        ...toRefs(state),
+    const methods = {
         submitRequest,
         resolveRequest
-    })
+    }
+
+    return createStateProxy(state, methods)
 }

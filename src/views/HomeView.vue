@@ -92,17 +92,8 @@ const currentSessionName = computed(() => {
     return session?.displayName || session?.label || 'Chat Session'
 })
 
-// Sessions list for sidebar
-const sessions = computed(() => sessionsState.sessionsResult?.sessions || [])
-
-// Handle session deletion
-const handleDeleteSession = async (key: string) => {
-    // AppSidebar handles confirmation before emitting
-    const result = await sessionsState.deleteSession(key)
-    if (result?.deleted && chatState.sessionKey === key) {
-        router.push({ name: 'chat', params: { sessionkey: gatewayStore.defaultSessionKey } })
-    }
-}
+// Sessions list for sidebar - No longer needed here as AppSidebar handles it
+// const sessions = computed(() => sessionsState.sessionsResult?.sessions || [])
 
 
 // Watch for assistant identity changes to update selection
@@ -346,10 +337,7 @@ async function applyDefaultSessionBehavior() {
             <div class="drawer-side pointer-events-auto h-full">
                 <label for="sidebar-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
                 <div class="w-80 h-full bg-base-200">
-                    <AppSidebar :sessions="sessions" :loading="sessionsState.sessionsLoading"
-                        :current-session-key="chatState.sessionKey"
-                        :default-session-key="gatewayStore.defaultSessionKey" :agents="agents"
-                        :active-agent-id="selectedAgentId" @delete-session="handleDeleteSession" />
+                    <AppSidebar />
                 </div>
             </div>
         </div>

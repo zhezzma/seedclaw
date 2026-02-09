@@ -1,4 +1,5 @@
-import { reactive, watch, toRefs } from 'vue'
+import { reactive, watch } from 'vue'
+import { createStateProxy } from './utils/stateProxy'
 import { useGateway } from './useGateway'
 import type { SessionsState } from '../openclaw/ui/src/ui/controllers/sessions'
 import { loadSessions as _loadSessions, patchSession as _patchSession } from '~openclaw/ui/src/ui/controllers/sessions'
@@ -76,11 +77,37 @@ export function useSessionsState() {
         }
     }
 
-    return reactive({
-        ...toRefs(state),
+    const deleteSessions = async (keys: string[]) => {
+        const client = state.client;
+        if (!client || !state.connected || keys.length === 0) return;
+
+        state.sessionsLoading = true;
+        state.sessionsError = null;
+        try {
+            await Promise.all(keys.map(key => client.request("sessions.delete", { key, deleteTranscript: true })));
+
+            if (state.sessionsResult?.sessions) {
+                state.sessionsResult = {
+                    ...state.sessionsResult,
+                    sessions: state.sessionsResult.sessions.filter((s: any) => !keys.includes(s.key))
+                };
+            }
+            return { deleted: true };
+        } catch (err) {
+            state.sessionsError = String(err);
+            return { deleted: false };
+        } finally {
+            state.sessionsLoading = false;
+        }
+    }
+
+    const methods = {
         loadSessions,
         patchSession,
-        deleteSession
-    })
+        deleteSession,
+        deleteSessions
+    }
+
+    return createStateProxy(state, methods)
 
 }

@@ -122,6 +122,8 @@ async function connect(): Promise<void> {
             url: settings.gatewayUrl,
             token: settings.token.trim() ? settings.token : undefined,
             password: state.password.trim() ? state.password : undefined,
+            //@ts-ignore
+            displayName: settings.deviceName,
             clientName: GATEWAY_CLIENT_IDS.WEBCHAT,
             mode: 'webchat',
             onHello: (hello) => {

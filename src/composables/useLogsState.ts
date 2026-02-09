@@ -1,4 +1,5 @@
-import { reactive, watch, toRefs } from 'vue'
+import { reactive, watch } from 'vue'
+import { createStateProxy } from './utils/stateProxy'
 import { useGateway } from './useGateway'
 import type { LogsState } from '../openclaw/ui/src/ui/controllers/logs'
 import { loadLogs as _loadLogs } from '~openclaw/ui/src/ui/controllers/logs'
@@ -44,10 +45,11 @@ export function useLogsState() {
         state.logsLastFetchAt = null
     }
 
-    return reactive({
-        ...toRefs(state),
+    const methods = {
         loadLogs,
         resetLogs
-    })
+    }
+
+    return createStateProxy(state, methods)
 
 }

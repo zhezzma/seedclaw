@@ -20,7 +20,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import ViewHeader from '@/components/ViewHeader.vue'
 
-const router = useRouter()
+
 const store = useGateway()
 const logsState = useLogsState()
 const settingsStore = useUiSettingsStore()
@@ -40,9 +40,6 @@ const levelOptions: { value: LogLevel | 'all'; label: string }[] = [
     { value: 'fatal', label: 'FATAL' },
 ]
 
-const goBack = () => {
-    router.back()
-}
 
 const handleRefresh = () => {
     logsState.loadLogs({ reset: true })
@@ -158,6 +155,13 @@ watch(autoRefresh, (enabled) => {
 
 onMounted(() => {
     logsState.loadLogs({ reset: true })
+})
+
+// Watch connection
+watch(() => store.connected, async (connected) => {
+    if (connected) {
+        await logsState.loadLogs({ reset: true })
+    }
 })
 
 onUnmounted(() => {

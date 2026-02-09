@@ -1,4 +1,5 @@
-import { reactive, watch, toRefs } from 'vue'
+import { reactive, watch } from 'vue'
+import { createStateProxy } from './utils/stateProxy'
 import { useGateway } from './useGateway'
 import type { ConfigState } from '~openclaw/ui/src/ui/controllers/config'
 import {
@@ -24,8 +25,14 @@ let initialized = false
 
 const parseConfig = () => {
     //raw里面的maxtoken是有值的
-    state.configForm = JSON.parse(state.configRaw)
-    state.configFormOriginal = JSON.parse(state.configRaw);
+    if (state.configRaw) {
+        try {
+            state.configForm = JSON.parse(state.configRaw)
+            state.configFormOriginal = JSON.parse(state.configRaw);
+        } catch (e) {
+            // ignore parse error
+        }
+    }
 }
 
 
@@ -69,13 +76,13 @@ export function useConfigState() {
         _removeConfigFormValue(state as any, path)
     }
 
-    return reactive({
-        ...toRefs(state),
+    const methods = {
         loadConfig,
         saveConfig,
         applyConfig,
         updateConfigFormValue,
         removeConfigFormValue,
-    })
+    }
 
+    return createStateProxy(state, methods)
 }
