@@ -23,6 +23,9 @@ export function useNotify() {
 
 
     gatewayStore.subscribe((evt: any) => {
+        const isTauri = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__;
+        if (isTauri) return
+
         if (evt.event === 'agent' && evt.payload) {
             const { stream, data, sessionKey } = evt.payload
 

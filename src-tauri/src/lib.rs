@@ -1,6 +1,7 @@
 use std::sync::Mutex;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
+mod gateway;
 mod gotify;
 
 struct AppState {
@@ -35,13 +36,25 @@ fn greet(name: &str) -> String {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_log::Builder::default().build())
         .plugin(tauri_plugin_websocket::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .setup(|app| {
+            app.manage(gateway::init(app.handle()));
+            Ok(())
+        })
         .manage(AppState {
             gotify: Mutex::new(None),
         })
-        .invoke_handler(tauri::generate_handler![greet, start_gotify, stop_gotify])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            start_gotify,
+            stop_gotify,
+            gateway::gateway_connect,
+            gateway::gateway_disconnect,
+            gateway::gateway_send
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

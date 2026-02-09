@@ -1,5 +1,6 @@
 import { reactive, computed, markRaw } from 'vue'
 import { GatewayBrowserClient, type GatewayEventFrame, type GatewayHelloOk } from '~openclaw/ui/src/ui/gateway'
+import { GatewayTauriClient } from './gateway-tauri'
 import { generateUUID } from '~openclaw/ui/src/ui/uuid'
 import { useUiSettingsStore } from '../stores/setting'
 import { GATEWAY_CLIENT_IDS } from '~openclaw/src/gateway/protocol/client-info'
@@ -9,7 +10,7 @@ import { createAgentMainSessionKey } from '../utils/session-key-helpers'
 // ==================== Types ====================
 export interface GatewayState {
     // 连接状态
-    client: GatewayBrowserClient | null
+    client: GatewayBrowserClient | GatewayTauriClient | null
     connected: boolean
     connecting: boolean
     lastError: string | null
@@ -118,15 +119,17 @@ async function connect(): Promise<void> {
         let connectionTimeout: number | null = null
         let connectError: any = null
 
-        state.client = markRaw(new GatewayBrowserClient({
+        const isTauri = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__;
+
+        const clientOptions = {
             url: settings.gatewayUrl,
             token: settings.token.trim() ? settings.token : undefined,
             password: state.password.trim() ? state.password : undefined,
             //@ts-ignore
             displayName: settings.deviceName,
             clientName: GATEWAY_CLIENT_IDS.WEBCHAT,
-            mode: 'webchat',
-            onHello: (hello) => {
+            mode: 'webchat' as const,
+            onHello: (hello: any) => {
 
                 if (connectionTimeout) {
                     window.clearTimeout(connectionTimeout)
@@ -140,9 +143,10 @@ async function connect(): Promise<void> {
                 applySnapshot(hello)
                 resolve()
             },
-            onClose: ({ code, reason }) => {
+            onClose: ({ code, reason }: any) => {
                 state.connected = false
-                if (code !== 1012) {
+                // 1006 is generic close, often normal or network error
+                if (code !== 1012 && code !== 1000) {
                     const msg = `断开连接 (${code}): ${reason || '无原因'}`
                     state.lastError = msg
                 }
@@ -155,18 +159,40 @@ async function connect(): Promise<void> {
                     }
                 }
             },
-            onEvent: (evt) => handleGatewayEvent(evt),
-            onGap: ({ expected, received }) => {
+            onEvent: (evt: any) => handleGatewayEvent(evt),
+            onGap: ({ expected, received }: any) => {
                 state.lastError = `事件序列间隔 (期望 ${expected}, 收到 ${received}); 建议刷新`
             }
-        }))
+        }
 
-        // Monkey-patch handleMessage to capture RICH error details (code, details)
+        if (isTauri) {
+            state.client = markRaw(new GatewayTauriClient(clientOptions))
+        } else {
+            state.client = markRaw(new GatewayBrowserClient(clientOptions))
+        }
+
         const clientAny = state.client as any
-        const originalHandleMessage = clientAny.handleMessage?.bind(clientAny)
         const originalRequest = clientAny.request?.bind(clientAny)
 
-        if (originalHandleMessage && originalRequest) {
+        // Intercept request to capture the specific error from 'connect' call
+        // This is needed for BOTH clients to report handshake errors (like Pairing Required) to the UI
+        if (originalRequest) {
+            clientAny.request = (method: string, params: any) => {
+                const p = originalRequest(method, params)
+                if (method === 'connect') {
+                    p.catch((err: any) => {
+                        connectError = err
+                    })
+                }
+                return p
+            }
+        }
+
+        // Monkey-patch handleMessage to capture RICH error details (code, details)
+        // Needed for BOTH clients to ensure consistent error propagation (e.g. Pairing Required)
+        const originalHandleMessage = clientAny.handleMessage?.bind(clientAny)
+
+        if (originalHandleMessage) {
             clientAny.handleMessage = (raw: string) => {
                 try {
                     const parsed = JSON.parse(raw)
@@ -187,17 +213,6 @@ async function connect(): Promise<void> {
                     // Ignore parsing errors here, let original handler deal with it
                 }
                 originalHandleMessage(raw)
-            }
-
-            // Intercept request to capture the specific error from 'connect' call
-            clientAny.request = (method: string, params: any) => {
-                const p = originalRequest(method, params)
-                if (method === 'connect') {
-                    p.catch((err: any) => {
-                        connectError = err
-                    })
-                }
-                return p
             }
         }
 
