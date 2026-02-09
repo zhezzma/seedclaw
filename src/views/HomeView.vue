@@ -125,7 +125,7 @@ const handleTypeSessionselect = (key: string) => {
     router.push({
         name: 'chat',
         params: { sessionkey: key },
-        query: { type: 'cron' }
+        query: { type: route.query.type }
     })
 }
 
@@ -137,20 +137,24 @@ const handleTypeSessionDelete = async (key: string) => {
     }
 }
 
+const typeSelectedKey = ref("")
+
 // Auto-select first session
 watch(() => [route.query.type, typeSessions.value, route.params.sessionkey], (values) => {
     const type = values[0] as string | null
     const sessions = values[1] as any[]
     const currentKey = values[2] as string | null
-    if (type && !currentKey && sessions && sessions.length > 0) {
-        // Select first one
-        handleTypeSessionselect(sessions[0].key)
+    if (type && currentKey && sessions && sessions.length > 0) {
+        typeSelectedKey.value = currentKey
+    }
+    else {
+        typeSelectedKey.value = ""
     }
 }, { immediate: true })
 
 const showMobileSessionList = computed(() => {
     if (!isMessagesMode.value) return false
-    return !route.params.sessionkey
+    return !typeSelectedKey.value
 })
 
 
@@ -413,16 +417,18 @@ async function applyDefaultSessionBehavior() {
         <!-- NEW: Messages List Column (Desktop: visible if isMessagesMode; Mobile: visible if isMessagesMode && showMobileSessionList) -->
         <div v-if="isMessagesMode" class="w-full lg:w-80 bg-base-100 border-r border-base-200 flex flex-col shrink-0"
             :class="{ 'hidden lg:flex': !showMobileSessionList, 'flex': showMobileSessionList }">
-            <SessionSidebar title="消息列表" :sessions="typeSessions" :selected-key="chatState.sessionKey"
+            <SessionSidebar title="消息列表" :sessions="typeSessions" :selected-key="typeSelectedKey"
                 @select="handleTypeSessionselect" @delete="handleTypeSessionDelete" />
         </div>
 
 
         <!-- Empty Messages list state -->
-        <div v-if="isMessagesMode && typeSessions.length === 0"
-            class="flex-1 flex flex-col items-center justify-center p-4">
+        <div v-if="isMessagesMode && !typeSelectedKey" class="flex-1 flex flex-col items-center justify-center p-4">
             <div class="text-center text-base-content/60">
-                暂无消息
+                <div class="text-center">
+                    <h1 class="text-3xl font-bold mb-2">Hi, 欢迎使用 SeedClaw</h1>
+                    <p class="text-base-content/60">我是 SeedClaw，聊天、写作、搜索都在行，助你灵感无限</p>
+                </div>
             </div>
         </div>
         <!-- Chat Area -->
