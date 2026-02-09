@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import { MagnifyingGlassIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import ViewHeader from '../ViewHeader.vue'
 
+import { useConfirm } from '../../composables/useConfirm'
+
 const props = defineProps<{
     title?: string
     sessions: any[]
@@ -14,9 +16,13 @@ const emit = defineEmits<{
     (e: 'delete', key: string): void
 }>()
 
-const handleDelete = (key: string, event: Event) => {
+const { confirm } = useConfirm()
+
+const handleDelete = async (key: string, event: Event) => {
     event.stopPropagation()
-    emit('delete', key)
+    if (await confirm('确定要删除此会话吗？')) {
+        emit('delete', key)
+    }
 }
 
 const searchQuery = ref('')

@@ -72,14 +72,21 @@ const modalError = ref<string | null>(null)
 // --- Smart Switching ---
 // Rule: main cron jobs require payload.kind="systemEvent"
 watch(() => form.value.sessionTarget, (newTarget) => {
-    if (newTarget === 'main' && form.value.payloadKind !== 'systemEvent') {
+    if (newTarget === 'main' && form.value.payloadKind == 'agentTurn') {
         form.value.payloadKind = 'systemEvent'
+    }
+
+    if (newTarget === 'isolated' && form.value.payloadKind == 'systemEvent') {
+        form.value.payloadKind = 'agentTurn'
     }
 })
 
 watch(() => form.value.payloadKind, (newKind) => {
     if (newKind === 'agentTurn' && form.value.sessionTarget === 'main') {
         form.value.sessionTarget = 'isolated'
+    }
+    if (newKind === 'systemEvent' && form.value.sessionTarget === 'isolated') {
+        form.value.sessionTarget = 'main'
     }
 })
 
@@ -242,8 +249,12 @@ const handleOpenEdit = (job: CronJob) => {
 
 const handleSave = async () => {
     // Validation: Rule "main cron jobs require payload.kind=\"systemEvent\""
-    if (form.value.sessionTarget === 'main' && form.value.payloadKind !== 'systemEvent') {
+    if (form.value.sessionTarget === 'main' && form.value.payloadKind == 'agentTurn') {
         modalError.value = 'Main session jobs require "System Event" payload.'
+        return
+    }
+    if (form.value.sessionTarget === 'isolated' && form.value.payloadKind == 'systemEvent') {
+        modalError.value = ' isolated cron jobs require payload.kind="agentTurn"'
         return
     }
 
@@ -638,7 +649,7 @@ onMounted(() => {
 
                     <fieldset class="fieldset w-full">
                         <legend class="fieldset-legend">{{ form.payloadKind === 'systemEvent' ? '系统事件内容' : '消息内容'
-                            }}</legend>
+                        }}</legend>
                         <textarea v-model="form.payloadText" class="textarea w-full h-24"
                             placeholder="输入内容..."></textarea>
                         <div class="label"></div>

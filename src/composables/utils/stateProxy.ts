@@ -15,7 +15,7 @@ export function createStateProxy<T extends object, M extends object>(state: T, m
             if (prop in methods) {
                 return methods[prop as keyof M]
             }
-            return Reflect.get(state, prop, receiver)
+            return Reflect.get(state, prop)
         },
         set(target, prop, value, receiver) {
             // Cannot overwite methods
@@ -23,7 +23,7 @@ export function createStateProxy<T extends object, M extends object>(state: T, m
                 console.warn(`[createStateProxy] Attempting to overwrite method '${String(prop)}'`)
                 return false
             }
-            return Reflect.set(state, prop, value, receiver)
+            return Reflect.set(state, prop, value)
         },
         has(target, prop) {
             return prop in methods || prop in state
