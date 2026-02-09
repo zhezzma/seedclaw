@@ -1,4 +1,32 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+use std::sync::Mutex;
+use tauri::{AppHandle, Manager, State};
+
+mod gotify;
+
+struct AppState {
+    gotify: Mutex<Option<gotify::GotifyManager>>,
+}
+
+#[tauri::command]
+fn start_gotify(app: AppHandle, state: State<'_, AppState>, url: String, token: String) {
+    let mut gotify_guard = state.gotify.lock().unwrap();
+    if let Some(manager) = gotify_guard.as_ref() {
+        manager.stop();
+    }
+
+    let manager = gotify::GotifyManager::new(app.clone());
+    manager.start(url, token);
+    *gotify_guard = Some(manager);
+}
+
+#[tauri::command]
+fn stop_gotify(state: State<'_, AppState>) {
+    let mut gotify_guard = state.gotify.lock().unwrap();
+    if let Some(manager) = gotify_guard.take() {
+        manager.stop();
+    }
+}
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
@@ -9,7 +37,11 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_websocket::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .plugin(tauri_plugin_notification::init())
+        .manage(AppState {
+            gotify: Mutex::new(None),
+        })
+        .invoke_handler(tauri::generate_handler![greet, start_gotify, stop_gotify])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

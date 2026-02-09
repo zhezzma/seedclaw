@@ -24,6 +24,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # WebSocket 使用 native-tls (在 Windows/Linux 上使用系统 SSL，Android 上我们需要手动编译 OpenSSL)
 tauri-plugin-websocket = { version = "2", default-features = false, features = ["native-tls"] }
+tungstenite = "0.24"
+url = "2.5"
+tauri-plugin-notification = "~2.0"
+tauri-plugin-log = "~2.0"
 
 # Android 平台特有配置：强制编译 OpenSSL (vendored)，因为 Android 系统不提供标准 OpenSSL 库
 [target.'cfg(target_os = "android")'.dependencies]

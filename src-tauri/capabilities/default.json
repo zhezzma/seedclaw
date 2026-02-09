@@ -8,6 +8,7 @@
   "permissions": [
     "core:default",
     "opener:default",
-    "websocket:default"
+    "websocket:default",
+    "notification:default"
   ]
 }

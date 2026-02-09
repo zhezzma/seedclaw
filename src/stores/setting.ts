@@ -20,6 +20,8 @@ export interface UiSettings {
     silenceDuration: number // Auto-send delay in ms
     autoSendCommands: boolean // Whether to auto-send after selecting a command
     homePageBehavior: 'new_session' | 'last_active_session' | 'default_session' // Default action on home page
+    gotifyUrl: string
+    gotifyToken: string
 }
 
 // ==================== Constants ====================
@@ -43,7 +45,9 @@ const getDefaultSettings = (): UiSettings => ({
     ttsModel: '',
     silenceDuration: 2000,
     autoSendCommands: true,
-    homePageBehavior: 'default_session'
+    homePageBehavior: 'default_session',
+    gotifyUrl: '',
+    gotifyToken: ''
 })
 
 const loadConfig = (): UiSettings => {

@@ -3,12 +3,15 @@ import { watch } from 'vue'
 import { useUiSettingsStore } from './stores/setting'
 import { useGateway } from './composables/useGateway'
 import { useToast } from './composables/useToast'
+import { useGotify } from './composables/useGotify'
 import MessagePlugin from './components/MessagePlugin.vue'
 import ConfirmPlugin from './components/ConfirmPlugin.vue'
 import ExecApprovalModal from './components/ExecApprovalModal.vue'
 
 // Initialize theme at app root
 useUiSettingsStore().initTheme()
+// Initialize Gotify
+useGotify().init()
 
 const gatewayStore = useGateway()
 const toastStore = useToast()

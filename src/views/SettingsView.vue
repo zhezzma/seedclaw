@@ -17,7 +17,8 @@ import {
     DocumentTextIcon,
     ArrowTopRightOnSquareIcon,
     ComputerDesktopIcon,
-    ViewColumnsIcon
+    ViewColumnsIcon,
+    BellIcon
 } from '@heroicons/vue/24/outline'
 import ViewHeader from '@/components/ViewHeader.vue'
 
@@ -40,8 +41,40 @@ const editForm = ref({
     ttsEngine: 'qwen' as 'qwen' | 'edge',
     ttsToken: '',
     ttsModel: '',
-    homePageBehavior: 'last_active_session' as 'last_active_session' | 'new_session' | 'default_session'
+    homePageBehavior: 'last_active_session' as 'last_active_session' | 'new_session' | 'default_session',
+    // Gotify
+    gotifyUrl: '',
+    gotifyToken: ''
 })
+
+// ... (existing code)
+
+const openGotifyModal = () => {
+    editForm.value = {
+        ...editForm.value,
+        gotifyUrl: configStore.gotifyUrl,
+        gotifyToken: configStore.gotifyToken
+    }
+    const modal = document.getElementById('gotify_settings_modal') as HTMLDialogElement
+    if (modal) modal.showModal()
+}
+
+// ... (existing code)
+
+const saveGotify = () => {
+    configStore.save({
+        gotifyUrl: editForm.value.gotifyUrl,
+        gotifyToken: editForm.value.gotifyToken
+    })
+
+
+}
+
+// ... (existing code)
+
+
+
+
 
 const openConnectionModal = () => {
     editForm.value = {
@@ -189,6 +222,26 @@ const logout = async () => {
                                     <input type="checkbox" class="toggle toggle-primary"
                                         v-model="configStore.showBottomNav" @change="configStore.persist()" />
                                 </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Notification Settings -->
+                <div class="space-y-2">
+                    <h4 class="text-sm font-medium text-base-content/60 px-2">消息通知</h4>
+                    <div class="card bg-base-100 shadow-sm">
+                        <ul class="divide-y divide-base-300">
+                            <li class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors"
+                                @click="openGotifyModal">
+                                <div class="flex items-center gap-3">
+                                    <BellIcon class="h-5 w-5 text-base-content/60" />
+                                    <div>
+                                        <span class="font-medium">Gotify 推送</span>
+                                        <p class="text-xs text-base-content/50">{{ configStore.gotifyUrl || '未配置' }}</p>
+                                    </div>
+                                </div>
+                                <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
                             </li>
                         </ul>
                     </div>
@@ -447,6 +500,40 @@ const logout = async () => {
                 <form method="dialog">
                     <button class="btn btn-ghost mr-2">取消</button>
                     <button class="btn btn-primary" @click="saveTts">保存</button>
+                </form>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+    <dialog id="gotify_settings_modal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg mb-4">Gotify 推送设置</h3>
+            <div class="form-control w-full space-y-4">
+                <div>
+                    <label class="label">
+                        <span class="label-text">服务器地址</span>
+                    </label>
+                    <input type="text" v-model="editForm.gotifyUrl" placeholder="例如: https://push.example.com"
+                        class="input input-bordered w-full" />
+                </div>
+                <div>
+                    <label class="label">
+                        <span class="label-text">客户端 Token (必须以 'C' 开头)</span>
+                    </label>
+                    <input type="password" v-model="editForm.gotifyToken" placeholder="Client Token (C...)"
+                        class="input input-bordered w-full" />
+                    <label class="label">
+                        <span class="label-text-alt opacity-50">请在 Gotify Web 端创建一个 Client 并获取 Token，不要使用 App Token
+                            (A...)</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-action">
+                <form method="dialog">
+                    <button class="btn btn-ghost mr-2">取消</button>
+                    <button class="btn btn-primary" @click="saveGotify">保存</button>
                 </form>
             </div>
         </div>
