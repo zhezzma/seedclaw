@@ -1,9 +1,11 @@
+use futures_util::StreamExt;
 use std::sync::{Arc, Mutex};
-use std::thread;
 use std::time::Duration;
 use tauri::AppHandle;
 use tauri_plugin_notification::NotificationExt;
-use tungstenite::connect;
+use tokio::time::sleep;
+use tokio_tungstenite::connect_async;
+use tokio_tungstenite::tungstenite::Message;
 use url::Url;
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -40,7 +42,7 @@ impl GotifyManager {
 
         let handle = self.handle.clone();
 
-        thread::spawn(move || {
+        tauri::async_runtime::spawn(async move {
             let mut retry_delay = Duration::from_secs(5);
 
             while *running.lock().unwrap() {
@@ -64,45 +66,43 @@ impl GotifyManager {
                 match Url::parse(&ws_url) {
                     Ok(url) => {
                         println!("Connecting to Gotify: {}", url);
-                        match connect(url.to_string()) {
-                            Ok((mut socket, _)) => {
+                        match connect_async(url.to_string()).await {
+                            Ok((ws_stream, _)) => {
                                 println!("Connected to Gotify");
                                 retry_delay = Duration::from_secs(5); // Reset retry delay
 
-                                loop {
+                                let (_, mut read) = ws_stream.split();
+
+                                while let Some(msg_result) = read.next().await {
                                     if !*running.lock().unwrap() {
                                         break;
                                     }
 
-                                    // Set a timeout for reading to allow checking running state
-                                    // socket.get_mut().set_read_timeout(Some(Duration::from_secs(5)));
-                                    // Note: tungstenite generic stream might not support setting timeout easily depending on the stream type
-                                    // For now, we blocking read. If we want to stop, we might need to close the socket from another thread or just wait for next message
+                                    match msg_result {
+                                        Ok(msg) => match msg {
+                                            Message::Text(text) => {
+                                                if let Ok(gotify_msg) =
+                                                    serde_json::from_str::<GotifyMessage>(&text)
+                                                {
+                                                    println!(
+                                                        "Received Gotify message: {}",
+                                                        gotify_msg.message
+                                                    );
 
-                                    match socket.read() {
-                                        Ok(msg) => {
-                                            if msg.is_text() || msg.is_binary() {
-                                                if let Ok(text) = msg.to_text() {
-                                                    if let Ok(gotify_msg) =
-                                                        serde_json::from_str::<GotifyMessage>(text)
-                                                    {
-                                                        println!(
-                                                            "Received Gotify message: {}",
-                                                            gotify_msg.message
-                                                        );
-
-                                                        let _ = handle
-                                                            .notification()
-                                                            .builder()
-                                                            .title(&gotify_msg.title)
-                                                            .body(&gotify_msg.message)
-                                                            .show();
-                                                    }
+                                                    let _ = handle
+                                                        .notification()
+                                                        .builder()
+                                                        .title(&gotify_msg.title)
+                                                        .body(&gotify_msg.message)
+                                                        .show();
                                                 }
-                                            } else if msg.is_close() {
+                                            }
+                                            Message::Binary(_) => {}
+                                            Message::Close(_) => {
                                                 break;
                                             }
-                                        }
+                                            _ => {}
+                                        },
                                         Err(e) => {
                                             println!("Gotify WebSocket connection error: {}", e);
                                             break;
@@ -117,14 +117,12 @@ impl GotifyManager {
                     }
                     Err(e) => {
                         println!("Invalid Gotify URL: {}", e);
-                        // If URL is invalid, probably no point retrying unless config changes.
-                        // But for simplicity of this loop, we just wait.
                     }
                 }
 
                 if *running.lock().unwrap() {
                     println!("Reconnecting to Gotify in {:?}...", retry_delay);
-                    thread::sleep(retry_delay);
+                    sleep(retry_delay).await;
                     // Exponential backoff with cap
                     retry_delay = std::cmp::min(retry_delay * 2, Duration::from_secs(60));
                 }
@@ -136,8 +134,9 @@ impl GotifyManager {
     pub fn stop(&self) {
         let mut running = self.running.lock().unwrap();
         *running = false;
-        // Ideally we should also close the socket to wake up the blocked read,
-        // but simple flag check on loop + eventually connection drop or keepalive is okayish for now.
-        // A better approach would be using an async runtime or a channel to signal stop.
+        // The async loop checks the flag and will exit eventually.
+        // For immediate cancellation, we would need a CancellationToken or AbortHandle,
+        // but checking the flag on next loop iteration or message receive is sufficient here
+        // as long as the connection doesn't hang indefinitely without heartbeats.
     }
 }
