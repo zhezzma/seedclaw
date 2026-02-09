@@ -29,7 +29,7 @@ class MainActivity : TauriActivity() {
     }
 
     // Start the Foreground Service to keep app alive
-    val serviceIntent = android.content.Intent(this, GotifyService::class.java)
+    val serviceIntent = android.content.Intent(this, AppForegroundService::class.java)
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
         startForegroundService(serviceIntent)
     } else {

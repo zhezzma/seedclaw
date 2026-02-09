@@ -13,7 +13,7 @@ import androidx.core.app.NotificationCompat
 import android.content.pm.ServiceInfo
 import com.godgodgame.seedclaw.R
 
-class GotifyService : Service() {
+class AppForegroundService : Service() {
 
     override fun onBind(intent: Intent): IBinder? {
         return null
@@ -42,7 +42,7 @@ class GotifyService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
                 CHANNEL_ID,
-                "Gotify Background Service", // User sees this name
+                "SeedClaw后台通知服务", // User sees this name
                 NotificationManager.IMPORTANCE_LOW
             )
             val manager = getSystemService(NotificationManager::class.java)
@@ -52,7 +52,9 @@ class GotifyService : Service() {
 
     private fun createNotification(): Notification {
         // When user taps notification, open the main activity
-        val notificationIntent = Intent(this, MainActivity::class.java)
+        val notificationIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
         val pendingIntent = PendingIntent.getActivity(
             this,
             0,
@@ -61,15 +63,15 @@ class GotifyService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("SeedClaw Service")
-            .setContentText("Listening for notifications...")
+            .setContentTitle("SeedClaw服务")
+            .setContentText("正在监听通知...")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
             .build()
     }
 
     companion object {
-        const val CHANNEL_ID = "SeedClawServiceChannel"
+        const val CHANNEL_ID = "SeedClawServiceChannel" // Changed ID to reset importance settings
         const val NOTIFICATION_ID = 1001
     }
 }

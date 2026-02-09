@@ -47,7 +47,7 @@
         </provider>
 
         <service
-            android:name=".GotifyService"
+            android:name=".AppForegroundService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
     </application>
