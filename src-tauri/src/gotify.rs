@@ -1,9 +1,9 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tauri_plugin_notification::NotificationExt;
-use tungstenite::{connect, Message};
+use tungstenite::connect;
 use url::Url;
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]

@@ -56,45 +56,11 @@ function ensureInit() {
         state.connected = gatewayStore.connected
     }, { immediate: true })
 
-    const { info } = useToast()
-
-    const pendingCronSessions = new Set<string>()
-
     // Subscribe to gateway events for cron updates
     gatewayStore.subscribe((evt: any) => {
         if (evt.event === 'cron') {
             void loadCronJobs(state as any)
             void loadCronStatus(state as any)
-        }
-
-        if (evt.event === 'agent' && evt.payload) {
-            const { stream, data, sessionKey } = evt.payload
-            // Check for cron-triggered session start
-            if (stream === 'lifecycle' &&
-                data?.phase === 'start' &&
-                sessionKey?.includes(':cron:')) {
-
-                pendingCronSessions.add(sessionKey)
-                return
-            }
-
-            if (sessionKey && pendingCronSessions.has(sessionKey)) {
-                pendingCronSessions.delete(sessionKey)
-
-                const jobId = sessionKey.split(':cron:')[1]
-                const job = state.cronJobs.find((j: any) => j.id === jobId)
-                const title = job ? `${job.name}` : '你收到了一条定时消息'
-
-                info(title, {
-                    duration: 10000,
-                    onClick: () => {
-                        router.push({
-                            name: 'chat',
-                            params: { sessionkey: sessionKey }
-                        })
-                    }
-                })
-            }
         }
     })
 }

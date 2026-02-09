@@ -1,9 +1,16 @@
+import { useNotify } from './useNotify'
 import { useUiSettingsStore } from '../stores/setting'
 import { useGateway } from './useGateway'
 import { useAgentsState } from './useAgentsState'
 import { useChatState } from './useChatState'
 import { useConfigState } from './useConfigState'
 import { useSessionsState } from './useSessionsState'
+import { useGotify } from './useGotify'
+import { useCronState } from './useCronState'
+import { useExecApproval } from './useExecApproval'
+import { useDevicesState } from './useDevicesState'
+import { useNodesState } from './useNodesState'
+import { usePresence } from './usePresence'
 
 /**
  * Initializes all domain-specific state composables.
@@ -15,6 +22,14 @@ export function useAppInit() {
     const chatState = useChatState()
     const configState = useConfigState()
     const sessionsState = useSessionsState()
+    const cronState = useCronState()
+    const execApprovalState = useExecApproval()
+    const devicesState = useDevicesState()
+    const nodesState = useNodesState()
+    const presenceState = usePresence()
+    useNotify()
+    // Initialize Gotify
+    useGotify().init()
 
     const gatewayStore = useGateway()
     const settingsStore = useUiSettingsStore()

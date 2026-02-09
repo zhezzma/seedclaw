@@ -3,12 +3,9 @@ import { createStateProxy } from './utils/stateProxy'
 import { useGateway } from './useGateway'
 import type { NodesState } from '../openclaw/ui/src/ui/controllers/nodes'
 import { loadNodes as _loadNodes } from '~openclaw/ui/src/ui/controllers/nodes'
-import {
-    approveNodePairing as _approveNodePairing,
-    rejectNodePairing as _rejectNodePairing,
-    rotateNodeToken as _rotateNodeToken,
-    revokeNodeToken as _revokeNodeToken
-} from './useNodes'
+import { useConfirm } from "./useConfirm";
+
+
 
 const state = reactive<Omit<NodesState, 'nodes'> & { nodes: any; nodesError: string | null }>({
     client: null,
@@ -37,6 +34,116 @@ function ensureInit() {
     })
 }
 
+
+
+// Re-using types from devices.ts as they share the same structure for pairing
+// Ideally these should be in a shared types file, but for now we follow the pattern
+export type NodeTokenSummary = {
+    role: string;
+    scopes?: string[];
+    createdAtMs?: number;
+    rotatedAtMs?: number;
+    revokedAtMs?: number;
+    lastUsedAtMs?: number;
+};
+
+export type PendingNode = {
+    requestId: string;
+    deviceId: string;
+    displayName?: string;
+    role?: string;
+    remoteIp?: string;
+    isRepair?: boolean;
+    ts?: number;
+};
+
+export type PairedNode = {
+    deviceId: string;
+    displayName?: string;
+    roles?: string[];
+    scopes?: string[];
+    remoteIp?: string;
+    tokens?: NodeTokenSummary[];
+    createdAtMs?: number;
+    approvedAtMs?: number;
+};
+
+export type NodePairingList = {
+    pending: PendingNode[];
+    paired: PairedNode[];
+};
+
+export async function approveNodePairing(state: NodesState, requestId: string) {
+    if (!state.client || !state.connected) {
+        return;
+    }
+    try {
+        await state.client.request("node.pair.approve", { requestId });
+        await _loadNodes(state);
+    } catch (err) {
+        //@ts-ignore
+        state.nodesError = String(err);
+    }
+}
+
+export async function rejectNodePairing(state: NodesState, requestId: string) {
+    if (!state.client || !state.connected) {
+        return;
+    }
+    const { confirm } = useConfirm();
+    const confirmed = await confirm("Reject this node pairing request?");
+    if (!confirmed) {
+        return;
+    }
+    try {
+        await state.client.request("node.pair.reject", { requestId });
+        await _loadNodes(state);
+    } catch (err) {
+        //@ts-ignore
+        state.nodesError = String(err);
+    }
+}
+
+export async function rotateNodeToken(
+    state: NodesState,
+    params: { deviceId: string; role: string; scopes?: string[] },
+) {
+    if (!state.client || !state.connected) {
+        return;
+    }
+    try {
+        const res: any = await state.client.request("node.token.rotate", params);
+        if (res?.token) {
+            window.prompt("New node token (copy and store securely):", res.token);
+        }
+        await _loadNodes(state);
+    } catch (err) {
+        //@ts-ignore
+        state.nodesError = String(err);
+    }
+}
+
+export async function revokeNodeToken(
+    state: NodesState,
+    params: { deviceId: string; role: string },
+) {
+    if (!state.client || !state.connected) {
+        return;
+    }
+    const { confirm } = useConfirm();
+    const confirmed = await confirm(`Revoke token for ${params.deviceId} (${params.role})?`);
+    if (!confirmed) {
+        return;
+    }
+    try {
+        await state.client.request("node.token.revoke", params);
+        await _loadNodes(state);
+    } catch (err) {
+        //@ts-ignore
+        state.nodesError = String(err);
+    }
+}
+
 export function useNodesState() {
     ensureInit()
 
@@ -44,21 +151,6 @@ export function useNodesState() {
         await _loadNodes(state as any, opts)
     }
 
-    const approveNodePairing = async (requestId: string) => {
-        await _approveNodePairing(state as any, requestId)
-    }
-
-    const rejectNodePairing = async (requestId: string) => {
-        await _rejectNodePairing(state as any, requestId)
-    }
-
-    const rotateNodeToken = async (params: { deviceId: string; role: string; scopes?: string[] }) => {
-        await _rotateNodeToken(state as any, params)
-    }
-
-    const revokeNodeToken = async (params: { deviceId: string; role: string }) => {
-        await _revokeNodeToken(state as any, params)
-    }
 
     const methods = {
         loadNodes,
