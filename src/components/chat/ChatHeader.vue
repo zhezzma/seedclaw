@@ -84,8 +84,7 @@ defineExpose({
     <div class="navbar bg-base-100 border-b border-base-300">
 
         <!-- Back Button (Messages Mode) -->
-        <button v-if="route.query.type === 'cron'" @click="handleBack"
-            class="btn btn-ghost btn-circle btn-sm -ml-2 lg:hidden">
+        <button v-if="route.query.type" @click="handleBack" class="btn btn-ghost btn-circle btn-sm -ml-2 lg:hidden">
             <ChevronLeftIcon class="h-5 w-5" />
         </button>
         <!-- Hamburger menu (mobile only) -->

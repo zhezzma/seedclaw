@@ -5,10 +5,11 @@ import ViewHeader from '../ViewHeader.vue'
 
 import { useConfirm } from '../../composables/useConfirm'
 
+
 const props = defineProps<{
     title?: string
-    sessions: any[]
     selectedKey?: string
+    sessions: any[]
 }>()
 
 const emit = defineEmits<{
@@ -28,15 +29,17 @@ const handleDelete = async (key: string, event: Event) => {
 const searchQuery = ref('')
 
 const filteredSessions = computed(() => {
-    if (!searchQuery.value) return props.sessions
+    const list = props.sessions
+    if (!searchQuery.value) return list
     const query = searchQuery.value.toLowerCase()
-    return props.sessions.filter((s: any) =>
+    return list.filter((s: any) =>
         (s.displayLabel || s.label || '').toLowerCase().includes(query)
     )
-})
+}) as any // ComputedRef<any> or just use any inside template
+
 
 const formatLabel = (s: any) => {
-    const label = s.displayLabel || s.label || 'Session'
+    const label = s.displayLabel || s.displayName || s.label || s.key || 'Session'
     return label.startsWith('Cron: ') ? label.slice(6) : label
 }
 </script>
@@ -65,7 +68,8 @@ const formatLabel = (s: any) => {
                 :class="{ 'bg-primary/10 text-primary': selectedKey === s.key }">
                 <div class="flex-1 min-w-0">
                     <div class="font-medium truncate">{{ formatLabel(s) }}</div>
-                    <div class="text-xs opacity-60 mt-1">{{ new Date(s.lastActiveAt || s.updatedAt).toLocaleString() }}
+                    <div class="text-xs opacity-60 mt-1">{{ new Date(s.lastActiveAt ||
+                        s.updatedAt).toLocaleString() }}
                     </div>
                 </div>
                 <button @click="handleDelete(s.key, $event)"

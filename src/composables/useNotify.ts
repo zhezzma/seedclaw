@@ -5,9 +5,10 @@ import { useCronState } from './useCronState'
 import { useUiSettingsStore } from '../stores/setting'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
 import { isCronSession } from '../utils/session-key-helpers'
+import { useSessionsState } from './useSessionsState'
 
 let initialized = false
-const NOTIFY_LENGTH_THRESHOLD = 50
+const NOTIFY_LENGTH_THRESHOLD = 20
 
 export function useNotify() {
     if (initialized) return
@@ -15,6 +16,7 @@ export function useNotify() {
 
     const gatewayStore = useGateway()
     const { info } = useToast()
+    const { loadSessions } = useSessionsState()
     // We need cron state to look up job names
     const cronState = useCronState()
     const pendingCronSessions = new Set<string>()
@@ -41,30 +43,41 @@ export function useNotify() {
                     const job = cronState.cronJobs.find((j: any) => j.id === jobId)
                     const title = job ? `${job.name}` : '你收到了一条定时消息';
 
-                    // info(title, {
-                    //     duration: 10000,
-                    //     onClick: () => {
-                    //         router.push({
-                    //             name: 'chat',
-                    //             params: { sessionkey: sessionKey }
-                    //         })
-                    //     }
-                    // })
-
                     // Trigger local notification
                     (async () => {
-                        let permissionGranted = await isPermissionGranted();
-                        if (!permissionGranted) {
-                            const permission = await requestPermission();
-                            permissionGranted = permission === 'granted';
-                        }
-                        if (permissionGranted) {
-                            sendNotification({
-                                title: title,
-                                body: currentText,
-                            });
+                        // Check for Tauri environment (v1 or v2)
+                        const isTauri = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__;
+
+                        if (isTauri) {
+                            try {
+                                let permissionGranted = await isPermissionGranted();
+                                if (!permissionGranted) {
+                                    const permission = await requestPermission();
+                                    permissionGranted = permission === 'granted';
+                                }
+                                if (permissionGranted) {
+                                    sendNotification({
+                                        title,
+                                        body: currentText,
+                                    });
+                                }
+                            } catch (e) {
+                                console.warn('Native notification failed:', e);
+                            }
+                        } else {
+                            // Fallback to toast
+                            info(currentText, {
+                                duration: 10000,
+                                onClick: () => {
+                                    router.push({
+                                        name: 'chat',
+                                        params: { sessionkey: sessionKey }
+                                    })
+                                }
+                            })
                         }
                     })();
+                    void loadSessions()
                 }
             }
         }

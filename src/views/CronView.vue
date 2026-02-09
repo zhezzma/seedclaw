@@ -577,8 +577,8 @@ onMounted(() => {
                                 <span class="label-text">会话目标</span>
                             </div>
                             <select v-model="form.sessionTarget" class="select select-bordered w-full">
-                                <option value="main">主会话</option>
-                                <option value="isolated">独立会话</option>
+                                <option value="main">主会话(main)</option>
+                                <option value="isolated">独立会话(isolated)</option>
                             </select>
                         </label>
 
@@ -649,7 +649,7 @@ onMounted(() => {
 
                     <fieldset class="fieldset w-full">
                         <legend class="fieldset-legend">{{ form.payloadKind === 'systemEvent' ? '系统事件内容' : '消息内容'
-                        }}</legend>
+                            }}</legend>
                         <textarea v-model="form.payloadText" class="textarea w-full h-24"
                             placeholder="输入内容..."></textarea>
                         <div class="label"></div>

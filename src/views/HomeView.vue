@@ -26,8 +26,6 @@ const chatState = useChatState()
 const sessionsState = useSessionsState()
 const agentsState = useAgentsState()
 
-// Misc Local State
-const refreshSessionsAfterChat = new Set<string>()
 
 // Helper to access delegated props that were in localState
 const isNewSessionPending = toRef(chatState, 'isNewSessionPending')
@@ -98,24 +96,60 @@ const currentSessionName = computed(() => {
 
 
 // Messages / Cron Mode Logic
-const isMessagesMode = computed(() => route.query.type === 'cron')
+const isMessagesMode = computed(() => route.query.type)
 
-const cronSessions = computed(() => {
-    const sessions = sessionsState.sessionsResult?.sessions || []
-    return sessions.filter((s: any) => isCronSession(s.key)).map((s: any) => ({
-        ...s,
-        displayLabel: s.displayName || s.label || 'Created by Plan'
-    }))
+
+
+const typeSessions = computed(() => {
+    const list = sessionsState.sessionsResult?.sessions || []
+    // If type is cron, filter cron sessions. If not, maybe return empty or all?
+    // User context implies restoring typeSessions logic.
+    // If isMessagesMode is truthy (type is present), we might want to filter by that type.
+    // But for now, let's implement what was requested: "isMessagesMode且displaySessions是空...".
+    // And user snippet called it "typeSessions".
+    // So I assume we are handling "cron" type here.
+    const type = route.query.type
+    if (type === 'cron') {
+        return list.filter((s: any) => isCronSession(s.key))
+    }
+    if (type === 'main') {
+        return list.filter((s: any) => isAgentMainSession(s.key))
+    }
+    if (type === 'other') {
+        return list.filter((s: any) => !isAgentMainSession(s.key) && !isCronSession(s.key))
+    }
+    return []
 })
 
-const showMobileCronList = computed(() => {
+const handleTypeSessionselect = (key: string) => {
+    router.push({
+        name: 'chat',
+        params: { sessionkey: key },
+        query: { type: 'cron' }
+    })
+}
+
+const handleTypeSessionDelete = async (key: string) => {
+    const result = await sessionsState.deleteSession(key)
+    if (result?.deleted && chatState.sessionKey === key) {
+        // If we deleted the currently viewed session, clear selection
+        router.push({ name: 'chat', query: { type: 'cron' } })
+    }
+}
+
+// Auto-select first session
+watch(() => [route.query.type, typeSessions.value, route.params.sessionkey], (values) => {
+    const type = values[0] as string | null
+    const sessions = values[1] as any[]
+    const currentKey = values[2] as string | null
+    if (type && !currentKey && sessions && sessions.length > 0) {
+        // Select first one
+        handleTypeSessionselect(sessions[0].key)
+    }
+}, { immediate: true })
+
+const showMobileSessionList = computed(() => {
     if (!isMessagesMode.value) return false
-    // On mobile, show list if no session key selected, OR if the current session key is NOT a cron session (unlikely if in this mode but possible if navigated weirdly)
-    // Actually, if we are in message mode, we want to show list if we assume master-detail pattern.
-    // If chatState.sessionKey is empty, show list.
-    // If chatState.sessionKey is set, show chat.
-    // However, chatState.sessionKey might be default session.
-    // If router params sessionkey is present?
     return !route.params.sessionkey
 })
 
@@ -124,21 +158,6 @@ const showMobileCronList = computed(() => {
 
 
 
-const handleCronSessionSelect = (key: string) => {
-    router.push({
-        name: 'chat',
-        params: { sessionkey: key },
-        query: { type: 'cron' }
-    })
-}
-
-const handleCronSessionDelete = async (key: string) => {
-    const result = await sessionsState.deleteSession(key)
-    if (result?.deleted && chatState.sessionKey === key) {
-        // If we deleted the currently viewed session, clear selection
-        router.push({ name: 'chat', query: { type: 'cron' } })
-    }
-}
 
 // Watch for assistant identity changes to update selection
 watch(() => chatState.assistantAgentId, (newId) => {
@@ -354,7 +373,10 @@ watch(() => gatewayStore.connected, async (connected, wasConnected) => {
 
 // Helper function to apply default session behavior based on settings
 async function applyDefaultSessionBehavior() {
-    if (isMessagesMode.value) return
+    if (isMessagesMode.value) {
+        console.log('[HomeView] Messages mode, skipping default session behavior')
+        return
+    }
 
     // Default behavior based on settings
     if (settingsStore.homePageBehavior === 'new_session') {
@@ -388,16 +410,25 @@ async function applyDefaultSessionBehavior() {
             </div>
         </div>
 
-        <!-- NEW: Messages List Column (Desktop: visible if isMessagesMode; Mobile: visible if isMessagesMode && showMobileCronList) -->
+        <!-- NEW: Messages List Column (Desktop: visible if isMessagesMode; Mobile: visible if isMessagesMode && showMobileSessionList) -->
         <div v-if="isMessagesMode" class="w-full lg:w-80 bg-base-100 border-r border-base-200 flex flex-col shrink-0"
-            :class="{ 'hidden lg:flex': !showMobileCronList, 'flex': showMobileCronList }">
-            <SessionSidebar title="消息列表" :sessions="cronSessions" :selected-key="chatState.sessionKey"
-                @select="handleCronSessionSelect" @delete="handleCronSessionDelete" />
+            :class="{ 'hidden lg:flex': !showMobileSessionList, 'flex': showMobileSessionList }">
+            <SessionSidebar title="消息列表" :sessions="typeSessions" :selected-key="chatState.sessionKey"
+                @select="handleTypeSessionselect" @delete="handleTypeSessionDelete" />
         </div>
 
+
+        <!-- Empty Messages list state -->
+        <div v-if="isMessagesMode && typeSessions.length === 0"
+            class="flex-1 flex flex-col items-center justify-center p-4">
+            <div class="text-center text-base-content/60">
+                暂无消息
+            </div>
+        </div>
         <!-- Chat Area -->
-        <div class="flex-1 flex flex-col h-full min-w-0"
-            :class="{ 'hidden lg:flex': isMessagesMode && showMobileCronList }">
+        <div v-else class="flex-1 flex flex-col h-full min-w-0"
+            :class="{ 'hidden lg:flex': isMessagesMode && showMobileSessionList }">
+
             <!-- Header -->
             <ChatHeader ref="chatHeaderRef" :selected-agent="selectedAgent" :show-agent-dropdown="showAgentDropdown"
                 :current-session-name="currentSessionName" :agents="agents" @start-voice-chat="startVoiceChat" />
