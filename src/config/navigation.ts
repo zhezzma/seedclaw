@@ -5,7 +5,8 @@ import {
     DocumentIcon,
     HomeIcon,
     Cog6ToothIcon,
-    CubeIcon
+    CubeIcon,
+    ChatBubbleLeftRightIcon
 } from '@heroicons/vue/24/outline'
 
 import {
@@ -15,13 +16,15 @@ import {
     DeviceTabletIcon as DeviceTabletIconSolid,
     SparklesIcon as SparklesIconSolid,
     DocumentIcon as DocumentIconSolid,
-    CubeIcon as CubeIconSolid
+    CubeIcon as CubeIconSolid,
+    ChatBubbleLeftRightIcon as ChatBubbleLeftRightIconSolid
 } from '@heroicons/vue/24/solid'
 
 export interface NavItem {
     label: string
     icon: any
     route: string
+    query?: Record<string, string>
     activeIcon?: any
     showInSidebar?: boolean
     showInBottomNav?: boolean
@@ -57,6 +60,15 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         icon: SparklesIcon,
         activeIcon: SparklesIconSolid,
         route: 'skills',
+        showInSidebar: true,
+        showInBottomNav: true
+    },
+    {
+        label: '消息',
+        icon: ChatBubbleLeftRightIcon,
+        activeIcon: ChatBubbleLeftRightIconSolid,
+        route: 'chat',
+        query: { type: 'cron' },
         showInSidebar: true,
         showInBottomNav: true
     },

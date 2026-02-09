@@ -9,13 +9,14 @@ import {
     TrashIcon,
 } from '@heroicons/vue/24/outline'
 import { SIDEBAR_ITEMS } from '../config/navigation'
-import { createAgentMainSessionKey, isAgentMainSession } from '../utils/session-key-helpers'
+import { createAgentMainSessionKey, isAgentMainSession, isCronSession } from '../utils/session-key-helpers'
 import { useConfirm } from '../composables/useConfirm'
 
 import { useGateway } from '../composables/useGateway'
 import { useSessionsState } from '../composables/useSessionsState'
 import { useChatState } from '../composables/useChatState'
 import { useAgentsState } from '../composables/useAgentsState'
+import { useNavActive } from '../composables/useNavActive'
 
 const router = useRouter()
 const { confirm } = useConfirm()
@@ -52,6 +53,7 @@ const hasMoreAgents = computed(() => agentsList.value.length > MAX_VISIBLE_AGENT
 const displaySessions = computed(() => {
     return sessions.value
         .filter((s: any) => !isAgentMainSession(s.key))
+        .filter((s: any) => !isCronSession(s.key))
         .map((s: any) => ({
             key: s.key,
             label: s.displayName || s.label || s.key,
@@ -110,17 +112,7 @@ const handleDeleteAllSessions = async () => {
 
 const navItems = SIDEBAR_ITEMS
 
-const isHomeActive = computed(() => {
-    // Check if current route is home/chat
-    if (router.currentRoute.value.name !== 'home' && router.currentRoute.value.name !== 'chat') {
-        return false
-    }
-
-    // Check if current session is an agent main session
-    const currentKey = chatState.sessionKey
-    // Also include empty session key (default home) or specific main sessions
-    return !currentKey || isAgentMainSession(currentKey) || currentKey === gatewayStore.defaultSessionKey
-})
+const { isItemActive } = useNavActive()
 
 const handleNavClick = (item: any) => {
     if (item.route) {
@@ -129,8 +121,11 @@ const handleNavClick = (item: any) => {
             // If already on home/chat with a main session, do nothing or reset?
             // Let's reset to default session
             router.push({ name: 'chat', params: { sessionkey: gatewayStore.defaultSessionKey } })
+        } else if (item.route === 'chat' && item.query) {
+            // If it's chat with query (e.g. Messages), just push with query
+            router.push({ name: item.route, query: item.query })
         } else {
-            router.push({ name: item.route })
+            router.push({ name: item.route, query: item.query })
         }
         closeSidebarDrawer()
     }
@@ -171,13 +166,13 @@ const handleNavClick = (item: any) => {
         <div class="shrink-0 px-3 flex flex-col gap-1.5">
             <button v-for="item in navItems" :key="item.label" @click="handleNavClick(item)"
                 class="group flex items-center gap-3  p-1 w-full rounded-2xl text-left transition-all duration-200 hover:bg-base-100 hover:shadow-sm border border-transparent hover:border-base-200/50 active:scale-[0.98] cursor-pointer"
-                :class="{ 'bg-base-100 shadow-sm border-base-200/50': item.route === 'home' ? isHomeActive : $route.name === item.route }">
+                :class="{ 'bg-base-100 shadow-sm border-base-200/50': isItemActive(item) }">
                 <div class="p-1 rounded-xl transition-colors duration-200 group-hover:bg-primary/10 group-hover:text-primary text-base-content/60"
-                    :class="{ 'bg-primary/10 text-primary': item.route === 'home' ? isHomeActive : $route.name === item.route }">
+                    :class="{ 'bg-primary/10 text-primary': isItemActive(item) }">
                     <component :is="item.icon" class="h-5 w-5" />
                 </div>
                 <span class="font-medium text-sm text-base-content/70 group-hover:text-base-content transition-colors"
-                    :class="{ 'text-base-content font-semibold': item.route === 'home' ? isHomeActive : $route.name === item.route }">
+                    :class="{ 'text-base-content font-semibold': isItemActive(item) }">
                     {{ item.label }}
                 </span>
             </button>

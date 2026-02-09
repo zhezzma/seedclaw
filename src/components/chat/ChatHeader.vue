@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router' // Added useRoute
 import {
     Bars3Icon,
     ChevronDownIcon,
@@ -10,7 +10,8 @@ import {
     ArrowsPointingOutIcon,
     ArrowsPointingInIcon,
     PlusIcon,
-    PhoneIcon
+    PhoneIcon,
+    ChevronLeftIcon // Import added
 } from '@heroicons/vue/24/outline'
 import { useUiSettingsStore } from '../../stores/setting'
 import { useGateway } from '../../composables/useGateway'
@@ -25,20 +26,25 @@ interface Agent {
 }
 
 const props = defineProps<{
-    selectedAgent: Agent
+    selectedAgent: any
     showAgentDropdown: boolean
     currentSessionName: string
-    agents: Agent[]
+    agents: any[]
 }>()
 
 const emit = defineEmits<{
-    (e: 'select-agent', agentId: string): void
-    (e: 'create-session'): void
     (e: 'start-voice-chat'): void
+    (e: 'select-agent', agentId: string): void
 }>()
 
-
 const router = useRouter()
+const route = useRoute()
+
+const handleBack = () => {
+    // Go back to list view
+    router.back()
+}
+
 const settingsStore = useUiSettingsStore()
 const gatewayStore = useGateway()
 const chatState = useChatState()
@@ -76,12 +82,19 @@ defineExpose({
 
 <template>
     <div class="navbar bg-base-100 border-b border-base-300">
+
+        <!-- Back Button (Messages Mode) -->
+        <button v-if="route.query.type === 'cron'" @click="handleBack"
+            class="btn btn-ghost btn-circle btn-sm -ml-2 lg:hidden">
+            <ChevronLeftIcon class="h-5 w-5" />
+        </button>
         <!-- Hamburger menu (mobile only) -->
-        <div class="flex-none lg:hidden">
+        <div v-else class="flex-none lg:hidden">
             <label for="sidebar-drawer" class="btn btn-square btn-ghost drawer-button">
                 <Bars3Icon class="h-5 w-5" />
             </label>
         </div>
+
         <div class="flex-1">
             <!-- Agent dropdown (for agent main sessions) -->
             <details v-if="showAgentDropdown" class="dropdown" ref="dropdownRef">
@@ -108,11 +121,15 @@ defineExpose({
         </div>
         <!-- Connection status indicator -->
         <div class="flex-none flex items-center gap-2 pr-1">
-            <div class="flex items-center gap-1">
-                <div class="w-2 h-2 rounded-full" :class="gatewayStore.connected ? 'bg-success' : 'bg-error'"></div>
-                <span class="text-xs text-base-content/60 hidden sm:inline">
-                    {{ gatewayStore.connected ? '已连接' : '未连接' }}
-                </span>
+            <div class="flex items-center gap-3 min-w-0">
+
+
+                <div class="flex items-center gap-1">
+                    <div class="w-2 h-2 rounded-full" :class="gatewayStore.connected ? 'bg-success' : 'bg-error'"></div>
+                    <span class="text-xs text-base-content/60 hidden sm:inline">
+                        {{ gatewayStore.connected ? '已连接' : '未连接' }}
+                    </span>
+                </div>
             </div>
         </div>
         <!-- Mobile buttons -->

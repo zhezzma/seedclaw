@@ -525,8 +525,7 @@ const logout = async () => {
                     <input type="password" v-model="editForm.gotifyToken" placeholder="Client Token (C...)"
                         class="input input-bordered w-full" />
                     <label class="label">
-                        <span class="label-text-alt opacity-50">请在 Gotify Web 端创建一个 Client 并获取 Token，不要使用 App Token
-                            (A...)</span>
+                        <span class="label-text-alt opacity-50">请在 Gotify Web 端创建一个 Client 并获取 Token</span>
                     </label>
                 </div>
             </div>

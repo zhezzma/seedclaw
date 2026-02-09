@@ -21,3 +21,10 @@ export function createAgentMainSessionKey(agentId: string): string {
     return `agent:${agentId}:main`;
 }
 
+export function isCronSession(sessionKey: string | undefined | null): boolean {
+    if (!sessionKey) {
+        return false;
+    }
+    return sessionKey.includes(':cron:');
+}
+

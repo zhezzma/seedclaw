@@ -4,6 +4,7 @@ import router from '../router'
 import { useCronState } from './useCronState'
 import { useUiSettingsStore } from '../stores/setting'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
+import { isCronSession } from '../utils/session-key-helpers'
 
 let initialized = false
 const NOTIFY_LENGTH_THRESHOLD = 50
@@ -16,7 +17,6 @@ export function useNotify() {
     const { info } = useToast()
     // We need cron state to look up job names
     const cronState = useCronState()
-    const settings = useUiSettingsStore()
     const pendingCronSessions = new Set<string>()
 
 
@@ -25,10 +25,8 @@ export function useNotify() {
             const { stream, data, sessionKey } = evt.payload
 
             // Check for cron-triggered session start
-            if (stream === 'lifecycle' && data?.phase === 'start') {
-                if (sessionKey?.includes(':cron:')) {
-                    pendingCronSessions.add(sessionKey)
-                }
+            if (stream === 'lifecycle' && data?.phase === 'start' && isCronSession(sessionKey)) {
+                pendingCronSessions.add(sessionKey)
                 return
             }
 

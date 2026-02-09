@@ -10,8 +10,9 @@ import ChatHeader from '../components/chat/ChatHeader.vue'
 import MessageBubble from '../components/chat/MessageBubble.vue'
 import ChatInput from '../components/chat/ChatInput.vue'
 import VoiceChatOverlay from '../components/chat/VoiceChatOverlay.vue'
+import SessionSidebar from '../components/chat/SessionSidebar.vue'
 import AppSidebar from '../components/AppSidebar.vue'
-import { createAgentMainSessionKey, isAgentMainSession } from '../utils/session-key-helpers'
+import { createAgentMainSessionKey, isAgentMainSession, isCronSession } from '../utils/session-key-helpers'
 import { useChatState } from '../composables/useChatState'
 import { useSessionsState } from '../composables/useSessionsState'
 import { useAgentsState } from '../composables/useAgentsState'
@@ -95,6 +96,49 @@ const currentSessionName = computed(() => {
 // Sessions list for sidebar - No longer needed here as AppSidebar handles it
 // const sessions = computed(() => sessionsState.sessionsResult?.sessions || [])
 
+
+// Messages / Cron Mode Logic
+const isMessagesMode = computed(() => route.query.type === 'cron')
+
+const cronSessions = computed(() => {
+    const sessions = sessionsState.sessionsResult?.sessions || []
+    return sessions.filter((s: any) => isCronSession(s.key)).map((s: any) => ({
+        ...s,
+        displayLabel: s.displayName || s.label || 'Created by Plan'
+    }))
+})
+
+const showMobileCronList = computed(() => {
+    if (!isMessagesMode.value) return false
+    // On mobile, show list if no session key selected, OR if the current session key is NOT a cron session (unlikely if in this mode but possible if navigated weirdly)
+    // Actually, if we are in message mode, we want to show list if we assume master-detail pattern.
+    // If chatState.sessionKey is empty, show list.
+    // If chatState.sessionKey is set, show chat.
+    // However, chatState.sessionKey might be default session.
+    // If router params sessionkey is present?
+    return !route.params.sessionkey
+})
+
+
+
+
+
+
+const handleCronSessionSelect = (key: string) => {
+    router.push({
+        name: 'chat',
+        params: { sessionkey: key },
+        query: { type: 'cron' }
+    })
+}
+
+const handleCronSessionDelete = async (key: string) => {
+    const result = await sessionsState.deleteSession(key)
+    if (result?.deleted && chatState.sessionKey === key) {
+        // If we deleted the currently viewed session, clear selection
+        router.push({ name: 'chat', query: { type: 'cron' } })
+    }
+}
 
 // Watch for assistant identity changes to update selection
 watch(() => chatState.assistantAgentId, (newId) => {
@@ -310,6 +354,8 @@ watch(() => gatewayStore.connected, async (connected, wasConnected) => {
 
 // Helper function to apply default session behavior based on settings
 async function applyDefaultSessionBehavior() {
+    if (isMessagesMode.value) return
+
     // Default behavior based on settings
     if (settingsStore.homePageBehavior === 'new_session') {
         await chatState.createNewSession()
@@ -342,8 +388,16 @@ async function applyDefaultSessionBehavior() {
             </div>
         </div>
 
+        <!-- NEW: Messages List Column (Desktop: visible if isMessagesMode; Mobile: visible if isMessagesMode && showMobileCronList) -->
+        <div v-if="isMessagesMode" class="w-full lg:w-80 bg-base-100 border-r border-base-200 flex flex-col shrink-0"
+            :class="{ 'hidden lg:flex': !showMobileCronList, 'flex': showMobileCronList }">
+            <SessionSidebar title="消息列表" :sessions="cronSessions" :selected-key="chatState.sessionKey"
+                @select="handleCronSessionSelect" @delete="handleCronSessionDelete" />
+        </div>
+
         <!-- Chat Area -->
-        <div class="flex-1 flex flex-col h-full min-w-0">
+        <div class="flex-1 flex flex-col h-full min-w-0"
+            :class="{ 'hidden lg:flex': isMessagesMode && showMobileCronList }">
             <!-- Header -->
             <ChatHeader ref="chatHeaderRef" :selected-agent="selectedAgent" :show-agent-dropdown="showAgentDropdown"
                 :current-session-name="currentSessionName" :agents="agents" @start-voice-chat="startVoiceChat" />
