@@ -8,7 +8,7 @@ import { isCronSession } from '../utils/session-key-helpers'
 import { useSessionsState } from './useSessionsState'
 
 let initialized = false
-const NOTIFY_LENGTH_THRESHOLD = 20
+const NOTIFY_LENGTH_THRESHOLD = 50
 
 export function useNotify() {
     if (initialized) return
@@ -19,68 +19,66 @@ export function useNotify() {
     const { loadSessions } = useSessionsState()
     // We need cron state to look up job names
     const cronState = useCronState()
-    const pendingCronSessions = new Set<string>()
+    const pendingCronSessions = new Map<string, string>()
 
 
     gatewayStore.subscribe((evt: any) => {
-        const isTauri = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__;
-        if (isTauri) return
-
         if (evt.event === 'agent' && evt.payload) {
             const { stream, data, sessionKey } = evt.payload
 
+            const trigger = (title: string) => {
+                if (pendingCronSessions.has(sessionKey)) {
+                    let body = pendingCronSessions.get(sessionKey) || ''
+                    if (!body) body = '任务已完成'
+
+                    pendingCronSessions.delete(sessionKey)
+
+                    //重新加载sessions,更新消息列表
+                    void loadSessions()
+
+                    //如果是tauri,他们有自己弹出通知的机制
+                    const isTauri = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__;
+                    if (isTauri) return
+
+                    info(`${title}: ${body}`, {
+                        duration: 10000,
+                        onClick: () => {
+                            router.push({
+                                name: 'chat',
+                                params: { sessionkey: sessionKey }
+                            })
+                        }
+                    })
+                }
+            }
+
             // Check for cron-triggered session start
-            if (stream === 'lifecycle' && data?.phase === 'start' && isCronSession(sessionKey)) {
-                pendingCronSessions.add(sessionKey)
-                return
+            if (stream === 'lifecycle' && isCronSession(sessionKey)) {
+                if (data?.phase === 'start') {
+                    pendingCronSessions.set(sessionKey, '') // Changed from add to set with empty string
+                    return
+                } else if (data?.phase === 'end') {
+                    const jobId = sessionKey.split(':cron:')[1]
+                    // @ts-ignore - cronJobs access via proxy
+                    const job = cronState.cronJobs.find((j: any) => j.id === jobId)
+                    const title = job ? `${job.name}` : '你收到了一条定时消息'
+                    trigger(title)
+                    return
+                }
             }
 
             // Determine if this is a follow-up event for a pending cron session
             if (sessionKey && pendingCronSessions.has(sessionKey)) {
                 const currentText = data?.text || ''
-                if (currentText.length > NOTIFY_LENGTH_THRESHOLD) {
-                    pendingCronSessions.delete(sessionKey)
+                const buffer = (pendingCronSessions.get(sessionKey) || '') + currentText // Buffering logic
+                pendingCronSessions.set(sessionKey, buffer) // Update map with buffer
 
+                if (buffer.length > NOTIFY_LENGTH_THRESHOLD) { // Changed condition to use buffer length
                     const jobId = sessionKey.split(':cron:')[1]
                     // @ts-ignore - cronJobs access via proxy
                     const job = cronState.cronJobs.find((j: any) => j.id === jobId)
                     const title = job ? `${job.name}` : '你收到了一条定时消息';
-
-                    // Trigger local notification
-                    (async () => {
-                        // Check for Tauri environment (v1 or v2)
-                        const isTauri = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__;
-
-                        if (isTauri) {
-                            try {
-                                let permissionGranted = await isPermissionGranted();
-                                if (!permissionGranted) {
-                                    const permission = await requestPermission();
-                                    permissionGranted = permission === 'granted';
-                                }
-                                if (permissionGranted) {
-                                    sendNotification({
-                                        title,
-                                        body: currentText,
-                                    });
-                                }
-                            } catch (e) {
-                                console.warn('Native notification failed:', e);
-                            }
-                        } else {
-                            // Fallback to toast
-                            info(currentText, {
-                                duration: 10000,
-                                onClick: () => {
-                                    router.push({
-                                        name: 'chat',
-                                        params: { sessionkey: sessionKey }
-                                    })
-                                }
-                            })
-                        }
-                    })();
-                    void loadSessions()
+                    trigger(title) // Trigger notification
                 }
             }
         }

@@ -1,6 +1,6 @@
 use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Runtime};
 use tauri_plugin_notification::NotificationExt;
@@ -9,7 +9,7 @@ use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
 
 // --- Constants ---
-const NOTIFY_LENGTH_THRESHOLD: usize = 20;
+const NOTIFY_LENGTH_THRESHOLD: usize = 100;
 
 // --- Types ---
 
@@ -31,15 +31,30 @@ pub struct GatewayState {
 // Global state container for the background task to access
 struct GatewayContext<R: Runtime> {
     app_handle: AppHandle<R>,
-    // Track tracking for notifications
-    pending_cron_sessions: HashSet<String>,
+    // Track tracking for notifications. Map session_key -> accumulated text
+    pending_cron_sessions: HashMap<String, String>,
 }
 
 impl<R: Runtime> GatewayContext<R> {
     fn new(app: AppHandle<R>) -> Self {
         Self {
             app_handle: app,
-            pending_cron_sessions: HashSet::new(),
+            pending_cron_sessions: HashMap::new(),
+        }
+    }
+
+    fn trigger_notification(&mut self, key: &str, title: &str, body_fallback: &str) {
+        if let Some(mut body) = self.pending_cron_sessions.remove(key) {
+            if body.is_empty() {
+                body = body_fallback.to_string();
+            }
+            let _ = self
+                .app_handle
+                .notification()
+                .builder()
+                .title(title)
+                .body(body)
+                .show();
         }
     }
 
@@ -63,36 +78,50 @@ impl<R: Runtime> GatewayContext<R> {
                                 {
                                     if d.get("phase").and_then(|v| v.as_str()) == Some("start") {
                                         if key.contains(":cron:") {
-                                            self.pending_cron_sessions.insert(key.to_string());
+                                            self.pending_cron_sessions
+                                                .insert(key.to_string(), String::new());
                                             return;
                                         }
+                                    } else if d.get("phase").and_then(|v| v.as_str()) == Some("end")
+                                    {
+                                        // Flush if pending
+                                        // Generic title since we don't have job state here easily
+                                        let title = "你收到了一条消息";
+                                        let body = "任务已完成";
+                                        self.trigger_notification(key, title, body);
+                                        return;
                                     }
                                 }
 
                                 // 2. Check for follow-up event
                                 if let Some(key) = session_key {
-                                    if self.pending_cron_sessions.contains(key) {
+                                    // Check if we are tracking this session
+                                    if self.pending_cron_sessions.contains_key(key) {
                                         let current_text = data
                                             .and_then(|d| d.get("text"))
                                             .and_then(|v| v.as_str())
                                             .unwrap_or("");
-                                        if current_text.len() > NOTIFY_LENGTH_THRESHOLD {
-                                            self.pending_cron_sessions.remove(key);
 
-                                            // Extract Job Name (if possible) or generic title
-                                            // In Rust we might not have access to full cron state easily unless we pass it or fetch it.
-                                            // For now, use a generic title or try to parse if possible.
-                                            // The original code looked up `cronState.cronJobs`.
-                                            // We'll use a generic title for now to avoid complex state sharing.
-                                            let title = "你收到了一条定时消息";
+                                        // Append to buffer
+                                        if let Some(buffer) =
+                                            self.pending_cron_sessions.get_mut(key)
+                                        {
+                                            buffer.push_str(current_text);
+                                        }
 
-                                            let _ = self
-                                                .app_handle
-                                                .notification()
-                                                .builder()
-                                                .title(title)
-                                                .body(current_text)
-                                                .show();
+                                        // Re-borrow to check length (cleaner way)
+                                        let should_notify = if let Some(buffer) =
+                                            self.pending_cron_sessions.get(key)
+                                        {
+                                            buffer.len() > NOTIFY_LENGTH_THRESHOLD
+                                        } else {
+                                            false
+                                        };
+
+                                        if should_notify {
+                                            let title = "你收到了一条消息";
+                                            // Fallback isn't used because we know buffer is non-empty
+                                            self.trigger_notification(key, title, "");
                                         }
                                     }
                                 }
