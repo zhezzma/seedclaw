@@ -29,7 +29,6 @@ const state = reactive<ChatState & ChatHost & {
     toolStreamSyncTimer: number | null;
 
     //SessionManagement
-    isNewSessionPending: boolean;
     renameSessionKey: string | null;
     settings: ReturnType<typeof useUiSettingsStore> | null;
 
@@ -57,7 +56,7 @@ const state = reactive<ChatState & ChatHost & {
     toolStreamSyncTimer: null,
 
     // Session Management
-    isNewSessionPending: false,
+
     renameSessionKey: null,
 
 
@@ -138,17 +137,7 @@ function ensureInit() {
         }
     })
 
-    // Also sync sessionKey potentially?
-    // Gateway manages sessionKey logic (login/snapshot).
-    // Chat state needs to know it. UseGateway exports sessionKey?
-    // No, useGateway has local ref state.sessionKey in setup?
-    // In refactored useGateway, state.sessionKey was removed?
-    // Wait, useGateway had: isNewSessionPending, renameSessionKey.
-    // sessionKey was in Settings Store mostly.
-    // But useGateway Actions set sessionKey on state.
-    // If I move chat actions here, I need to know where sessionKey lives.
-    // In `useGateway.ts`: `state.sessionKey = ...` (on ChatState).
-    // So `sessionKey` belongs to `ChatState`.
+
 }
 
 
@@ -301,7 +290,6 @@ const resetState = () => {
 const setSessionKey = async (key: string, loadHistory = true) => {
     // Reset Chat State
     resetState()
-    state.isNewSessionPending = false
     state.chatMessages = []
     state.sessionKey = key
 
@@ -318,10 +306,10 @@ const setSessionKey = async (key: string, loadHistory = true) => {
     }
 }
 
-//创建新session,其实就是清空当前的sessionkey,并设置isNewSessionPending为true
+//创建新session,其实就是清空当前的sessionkey
 const createNewSession = async () => {
     const gatewayStore = useGateway() // Lazy load to avoid circular dependency issues if any
-    state.isNewSessionPending = true;
+
     state.assistantAgentId = gatewayStore.defaultAgentId
 
     resetState()

@@ -13,6 +13,7 @@ import VoiceChatOverlay from '../components/chat/VoiceChatOverlay.vue'
 import SessionSidebar from '../components/chat/SessionSidebar.vue'
 import AppSidebar from '../components/AppSidebar.vue'
 import { createAgentMainSessionKey, isAgentMainSession, isCronSession } from '../utils/session-key-helpers'
+import { isNewSession, NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
 import { useChatState } from '../composables/useChatState'
 import { useSessionsState } from '../composables/useSessionsState'
 import { useAgentsState } from '../composables/useAgentsState'
@@ -28,8 +29,9 @@ const agentsState = useAgentsState()
 
 
 // Helper to access delegated props that were in localState
-const isNewSessionPending = toRef(chatState, 'isNewSessionPending')
-const hello = toRef(gatewayStore, 'hello')
+// Use computed instead of toRef to ensure reactivity with createStateProxy
+
+const hello = computed(() => gatewayStore.hello)
 
 // Refs
 const messagesContainerRef = ref<HTMLDivElement | null>(null)
@@ -72,24 +74,7 @@ const selectedAgent = computed(() => {
     return agents.value.find((a: any) => a.id === selectedAgentId.value) || agents.value[0] || { id: 'main', name: 'Assistant', icon: '🤖' }
 })
 
-// Check if current session is an agent main session (show dropdown) or a specific session (show session name)
-const showAgentDropdown = computed(() => isAgentMainSession(chatState.sessionKey) || isNewSessionPending.value)
 
-// Get current session name from sessions list
-const currentSessionName = computed(() => {
-    const sessionKey = chatState.sessionKey
-    if (!sessionKey) return 'Chat Session'
-
-    if (isNewSessionPending.value) {
-        const agentId = chatState.assistantAgentId
-        const agent = agents.value.find(a => a.id === agentId)
-        return `新会话(${agent?.name || 'Assistant'})`
-    }
-
-    const sessions = sessionsState.sessionsResult?.sessions || []
-    const session = sessions.find((s: any) => s.key === sessionKey)
-    return session?.displayName || session?.label || 'Chat Session'
-})
 
 // Sessions list for sidebar - No longer needed here as AppSidebar handles it
 // const sessions = computed(() => sessionsState.sessionsResult?.sessions || [])
@@ -184,7 +169,7 @@ const handleSend = async () => {
         return
     }
 
-    if (isNewSessionPending.value) {
+    if (isNewSession(route)) {
         await chatState.commitNewSession(inputText)
     }
 
@@ -225,6 +210,11 @@ const handleSend = async () => {
     if (chatInputRef.value && chatInputRef.value.attachments) {
         chatInputRef.value.attachments = []
     }
+
+    if (isNewSession(route)) {
+        router.push({ name: 'chat', params: { sessionkey: chatState.sessionKey } })
+    }
+
     scrollToBottom()
 }
 
@@ -329,11 +319,14 @@ onUnmounted(() => {
 
 
 // Handle route params for session switching
-watch(() => [route.params.sessionkey, route.name], async ([sessionkey, routeName]) => {
-    console.log("[HomeView] watch route.params", sessionkey, routeName)
+watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath]) => {
+    console.log("[HomeView] watch route.params", sessionkey, routePath)
 
     // Handle new session route
-    if (routeName === 'new-session') {
+    // We can pass the route object if we accessed it, or just use implicit route from closure, 
+    // but helper expects route object. 
+    // Since we are inside component setup, 'route' is available.
+    if (isNewSession(route)) {
         await chatState.createNewSession()
         return
     }
@@ -385,7 +378,7 @@ async function applyDefaultSessionBehavior() {
     // Default behavior based on settings
     if (settingsStore.homePageBehavior === 'new_session') {
         await chatState.createNewSession()
-        router.replace({ name: 'new-session' })
+        router.replace({ name: NEW_SESSION_ROUTE_NAME })
     } else if (settingsStore.homePageBehavior === 'default_session') {
         // Load explicitly default session
         console.log('Default: default session', gatewayStore.defaultSessionKey)
@@ -436,8 +429,8 @@ async function applyDefaultSessionBehavior() {
             :class="{ 'hidden lg:flex': isMessagesMode && showMobileSessionList }">
 
             <!-- Header -->
-            <ChatHeader ref="chatHeaderRef" :selected-agent="selectedAgent" :show-agent-dropdown="showAgentDropdown"
-                :current-session-name="currentSessionName" :agents="agents" @start-voice-chat="startVoiceChat" />
+            <ChatHeader ref="chatHeaderRef" :selected-agent="selectedAgent" :agents="agents"
+                @start-voice-chat="startVoiceChat" />
 
             <!-- Main content area -->
             <div class="flex-1 flex flex-col min-h-0">
@@ -447,7 +440,7 @@ async function applyDefaultSessionBehavior() {
                 </div>
 
                 <!-- Welcome message when no messages -->
-                <div v-else-if="isNewSessionPending" class="flex-1 flex flex-col items-center justify-center p-4">
+                <div v-else-if="isNewSession(route)" class="flex-1 flex flex-col items-center justify-center p-4">
                     <div class="text-center">
                         <h1 class="text-3xl font-bold mb-2">Hi, 欢迎使用 SeedClaw</h1>
                         <p class="text-base-content/60">我是 SeedClaw，聊天、写作、搜索都在行，助你灵感无限</p>

@@ -16,7 +16,9 @@ import {
 import { useUiSettingsStore } from '../../stores/setting'
 import { useGateway } from '../../composables/useGateway'
 import { useChatState } from '../../composables/useChatState'
-import { createAgentMainSessionKey } from '../../utils/session-key-helpers'
+import { createAgentMainSessionKey, isAgentMainSession } from '../../utils/session-key-helpers'
+import { isNewSession, NEW_SESSION_ROUTE_NAME } from '../../utils/route-helpers'
+import { useSessionsState } from '~/src/composables/useSessionsState'
 
 interface Agent {
     id: string
@@ -27,14 +29,12 @@ interface Agent {
 
 const props = defineProps<{
     selectedAgent: any
-    showAgentDropdown: boolean
-    currentSessionName: string
     agents: any[]
 }>()
 
+
 const emit = defineEmits<{
     (e: 'start-voice-chat'): void
-    (e: 'select-agent', agentId: string): void
 }>()
 
 const router = useRouter()
@@ -44,24 +44,44 @@ const handleBack = () => {
     // Go back to list view
     router.back()
 }
-
+const sessionsState = useSessionsState()
 const settingsStore = useUiSettingsStore()
 const gatewayStore = useGateway()
 const chatState = useChatState()
 const dropdownRef = ref<HTMLDetailsElement | null>(null)
 
+const showAgentDropdown = computed(() => isAgentMainSession(chatState.sessionKey) || isNewSession(route))
+
 const selectedAgentId = computed(() => props.selectedAgent?.id || '')
 
+// Get current session name from sessions list
+const currentSessionName = computed(() => {
+    const sessionKey = chatState.sessionKey
+    if (!sessionKey) return 'Chat Session'
+
+    const sessions = sessionsState.sessionsResult?.sessions || []
+    const session = sessions.find((s: any) => s.key === sessionKey)
+    return session?.displayName || session?.label || 'Chat Session'
+})
+
+
 const selectAgent = (agentId: string) => {
-    // Navigate to agent's main session
-    router.push({ name: 'chat', params: { sessionkey: createAgentMainSessionKey(agentId) } })
+
+    if (isNewSession(route)) {
+        chatState.assistantAgentId = agentId
+    }
+    else {
+        // Navigate to agent's main session
+        router.push({ name: 'chat', params: { sessionkey: createAgentMainSessionKey(agentId) } })
+    }
+
     if (dropdownRef.value) {
         dropdownRef.value.open = false
     }
 }
 
 const createNewSession = () => {
-    router.push({ name: 'new-session' })
+    router.push({ name: NEW_SESSION_ROUTE_NAME }) // Or use path '/new' if preferred, but name is safe with constant
 }
 
 const startVoiceChat = () => {

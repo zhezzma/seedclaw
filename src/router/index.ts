@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
+import { NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
 
 // Layouts
 import MainLayout from '../layouts/MainLayout.vue'
@@ -46,7 +47,7 @@ const router = createRouter({
                 },
                 {
                     path: 'new',
-                    name: 'new-session',
+                    name: NEW_SESSION_ROUTE_NAME,
                     component: HomeView
                 },
                 {

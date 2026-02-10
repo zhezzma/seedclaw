@@ -11,6 +11,7 @@ import {
 import { SIDEBAR_ITEMS } from '../config/navigation'
 import { createAgentMainSessionKey, isAgentMainSession, isCronSession } from '../utils/session-key-helpers'
 import { useConfirm } from '../composables/useConfirm'
+import { NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
 
 import { useGateway } from '../composables/useGateway'
 import { useSessionsState } from '../composables/useSessionsState'
@@ -78,7 +79,7 @@ const selectSession = (key: string) => {
 
 const createNewSession = () => {
     // Navigate to new-session route
-    router.push({ name: 'new-session' })
+    router.push({ name: NEW_SESSION_ROUTE_NAME })
     closeSidebarDrawer()
 }
 
