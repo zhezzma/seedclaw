@@ -138,31 +138,8 @@ const handleDeleteAgent = async () => {
     isDeleting.value = true
     try {
         const agentId = props.agent.id
-
-        // 1. Construct paths
-        const workspace = agentConfig.value?.workspace || `~/.openclaw/workspace-${agentId}`
-        const agentDir = agentConfig.value?.agentDir || `~/.openclaw/agents/${agentId}`
-
-        // 2. Request remote deletion
-        let cmd = `rm -rf ${workspace} ${agentDir}`
-        console.log('[AgentOverview] Requesting deletion:', cmd)
-
-
-
-
-
-
-
-        // 3. Remove from config
-        if (agentIndex.value !== -1 && props.configState) {
-            const currentList = (props.configState.configForm?.agents as any)?.list as any[]
-            const newList = [...currentList]
-            newList.splice(agentIndex.value, 1)
-
-            configStore.updateConfigFormValue(['agents', 'list'], newList)
-            await configStore.saveConfig()
-            toast.success('配置已更新')
-        }
+        await agentsState.deleteAgent({ agentId, deleteFiles: true })
+        toast.success('智能体已删除')
 
         // 4. Redirect
         router.replace({ name: 'agents' })
@@ -283,7 +260,7 @@ const handleDeleteAgent = async () => {
             </div>
 
             <!-- Danger Zone -->
-            <!-- <div class="space-y-2 pt-6 border-t border-base-200/50">
+            <div class="space-y-2 pt-6 border-t border-base-200/50">
                 <h4 class="text-sm font-medium text-error/80 px-2 flex items-center gap-2">
                     <ExclamationTriangleIcon class="w-4 h-4" />
                     危险区域
@@ -303,7 +280,7 @@ const handleDeleteAgent = async () => {
                         </button>
                     </div>
                 </div>
-            </div> -->
+            </div>
         </div>
 
         <!-- File Edit Modal -->

@@ -84,11 +84,35 @@ export function useAgentsState() {
         await _saveAgentFile(state as any, agentId, name, content)
     }
 
+    const createAgent = async (params: { name: string; workspace?: string; emoji?: string; avatar?: string }) => {
+        if (!state.client) throw new Error('Client not connected')
+        const res = await state.client.request('agents.create', params)
+        await loadAgents()
+        return res
+    }
+
+    const updateAgent = async (params: { agentId: string; name?: string; workspace?: string; model?: string; avatar?: string }) => {
+        if (!state.client) throw new Error('Client not connected')
+        const res = await state.client.request('agents.update', params)
+        await loadAgents()
+        return res
+    }
+
+    const deleteAgent = async (params: { agentId: string; deleteFiles?: boolean }) => {
+        if (!state.client) throw new Error('Client not connected')
+        const res = await state.client.request('agents.delete', params)
+        await loadAgents()
+        return res
+    }
+
     const methods = {
         loadAgents,
         loadAgentFiles,
         loadAgentFileContent,
         saveAgentFile,
+        createAgent,
+        updateAgent,
+        deleteAgent,
         handleAgentEvent: (payload: any) => handleAgentEvent(state as any, payload)
     }
 
