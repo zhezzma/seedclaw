@@ -34,19 +34,21 @@ pub struct GatewayState {
 struct GatewayContext<R: Runtime> {
     app_handle: AppHandle<R>,
     // Track tracking for notifications. Map session_key -> accumulated text
-    pending_cron_sessions: HashMap<String, String>,
+    pending_sessions: HashMap<String, String>,
+    pending_job_ids: Vec<(String, String)>,
 }
 
 impl<R: Runtime> GatewayContext<R> {
     fn new(app: AppHandle<R>) -> Self {
         Self {
             app_handle: app,
-            pending_cron_sessions: HashMap::new(),
+            pending_sessions: HashMap::new(),
+            pending_job_ids: Vec::new(),
         }
     }
 
     fn trigger_notification(&mut self, key: &str, title: &str, body_fallback: &str) {
-        if let Some(mut body) = self.pending_cron_sessions.remove(key) {
+        if let Some(mut body) = self.pending_sessions.remove(key) {
             if body.is_empty() {
                 body = body_fallback.to_string();
             }
@@ -81,9 +83,29 @@ impl<R: Runtime> GatewayContext<R> {
         }
     }
 
+    fn is_agent_main_session(&self, key: &str) -> bool {
+        key.starts_with("agent:") && key.split(':').count() == 3
+    }
+
     fn check_notification(&mut self, text: &str) {
         // Parse JSON mainly to check for "event": "agent"
         if let Ok(processed) = serde_json::from_str::<Value>(text) {
+            // Handle job tracking (pending_job_ids)
+            if let Some(payload) = processed.get("payload") {
+                let action = payload.get("action").and_then(|v| v.as_str());
+                let job_id = payload.get("jobId").and_then(|v| v.as_str());
+
+                if let (Some(act), Some(jid)) = (action, job_id) {
+                    if act == "started" {
+                        self.pending_job_ids.retain(|(id, _)| id != jid);
+                        self.pending_job_ids
+                            .push((jid.to_string(), "main".to_string()));
+                    } else if act == "finished" {
+                        self.pending_job_ids.retain(|(id, _)| id != jid);
+                    }
+                }
+            }
+
             if let Some(type_str) = processed.get("type").and_then(|v| v.as_str()) {
                 if type_str == "event" {
                     if let Some(event_str) = processed.get("event").and_then(|v| v.as_str()) {
@@ -101,10 +123,30 @@ impl<R: Runtime> GatewayContext<R> {
                                 {
                                     if d.get("phase").and_then(|v| v.as_str()) == Some("start") {
                                         if key.contains(":cron:") {
-                                            self.pending_cron_sessions
+                                            if let Some(pos) = key.find(":cron:") {
+                                                let job_id = &key[pos + 6..];
+                                                self.pending_job_ids.retain(|(id, _)| id != job_id);
+                                                self.pending_job_ids.push((
+                                                    job_id.to_string(),
+                                                    "isolated".to_string(),
+                                                ));
+                                            }
+                                            self.pending_sessions
                                                 .insert(key.to_string(), String::new());
-                                            return;
                                         }
+
+                                        if self.is_agent_main_session(key) {
+                                            let last_main = self
+                                                .pending_job_ids
+                                                .iter()
+                                                .rev()
+                                                .find(|(_, target)| target != "isolated");
+                                            if last_main.is_some() {
+                                                self.pending_sessions
+                                                    .insert(key.to_string(), String::new());
+                                            }
+                                        }
+                                        return;
                                     } else if d.get("phase").and_then(|v| v.as_str()) == Some("end")
                                     {
                                         // Flush if pending
@@ -119,27 +161,24 @@ impl<R: Runtime> GatewayContext<R> {
                                 // 2. Check for follow-up event
                                 if let Some(key) = session_key {
                                     // Check if we are tracking this session
-                                    if self.pending_cron_sessions.contains_key(key) {
+                                    if self.pending_sessions.contains_key(key) {
                                         let current_text = data
                                             .and_then(|d| d.get("delta"))
                                             .and_then(|v| v.as_str())
                                             .unwrap_or("");
 
                                         // Append to buffer
-                                        if let Some(buffer) =
-                                            self.pending_cron_sessions.get_mut(key)
-                                        {
+                                        if let Some(buffer) = self.pending_sessions.get_mut(key) {
                                             buffer.push_str(current_text);
                                         }
 
                                         // Re-borrow to check length (cleaner way)
-                                        let should_notify = if let Some(buffer) =
-                                            self.pending_cron_sessions.get(key)
-                                        {
-                                            buffer.len() > NOTIFY_LENGTH_THRESHOLD
-                                        } else {
-                                            false
-                                        };
+                                        let should_notify =
+                                            if let Some(buffer) = self.pending_sessions.get(key) {
+                                                buffer.len() > NOTIFY_LENGTH_THRESHOLD
+                                            } else {
+                                                false
+                                            };
 
                                         if should_notify {
                                             let title = "你收到了一条消息";

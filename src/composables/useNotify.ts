@@ -4,8 +4,10 @@ import router from '../router'
 import { useCronState } from './useCronState'
 import { useUiSettingsStore } from '../stores/setting'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
-import { isCronSession } from '../utils/session-key-helpers'
+import { isAgentMainSession, isCronSession } from '../utils/session-key-helpers'
 import { useSessionsState } from './useSessionsState'
+import { parseAgentSessionKey } from '../openclaw/src/sessions/session-key-utils'
+import { CronSessionTarget } from '~/openclaw/ui/src/ui/types'
 
 let initialized = false
 const NOTIFY_LENGTH_THRESHOLD = 20
@@ -66,19 +68,31 @@ export function useNotify() {
     const { loadSessions } = useSessionsState()
     // We need cron state to look up job names
     const cronState = useCronState()
-    const pendingCronSessions = new Map<string, string>()
+    const pendingSessions = new Map<string, string>()
+    const pendingJobIds = new Map<string, CronSessionTarget>();
+
 
 
     gatewayStore.subscribe((evt: any) => {
+
+        if (evt.payload && evt.payload.action === 'started') {
+            //初始化都当作main,后面再根据sessionKey判断再修改
+            pendingJobIds.set(evt.payload.jobId, "main")
+        }
+
+        if (evt.payload && evt.payload.action === 'finished') {
+            pendingJobIds.delete(evt.payload.jobId)
+        }
+
         if (evt.event === 'agent' && evt.payload) {
             const { stream, data, sessionKey } = evt.payload
 
             const trigger = (title: string) => {
-                if (pendingCronSessions.has(sessionKey)) {
-                    let body = pendingCronSessions.get(sessionKey) || ''
+                if (pendingSessions.has(sessionKey)) {
+                    let body = pendingSessions.get(sessionKey) || ''
                     if (!body) body = '任务已完成'
 
-                    pendingCronSessions.delete(sessionKey)
+                    pendingSessions.delete(sessionKey)
 
                     //如果是tauri,他们有自己弹出通知的机制
                     const isTauri = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__;
@@ -122,35 +136,50 @@ export function useNotify() {
                 }
             }
 
+
+
+
+
+
+
             // Check for cron-triggered session start
-            if (stream === 'lifecycle' && isCronSession(sessionKey)) {
+            if (stream === 'lifecycle') {
                 if (data?.phase === 'start') {
-                    pendingCronSessions.set(sessionKey, '') // Changed from add to set with empty string
-                    //重新加载sessions,更新消息列表
-                    void loadSessions()
+
+                    if (isCronSession(sessionKey)) {
+                        const jobId = sessionKey.split(':cron:')[1]
+                        //更新job的sessionKey
+                        pendingJobIds.set(jobId, "isolated")
+                        pendingSessions.set(sessionKey, '') // Changed from add to set with empty string
+
+                        //重新加载sessions,更新消息列表
+                        void loadSessions()
+                    }
+
+                    if (isAgentMainSession(sessionKey)) {
+                        //这里如果从useCronState.ts中获取job然后判断agentId和是否是main比较好..但是为了统一和gateway.rs的逻辑暂时就不处理了
+                        const lastMainJobId = Array.from(pendingJobIds.entries())
+                            .reverse()
+                            .find(([_, target]) => target !== 'isolated')?.[0];
+                        if (lastMainJobId) {
+                            pendingSessions.set(sessionKey, '')
+                        }
+                    }
                     return
-                } else if (data?.phase === 'end') {
-                    const jobId = sessionKey.split(':cron:')[1]
-                    // @ts-ignore - cronJobs access via proxy
-                    const job = cronState.cronJobs.find((j: any) => j.id === jobId)
-                    const title = job ? `${job.name}` : '你收到了一条定时消息'
-                    trigger(title)
+                } else if (data?.phase === 'end' && pendingSessions.has(sessionKey)) {
+                    trigger('你收到了一条消息')
                     return
                 }
             }
 
             // Determine if this is a follow-up event for a pending cron session
-            if (sessionKey && pendingCronSessions.has(sessionKey)) {
+            if (sessionKey && pendingSessions.has(sessionKey)) {
                 const currentText = data?.delta || ''
-                const buffer = (pendingCronSessions.get(sessionKey) || '') + currentText // Buffering logic
-                pendingCronSessions.set(sessionKey, buffer) // Update map with buffer
+                const buffer = (pendingSessions.get(sessionKey) || '') + currentText // Buffering logic
+                pendingSessions.set(sessionKey, buffer) // Update map with buffer
 
                 if (buffer.length > NOTIFY_LENGTH_THRESHOLD) { // Changed condition to use buffer length
-                    const jobId = sessionKey.split(':cron:')[1]
-                    // @ts-ignore - cronJobs access via proxy
-                    const job = cronState.cronJobs.find((j: any) => j.id === jobId)
-                    const title = job ? `${job.name}` : '你收到了一条定时消息';
-                    trigger(title) // Trigger notification
+                    trigger('你收到了一条消息')
                 }
             }
         }

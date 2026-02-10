@@ -63,8 +63,17 @@ function ensureInit() {
                 // useToast().error(evt.payload.error)
                 return;
             }
-            void loadCronJobs(state as any)
-            void loadCronStatus(state as any)
+
+
+            if (evt.payload && evt.payload.action === 'started') {
+            }
+
+            if (evt.payload && evt.payload.action === 'finished') {
+                void loadCronJobs(state as any)
+                void loadCronStatus(state as any)
+            }
+
+
         }
     })
 }
