@@ -267,25 +267,30 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> GatewayState {
                                             }
 
                                             // Read from WS
-                                            Some(msg_result) = read.next() => {
+                                            msg_result = read.next() => {
                                                 match msg_result {
-                                                    Ok(tokio_tungstenite::tungstenite::Message::Text(text)) => {
+                                                    Some(Ok(tokio_tungstenite::tungstenite::Message::Text(text))) => {
                                                         context.check_notification(&text);
                                                         let _ = app_clone.emit("gateway://message", &text);
                                                     }
-                                                    Ok(tokio_tungstenite::tungstenite::Message::Close(_)) => {
+                                                    Some(Ok(tokio_tungstenite::tungstenite::Message::Close(_))) => {
                                                         println!("[Rust Gateway] Server closed connection");
                                                         break;
                                                     }
-                                                    Err(e) => {
+                                                    Some(Err(e)) => {
                                                         eprintln!("[Rust Gateway] Read error: {}", e);
                                                         break;
+                                                    }
+                                                    // Stream ended
+                                                    None => {
+                                                         println!("[Rust Gateway] Stream ended");
+                                                         break;
                                                     }
                                                     _ => {}
                                                 }
                                             }
 
-                                            else => break, // Channels closed
+                                            else => break, // All channels closed
                                         }
                                     }
                                     let _ = app_clone

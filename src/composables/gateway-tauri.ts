@@ -30,14 +30,12 @@ export class GatewayTauriClient {
     // Tauri listeners
     private unlistenFunctions: UnlistenFn[] = [];
     private isConnected = false;
-    private isReconnecting = false;
 
 
     constructor(private opts: GatewayBrowserClientOptions) { }
 
     async start() {
         this.closed = false;
-        this.isReconnecting = false;
         await this.setupListeners();
         // Trigger Rust connection
         await invoke('gateway_connect', {
@@ -74,13 +72,9 @@ export class GatewayTauriClient {
             } else {
                 this.isConnected = false;
 
-                // If we are intentionally reconnecting, ignore this event to avoid double-triggering
-                if (this.isReconnecting) return;
-
-                this.opts.onClose?.({ code: 1006, reason: 'Disconnected' });
                 // If we didn't initiate the close, we should reconnect
                 if (!this.closed) {
-                    void this.closeAndReconnect();
+                    // Rust gateway handles reconnection internally
                 } else {
                     this.flushPending(new Error('Disconnected'));
                 }
@@ -90,9 +84,7 @@ export class GatewayTauriClient {
         const unlistenError = await listen<string>('gateway://connection-error', (event) => {
             console.error("[GatewayTauri] Connection error:", event.payload);
             this.opts.onClose?.({ code: 1006, reason: event.payload });
-            if (!this.closed) {
-                void this.closeAndReconnect();
-            }
+            this.opts.onClose?.({ code: 1006, reason: event.payload });
         });
 
         this.unlistenFunctions.push(unlistenMsg, unlistenState, unlistenError);
@@ -220,7 +212,7 @@ export class GatewayTauriClient {
                 // Notify UI of failure
                 this.opts.onClose?.({ code: CONNECT_FAILED_CLOSE_CODE, reason: 'connect failed' });
                 // Clean up current connection and schedule retry
-                void this.closeAndReconnect();
+                // void this.closeAndReconnect();
             });
     }
 
@@ -297,32 +289,5 @@ export class GatewayTauriClient {
         return p;
     }
 
-    private async closeAndReconnect() {
-        if (this.closed) return;
 
-        // Prevent multiple re-entrant calls
-        if (this.isReconnecting) return;
-        this.isReconnecting = true;
-
-        // Disconnect backend but keep "this.closed = false" to allow reconnect
-        await invoke('gateway_disconnect');
-        this.isConnected = false;
-
-        this.flushPending(new Error("reconnecting"));
-        this.scheduleReconnect();
-    }
-
-    private scheduleReconnect() {
-        if (this.closed) return;
-
-        const delay = this.backoffMs;
-        this.backoffMs = Math.min(this.backoffMs * 1.7, 15_000);
-        console.log(`[GatewayTauri] Scheduling reconnect in ${delay}ms`);
-
-        window.setTimeout(() => {
-            if (!this.closed) {
-                void this.start();
-            }
-        }, delay);
-    }
 }
