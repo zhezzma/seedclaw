@@ -1,6 +1,8 @@
 use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Runtime};
 use tauri_plugin_notification::NotificationExt;
@@ -48,13 +50,34 @@ impl<R: Runtime> GatewayContext<R> {
             if body.is_empty() {
                 body = body_fallback.to_string();
             }
+
+            // 1. 生成唯一的通知 ID (i32)
+            // 因为操作系统点击通知时只返回 ID，我们需要用这个 ID 在前端找到对应的 Session Key
+            let mut hasher = DefaultHasher::new();
+            key.hash(&mut hasher);
+            let id = hasher.finish() as i32;
+
+            // 2. 发送系统通知
             let _ = self
                 .app_handle
                 .notification()
                 .builder()
                 .title(title)
                 .body(body)
+                .id(id)
                 .show();
+
+            // 3. 广播事件给前端
+            // 目的：告诉前端 "通知 ID xxx 对应的是 Session Key yyy"
+            // 前端收到后会存起来，这就建立了一个 ID -> Key 的映射表
+            // 当用户点击通知时，前端就能通过 ID 查到 Key 并跳转
+            let _ = self.app_handle.emit(
+                "gateway://notification-sent",
+                serde_json::json!({
+                    "id": id,
+                    "sessionKey": key
+                }),
+            );
         }
     }
 
@@ -98,7 +121,7 @@ impl<R: Runtime> GatewayContext<R> {
                                     // Check if we are tracking this session
                                     if self.pending_cron_sessions.contains_key(key) {
                                         let current_text = data
-                                            .and_then(|d| d.get("text"))
+                                            .and_then(|d| d.get("delta"))
                                             .and_then(|v| v.as_str())
                                             .unwrap_or("");
 

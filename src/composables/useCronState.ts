@@ -59,6 +59,10 @@ function ensureInit() {
     // Subscribe to gateway events for cron updates
     gatewayStore.subscribe((evt: any) => {
         if (evt.event === 'cron') {
+            if (evt.payload && evt.payload.error) {
+                // useToast().error(evt.payload.error)
+                return;
+            }
             void loadCronJobs(state as any)
             void loadCronStatus(state as any)
         }

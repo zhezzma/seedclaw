@@ -11,18 +11,10 @@ import {
 
 import ViewHeader from '@/components/ViewHeader.vue'
 
-// Highlight.js
-import hljs from 'highlight.js/lib/core'
-import json from 'highlight.js/lib/languages/json'
-import yaml from 'highlight.js/lib/languages/yaml'
-// Import styles as strings for dynamic injection
-import darkTheme from 'highlight.js/styles/atom-one-dark.css?inline'
-import lightTheme from 'highlight.js/styles/atom-one-light.css?inline'
 import { useGateway } from '../composables/useGateway'
 
 
-hljs.registerLanguage('json', json)
-hljs.registerLanguage('yaml', yaml)
+
 
 const router = useRouter()
 const state = useConfigState()
@@ -30,33 +22,8 @@ const configStore = useUiSettingsStore()
 const store = useGateway()
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const preRef = ref<HTMLPreElement | null>(null)
-const highlightedCode = ref('')
-const currentThemeStyle = ref('')
 
-const showConfig = (newVal: string) => {
-    try {
-        // Try to auto-detect, defaulting to JSON since that's likely the config format
-        const result = hljs.highlightAuto(newVal || '', ['json', 'yaml'])
-        highlightedCode.value = result.value
-    } catch (e) {
-        // Fallback to plain text if highlight fails
-        highlightedCode.value = newVal || ''
-    }
-}
 
-onMounted(() => {
-    showConfig(state.configRaw)
-})
-
-// Watch theme to update style
-watch(() => configStore.isDark, (isDark) => {
-    currentThemeStyle.value = isDark ? darkTheme : lightTheme
-}, { immediate: true })
-
-// Watch configRaw to update highlight
-watch(() => state.configRaw, (newVal) => {
-    showConfig(newVal)
-}, { immediate: true })
 
 
 
@@ -75,8 +42,6 @@ const handleSave = async () => {
 
 <template>
     <div class="flex flex-col h-full bg-base-200">
-        <!-- Inject dynamic highlight.js theme -->
-        <component :is="'style'" type="text/css">{{ currentThemeStyle }}</component>
 
         <!-- Header -->
         <ViewHeader title="配置管理">
@@ -107,14 +72,10 @@ const handleSave = async () => {
 
             <div class="flex-1 relative rounded-lg border border-base-300 overflow-hidden code-editor-container"
                 :class="configStore.isDark ? 'bg-[#282c34]' : 'bg-[#fafafa]'">
-                <!-- Highlight Layer -->
-                <pre ref="preRef" class="code-editor-pre" aria-hidden="true"><code class="hljs bg-transparent p-0"
-                v-html="highlightedCode"></code></pre>
 
                 <!-- Input Layer -->
                 <textarea ref="textareaRef" v-model="state.configRaw" @scroll="handleScroll"
-                    class="code-editor-textarea"
-                    :class="configStore.isDark ? 'text-transparent caret-white' : 'text-transparent caret-black'"
+                    class="code-editor-textarea" :class="configStore.isDark ? ' caret-white' : 'caret-black'"
                     spellcheck="false" placeholder="Loading configuration..."></textarea>
             </div>
         </div>
@@ -128,8 +89,7 @@ const handleSave = async () => {
 }
 
 /* Shared styles for perfect alignment */
-.code-editor-textarea,
-.code-editor-pre {
+.code-editor-textarea {
     position: absolute;
     top: 0;
     left: 0;
@@ -149,35 +109,16 @@ const handleSave = async () => {
     line-height: 1.5;
     box-sizing: border-box;
     /* Crucial for padding */
-}
-
-.code-editor-textarea {
-    z-index: 1;
     background: transparent;
     /* caret-color handled by class binding */
     resize: none;
     outline: none;
-    /* Color: transparent is important to hide the text so hljs shows through */
-    color: transparent;
 }
 
-.code-editor-pre {
-    z-index: 0;
-    pointer-events: none;
-    /* Let clicks pass through to textarea */
-}
-
-.code-editor-pre code {
-    font-family: inherit;
-    font-size: inherit;
-    line-height: inherit;
-    white-space: inherit;
-    /* Ensure code block respects pre whitespace */
-}
 
 /* Fix selection visibility */
 ::selection {
     background-color: rgba(150, 150, 150, 0.3);
-    color: transparent;
+    /* color: transparent;*/
 }
 </style>

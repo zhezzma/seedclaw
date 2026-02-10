@@ -4,6 +4,7 @@ import { MagnifyingGlassIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import ViewHeader from '../ViewHeader.vue'
 
 import { useConfirm } from '../../composables/useConfirm'
+import { useSessionsState } from '../../composables/useSessionsState'
 
 
 const props = defineProps<{
@@ -18,6 +19,16 @@ const emit = defineEmits<{
 }>()
 
 const { confirm } = useConfirm()
+const { deleteSessions } = useSessionsState()
+
+const handleDeleteAll = async () => {
+    if (props.sessions.length === 0) return
+    if (await confirm('确定要清空所有会话吗？此操作不可恢复。')) {
+        const keys = props.sessions.map(s => s.key)
+        await deleteSessions(keys)
+    }
+}
+
 
 const handleDelete = async (key: string, event: Event) => {
     event.stopPropagation()
@@ -47,7 +58,15 @@ const formatLabel = (s: any) => {
 <template>
     <div class="h-full flex flex-col bg-base-100 border-r border-base-200">
         <!-- Header -->
-        <ViewHeader :title="title || 'Sessions'" :is-main-page="true" />
+        <ViewHeader :title="title || 'Sessions'" :is-main-page="true">
+            <template #actions>
+                <button v-if="sessions.length > 0" @click="handleDeleteAll"
+                    class="btn btn-ghost btn-circle btn-sm text-error/70 hover:text-error hover:bg-error/10"
+                    title="清空所有会话">
+                    <TrashIcon class="w-5 h-5" />
+                </button>
+            </template>
+        </ViewHeader>
 
         <!-- Search -->
         <div class="p-2 shrink-0">

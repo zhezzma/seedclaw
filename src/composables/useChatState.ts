@@ -119,8 +119,12 @@ function ensureInit() {
                 if (runId && state.refreshSessionsAfterChat.has(runId)) {
                     state.refreshSessionsAfterChat.delete(runId);
                     if (res === "final") {
+
+                        //由于重命名也会拉取session列表,所以这里要判断一下
                         const sessions = useSessionsState()
-                        void sessions.loadSessions()
+                        if (!sessions.hasSession(payload.sessionKey)) {
+                            void sessions.loadSessions()
+                        }
                         //CHANGE_OPENCLAW: 还要重新加载历史..如果是/new或者是/reset会将runId添加到refreshSessionsAfterChat,这个时候需要加载历史刷新页面
                         void _loadChatHistory(state as unknown as ChatState)
                     }
@@ -348,7 +352,8 @@ const triggerSessionRename = async (targetKey: string, userText: string) => {
             sessionKey: state.renameSessionKey,
             message: `Generate a short title (max 6 words) for this conversation.\nUser: ${userText.substring(0, 500)}`,
             deliver: false,
-            idempotencyKey: runId
+            idempotencyKey: runId,
+            //thinking: "off"
         })
     } catch (err) {
         console.error('Failed to trigger auto-rename', err)
@@ -361,16 +366,18 @@ const handleSessionNamingEvent = (payload: ChatEventPayload) => {
 
     if (payload.state === 'delta') {
         const text = extractText(payload.message)
-        if (text) ctx.titleBuffer += text
+        if (text) ctx.titleBuffer = text
+
     } else if (payload.state === 'final') {
+
+        const text = extractText(payload.message)
+        if (text) ctx.titleBuffer = text
         // Clean up title (remove quotes, trim)
         let title = ctx.titleBuffer.trim()
         if (title.startsWith('"') && title.endsWith('"')) {
             title = title.slice(1, -1).trim()
         }
-
         autoNamingRuns.delete(payload.runId!);
-
         // Execute async update sequentially
         (async () => {
             try {

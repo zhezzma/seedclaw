@@ -1,9 +1,10 @@
 import { reactive, watch } from 'vue'
 import { createStateProxy } from './utils/stateProxy'
 import { useGateway } from './useGateway'
-import type { SessionsState } from '../openclaw/ui/src/ui/controllers/sessions'
+import type { SessionsState } from '~/openclaw/ui/src/ui/controllers/sessions'
 import { loadSessions as _loadSessions, patchSession as _patchSession } from '~openclaw/ui/src/ui/controllers/sessions'
 import { useUiSettingsStore } from '../stores/setting'
+import { GatewaySessionRow } from '~/openclaw/ui/src/ui/types'
 
 const state = reactive<SessionsState>({
     client: null,
@@ -44,9 +45,31 @@ export function useSessionsState() {
         await _loadSessions(state as any, { activeMinutes, ...opts })
     }
 
+
+    //CHANGE_OPENCLAW:loadSessions改成通用的使用了settings.sessionsActiveDays
     const patchSession = async (key: string, patch: { label?: string | null }) => {
-        await _patchSession(state as any, key, patch)
-        await loadSessions()
+        if (!state.client || !state.connected) {
+            return;
+        }
+        const params: Record<string, unknown> = { key };
+        if ("label" in patch) {
+            params.label = patch.label;
+        }
+        if ("thinkingLevel" in patch) {
+            params.thinkingLevel = patch.thinkingLevel;
+        }
+        if ("verboseLevel" in patch) {
+            params.verboseLevel = patch.verboseLevel;
+        }
+        if ("reasoningLevel" in patch) {
+            params.reasoningLevel = patch.reasoningLevel;
+        }
+        try {
+            await state.client.request("sessions.patch", params);
+            await loadSessions()
+        } catch (err) {
+            state.sessionsError = String(err);
+        }
     }
 
     //CHANGE_OPENCLAW:需要返回删除结果,且openclaw中的里面有弹窗,从session控制器中分离出来
@@ -101,11 +124,16 @@ export function useSessionsState() {
         }
     }
 
+    const hasSession = (key: string) => {
+        return state.sessionsResult?.sessions?.some((s: GatewaySessionRow) => s.key === key) ?? false;
+    }
+
     const methods = {
         loadSessions,
         patchSession,
         deleteSession,
-        deleteSessions
+        deleteSessions,
+        hasSession
     }
 
     return createStateProxy(state, methods)
