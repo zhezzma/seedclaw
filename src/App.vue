@@ -8,6 +8,7 @@ import MessagePlugin from './components/MessagePlugin.vue'
 import ConfirmPlugin from './components/ConfirmPlugin.vue'
 import ExecApprovalModal from './components/ExecApprovalModal.vue'
 import { useAppInit } from './composables/useAppInit'
+import { useToast } from './composables/useToast'
 // Initialize theme at app root
 useUiSettingsStore().initTheme()
 // Initialize app and connect
@@ -16,6 +17,8 @@ useAppInit().init()
 const router = useRouter()
 const notificationMap = ref<Record<string, string>>({})
 let unlistenNotification: (() => void) | null = null
+
+
 
 onMounted(async () => {
     try {
@@ -53,6 +56,19 @@ onMounted(async () => {
                     notificationId = String(event)
                 } else if ((event as any).id) {
                     notificationId = String((event as any).id)
+                }
+                // Android specific: clicking the notification body often returns 'tap' as the action
+                else if ((event as any).actionId === 'tap') {
+                    // If we only have one active notification or track the last one, we could use it.
+                    // For now, let's try to find *any* pending notification or the most recent one.
+                    // A simple heuristic: if there's only one key in the map, use it.
+                    const keys = Object.keys(notificationMap.value);
+                    if (keys.length > 0) {
+                        // Use the most recently added one (assuming keys roughly ordered or just pick one)
+                        // Better approach: track `lastNotificationId` separately.
+                        notificationId = keys[keys.length - 1];
+                        console.log("Tap event received, defaulting to last notificationId:", notificationId);
+                    }
                 }
 
                 const sessionKey = notificationMap.value[notificationId]
