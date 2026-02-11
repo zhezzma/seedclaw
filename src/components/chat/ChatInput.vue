@@ -10,14 +10,17 @@ import {
     CommandLineIcon,
     CpuChipIcon,
     SparklesIcon,
+    LightBulbIcon,
     XMarkIcon
 } from '@heroicons/vue/24/outline'
 import { useChatInput, COMMANDS } from '../../composables/useChatInput'
 import { useModels } from '../../composables/useModels'
 import { useChatState } from '../../composables/useChatState'
 import { useConfigState } from '../../composables/useConfigState'
+import { useSessionsState } from '../../composables/useSessionsState'
 import { useUiSettingsStore } from '../../stores/setting'
 import { computed } from 'vue'
+import { useToast } from '~/src/composables/useToast'
 
 const props = defineProps<{
     isBusy: boolean
@@ -26,9 +29,10 @@ const props = defineProps<{
 
 const chatState = useChatState()
 const configState = useConfigState()
+const sessionsState = useSessionsState()
 const settingsStore = useUiSettingsStore()
 const { availableModels } = useModels()
-
+const isBusy = computed(() => chatState.chatSending || Boolean(chatState.chatRunId))
 // Current agent model binding
 const agentIndex = computed(() => {
     const list = (configState.configForm?.agents as any)?.list as any[] | undefined
@@ -65,7 +69,6 @@ const emit = defineEmits<{
 const {
     inputText,
     isRecording,
-    isThinking,
     selectedModel,
     commandDropdownOpen,
     modelDropdownOpen,
@@ -83,6 +86,60 @@ const {
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
+
+const reasoningState = ref('off')
+const thinkingLevel = ref('off')
+const thinkingDropdownOpen = ref(false)
+
+watch(() => [chatState.sessionKey, sessionsState.sessionsResult], () => {
+    const session = sessionsState.sessionsResult?.sessions?.find((s: any) => s.key === chatState.sessionKey)
+    if (session) {
+        const val = session.reasoningLevel
+        reasoningState.value = (val === 'on' || val === 'stream') ? val : 'off'
+
+        const level = session.thinkingLevel || 'off'
+        thinkingLevel.value = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].includes(level) ? level : 'off'
+    }
+}, { immediate: true })
+
+const toggleReasoning = () => {
+    if (isBusy.value) return
+    let next = 'on'
+    if (reasoningState.value === 'on') next = 'stream'
+    else if (reasoningState.value === 'stream') next = 'off'
+
+    reasoningState.value = next
+
+    inputText.value = `/reasoning ${next}`
+    nextTick(() => {
+        onSend()
+    })
+}
+
+const selectThinkingLevel = (level: string) => {
+
+    thinkingDropdownOpen.value = false
+    if (isBusy.value) {
+        useToast().warning('请等待当前消息发送完成')
+        return
+    }
+    thinkingLevel.value = level
+    inputText.value = `/think ${level}`
+    nextTick(() => {
+        onSend()
+    })
+}
+
+const getThinkingLabel = () => {
+    switch (thinkingLevel.value) {
+        case 'minimal': return '极简'
+        case 'low': return '简单'
+        case 'medium': return '中等'
+        case 'high': return '复杂'
+        case 'xhigh': return '极繁'
+        default: return '关闭'
+    }
+}
 
 const adjustHeight = () => {
     if (textareaRef.value) {
@@ -139,12 +196,12 @@ const handleToolbarClickOutside = (event: MouseEvent) => {
     const target = event.target as HTMLElement
     if (!target.closest('.dropdown-top')) {
         closeDropdowns()
+        thinkingDropdownOpen.value = false
     }
 }
 
 defineExpose({
     inputText,
-    isThinking,
     selectedModel,
     attachments,
     handleToolbarClickOutside
@@ -176,7 +233,7 @@ defineExpose({
                                 d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                         </svg>
                         <span class="text-[9px] w-full truncate text-center opacity-70 leading-tight mt-0.5">{{ att.name
-                            }}</span>
+                        }}</span>
                     </div>
 
                     <!-- Delete Button: Always visible on mobile (using forced opacity or just remove opacity class). 
@@ -208,7 +265,8 @@ defineExpose({
 
                     <!-- Command -->
                     <div class="dropdown dropdown-top" :class="{ 'dropdown-open': commandDropdownOpen }">
-                        <button @click.stop="commandDropdownOpen = !commandDropdownOpen; modelDropdownOpen = false"
+                        <button
+                            @click.stop="commandDropdownOpen = !commandDropdownOpen; modelDropdownOpen = false; thinkingDropdownOpen = false"
                             class="btn btn-ghost btn-sm  gap-1 font-normal rounded-full border border-base-content/20 hover:border-base-content/40 hover:bg-base-300  transition-all"
                             title="命令">
                             <CommandLineIcon class="h-4 w-4 hidden sm:inline" />
@@ -239,7 +297,7 @@ defineExpose({
                     <!-- Model -->
                     <div class="dropdown dropdown-top" :class="{ 'dropdown-open': modelDropdownOpen }">
                         <button
-                            @click.stop="() => { modelDropdownOpen = !modelDropdownOpen; commandDropdownOpen = false }"
+                            @click.stop="() => { modelDropdownOpen = !modelDropdownOpen; commandDropdownOpen = false; thinkingDropdownOpen = false }"
                             class="btn btn-ghost btn-sm gap-1 font-normal rounded-full border border-base-content/20 hover:border-base-content/40 hover:bg-base-300 transition-all"
                             title="模型">
                             <CpuChipIcon class="h-4 w-4 hidden sm:inline" />
@@ -270,14 +328,48 @@ defineExpose({
                         </ul>
                     </div>
 
-                    <!-- Think -->
-                    <!-- <button @click="isThinking = !isThinking"
-                        class="btn btn-sm gap-1 font-normal rounded-full transition-all duration-300 "
-                        :class="isThinking ? 'bg-primary/10 text-primary hover:bg-primary/20 border-primary/20' : 'btn-ghost hover:bg-base-300'"
-                        title="深度思考">
-                        <SparklesIcon class="h-4 w-4" />
-                        <span class=" sm:inline">思考</span>
-                    </button> -->
+
+
+                    <!-- Thinking Level -->
+                    <div class="dropdown dropdown-top hidden sm:block"
+                        :class="{ 'dropdown-open': thinkingDropdownOpen }">
+                        <button
+                            @click.stop="thinkingDropdownOpen = !thinkingDropdownOpen; commandDropdownOpen = false; modelDropdownOpen = false"
+                            class="btn btn-sm gap-1 font-normal rounded-full transition-all duration-300 border-primary/20 btn-ghost hover:bg-base-300"
+                            title="思考程度">
+                            <LightBulbIcon class="h-4 w-4 hidden sm:inline" />
+                            <span class="sm:inline">思考({{ getThinkingLabel() }})</span>
+                            <ChevronUpIcon class="h-3 w-3 ml-0.5 opacity-50" />
+                        </button>
+                        <ul v-if="thinkingDropdownOpen"
+                            class="dropdown-content menu p-2 shadow-xl bg-base-100 rounded-box w-56 border border-base-300 mb-2 z-[100]">
+                            <li class="menu-title"><span>思考程度</span></li>
+                            <li v-for="level in ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']" :key="level">
+                                <a @click="selectThinkingLevel(level)" class="rounded-lg"
+                                    :class="{ 'active': thinkingLevel === level }">
+                                    {{
+                                        level === 'off' ? '关闭' :
+                                            level === 'minimal' ? '极简' :
+                                                level === 'low' ? '简单' :
+                                                    level === 'medium' ? '中等' :
+                                                        level === 'high' ? '复杂' :
+                                                            '极繁'
+                                    }}
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- Reasoning -->
+                    <button @click="toggleReasoning"
+                        class="btn btn-sm gap-1 font-normal rounded-full transition-all duration-300 border-primary/20"
+                        :class="reasoningState !== 'off' ? 'bg-primary/10 text-primary hover:bg-primary/20 ' : 'btn-ghost hover:bg-base-300'"
+                        title="推理">
+                        <SparklesIcon class="h-4 w-4 hidden sm:inline" />
+                        <span class=" sm:inline">{{ reasoningState === 'stream' ? '推理(流)' : (reasoningState === 'on' ?
+                            '推理(开)' : '推理(关)')
+                            }}</span>
+                    </button>
                 </div>
 
                 <!-- Right Actions -->

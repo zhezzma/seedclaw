@@ -29,7 +29,7 @@ const attachments = ref<{ id: string; name: string; dataUrl: string; mimeType: s
 
 export function useChatInput() {
     const isRecording = ref(false)
-    const isThinking = ref(true)
+
     const selectedModel = ref('glm')
     const commandDropdownOpen = ref(false)
     const modelDropdownOpen = ref(false)
@@ -181,7 +181,6 @@ export function useChatInput() {
     return {
         inputText,
         isRecording,
-        isThinking,
         selectedModel,
         commandDropdownOpen,
         modelDropdownOpen,
