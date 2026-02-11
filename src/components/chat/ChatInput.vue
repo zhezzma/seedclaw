@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { parseAgentSessionKey } from '~openclaw/src/sessions/session-key-utils'
+
 import {
     CameraIcon,
     MicrophoneIcon,
@@ -33,35 +35,6 @@ const sessionsState = useSessionsState()
 const settingsStore = useUiSettingsStore()
 const { availableModels } = useModels()
 const isBusy = computed(() => chatState.chatSending || Boolean(chatState.chatRunId))
-// Current agent model binding
-const agentIndex = computed(() => {
-    const list = (configState.configForm?.agents as any)?.list as any[] | undefined
-    if (!list) return -1
-    return list.findIndex((a: any) => a.id === chatState.assistantAgentId)
-})
-
-const currentModel = computed({
-    get: () => {
-        console.log('agentIndex.value', agentIndex.value)
-
-        if (agentIndex.value === -1) return ''
-        const list = (configState.configForm?.agents as any)?.list as any[]
-        const model = list[agentIndex.value]?.model?.primary || (configState.configForm?.agents as any)?.defaults?.model?.primary
-
-        console.log('model', model)
-
-        return model || ''
-    },
-    set: async (val: string) => {
-        if (agentIndex.value === -1) return
-        configState.updateConfigFormValue(
-            ['agents', 'list', `${agentIndex.value}`, 'model', 'primary'],
-            val
-        )
-        await configState.saveConfig()
-    }
-})
-
 const emit = defineEmits<{
     (e: 'send'): void
 }>()
@@ -91,6 +64,36 @@ const reasoningState = ref('off')
 const thinkingLevel = ref('off')
 const thinkingDropdownOpen = ref(false)
 
+const currentModel = ref("")
+
+watch(() => [chatState.sessionKey, sessionsState.sessionsResult, configState.configForm], () => {
+    const session = sessionsState.sessionsResult?.sessions?.find((s: any) => s.key === chatState.sessionKey)
+    if (session && session.modelProvider && session.model) {
+        currentModel.value = `${session.modelProvider}/${session.model}`
+        return
+    }
+
+    if (!chatState.sessionKey) return
+
+    const parsed = parseAgentSessionKey(chatState.sessionKey)
+    if (parsed) {
+        const list = (configState.configForm?.agents as any)?.list as any[]
+        const agent = list?.find((a: any) => a.id === parsed.agentId)
+        if (agent && agent.model?.primary) {
+            currentModel.value = agent.model.primary
+            return
+        }
+    }
+
+    // Fallback to default if needed (preserving previous behavior logic partially)
+    const defaultModel = (configState.configForm?.agents as any)?.defaults?.model?.primary
+    if (defaultModel) {
+        currentModel.value = defaultModel
+    }
+
+}, { immediate: true })
+
+
 watch(() => [chatState.sessionKey, sessionsState.sessionsResult], () => {
     const session = sessionsState.sessionsResult?.sessions?.find((s: any) => s.key === chatState.sessionKey)
     if (session) {
@@ -99,6 +102,8 @@ watch(() => [chatState.sessionKey, sessionsState.sessionsResult], () => {
 
         const level = session.thinkingLevel || 'off'
         thinkingLevel.value = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].includes(level) ? level : 'off'
+
+
     }
 }, { immediate: true })
 
@@ -180,6 +185,18 @@ const handleCommandSelect = (cmd: string) => {
             onSend()
         })
     }
+}
+
+const handleModelSelect = (modelId: string) => {
+    modelDropdownOpen.value = false
+    if (isBusy.value) {
+        useToast().warning('请等待当前消息发送完成')
+        return
+    }
+    inputText.value = `/model ${modelId}`
+    nextTick(() => {
+        onSend()
+    })
 }
 
 // Persist setting when toggled
@@ -313,7 +330,7 @@ defineExpose({
                                     {{ group.provider }}
                                 </li>
                                 <li v-for="m in group.models" :key="m.id" class="block">
-                                    <a @click="() => { currentModel = m.id; modelDropdownOpen = false }"
+                                    <a @click="handleModelSelect(m.id)"
                                         class="flex items-center gap-2 p-2 rounded-lg hover:bg-base-200 transition-colors cursor-pointer"
                                         :class="{ 'bg-primary/10 text-primary': currentModel === m.id }">
                                         <CheckIcon v-if="currentModel === m.id" class="h-4 w-4 shrink-0" />

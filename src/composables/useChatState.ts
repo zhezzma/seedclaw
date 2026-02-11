@@ -131,9 +131,10 @@ function ensureInit() {
             }
             // CHANGE_OPENCLAW:🔧 修复页面闪烁: 移除loadChatHistory调用
             // 原因: 消息已通过delta事件同步到前端，重新加载会导致chatLoading状态闪烁
-            // if (state === 'final') {
-            //     void loadChatHistory(this as unknown as ChatState)
-            // }
+            // 当(payload as any).seq == 2的时候,可能是出现了错误,所以刷新
+            if (res === 'final' && (payload as any).seq == 2) {
+                void loadChatHistory()
+            }
         }
     })
 
