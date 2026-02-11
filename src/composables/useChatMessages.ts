@@ -2,10 +2,11 @@ import { computed, watch, nextTick, ref, type Ref, type Reactive } from 'vue'
 import { useGateway } from './useGateway'
 import { useChatState } from './useChatState'
 import type { ChatState } from '~openclaw/ui/src/ui/controllers/chat'
+import { useUiSettingsStore } from '../stores/setting'
 
 // Types for internal display
 export interface DisplayBlock {
-    type: 'text' | 'tool' | 'image' | 'file'
+    type: 'text' | 'tool' | 'image' | 'thinking' | 'error' | 'unknown'
     text?: string
     toolCallId?: string
     toolName?: string
@@ -13,6 +14,7 @@ export interface DisplayBlock {
     toolResult?: any
     toolState?: 'calling' | 'success' | 'error'
     toolError?: string
+    error?: string // For top-level message errors
     source?: {
         type: 'base64' | 'url'
         media_type?: string
@@ -44,28 +46,16 @@ export function useChatMessages(state: ChatState & { chatToolMessages?: any[] },
         const toolCallRegistry = new Map<string, { msgIdx: number, blockIdx: number }>()
 
         for (const msg of allMessages) {
-            if (msg.role === 'toolResult' || msg.role === 'toolresult') {
+            if (msg.role === 'toolResult') {
                 // Find corresponding tool call and update it
-                const toolCallId = msg.toolCallId || (msg.content && msg.content.toolCallId)
-                const reg = toolCallRegistry.get(toolCallId || msg.toolCallId)
+                const toolCallId = msg.toolCallId;
+                const reg = toolCallRegistry.get(toolCallId)
                 if (reg) {
                     const targetMsg = displayMessages[reg.msgIdx]
                     if (targetMsg) {
                         const targetBlock = targetMsg.blocks[reg.blockIdx]
                         if (targetBlock && targetBlock.type === 'tool') {
                             targetBlock.toolResult = msg.content
-
-                            // Check for error in toolresult content
-                            if (msg.content && typeof msg.content === 'object' && msg.content.type === 'toolresult') {
-                                if (msg.content.isError) {
-                                    targetBlock.toolState = 'error'
-                                    targetBlock.toolError = msg.content.text || 'Error'
-                                } else {
-                                    // If we have an explicit toolresult block, use its text as result
-                                    targetBlock.toolResult = msg.content.text
-                                    targetBlock.toolState = 'success'
-                                }
-                            }
 
                             // Simple error detection logic (fallback)
                             let isError = false
@@ -94,19 +84,32 @@ export function useChatMessages(state: ChatState & { chatToolMessages?: any[] },
             const blocks: DisplayBlock[] = []
             // Determine if we should merge with the previous message
             const lastMsg = displayMessages.length > 0 ? displayMessages[displayMessages.length - 1] : null
-            const shouldMerge = lastMsg && lastMsg.role === 'assistant' && msg.role === 'assistant'
+            const settings = useUiSettingsStore()
+
+            let shouldMerge = false;
+            if (settings.assistantMsgMerge && msg.role === 'assistant') {
+                if (lastMsg && lastMsg.role === 'assistant') {
+                    shouldMerge = true;
+                }
+                //用户调用的命令不合并
+                if (msg.provider == "openclaw" && msg.model == "gateway-injected" && msg.api == "openai-responses") {
+                    shouldMerge = false;
+                }
+            }
+
+
 
             const targetMsgIdx = shouldMerge ? displayMessages.length - 1 : displayMessages.length
-            const baseBlockIdx = shouldMerge ? lastMsg.blocks.length : 0
+            const baseBlockIdx = shouldMerge ? (lastMsg?.blocks.length || 0) : 0
 
             if (Array.isArray(msg.content)) {
                 for (const item of msg.content) {
                     if (item.type === 'text') {
                         if (item.text) blocks.push({ type: 'text', text: item.text })
-                    } else if (item.type === 'toolCall' || item.type === 'toolcall') {
+                    } else if (item.type === 'toolCall') {
                         blocks.push({
                             type: 'tool',
-                            toolCallId: item.id || item.toolCallId, // support both
+                            toolCallId: item.id, // support both
                             toolName: item.name,
                             toolArgs: item.arguments,
                             toolState: 'calling'
@@ -115,15 +118,6 @@ export function useChatMessages(state: ChatState & { chatToolMessages?: any[] },
                         const id = item.id || item.toolCallId
                         if (id) {
                             toolCallRegistry.set(id, { msgIdx: targetMsgIdx, blockIdx: baseBlockIdx + blocks.length - 1 })
-                        }
-                    } else if (item.type === 'toolResult' || item.type === 'toolresult') {
-                        // Some formats might include toolresult inline
-                        const id = item.toolCallId || item.name // fallback to name if ID missing? warning: unreliable
-
-                        const prevBlock = blocks.find(b => b.type === 'tool' && b.toolName === item.name) // imperfect matching
-                        if (prevBlock) {
-                            prevBlock.toolResult = item.text
-                            prevBlock.toolState = 'success'
                         }
                     } else if (item.type === 'image') {
                         // Both local and API format use: data (raw base64) + mimeType
@@ -135,10 +129,29 @@ export function useChatMessages(state: ChatState & { chatToolMessages?: any[] },
                                 data: item.data || item.source?.data
                             }
                         } as DisplayBlock)
+                    } else if (item.type === 'thinking') {
+                        blocks.push({
+                            type: 'thinking',
+                            text: item.thinking
+                        })
+                    } else {
+                        // Fallback for unknown types
+                        blocks.push({
+                            type: 'unknown',
+                            text: JSON.stringify(item)
+                        })
                     }
                 }
             } else if (typeof msg.content === 'string') {
                 blocks.push({ type: 'text', text: msg.content })
+            }
+
+            // Check for top-level errors (e.g. from API)
+            if (msg.errorMessage) {
+                blocks.push({
+                    type: 'error',
+                    error: msg.errorMessage
+                })
             }
 
             if (blocks.length > 0) {
@@ -174,7 +187,7 @@ export function useChatMessages(state: ChatState & { chatToolMessages?: any[] },
                     timestamp: Date.now()
                 })
             }
-        } else if (isBusy.value) {
+        } else if (state.chatSending || Boolean(state.chatRunId)) {
             // Show pending state if busy
             const lastMsg = displayMessages.length > 0 ? displayMessages[displayMessages.length - 1] : null
             if (lastMsg && lastMsg.role === 'assistant') {

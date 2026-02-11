@@ -204,7 +204,8 @@ const handleChatEvent = (payload?: ChatEventPayload) => {
         }
 
         // 2. 获取最近的历史记录，以查找并插入缺失的工具消息
-        if (state.client && state.connected && payload.message) {
+        // 因为发送/status这种,不会有user的消息..只会返回(payload.message as any).model != "gateway-injected"
+        if (state.client && state.connected && payload.message && (payload.message as any).model != "gateway-injected") {
             const localMsg = payload.message as any;
             state.client.request('chat.history', {
                 sessionKey: state.sessionKey,
@@ -226,7 +227,7 @@ const handleChatEvent = (payload?: ChatEventPayload) => {
                         const m = history[i];
                         if (m.role === localMsg.role) {
                             const mText = extractText(m) || '';
-                            if (mText && (mText === localText || (mText.length > localText.length && mText.endsWith(localText)))) {
+                            if (mText && (mText === localText)) {
                                 matchIndex = i;
                                 break;
                             }
@@ -235,7 +236,7 @@ const handleChatEvent = (payload?: ChatEventPayload) => {
                 }
 
                 if (matchIndex > 0) {
-                    const missingTools: any[] = [];
+                    const missingMessages: any[] = [];
                     for (let i = matchIndex - 1; i >= 0; i--) {
                         const prev = history[i];
                         if (prev.role === 'user') break;
@@ -243,17 +244,27 @@ const handleChatEvent = (payload?: ChatEventPayload) => {
                         const exists = prev.id && state.chatMessages.some((existing: any) => existing.id === prev.id);
                         if (exists) break;
 
-                        missingTools.unshift(prev);
+                        missingMessages.unshift(prev);
                     }
 
-                    if (missingTools.length > 0) {
-                        console.log(`[SmartSync] Inserting ${missingTools.length} missing tool messages`);
-                        const newMsgList = [...state.chatMessages];
+                    let changed = false;
+                    const newMsgList = [...state.chatMessages];
+                    if (missingMessages.length > 0) {
                         const insertPos = newMsgList.length - 1;
                         if (insertPos >= 0) {
-                            newMsgList.splice(insertPos, 0, ...missingTools);
-                            state.chatMessages = newMsgList;
+                            newMsgList.splice(insertPos, 0, ...missingMessages);
+                            changed = true;
                         }
+                    }
+
+                    if (history[matchIndex].content.length > localMsg.content.length) {
+                        //替换掉因为其中可能也包含思考或者工具
+                        newMsgList[newMsgList.length - 1] = history[matchIndex]
+                        changed = true;
+                    }
+
+                    if (changed) {
+                        state.chatMessages = [...newMsgList];
                     }
                 }
             }).catch(e => console.warn("[SmartSync] Failed to sync tools", e));

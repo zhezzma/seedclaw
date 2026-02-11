@@ -192,7 +192,7 @@ const handleDeleteAgent = async () => {
                         <li class="flex items-center justify-between p-4 bg-base-100">
                             <span class="font-medium text-base-content/90">主模型</span>
 
-                            <div v-if="agentIndex !== -1" class="flex-1 max-w-xs flex flex-col items-end gap-1">
+                            <div v-if="agentIndex !== -1" class="flex-1 max-w-[250px] flex flex-col items-end gap-1">
                                 <select v-model="currentModel" class="select select-bordered  w-full  ">
                                     <option value="" disabled>选择模型</option>
                                     <optgroup v-for="group in availableModels" :key="group.provider"

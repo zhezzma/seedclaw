@@ -22,6 +22,7 @@ export interface UiSettings {
     homePageBehavior: 'new_session' | 'last_active_session' | 'default_session' // Default action on home page
     gotifyUrl: string
     gotifyToken: string
+    assistantMsgMerge: boolean
 }
 
 // ==================== Constants ====================
@@ -47,7 +48,8 @@ const getDefaultSettings = (): UiSettings => ({
     autoSendCommands: true,
     homePageBehavior: 'default_session',
     gotifyUrl: '',
-    gotifyToken: ''
+    gotifyToken: '',
+    assistantMsgMerge: true
 })
 
 const loadConfig = (): UiSettings => {

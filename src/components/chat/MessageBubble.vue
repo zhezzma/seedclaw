@@ -234,19 +234,42 @@ const closeFileViewer = () => {
                         class="rounded-lg overflow-hidden border border-base-300 my-1">
                         <img :src="block.source?.data || ''" class="max-w-full max-h-[300px] object-contain" />
                     </div>
-                    <div v-else-if="block.type === 'file'"
-                        class="rounded-lg border border-base-300 my-1 bg-base-100 p-3 flex items-center gap-3">
-                        <div class="w-10 h-10 rounded bg-base-200 flex items-center justify-center flex-shrink-0">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                stroke="currentColor" class="w-6 h-6 opacity-60">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                            </svg>
+                    <div v-else-if="block.type === 'thinking'" class="my-2">
+                        <div class="collapse collapse-arrow border border-base-300 bg-base-100 rounded-box">
+                            <input type="checkbox" />
+                            <div class="collapse-title text-sm font-medium opacity-70 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                    stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+                                </svg>
+                                思考过程 (Reasoning)
+                            </div>
+                            <div class="collapse-content">
+                                <div class="opacity-80 text-sm border-t border-base-300 pt-2 mt-2">
+                                    <MarkdownRenderer :content="block.text || ''" />
+                                </div>
+                            </div>
                         </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="text-sm font-medium truncate" :title="block.source?.name">{{ block.source?.name
-                                || 'File' }}</div>
-                            <div class="text-xs opacity-70">Attachment</div>
+                    </div>
+                    <div v-else-if="block.type === 'unknown'" class="alert alert-warning text-xs p-2 my-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-4 w-4" fill="none"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <span>Unknown block type: {{ block.text }}</span>
+                    </div>
+                    <div v-else-if="block.type === 'error'"
+                        class="alert alert-error text-xs p-2 my-1 flex items-start gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-5 w-5 mt-0.5"
+                            fill="none" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div class="flex-1">
+                            <div class="font-bold">Error</div>
+                            <div class="whitespace-pre-wrap">{{ block.error }}</div>
                         </div>
                     </div>
                 </template>
