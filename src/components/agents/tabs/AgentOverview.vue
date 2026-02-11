@@ -117,6 +117,15 @@ const currentModel = computed({
 // Available models flattened
 const { availableModels } = useModels()
 
+const isCurrentModelAvailable = computed(() => {
+    const modelId = currentModel.value
+    if (!modelId) return true
+    for (const group of availableModels.value) {
+        if (group.models.some((m: any) => m.id === modelId)) return true
+    }
+    return false
+})
+
 const isDirty = computed(() => props.configState?.configFormDirty)
 const isSaving = computed(() => props.configState?.configSaving)
 
@@ -195,6 +204,9 @@ const handleDeleteAgent = async () => {
                             <div v-if="agentIndex !== -1" class="flex-1 max-w-[250px] flex flex-col items-end gap-1">
                                 <select v-model="currentModel" class="select select-bordered  w-full  ">
                                     <option value="" disabled>选择模型</option>
+                                    <option v-if="!isCurrentModelAvailable && currentModel" :value="currentModel">
+                                        {{ currentModel }} (未知模型)
+                                    </option>
                                     <optgroup v-for="group in availableModels" :key="group.provider"
                                         :label="group.provider">
                                         <option v-for="model in group.models" :key="model.id" :value="model.id"
