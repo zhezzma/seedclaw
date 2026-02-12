@@ -11,12 +11,14 @@ import {
 import ViewHeader from '@/components/ViewHeader.vue'
 import { PairedDevice, PendingDevice } from '~openclaw/ui/src/ui/controllers/devices'
 import { useDevicesState } from '../composables/useDevicesState'
+import { useI18n } from 'vue-i18n'
 import NodesList from '../components/nodes/NodesList.vue'
 
 const router = useRouter()
 const store = useGateway()
 const devicesState = useDevicesState()
 const settingsStore = useUiSettingsStore()
+const { t } = useI18n()
 
 const handleRefresh = () => {
     devicesState.loadDevices()
@@ -49,11 +51,11 @@ const getRelativeTime = (ts?: number) => {
     const now = Date.now()
     const diff = now - ts
     const mins = Math.floor(diff / 60000)
-    if (mins < 1) return '刚刚'
-    if (mins < 60) return `${mins}分钟前`
+    if (mins < 1) return t('common.justNow')
+    if (mins < 60) return t('common.minutesAgo', { n: mins })
     const hours = Math.floor(mins / 60)
-    if (hours < 24) return `${hours}小时前`
-    return Math.floor(hours / 24) + '天前'
+    if (hours < 24) return t('common.hoursAgo', { n: hours })
+    return t('common.daysAgo', { n: Math.floor(hours / 24) })
 }
 
 onMounted(async () => {
@@ -72,7 +74,7 @@ watch(() => store.connected, async (connected) => {
 <template>
     <div class="flex flex-col h-full bg-base-200">
         <!-- Header -->
-        <ViewHeader title="设备与节点管理">
+        <ViewHeader :title="$t('device.title')">
             <template #actions>
                 <button @click="handleRefresh" class="btn btn-ghost btn-sm btn-circle"
                     :class="{ 'loading': devicesState.devicesLoading }" :disabled="devicesState.devicesLoading">
@@ -95,13 +97,15 @@ watch(() => store.connected, async (connected) => {
 
                     <!-- Intro/Description -->
                     <div class="prose prose-sm">
-                        <h3 class="mb-0">设备列表</h3>
-                        <p class="text-base-content/60 mt-0">管理已配对的客户端设备并审批新的连接请求。</p>
+                        <h3 class="mb-0">{{ $t('device.listTitle') }}</h3>
+                        <p class="text-base-content/60 mt-0">{{ $t('device.listDesc') }}</p>
                     </div>
 
                     <!-- Pending Requests -->
                     <div v-if="devicesState.devicesList?.pending?.length" class="space-y-4">
-                        <h4 class="text-sm font-bold text-warning uppercase tracking-wider px-1">待审批设备</h4>
+                        <h4 class="text-sm font-bold text-warning uppercase tracking-wider px-1">{{
+                            $t('device.pendingTitle') }}
+                        </h4>
                         <div class="space-y-3">
                             <div v-for="req in devicesState.devicesList.pending" :key="req.requestId"
                                 class="card bg-base-100 shadow-sm border border-warning/20">
@@ -110,7 +114,9 @@ watch(() => store.connected, async (connected) => {
                                         class="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
                                         <div class="space-y-1 w-full min-w-0">
                                             <div class="flex items-center gap-2">
-                                                <span class="font-bold text-lg">{{ req.displayName || '未知设备' }}</span>
+                                                <span class="font-bold text-lg">{{ req.displayName ||
+                                                    $t('device.unknownDevice')
+                                                }}</span>
                                                 <span class="text-xs text-base-content/40 font-mono hidden sm:inline">{{
                                                     req.remoteIp }}</span>
                                             </div>
@@ -118,16 +124,18 @@ watch(() => store.connected, async (connected) => {
                                                 req.deviceId }}
                                             </div>
                                             <div class="text-sm text-base-content/70">
-                                                申请角色: <span class="font-medium text-primary">{{ req.role }}</span>
+                                                {{ $t('device.requestRole') }}: <span
+                                                    class="font-medium text-primary">{{
+                                                        req.role }}</span>
                                                 <span class="text-base-content/40 mx-2">•</span>
-                                                申请于 {{ getRelativeTime(req.ts) }}
+                                                {{ $t('device.requestedAt') }} {{ getRelativeTime(req.ts) }}
                                             </div>
                                         </div>
                                         <div class="flex gap-2 w-full sm:w-auto shrink-0">
                                             <button class="btn btn-primary btn-sm flex-1 sm:flex-none"
-                                                @click="handleApprove(req)">批准</button>
+                                                @click="handleApprove(req)">{{ $t('common.approve') }}</button>
                                             <button class="btn btn-ghost btn-sm flex-1 sm:flex-none"
-                                                @click="handleReject(req)">拒绝</button>
+                                                @click="handleReject(req)">{{ $t('common.reject') }}</button>
                                         </div>
                                     </div>
                                 </div>
@@ -137,11 +145,12 @@ watch(() => store.connected, async (connected) => {
 
                     <!-- Paired Devices -->
                     <div class="space-y-4">
-                        <h4 class="text-sm font-bold text-base-content/40 uppercase tracking-wider px-1">已配对设备</h4>
+                        <h4 class="text-sm font-bold text-base-content/40 uppercase tracking-wider px-1">{{
+                            $t('device.pairedTitle') }}</h4>
                         <div v-if="!devicesState.devicesList?.paired?.length"
                             class="text-center py-8 opacity-30 bg-base-100 rounded-xl border-2 border-dashed border-base-300">
                             <ComputerDesktopIcon class="w-12 h-12 mx-auto mb-2" />
-                            <p>暂无已配对设备</p>
+                            <p>{{ $t('device.noPairedDevices') }}</p>
                         </div>
                         <div v-else class="space-y-3">
                             <div v-for="device in (devicesState.devicesList?.paired || [])" :key="device.deviceId"
@@ -152,7 +161,7 @@ watch(() => store.connected, async (connected) => {
                                             <div>
                                                 <div class="flex items-center gap-2 flex-wrap">
                                                     <span class="font-bold text-lg">{{ device.displayName || '未知设备'
-                                                        }}</span>
+                                                    }}</span>
                                                     <span v-for="r in device.roles" :key="r"
                                                         class="badge badge-sm badge-primary badge-outline">{{ r
                                                         }}</span>

@@ -32,7 +32,7 @@ export interface NavItem {
 
 export const ALL_NAV_ITEMS: NavItem[] = [
     {
-        label: '首页',
+        label: 'sidebar.home',
         icon: HomeIcon,
         activeIcon: HomeIconSolid,
         route: 'home',
@@ -40,7 +40,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         showInBottomNav: true
     },
     {
-        label: '智能体',
+        label: 'agent.agents',
         icon: Squares2X2Icon,
         activeIcon: Squares2X2IconSolid,
         route: 'agents',
@@ -48,7 +48,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         showInBottomNav: true
     },
     {
-        label: '模型',
+        label: 'sidebar.models',
         icon: CubeIcon,
         activeIcon: CubeIconSolid,
         route: 'models',
@@ -56,7 +56,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         showInBottomNav: true
     },
     {
-        label: '技能',
+        label: 'sidebar.skills',
         icon: SparklesIcon,
         activeIcon: SparklesIconSolid,
         route: 'skills',
@@ -64,7 +64,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         showInBottomNav: true
     },
     {
-        label: '消息',
+        label: 'sidebar.chat',
         icon: ChatBubbleLeftRightIcon,
         activeIcon: ChatBubbleLeftRightIconSolid,
         route: 'chat',
@@ -73,7 +73,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         showInBottomNav: true
     },
     {
-        label: '计划任务',
+        label: 'sidebar.cron',
         icon: DocumentIcon,
         activeIcon: DocumentIconSolid,
         route: 'cron',
@@ -81,7 +81,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         showInBottomNav: true
     },
     {
-        label: '设置',
+        label: 'settings.title',
         icon: Cog6ToothIcon,
         activeIcon: Cog6ToothIconSolid,
         route: 'settings',

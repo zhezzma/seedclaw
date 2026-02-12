@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
     ServerIcon,
     ArrowPathIcon,
@@ -8,6 +9,7 @@ import {
 import { useNodesState } from '../../composables/useNodesState'
 
 const nodesState = useNodesState()
+const { t } = useI18n()
 
 // 计算已配对的节点（node.list 返回的对象中 paired 为 true 的）
 const pairedNodes = computed(() => {
@@ -34,11 +36,11 @@ const getRelativeTime = (ts?: number) => {
     const now = Date.now()
     const diff = now - ts
     const mins = Math.floor(diff / 60000)
-    if (mins < 1) return '刚刚'
-    if (mins < 60) return `${mins}分钟前`
+    if (mins < 1) return t('common.justNow')
+    if (mins < 60) return t('common.minutesAgo', { n: mins })
     const hours = Math.floor(mins / 60)
-    if (hours < 24) return `${hours}小时前`
-    return Math.floor(hours / 24) + '天前'
+    if (hours < 24) return t('common.hoursAgo', { n: hours })
+    return t('common.daysAgo', { n: Math.floor(hours / 24) })
 }
 
 onMounted(async () => {
@@ -57,8 +59,8 @@ onMounted(async () => {
         <!-- Section Header with Refresh -->
         <div class="flex items-center justify-between px-1">
             <div class="prose prose-sm">
-                <h3 class="mb-0">节点管理</h3>
-                <p class="text-base-content/60 mt-0">管理已配对的计算节点与连接请求。</p>
+                <h3 class="mb-0">{{ $t('nodes.title') }}</h3>
+                <p class="text-base-content/60 mt-0">{{ $t('nodes.desc') }}</p>
             </div>
             <button @click="handleRefresh" class="btn btn-ghost btn-sm btn-circle"
                 :class="{ 'loading': nodesState.nodesLoading }" :disabled="nodesState.nodesLoading">
@@ -68,17 +70,17 @@ onMounted(async () => {
 
         <!-- Pending (We keep this section just in case, though node.list might focus on active ones) -->
         <div v-if="pendingNodes.length > 0" class="space-y-4">
-            <h4 class="text-sm font-bold text-warning uppercase tracking-wider px-1">待审批节点</h4>
+            <h4 class="text-sm font-bold text-warning uppercase tracking-wider px-1">{{ $t('nodes.pendingTitle') }}</h4>
             <div class="space-y-3">
                 <div v-for="node in pendingNodes" :key="node.nodeId"
                     class="card bg-base-100 shadow-sm border border-warning/20">
                     <div class="card-body p-4 sm:p-5">
                         <div class="flex items-center justify-between">
                             <div>
-                                <div class="font-bold text-lg">{{ node.displayName || '未命名节点' }}</div>
+                                <div class="font-bold text-lg">{{ node.displayName || $t('nodes.unnamedNode') }}</div>
                                 <div class="text-xs font-mono text-base-content/60">{{ node.nodeId }}</div>
                             </div>
-                            <div class="badge badge-warning">待处理</div>
+                            <div class="badge badge-warning">{{ $t('nodes.statusPending') }}</div>
                         </div>
                     </div>
                 </div>
@@ -87,7 +89,8 @@ onMounted(async () => {
 
         <!-- Combined Nodes List (Paired/Connected) -->
         <div class="space-y-4">
-            <h4 class="text-sm font-bold text-base-content/40 uppercase tracking-wider px-1">节点列表</h4>
+            <h4 class="text-sm font-bold text-base-content/40 uppercase tracking-wider px-1">{{ $t('nodes.listTitle') }}
+            </h4>
 
             <div v-if="nodesState.nodesLoading && nodesState.nodes.length === 0" class="flex justify-center py-10">
                 <span class="loading loading-dots loading-lg text-primary"></span>
@@ -96,8 +99,8 @@ onMounted(async () => {
             <div v-else-if="!nodesState.nodes || nodesState.nodes.length === 0"
                 class="text-center py-8 opacity-30 bg-base-100 rounded-xl border-2 border-dashed border-base-300">
                 <ServerIcon class="w-12 h-12 mx-auto mb-2" />
-                <p>暂无节点数据</p>
-                <p class="text-xs">请确保节点已连入网关</p>
+                <p>{{ $t('nodes.noData') }}</p>
+                <p class="text-xs">{{ $t('nodes.noDataDesc') }}</p>
             </div>
 
             <div v-else class="space-y-3">
@@ -107,9 +110,11 @@ onMounted(async () => {
                         <div class="flex flex-col sm:flex-row justify-between gap-4">
                             <div class="flex-1">
                                 <div class="flex items-center gap-2 flex-wrap">
-                                    <span class="font-bold text-lg">{{ node.displayName || '未命名节点' }}</span>
-                                    <span v-if="node.connected" class="badge badge-sm badge-success">在线</span>
-                                    <span v-else class="badge badge-sm badge-ghost">离线</span>
+                                    <span class="font-bold text-lg">{{ node.displayName || $t('nodes.unnamedNode')
+                                    }}</span>
+                                    <span v-if="node.connected" class="badge badge-sm badge-success">{{
+                                        $t('common.online') }}</span>
+                                    <span v-else class="badge badge-sm badge-ghost">{{ $t('common.offline') }}</span>
                                     <span v-if="node.platform" class="badge badge-sm badge-outline opacity-50">{{
                                         node.platform }}</span>
                                 </div>
@@ -127,8 +132,11 @@ onMounted(async () => {
                             </div>
 
                             <div class="text-right text-xs text-base-content/40 space-y-1">
-                                <div v-if="node.connectedAtMs">连接于: {{ getRelativeTime(node.connectedAtMs) }}</div>
-                                <div v-if="node.version">版本: {{ node.version }}</div>
+                                <div v-if="node.connectedAtMs">{{ $t('nodes.connectedAt', {
+                                    time:
+                                        getRelativeTime(node.connectedAtMs)
+                                }) }}</div>
+                                <div v-if="node.version">{{ $t('nodes.version', { v: node.version }) }}</div>
                             </div>
                         </div>
                     </div>

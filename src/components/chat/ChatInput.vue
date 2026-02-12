@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { parseAgentSessionKey } from '~openclaw/src/sessions/session-key-utils'
 
 import {
@@ -34,6 +35,7 @@ const configState = useConfigState()
 const sessionsState = useSessionsState()
 const settingsStore = useUiSettingsStore()
 const { availableModels } = useModels()
+const { t } = useI18n()
 const isBusy = computed(() => chatState.chatSending || Boolean(chatState.chatRunId))
 const emit = defineEmits<{
     (e: 'send'): void
@@ -129,7 +131,7 @@ const selectThinkingLevel = (level: string) => {
 
     thinkingDropdownOpen.value = false
     if (isBusy.value) {
-        useToast().warning('请等待当前消息发送完成')
+        useToast().warning(t('chat.waitMessage'))
         return
     }
     thinkingLevel.value = level
@@ -149,12 +151,12 @@ const selectThinkingLevel = (level: string) => {
 
 const getThinkingLabel = () => {
     switch (thinkingLevel.value) {
-        case 'minimal': return '极简'
-        case 'low': return '简单'
-        case 'medium': return '中等'
-        case 'high': return '复杂'
-        case 'xhigh': return '极繁'
-        default: return '关闭'
+        case 'minimal': return t('chat.thinkingLevels.minimal')
+        case 'low': return t('chat.thinkingLevels.low')
+        case 'medium': return t('chat.thinkingLevels.medium')
+        case 'high': return t('chat.thinkingLevels.high')
+        case 'xhigh': return t('chat.thinkingLevels.xhigh')
+        default: return t('chat.thinkingLevels.off')
     }
 }
 
@@ -202,7 +204,7 @@ const handleCommandSelect = (cmd: string) => {
 const handleModelSelect = (modelId: string) => {
     modelDropdownOpen.value = false
     if (isBusy.value) {
-        useToast().warning('请等待当前消息发送完成')
+        useToast().warning(t('chat.waitMessage'))
         return
     }
     currentModel.value = modelId
@@ -285,7 +287,7 @@ defineExpose({
             </div>
 
             <!-- Input Top -->
-            <textarea ref="textareaRef" v-model="inputText" rows="1" placeholder="发消息或输入'/'选择技能"
+            <textarea ref="textareaRef" v-model="inputText" rows="1" :placeholder="$t('chat.inputPlaceholder')"
                 class="textarea textarea-ghost w-full resize-none focus:outline-none focus:bg-transparent text-base min-h-[44px] max-h-[200px] px-3 py-3 leading-6 placeholder:text-base-content/40 hide-scrollbar"
                 @keydown="handleInputKeydown" @focus="handleInputFocus" @input="adjustHeight"
                 :disabled="disabled"></textarea>
@@ -298,7 +300,7 @@ defineExpose({
                     <input type="file" ref="fileInputRef" class="hidden" @change="handleFileChange" />
                     <button @click="triggerFileInput"
                         class="btn btn-ghost btn-circle btn-sm hover:bg-base-300 hover:text-primary transition-colors"
-                        title="上传附件">
+                        :title="$t('chat.uploadAttachment')">
                         <CameraIcon class="h-5 w-5" />
                     </button>
 
@@ -307,14 +309,14 @@ defineExpose({
                         <button
                             @click.stop="commandDropdownOpen = !commandDropdownOpen; modelDropdownOpen = false; thinkingDropdownOpen = false"
                             class="btn btn-ghost btn-sm  gap-1 font-normal rounded-full border border-base-content/20 hover:border-base-content/40 hover:bg-base-300  transition-all"
-                            title="命令">
+                            :title="$t('chat.commands')">
                             <CommandLineIcon class="h-4 w-4 hidden sm:inline" />
-                            <span class="sm:inline">命令</span>
+                            <span class="sm:inline">{{ $t('chat.commands') }}</span>
                             <ChevronUpIcon class="h-3 w-3 ml-0.5 opacity-50" />
                         </button>
                         <ul v-if="commandDropdownOpen"
                             class="dropdown-content menu p-2 shadow-xl bg-base-100 rounded-box w-56 border border-base-300 mb-2 z-[100]">
-                            <li class="menu-title"><span>常用指令</span></li>
+                            <li class="menu-title"><span>{{ $t('chat.commonCommands') }}</span></li>
                             <li v-for="cmd in COMMANDS" :key="cmd.value">
                                 <a @click="handleCommandSelect(cmd.value)" class="rounded-lg">{{ cmd.label }}</a>
                             </li>
@@ -324,7 +326,7 @@ defineExpose({
                             <li class="p-0">
                                 <label
                                     class="label cursor-pointer justify-between py-2 px-4 hover:bg-base-200 rounded-lg active:bg-base-300 transition-colors">
-                                    <span class="text-xs opacity-70 label-text">自动发送</span>
+                                    <span class="text-xs opacity-70 label-text">{{ $t('chat.autoSend') }}</span>
                                     <input type="checkbox" class="toggle toggle-xs toggle-primary"
                                         v-model="settingsStore.autoSendCommands" />
                                 </label>
@@ -338,14 +340,15 @@ defineExpose({
                         <button
                             @click.stop="() => { modelDropdownOpen = !modelDropdownOpen; commandDropdownOpen = false; thinkingDropdownOpen = false }"
                             class="btn btn-ghost btn-sm gap-1 font-normal rounded-full border border-base-content/20 hover:border-base-content/40 hover:bg-base-300 transition-all"
-                            title="模型">
+                            :title="$t('chat.models')">
                             <CpuChipIcon class="h-4 w-4 hidden sm:inline" />
-                            <span class="sm:inline">模型</span>
+                            <span class="sm:inline">{{ $t('chat.models') }}</span>
                             <ChevronUpIcon class="h-3 w-3 ml-0.5 opacity-50" />
                         </button>
                         <ul v-if="modelDropdownOpen"
                             class="dropdown-content p-2 shadow-xl bg-base-100 rounded-box border border-base-300 z-[100] max-h-[50vh] overflow-y-auto flex flex-col flex-nowrap fixed left-4 right-4 bottom-24 sm:absolute sm:left-0 sm:right-auto sm:bottom-[100%] sm:mb-2 sm:w-80">
-                            <li class="px-4 py-2 text-xs opacity-50 font-bold uppercase tracking-wider block">选择模型</li>
+                            <li class="px-4 py-2 text-xs opacity-50 font-bold uppercase tracking-wider block">{{
+                                $t('provider.selectModel') }}</li>
                             <template v-for="group in availableModels" :key="group.provider">
                                 <li
                                     class="px-4 py-1 text-[10px] uppercase tracking-wider bg-base-200/50 mb-1 font-bold block sticky top-0 backdrop-blur-md z-10">
@@ -375,24 +378,24 @@ defineExpose({
                         <button
                             @click.stop="thinkingDropdownOpen = !thinkingDropdownOpen; commandDropdownOpen = false; modelDropdownOpen = false"
                             class="btn btn-sm gap-1 font-normal rounded-full transition-all duration-300 border-primary/20 btn-ghost hover:bg-base-300"
-                            title="思考程度">
+                            :title="$t('chat.thinkingLevel')">
                             <LightBulbIcon class="h-4 w-4 hidden sm:inline" />
-                            <span class="sm:inline">思考({{ getThinkingLabel() }})</span>
+                            <span class="sm:inline">{{ $t('chat.thinking') }}({{ getThinkingLabel() }})</span>
                             <ChevronUpIcon class="h-3 w-3 ml-0.5 opacity-50" />
                         </button>
                         <ul v-if="thinkingDropdownOpen"
                             class="dropdown-content menu p-2 shadow-xl bg-base-100 rounded-box w-56 border border-base-300 mb-2 z-[100]">
-                            <li class="menu-title"><span>思考程度</span></li>
+                            <li class="menu-title"><span>{{ $t('chat.thinkingLevel') }}</span></li>
                             <li v-for="level in ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']" :key="level">
                                 <a @click="selectThinkingLevel(level)" class="rounded-lg"
                                     :class="{ 'active': thinkingLevel === level }">
                                     {{
-                                        level === 'off' ? '关闭' :
-                                            level === 'minimal' ? '极简' :
-                                                level === 'low' ? '简单' :
-                                                    level === 'medium' ? '中等' :
-                                                        level === 'high' ? '复杂' :
-                                                            '极繁'
+                                        level === 'off' ? $t('chat.thinkingLevels.off') :
+                                            level === 'minimal' ? $t('chat.thinkingLevels.minimal') :
+                                                level === 'low' ? $t('chat.thinkingLevels.low') :
+                                                    level === 'medium' ? $t('chat.thinkingLevels.medium') :
+                                                        level === 'high' ? $t('chat.thinkingLevels.high') :
+                                                            $t('chat.thinkingLevels.xhigh')
                                     }}
                                 </a>
                             </li>
@@ -403,11 +406,12 @@ defineExpose({
                     <button @click="toggleReasoning"
                         class="btn btn-sm gap-1 font-normal rounded-full transition-all duration-300 border-primary/20"
                         :class="reasoningState !== 'off' ? 'bg-primary/10 text-primary hover:bg-primary/20 ' : 'btn-ghost hover:bg-base-300'"
-                        title="推理">
+                        :title="$t('model.mode.reasoning')">
                         <SparklesIcon class="h-4 w-4 hidden sm:inline" />
-                        <span class=" sm:inline">{{ reasoningState === 'stream' ? '推理(流)' : (reasoningState === 'on' ?
-                            '推理(开)' : '推理(关)')
-                            }}</span>
+                        <span class=" sm:inline">{{ reasoningState === 'stream' ? $t('chat.reasoningStatus.stream') :
+                            (reasoningState === 'on' ?
+                                $t('chat.reasoningStatus.on') : $t('chat.reasoningStatus.off'))
+                        }}</span>
                     </button>
                 </div>
 
@@ -417,11 +421,10 @@ defineExpose({
                     <button @click="handleMicClick"
                         class="btn btn-circle btn-sm transition-all duration-300 relative overflow-hidden"
                         :class="isRecording ? 'btn-success text-success-content scale-110 shadow-[0_0_15px_rgba(var(--sc),0.5)] border-success' : 'btn-ghost bg-base-300/50 hover:bg-base-300'"
-                        title="语音输入">
+                        :title="$t('chat.voiceInput')">
                         <MicrophoneIcon class="h-5 w-5 relative z-10" />
                         <span v-if="isRecording" class="absolute inset-0 bg-white/20 animate-ping rounded-full"></span>
                     </button>
-
                     <!-- Send -->
                     <button @click="onSend"
                         class="btn btn-circle btn-sm btn-primary shadow-md hover:shadow-lg transition-all hover:scale-105 active:scale-95"

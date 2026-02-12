@@ -18,6 +18,7 @@ import { useSessionsState } from '../composables/useSessionsState'
 import { useChatState } from '../composables/useChatState'
 import { useAgentsState } from '../composables/useAgentsState'
 import { useNavActive } from '../composables/useNavActive'
+import { useI18n } from 'vue-i18n'
 
 const router = useRouter()
 const { confirm } = useConfirm()
@@ -25,6 +26,7 @@ const gatewayStore = useGateway()
 const sessionsState = useSessionsState()
 const chatState = useChatState()
 const agentsState = useAgentsState()
+const { t } = useI18n()
 
 // No props needed now
 // const props = defineProps<{...}>()
@@ -86,7 +88,7 @@ const createNewSession = () => {
 const handleDeleteSession = async (key: string, event: Event) => {
     event.stopPropagation() // Prevent selecting the session
 
-    if (!await confirm(`确定要删除对话 "${key}" 吗？`)) {
+    if (!await confirm(t('sidebar.deleteChatConfirm', { key }))) {
         return
     }
 
@@ -100,7 +102,7 @@ const handleDeleteAllSessions = async () => {
     const sessions = displaySessions.value
     if (sessions.length === 0) return
 
-    if (!await confirm(`确定要删除所有显示出的 ${sessions.length} 个对话吗？`)) {
+    if (!await confirm(t('sidebar.deleteAllChatsConfirm', { n: sessions.length }))) {
         return
     }
 
@@ -153,7 +155,7 @@ const handleNavClick = (item: any) => {
             <button @click="createNewSession"
                 class="btn btn-primary btn-block gap-2 shadow-md hover:shadow-lg transition-shadow rounded-xl h-11">
                 <PlusIcon class="h-5 w-5" />
-                <span class="font-medium">新建对话</span>
+                <span class="font-medium">{{ $t('sidebar.newChat') }}</span>
             </button>
         </div>
 
@@ -174,7 +176,7 @@ const handleNavClick = (item: any) => {
                 </div>
                 <span class="font-medium text-sm text-base-content/70 group-hover:text-base-content transition-colors"
                     :class="{ 'text-base-content font-semibold': isItemActive(item) }">
-                    {{ item.label }}
+                    {{ $t(item.label) }}
                 </span>
             </button>
         </div>
@@ -183,7 +185,7 @@ const handleNavClick = (item: any) => {
         <!-- Agents Section -->
         <!-- <div class="shrink-0 px-4">
             <div class="flex items-center justify-between mb-2">
-                <span class="text-sm font-medium text-base-content/70 uppercase tracking-wider">智能体</span>
+                <span class="text-sm font-medium text-base-content/70 uppercase tracking-wider">{{ $t('agent.agents') }}</span>
                 <button v-if="hasMoreAgents"
                     class="btn btn-ghost btn-xs btn-circle hover:bg-base-300 transition-transform"
                     :class="{ 'rotate-180': isAgentsExpanded }" @click="isAgentsExpanded = !isAgentsExpanded">
@@ -204,11 +206,12 @@ const handleNavClick = (item: any) => {
 
         <!-- Conversations Header -->
         <div class="shrink-0 px-4 pt-2 pb-2 flex items-center justify-between">
-            <span class="text-sm font-medium text-base-content/70 uppercase tracking-wider">最近对话</span>
+            <span class="text-sm font-medium text-base-content/70 uppercase tracking-wider">{{ $t('sidebar.recentChats')
+                }}</span>
             <div class="flex gap-1">
                 <button v-if="displaySessions.length > 0"
-                    class="btn btn-ghost btn-circle btn-xs hover:bg-error/20 hover:text-error" title="删除所有对话"
-                    @click="handleDeleteAllSessions">
+                    class="btn btn-ghost btn-circle btn-xs hover:bg-error/20 hover:text-error"
+                    :title="$t('sidebar.clearAll')" @click="handleDeleteAllSessions">
                     <TrashIcon class="h-4 w-4" />
                 </button>
                 <button class="btn btn-ghost btn-circle btn-xs hover:bg-base-300">
@@ -225,7 +228,7 @@ const handleNavClick = (item: any) => {
             </div>
             <!-- Empty state -->
             <div v-else-if="displaySessions.length === 0" class="text-center py-4 text-base-content/50 text-sm">
-                暂无对话记录
+                {{ $t('sidebar.noChats') }}
             </div>
             <!-- Sessions list -->
             <div v-else class="space-y-1">

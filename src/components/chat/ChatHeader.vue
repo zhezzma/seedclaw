@@ -146,24 +146,24 @@ defineExpose({
                 <div class="flex items-center gap-1">
                     <div class="w-2 h-2 rounded-full" :class="gatewayStore.connected ? 'bg-success' : 'bg-error'"></div>
                     <span class="text-xs text-base-content/60 hidden sm:inline">
-                        {{ gatewayStore.connected ? '已连接' : '未连接' }}
+                        {{ gatewayStore.connected ? $t('chat.connected') : $t('chat.disconnected') }}
                     </span>
                 </div>
             </div>
         </div>
         <!-- Mobile buttons -->
         <div class="flex-none flex gap-1 lg:hidden">
-            <button @click="startVoiceChat" class="btn btn-ghost btn-circle btn-sm" title="语音对话">
+            <button @click="startVoiceChat" class="btn btn-ghost btn-circle btn-sm" :title="$t('chat.voiceChat')">
                 <PhoneIcon class="h-5 w-5" />
             </button>
-            <button @click="createNewSession" class="btn btn-ghost btn-circle btn-sm" title="新建对话">
+            <button @click="createNewSession" class="btn btn-ghost btn-circle btn-sm" :title="$t('chat.newChat')">
                 <PlusIcon class="h-5 w-5" />
             </button>
         </div>
         <!-- PC theme toggle button -->
         <div class="flex-none hidden lg:flex gap-2">
             <button @click="settingsStore.toggleLayout()" class="btn btn-ghost btn-circle btn-sm"
-                :title="settingsStore.isWideMode ? '切换至窄屏' : '切换至宽屏'">
+                :title="settingsStore.isWideMode ? $t('chat.switchToNarrow') : $t('chat.switchToWide')">
                 <ArrowsPointingInIcon v-if="settingsStore.isWideMode" class="h-5 w-5" />
                 <ArrowsPointingOutIcon v-else class="h-5 w-5" />
             </button>

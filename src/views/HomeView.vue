@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onActivated, watch, reactive, toRef } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
 import { useGateway } from '../composables/useGateway'
@@ -20,6 +21,7 @@ import { useAgentsState } from '../composables/useAgentsState'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const settingsStore = useUiSettingsStore()
 const gatewayStore = useGateway()
 
@@ -64,7 +66,7 @@ const agents = computed(() => {
         name: a.name || a.identity?.name || a.id,
         avatarUrl: a.identity?.avatarUrl,
         icon: a.identity?.emoji || '🤖',
-        description: a.identity?.theme || '还未设定哟',
+        description: a.identity?.theme || t('home.noAgentDesc'),
         isDefault: (a.id || a.name) === defaultId
     }))
 })
@@ -410,7 +412,7 @@ async function applyDefaultSessionBehavior() {
         <!-- NEW: Messages List Column (Desktop: visible if isMessagesMode; Mobile: visible if isMessagesMode && showMobileSessionList) -->
         <div v-if="isMessagesMode" class="w-full lg:w-80 bg-base-100 border-r border-base-200 flex flex-col shrink-0"
             :class="{ 'hidden lg:flex': !showMobileSessionList, 'flex': showMobileSessionList }">
-            <SessionSidebar title="消息列表" :sessions="typeSessions" :selected-key="typeSelectedKey"
+            <SessionSidebar :title="$t('home.messageList')" :sessions="typeSessions" :selected-key="typeSelectedKey"
                 @select="handleTypeSessionselect" @delete="handleTypeSessionDelete" />
         </div>
 
@@ -419,8 +421,8 @@ async function applyDefaultSessionBehavior() {
         <div v-if="isMessagesMode && !typeSelectedKey" class="flex-1 flex flex-col items-center justify-center p-4">
             <div class="text-center text-base-content/60">
                 <div class="text-center">
-                    <h1 class="text-3xl font-bold mb-2">Hi, 欢迎使用 SeedClaw</h1>
-                    <p class="text-base-content/60">我是 SeedClaw，聊天、写作、搜索都在行，助你灵感无限</p>
+                    <h1 class="text-3xl font-bold mb-2">{{ $t('home.welcomeTitle') }}</h1>
+                    <p class="text-base-content/60">{{ $t('home.welcomeDesc') }}</p>
                 </div>
             </div>
         </div>
@@ -442,8 +444,8 @@ async function applyDefaultSessionBehavior() {
                 <!-- Welcome message when no messages -->
                 <div v-else-if="isNewSession(route)" class="flex-1 flex flex-col items-center justify-center p-4">
                     <div class="text-center">
-                        <h1 class="text-3xl font-bold mb-2">Hi, 欢迎使用 SeedClaw</h1>
-                        <p class="text-base-content/60">我是 SeedClaw，聊天、写作、搜索都在行，助你灵感无限</p>
+                        <h1 class="text-3xl font-bold mb-2">{{ $t('home.welcomeTitle') }}</h1>
+                        <p class="text-base-content/60">{{ $t('home.welcomeDesc') }}</p>
                     </div>
                 </div>
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
     WrenchScrewdriverIcon,
     CheckCircleIcon,
@@ -16,6 +17,8 @@ const props = defineProps<{
     errorMessage?: string
 }>()
 
+const { t } = useI18n()
+
 const isOpen = ref(false)
 
 const toggleOpen = () => {
@@ -25,11 +28,11 @@ const toggleOpen = () => {
 const statusText = computed(() => {
     switch (props.state) {
         case 'calling':
-            return `正在调用 ${props.toolName}...`
+            return t('tool.calling', { toolName: props.toolName })
         case 'success':
-            return `已使用 ${props.toolName}`
+            return t('tool.used', { toolName: props.toolName })
         case 'error':
-            return `调用 ${props.toolName} 失败`
+            return t('tool.failed', { toolName: props.toolName })
         default:
             return props.toolName
     }
@@ -111,14 +114,16 @@ const textResultContent = computed(() => {
             <div class="p-3 space-y-3">
                 <!-- Arguments -->
                 <div>
-                    <div class="text-xs font-semibold text-base-content/50 mb-1 uppercase tracking-wider">输入参数</div>
+                    <div class="text-xs font-semibold text-base-content/50 mb-1 uppercase tracking-wider">{{
+                        $t('tool.args') }}</div>
                     <pre
                         class="bg-base-300/50 p-2 rounded text-xs font-mono overflow-x-auto">{{ formatJson(args) }}</pre>
                 </div>
 
                 <!-- Result -->
                 <div v-if="result">
-                    <div class="text-xs font-semibold text-base-content/50 mb-1 uppercase tracking-wider">执行结果</div>
+                    <div class="text-xs font-semibold text-base-content/50 mb-1 uppercase tracking-wider">{{
+                        $t('tool.result') }}</div>
 
                     <!-- 优化：如果包含纯文本结果，直接展示 -->
                     <div v-if="textResultContent !== null"
@@ -133,7 +138,8 @@ const textResultContent = computed(() => {
 
                 <!-- Error -->
                 <div v-if="errorMessage">
-                    <div class="text-xs font-semibold text-error mb-1 uppercase tracking-wider">错误信息</div>
+                    <div class="text-xs font-semibold text-error mb-1 uppercase tracking-wider">{{ $t('tool.error') }}
+                    </div>
                     <pre
                         class="bg-error/10 text-error p-2 rounded text-xs font-mono overflow-x-auto">{{ errorMessage }}</pre>
                 </div>

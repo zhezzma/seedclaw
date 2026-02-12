@@ -5,6 +5,7 @@ import {
     StopIcon
 } from '@heroicons/vue/24/outline'
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ToolInvocation from './ToolInvocation.vue'
 import { useChatState } from '../../composables/useChatState'
@@ -21,6 +22,7 @@ const emit = defineEmits<{
     (e: 'read-aloud', msg: DisplayMessage): void
 }>()
 
+const { t } = useI18n()
 const chatState = useChatState()
 const { currentReadingMsgId } = useTTS()
 
@@ -157,7 +159,7 @@ const closeFileViewer = () => {
         </div>
         <!-- Header -->
         <div class="chat-header opacity-70 text-xs mb-1">
-            {{ message.role === 'user' ? '你' : assistantName || 'Assistant' }}
+            {{ message.role === 'user' ? $t('chat.you') : assistantName || 'Assistant' }}
             <time v-if="message.timestamp" class="ml-1">{{ formatTime(message.timestamp) }}</time>
         </div>
 
@@ -202,7 +204,7 @@ const closeFileViewer = () => {
                             <div class="flex-1 min-w-0 max-w-[120px]">
                                 <div class="text-xs font-medium truncate" :title="block.fileName">{{ block.fileName }}
                                 </div>
-                                <div class="text-xs opacity-60">点击查看</div>
+                                <div class="text-xs opacity-60">{{ $t('common.clickToView') }}</div>
                             </div>
                         </div>
                     </template>
@@ -214,7 +216,7 @@ const closeFileViewer = () => {
             class="chat-footer opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all duration-200 mt-1">
             <button @click="emit('copy', message)"
                 class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-primary hover:bg-base-200"
-                title="复制">
+                :title="$t('common.copy')">
                 <ClipboardIcon class="h-4 w-4" />
             </button>
         </div>
@@ -243,7 +245,7 @@ const closeFileViewer = () => {
                                     <path stroke-linecap="round" stroke-linejoin="round"
                                         d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
                                 </svg>
-                                思考过程 (Reasoning)
+                                {{ $t('chat.reasoning') }}
                             </div>
                             <div class="collapse-content">
                                 <div class="opacity-80 text-sm border-t border-base-300 pt-2 mt-2">
@@ -279,13 +281,13 @@ const closeFileViewer = () => {
         <div v-if="message.role !== 'user'" class="chat-footer mt-1 flex gap-1">
             <button @click="emit('copy', message)"
                 class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-primary hover:bg-base-200"
-                title="复制">
+                :title="$t('common.copy')">
                 <ClipboardIcon class="h-4 w-4" />
             </button>
             <button @click="emit('read-aloud', message)"
                 class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-primary hover:bg-base-200"
                 :class="{ 'bg-green-100 text-green-600 hover:bg-green-200 hover:text-green-700': currentReadingMsgId === message.id }"
-                title="朗读">
+                :title="$t('chat.readAloud')">
                 <template v-if="currentReadingMsgId === message.id">
                     <StopIcon class="h-4 w-4" />
                 </template>

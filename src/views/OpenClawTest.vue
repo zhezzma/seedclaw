@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick, onUnmounted, watch } from "vue";
+import { useI18n } from 'vue-i18n'
 
 /**
  * OpenClaw WebSocket Client
@@ -19,6 +20,8 @@ interface ChatMessage {
     audioData?: string; // Base64 encoded audio
     timestamp: number;
 }
+
+const { t } = useI18n()
 
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
 
@@ -658,25 +661,25 @@ onUnmounted(() => {
 <template>
     <main class="container">
         <h1>🦀 Seedclaw</h1>
-        <p class="subtitle">OpenClaw Voice Client</p>
+        <p class="subtitle">{{ $t('test.title') }}</p>
 
         <!-- 连接配置 -->
         <div class="config-section" v-if="connectionState !== 'connected'">
             <div class="input-group">
-                <label for="gateway-url">Gateway URL</label>
+                <label for="gateway-url">{{ $t('test.gatewayUrl') }}</label>
                 <input id="gateway-url" v-model="gatewayUrl" placeholder="ws://127.0.0.1:18789"
                     :disabled="connectionState === 'connecting'"
                     :class="{ disabled: connectionState === 'connecting' }" />
             </div>
 
             <div class="input-group">
-                <label for="auth-token">Auth Token (可选)</label>
-                <input id="auth-token" v-model="authToken" type="password" placeholder="留空则不使用认证"
-                    :disabled="connectionState === 'connecting'" />
+                <label for="auth-token">{{ $t('test.authToken') }}</label>
+                <input id="auth-token" v-model="authToken" type="password"
+                    :placeholder="$t('test.authTokenPlaceholder')" :disabled="connectionState === 'connecting'" />
             </div>
 
             <button class="connect-btn" @click="connect" :disabled="connectionState === 'connecting'">
-                {{ connectionState === 'connecting' ? '连接中...' : '连接' }}
+                {{ connectionState === 'connecting' ? $t('test.connecting') : $t('test.connect') }}
             </button>
         </div>
 
@@ -685,41 +688,41 @@ onUnmounted(() => {
             <!-- 状态栏 -->
             <div class="status-bar">
                 <span class="status-indicator connected"></span>
-                <span class="status-text">已连接到 {{ gatewayUrl }}</span>
-                <button class="disconnect-btn" @click="disconnect">断开</button>
-                <button class="clear-btn" @click="clearMessages">清空</button>
+                <span class="status-text">{{ $t('test.connectedTo', { url: gatewayUrl }) }}</span>
+                <button class="disconnect-btn" @click="disconnect">{{ $t('test.disconnect') }}</button>
+                <button class="clear-btn" @click="clearMessages">{{ $t('test.clear') }}</button>
             </div>
 
             <!-- 消息列表 -->
             <div class="messages-container" ref="messagesContainer">
                 <div v-for="msg in messages" :key="msg.id" :class="['message', msg.role]">
-                    <div class="message-role">{{ msg.role === 'user' ? '你' : 'AI' }}</div>
+                    <div class="message-role">{{ msg.role === 'user' ? $t('test.user') : $t('test.ai') }}</div>
                     <div class="message-content">{{ msg.content }}</div>
                 </div>
 
                 <!-- 流式响应 -->
                 <div v-if="streamingText" class="message assistant streaming">
-                    <div class="message-role">AI</div>
+                    <div class="message-role">{{ $t('test.ai') }}</div>
                     <div class="message-content">{{ streamingText }}<span class="cursor">▌</span></div>
                 </div>
 
                 <!-- 空状态 -->
                 <div v-if="messages.length === 0 && !streamingText" class="empty-state">
-                    <p>开始和 OpenClaw 对话吧！</p>
-                    <p class="hint">发送文本消息，服务器会返回语音响应 🎤</p>
+                    <p>{{ $t('test.startChat') }}</p>
+                    <p class="hint">{{ $t('test.chatHint') }}</p>
                 </div>
             </div>
 
             <!-- 音频播放状态 -->
             <div v-if="isPlayingAudio" class="audio-indicator">
-                <span class="audio-icon">🔊</span> 正在播放语音...
+                <span class="audio-icon">🔊</span> {{ $t('test.playingAudio') }}
             </div>
 
             <!-- 输入区域 -->
             <form class="input-section" @submit.prevent="sendMessage">
-                <input v-model="inputText" placeholder="输入消息..." :disabled="isSending" autofocus />
+                <input v-model="inputText" :placeholder="$t('test.inputPlaceholder')" :disabled="isSending" autofocus />
                 <button type="submit" :disabled="isSending || !inputText.trim()">
-                    {{ isSending ? '发送中...' : '发送' }}
+                    {{ isSending ? $t('test.sending') : $t('test.send') }}
                 </button>
             </form>
         </div>
@@ -816,80 +819,86 @@ h1 {
     box-shadow: 0 0 0 3px rgba(255, 165, 2, 0.2);
 }
 
+.input-group input.disabled {
+    background: rgba(0, 0, 0, 0.2);
+    color: #666;
+    border-color: rgba(255, 255, 255, 0.05);
+}
+
 .connect-btn {
     width: 100%;
     padding: 14px;
     border-radius: 8px;
     border: none;
     background: linear-gradient(135deg, #ff6b6b, #ffa502);
-    color: #fff;
-    font-size: 1rem;
+    color: white;
     font-weight: 600;
+    font-size: 1rem;
     cursor: pointer;
     transition: all 0.2s;
+    box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
 }
 
 .connect-btn:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(255, 165, 2, 0.4);
+    box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
 }
 
 .connect-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+    opacity: 0.7;
+    cursor: wait;
 }
 
-/* 聊天区域 */
+/* 对话区域 */
 .chat-section {
     flex: 1;
     display: flex;
     flex-direction: column;
     background: rgba(255, 255, 255, 0.05);
     border-radius: 16px;
-    overflow: hidden;
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.1);
+    overflow: hidden;
 }
 
 .status-bar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
     padding: 12px 16px;
     background: rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .status-indicator {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: #4caf50;
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-
-    0%,
-    100% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.5;
-    }
+    margin-right: 8px;
+    box-shadow: 0 0 10px #4caf50;
 }
 
 .status-text {
     flex: 1;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     color: #aaa;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
-.disconnect-btn,
+.disconnect-btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 107, 107, 0.3);
+    background: transparent;
+    color: #ff6b6b;
+    font-size: 0.8rem;
+    cursor: pointer;
+    margin-right: 8px;
+    transition: all 0.2s;
+}
+
 .clear-btn {
     padding: 6px 12px;
     border-radius: 6px;

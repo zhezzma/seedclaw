@@ -32,7 +32,7 @@ const selectAgent = (id: string) => {
         </div>
         <!-- Empty state -->
         <div v-else-if="agents.length === 0" class="text-center py-4 text-base-content/50 text-sm">
-            暂无智能体
+            {{ $t('agent.noAgents') }}
         </div>
         <!-- Agents grid -->
         <template v-else>
@@ -52,7 +52,7 @@ const selectAgent = (id: string) => {
             <a v-if="hasMoreAgents && !expanded"
                 class="flex items-center justify-center gap-2 px-3 py-2 mt-1 rounded-xl cursor-pointer hover:bg-base-300 transition-colors text-base-content/60"
                 @click="emit('update:expanded', true)">
-                <span class="text-sm">展开更多</span>
+                <span class="text-sm">{{ $t('agent.showMore') }}</span>
                 <span class="badge badge-sm badge-ghost">+{{ agents.length - maxVisibleAgents }}</span>
             </a>
         </template>

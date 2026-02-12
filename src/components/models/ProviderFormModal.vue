@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline'
 import { useGateway } from '../../composables/useGateway'
 import { useConfigState } from '../../composables/useConfigState'
@@ -24,6 +25,7 @@ const emit = defineEmits<{
 }>()
 
 const store = useGateway()
+const { t } = useI18n()
 const configState = useConfigState()
 const toast = useToast()
 
@@ -68,8 +70,8 @@ watch(() => props.show, (newVal) => {
     }
 })
 
-const modalTitle = computed(() => props.mode === 'add' ? '添加提供商' : '编辑提供商')
-const submitLabel = computed(() => props.mode === 'add' ? '添加' : '保存')
+const modalTitle = computed(() => props.mode === 'add' ? t('provider.addTitle') : t('provider.editTitle'))
+const submitLabel = computed(() => props.mode === 'add' ? t('common.add') : t('common.save'))
 
 const isFormValid = computed(() => {
     const isBaseUrlValid = formData.value.baseUrl.trim().length > 0
@@ -91,7 +93,7 @@ const handleSubmit = async () => {
             headersObj = JSON.parse(formData.value.headers)
         } catch (e) {
             console.error('Invalid headers JSON:', e)
-            toast.error('自定义请求头 JSON 格式无效')
+            toast.error(t('provider.invalidJson'))
             return
         }
     }
@@ -100,7 +102,7 @@ const handleSubmit = async () => {
         // Check for duplicate ID
         const providersObj = (configState.configForm?.models as any)?.providers as Record<string, any> | undefined
         if (providersObj && providersObj[providerId]) {
-            toast.error('提供商 ID 已存在，请使用其他 ID')
+            toast.error(t('provider.idExists'))
             return
         }
 
@@ -149,7 +151,7 @@ const handleSubmit = async () => {
     await configState.saveConfig()
     emit('saved', providerId)
     emit('close')
-    toast.success('保存成功')
+    toast.success(t('common.savedSuccess'))
 }
 
 const handleClose = () => {
@@ -164,7 +166,7 @@ const handleClose = () => {
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div v-if="mode === 'add'" class="form-control md:col-span-2">
-                    <label class="label"><span class="label-text">提供商 ID <span
+                    <label class="label"><span class="label-text">{{ $t('provider.id') }} <span
                                 class="text-error">*</span></span></label>
                     <input v-model="formData.id" type="text" placeholder="e.g. openai, anthropic"
                         class="input input-bordered w-full font-mono" />
@@ -178,7 +180,7 @@ const handleClose = () => {
                 </div>
 
                 <div class="form-control">
-                    <label class="label"><span class="label-text">API Key</span></label>
+                    <label class="label"><span class="label-text">{{ $t('settings.apiKey') }}</span></label>
                     <div class="join w-full">
                         <input v-model="formData.apiKey" :type="showApiKey ? 'text' : 'password'" placeholder="sk-..."
                             class="input input-bordered join-item flex-1" />
@@ -190,7 +192,7 @@ const handleClose = () => {
                 </div>
 
                 <div class="form-control">
-                    <label class="label"><span class="label-text">API 类型</span></label>
+                    <label class="label"><span class="label-text">{{ $t('provider.apiType') }}</span></label>
                     <select v-model="formData.api" class="select select-bordered w-full">
                         <option value="openai-completions">OpenAI Completions</option>
                         <option value="anthropic">Anthropic</option>
@@ -199,8 +201,8 @@ const handleClose = () => {
 
                 <div class="form-control md:col-span-2">
                     <label class="label">
-                        <span class="label-text">自定义请求头 (JSON)</span>
-                        <span class="label-text-alt text-base-content/50">可选</span>
+                        <span class="label-text">{{ $t('provider.customHeaders') }}</span>
+                        <span class="label-text-alt text-base-content/50">{{ $t('common.optional') }}</span>
                     </label>
                     <textarea v-model="formData.headers" rows="3"
                         class="textarea textarea-bordered w-full font-mono text-sm"
@@ -209,7 +211,7 @@ const handleClose = () => {
             </div>
 
             <div class="modal-action">
-                <button @click="handleClose" class="btn">取消</button>
+                <button @click="handleClose" class="btn">{{ $t('common.cancel') }}</button>
                 <button @click="handleSubmit" class="btn btn-primary" :disabled="!isFormValid">{{ submitLabel
                 }}</button>
             </div>

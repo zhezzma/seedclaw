@@ -11,8 +11,8 @@ const { show, title, message, cancel, ok } = useConfirm()
                 <h3 class="font-bold text-lg">{{ title }}</h3>
                 <p class="py-4 whitespace-pre-wrap">{{ message }}</p>
                 <div class="modal-action">
-                    <button class="btn" @click="cancel">取消</button>
-                    <button class="btn btn-primary" @click="ok">确定</button>
+                    <button class="btn" @click="cancel">{{ $t('common.cancel') }}</button>
+                    <button class="btn btn-primary" @click="ok">{{ $t('common.ok') }}</button>
                 </div>
             </div>
             <form method="dialog" class="modal-backdrop">

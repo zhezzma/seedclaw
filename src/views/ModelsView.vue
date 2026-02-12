@@ -10,14 +10,16 @@ import { useUiSettingsStore } from '@/stores/setting'
 // Components
 import ModelSidebar from '../components/models/ModelSidebar.vue'
 import ModelDetail from '../components/models/ModelDetail.vue'
+import { useI18n } from 'vue-i18n'
 
 const router = useRouter()
 const route = useRoute()
 const store = useGateway()
 const configState = useConfigState()
-const settingsStore = useUiSettingsStore()
+const configStore = useUiSettingsStore()
+const { t } = useI18n()
 
-// Selected Provider from Query Params
+// Layout state
 const selectedProviderId = computed(() => {
     return (route.query.providerId as string) || undefined
 })
@@ -79,11 +81,10 @@ watch(() => [providers.value, route.query.providerId], ([providerList, currentId
 
             <!-- Empty State for Desktop -->
             <div v-else class="hidden lg:flex flex-1 items-center justify-center text-base-content/40">
-                <div class="text-center">
-                    <div class="text-6xl mb-4">👈</div>
-                    <p>选择一个提供商查看模型</p>
-                </div>
+                <div class="text-6xl mb-4">👈</div>
+                <p>{{ $t('model.selectProviderHint') }}</p>
             </div>
         </div>
     </div>
 </template>
+```

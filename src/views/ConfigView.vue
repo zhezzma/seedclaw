@@ -12,14 +12,14 @@ import {
 import ViewHeader from '@/components/ViewHeader.vue'
 
 import { useGateway } from '../composables/useGateway'
-
-
+import { useI18n } from 'vue-i18n'
 
 
 const router = useRouter()
 const state = useConfigState()
 const configStore = useUiSettingsStore()
 const store = useGateway()
+const { t } = useI18n()
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const preRef = ref<HTMLPreElement | null>(null)
 
@@ -44,11 +44,11 @@ const handleSave = async () => {
     <div class="flex flex-col h-full bg-base-200">
 
         <!-- Header -->
-        <ViewHeader title="配置管理">
+        <ViewHeader :title="$t('config.title')">
             <template #actions>
                 <button @click="handleSave" class="btn btn-primary btn-sm" :disabled="state.configSaving">
                     <span v-if="state.configSaving" class="loading loading-spinner loading-xs"></span>
-                    保存
+                    {{ $t('common.save') }}
                 </button>
             </template>
         </ViewHeader>
@@ -63,10 +63,10 @@ const handleSave = async () => {
             <div v-if="state.configSnapshot" class="flex items-center gap-2 mb-2 text-sm text-base-content/60">
                 <span>Hash: {{ state.configSnapshot.hash?.substring(0, 8) }}</span>
                 <span v-if="state.configSnapshot.valid" class="text-success flex items-center gap-1">
-                    <CheckCircleIcon class="w-4 h-4" /> Valid
+                    <CheckCircleIcon class="w-4 h-4" /> {{ $t('config.valid') }}
                 </span>
                 <span v-else-if="state.configSnapshot.valid === false" class="text-error flex items-center gap-1">
-                    <ExclamationTriangleIcon class="w-4 h-4" /> Invalid
+                    <ExclamationTriangleIcon class="w-4 h-4" /> {{ $t('config.invalid') }}
                 </span>
             </div>
 

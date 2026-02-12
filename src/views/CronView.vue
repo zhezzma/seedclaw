@@ -22,6 +22,7 @@ import { useToast } from '../composables/useToast'
 import { useCronState } from '../composables/useCronState'
 import { useAgentsState } from '../composables/useAgentsState'
 import { useConfirm } from '../composables/useConfirm'
+import { useI18n } from 'vue-i18n'
 
 
 const router = useRouter()
@@ -29,6 +30,7 @@ const gatewayStore = useGateway()
 const settingsStore = useUiSettingsStore()
 const toastStore = useToast()
 const { confirm } = useConfirm()
+const { t } = useI18n()
 
 const cronState = useCronState()
 const agentsState = useAgentsState()
@@ -106,7 +108,7 @@ const isBusy = computed(() => cronState.cronBusy)
 
 const jobs = computed(() => cronState.cronJobs as CronJob[])
 const agents = computed(() => agentsState.agentsList?.agents || []) // Access agents from local state with null check
-const modalTitle = computed(() => editingId.value ? '编辑任务' : '新建任务')
+const modalTitle = computed(() => editingId.value ? t('cron.editJob') : t('cron.newJobModal'))
 
 // Simple date formatter
 const formatDate = (ts: number | string | undefined) => {
@@ -250,11 +252,11 @@ const handleOpenEdit = (job: CronJob) => {
 const handleSave = async () => {
     // Validation: Rule "main cron jobs require payload.kind=\"systemEvent\""
     if (form.value.sessionTarget === 'main' && form.value.payloadKind == 'agentTurn') {
-        modalError.value = 'Main session jobs require "System Event" payload.'
+        modalError.value = t('cron.errorMainSession')
         return
     }
     if (form.value.sessionTarget === 'isolated' && form.value.payloadKind == 'systemEvent') {
-        modalError.value = ' isolated cron jobs require payload.kind="agentTurn"'
+        modalError.value = t('cron.errorIsolatedSession')
         return
     }
 
@@ -283,7 +285,7 @@ const handleRun = async (job: CronJob, e: Event) => {
     e.stopPropagation()
 
     // 确认弹窗
-    if (!await confirm('立即运行可能会导致今天的定时任务被跳过，确定要继续吗？')) {
+    if (!await confirm(t('cron.confirmRun'))) {
         return
     }
 
@@ -305,7 +307,7 @@ const handleRun = async (job: CronJob, e: Event) => {
 
 const handleRemove = async (job: CronJob, e: Event) => {
     e.stopPropagation()
-    if (!await confirm('确定要删除此任务吗？')) return
+    if (!await confirm(t('cron.confirmDelete'))) return
     await cronState.removeCronJob(job)
 }
 
@@ -327,12 +329,12 @@ onMounted(() => {
     <div class="flex flex-col h-full bg-base-200">
         <!-- Header -->
         <!-- Header -->
-        <ViewHeader title="定时任务" :is-main-page="true">
+        <ViewHeader :title="$t('cron.title')" :is-main-page="true">
             <template #actions>
                 <div class="px-2">
                     <button @click="handleOpenAdd" class="btn btn-primary btn-sm gap-2">
                         <PlusIcon class="w-4 h-4" />
-                        新建任务
+                        {{ $t('cron.newJob') }}
                     </button>
                 </div>
             </template>
@@ -344,12 +346,13 @@ onMounted(() => {
 
                 <!-- Jobs List -->
                 <div>
-                    <p v-if="cronState.cronLoading && jobs.length === 0" class="text-center py-8 opacity-50">加载中...
+                    <p v-if="cronState.cronLoading && jobs.length === 0" class="text-center py-8 opacity-50">{{
+                        $t('common.loading') }}
                     </p>
                     <div v-if="!cronState.cronLoading && jobs.length === 0" class="text-center py-12 opacity-50">
                         <div class="text-6xl mb-4">💤</div>
-                        <p>暂无定时任务</p>
-                        <button @click="handleOpenAdd" class="btn btn-link">创建一个</button>
+                        <p>{{ $t('cron.noJobs') }}</p>
+                        <button @click="handleOpenAdd" class="btn btn-link">{{ $t('cron.createOne') }}</button>
                     </div>
 
                     <div v-else class="grid gap-4"
@@ -366,7 +369,7 @@ onMounted(() => {
                                         <button @click="handleToggle(job, $event)"
                                             class="btn btn-xs btn-ghost tooltip tooltip-top"
                                             :class="job.enabled ? 'text-success' : 'text-base-content opacity-50'"
-                                            :data-tip="job.enabled ? '点击禁用' : '点击启用'">
+                                            :data-tip="job.enabled ? $t('cron.clickToDisable') : $t('cron.clickToEnable')">
                                             <div class="w-2 h-2 rounded-full"
                                                 :class="job.enabled ? 'bg-success' : 'bg-base-content/30'"></div>
                                         </button>
@@ -386,9 +389,12 @@ onMounted(() => {
                                             {{ job.agentId.slice(0, 8) }}
                                         </span>
                                         <span v-if="job.sessionTarget !== 'main'"
-                                            class="badge badge-xs badge-outline opacity-60">独立会话</span>
+                                            class="badge badge-xs badge-outline opacity-60">{{
+                                                $t('cron.isolatedSession')
+                                            }}</span>
                                         <span v-if="job.wakeMode === 'now'"
-                                            class="badge badge-xs badge-outline opacity-60">立即唤醒</span>
+                                            class="badge badge-xs badge-outline opacity-60">{{
+                                                $t('cron.wakeNow') }}</span>
                                     </div>
                                 </div>
 
@@ -396,12 +402,13 @@ onMounted(() => {
                                 <div class="flex flex-col gap-2 mt-3 text-xs opacity-70">
                                     <!-- Line 1: Schedule + Tags -->
                                     <div class="flex items-center justify-between gap-2">
-                                        <div class="flex items-center gap-1.5" title="调度规则">
+                                        <div class="flex items-center gap-1.5" :title="$t('cron.scheduleRule')">
                                             <ClockIcon class="w-3.5 h-3.5" />
                                             <span class="font-mono" v-if="job.schedule.kind === 'every'">
-                                                每 {{ parseInt(String(job.schedule.everyMs / (60000))) < 60 ?
-                                                    (job.schedule.everyMs / 60000 + 'm') : (Number(job.schedule.everyMs
-                                                        / 3600000).toFixed(1).replace(/\.0$/, '') + 'h') }} </span>
+                                                {{ $t('cron.every') }} {{ parseInt(String(job.schedule.everyMs /
+                                                    (60000))) < 60 ? (job.schedule.everyMs / 60000 + 'm') :
+                                                    (Number(job.schedule.everyMs /
+                                                        3600000).toFixed(1).replace(/\.0$/, '') + 'h') }} </span>
                                                     <span class="font-mono" v-else-if="job.schedule.kind === 'at'">
                                                         {{ formatDate(job.schedule.at) }}
                                                     </span>
@@ -416,19 +423,20 @@ onMounted(() => {
                                         <div class="flex items-center gap-1">
                                             <button @click="handleRun(job, $event)"
                                                 class="btn btn-xs btn-ghost border-base-content/20 tooltip tooltip-top"
-                                                :disabled="runningJobId === job.id" data-tip="立即运行">
+                                                :disabled="runningJobId === job.id" :data-tip="$t('common.runNot')">
                                                 <span v-if="runningJobId === job.id"
                                                     class="loading loading-spinner loading-xs"></span>
                                                 <BoltIcon v-else class="w-3.5 h-3.5" />
                                             </button>
                                             <button @click.stop="handleOpenEdit(job)"
-                                                class="btn btn-xs btn-ghost tooltip tooltip-top" data-tip="编辑">
+                                                class="btn btn-xs btn-ghost tooltip tooltip-top"
+                                                :data-tip="$t('common.edit')">
                                                 <PencilSquareIcon class="w-3.5 h-3.5" />
                                             </button>
 
                                             <button @click="handleRemove(job, $event)"
                                                 class="btn btn-xs btn-ghost text-error/50 hover:text-error tooltip tooltip-top"
-                                                data-tip="删除">
+                                                :data-tip="$t('common.delete')">
                                                 <XMarkIcon class="w-3.5 h-3.5" />
                                             </button>
                                         </div>
@@ -436,20 +444,21 @@ onMounted(() => {
 
                                     <!-- Line 2: Next Run / Last Run -->
                                     <div class="flex items-center gap-4">
-                                        <div class="flex items-center gap-1" title="下次执行">
-                                            <span class="opacity-60">下次:</span>
+                                        <div class="flex items-center gap-1" :title="$t('cron.nextRun')">
+                                            <span class="opacity-60">{{ $t('cron.nextRun') }}</span>
                                             <span>{{ formatDateShanghai(job.state?.nextRunAtMs) }}</span>
                                         </div>
-                                        <div class="flex items-center gap-1" title="上次执行">
-                                            <span class="opacity-60">上次:</span>
+                                        <div class="flex items-center gap-1" :title="$t('cron.lastRun')">
+                                            <span class="opacity-60">{{ $t('cron.lastRun') }}</span>
                                             <span>{{ formatDateShanghai(job.state?.lastRunAtMs) }}</span>
                                         </div>
                                     </div>
 
                                     <!-- Line 3: Payload -->
-                                    <div class="flex items-center gap-1.5 min-w-0 w-full" title="执行内容">
-                                        <span class="opacity-60 shrink-0">{{ job.payload.kind === 'systemEvent' ? '事件' :
-                                            '消息' }}:</span>
+                                    <div class="flex items-center gap-1.5 min-w-0 w-full" :title="$t('cron.payload')">
+                                        <span class="opacity-60 shrink-0">{{ job.payload.kind === 'systemEvent' ?
+                                            $t('cron.systemEvent') :
+                                            $t('cron.agentTurn') }}:</span>
                                         <span class="truncate block">{{ getPayloadText(job.payload) || '-' }}</span>
                                     </div>
                                 </div>
@@ -475,19 +484,19 @@ onMounted(() => {
                         <!-- Name -->
                         <label class="form-control w-full">
                             <div class="label">
-                                <span class="label-text">任务名称</span>
+                                <span class="label-text">{{ $t('cron.form.name') }}</span>
                             </div>
                             <input v-model="form.name" type="text" class="input input-bordered w-full"
-                                placeholder="例如：每日简报" />
+                                :placeholder="$t('cron.form.namePlaceholder')" />
                         </label>
 
                         <!-- Agent ID (Select) -->
                         <label class="form-control w-full">
                             <div class="label">
-                                <span class="label-text">智能体 ID</span>
+                                <span class="label-text">{{ $t('cron.form.agentId') }}</span>
                             </div>
                             <select v-model="form.agentId" class="select select-bordered w-full">
-                                <option value="default">默认 (default)</option>
+                                <option value="default">{{ $t('cron.form.defaultAgent') }}</option>
                                 <option v-for="agent in agents" :key="agent.id" :value="agent.id">
                                     {{ agent.name }} ({{ agent.id }})
                                 </option>
@@ -498,24 +507,24 @@ onMounted(() => {
                     <!-- Description -->
                     <label class="form-control w-full">
                         <div class="label">
-                            <span class="label-text">描述</span>
+                            <span class="label-text">{{ $t('cron.form.description') }}</span>
                         </div>
                         <input v-model="form.description" type="text" class="input input-bordered w-full"
-                            placeholder="任务描述..." />
+                            :placeholder="$t('cron.form.descPlaceholder')" />
                     </label>
 
 
                     <!-- Scheduler -->
-                    <div class="divider mt-5">调度配置</div>
+                    <div class="divider mt-5">{{ $t('cron.form.scheduleConfig') }}</div>
 
                     <label class="form-control w-full">
                         <div class="label">
-                            <span class="label-text">调度类型</span>
+                            <span class="label-text">{{ $t('cron.form.scheduleKind') }}</span>
                         </div>
                         <select v-model="form.scheduleKind" class="select select-bordered w-full">
-                            <option value="every">每隔 (间隔)</option>
-                            <option value="at">特定时间点</option>
-                            <option value="cron">Cron 表达式</option>
+                            <option value="every">{{ $t('cron.form.every') }}</option>
+                            <option value="at">{{ $t('cron.form.at') }}</option>
+                            <option value="cron">{{ $t('cron.form.cron') }}</option>
                         </select>
                     </label>
 
@@ -524,18 +533,18 @@ onMounted(() => {
                         <div v-if="form.scheduleKind === 'every'" class="contents">
                             <label class="form-control w-full">
                                 <div class="label">
-                                    <span class="label-text">间隔数值</span>
+                                    <span class="label-text">{{ $t('cron.form.everyAmount') }}</span>
                                 </div>
                                 <input v-model="form.everyAmount" type="number" class="input input-bordered w-full" />
                             </label>
                             <label class="form-control w-full">
                                 <div class="label">
-                                    <span class="label-text">单位</span>
+                                    <span class="label-text">{{ $t('cron.form.everyUnit') }}</span>
                                 </div>
                                 <select v-model="form.everyUnit" class="select select-bordered w-full">
-                                    <option value="minutes">分钟</option>
-                                    <option value="hours">小时</option>
-                                    <option value="days">天</option>
+                                    <option value="minutes">{{ $t('common.minutes') }}</option>
+                                    <option value="hours">{{ $t('common.hours') }}</option>
+                                    <option value="days">{{ $t('common.days') }}</option>
                                 </select>
                             </label>
                         </div>
@@ -543,7 +552,7 @@ onMounted(() => {
                         <div v-if="form.scheduleKind === 'at'" class="col-span-1 sm:col-span-2">
                             <label class="form-control w-full">
                                 <div class="label">
-                                    <span class="label-text">执行时间</span>
+                                    <span class="label-text">{{ $t('cron.form.scheduleAt') }}</span>
                                 </div>
                                 <input v-model="form.scheduleAt" type="datetime-local"
                                     class="input input-bordered w-full" />
@@ -553,14 +562,14 @@ onMounted(() => {
                         <div v-if="form.scheduleKind === 'cron'" class="contents">
                             <label class="form-control w-full">
                                 <div class="label">
-                                    <span class="label-text">Cron 表达式</span>
+                                    <span class="label-text">{{ $t('cron.form.cron') }}</span>
                                 </div>
                                 <input v-model="form.cronExpr" type="text" class="input input-bordered w-full"
                                     placeholder="* * * * *" />
                             </label>
                             <label class="form-control w-full">
                                 <div class="label">
-                                    <span class="label-text">时区 (可选)</span>
+                                    <span class="label-text">{{ $t('cron.form.timezone') }}</span>
                                 </div>
                                 <input v-model="form.cronTz" type="text" class="input input-bordered w-full"
                                     placeholder="UTC" />
@@ -569,36 +578,36 @@ onMounted(() => {
                     </div>
 
                     <!-- Target / Payload -->
-                    <div class="divider">执行内容</div>
+                    <div class="divider">{{ $t('cron.payload') }}</div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <label class="form-control w-full">
                             <div class="label">
-                                <span class="label-text">会话目标</span>
+                                <span class="label-text">{{ $t('cron.form.sessionTarget') }}</span>
                             </div>
                             <select v-model="form.sessionTarget" class="select select-bordered w-full">
-                                <option value="main">主会话(main)</option>
-                                <option value="isolated">独立会话(isolated)</option>
+                                <option value="main">{{ $t('cron.form.targetMain') }}</option>
+                                <option value="isolated">{{ $t('cron.form.targetIsolated') }}</option>
                             </select>
                         </label>
 
                         <label class="form-control w-full">
                             <div class="label">
-                                <span class="label-text">唤醒模式</span>
+                                <span class="label-text">{{ $t('cron.form.wakeMode') }}</span>
                             </div>
                             <select v-model="form.wakeMode" class="select select-bordered w-full">
-                                <option value="next-heartbeat">等待下次心跳 (Next Heartbeat)</option>
-                                <option value="now">立即唤醒 (Now)</option>
+                                <option value="next-heartbeat">{{ $t('cron.form.wakeNextHeartbeat') }}</option>
+                                <option value="now">{{ $t('cron.form.wakeNow') }}</option>
                             </select>
                         </label>
 
                         <label class="form-control w-full sm:col-span-2">
                             <div class="label">
-                                <span class="label-text">负载类型</span>
+                                <span class="label-text">{{ $t('cron.form.payloadKind') }}</span>
                             </div>
                             <select v-model="form.payloadKind" class="select select-bordered w-full">
-                                <option value="systemEvent">系统事件 (System Event)</option>
-                                <option value="agentTurn">Agent 对话 (Agent Turn)</option>
+                                <option value="systemEvent">{{ $t('cron.form.payloadSystem') }}</option>
+                                <option value="agentTurn">{{ $t('cron.form.payloadAgent') }}</option>
                             </select>
                         </label>
                     </div>
@@ -609,56 +618,57 @@ onMounted(() => {
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <label class="form-control w-full">
                                 <div class="label">
-                                    <span class="label-text">投递模式 (Delivery)</span>
+                                    <span class="label-text">{{ $t('cron.form.deliveryMode') }}</span>
                                 </div>
                                 <select v-model="form.deliveryMode" class="select select-bordered w-full">
-                                    <option value="announce">公告摘要 (Announce)</option>
-                                    <option value="none">无 (None - Internal)</option>
+                                    <option value="announce">{{ $t('cron.form.deliveryAnnounce') }}</option>
+                                    <option value="none">{{ $t('cron.form.deliveryNone') }}</option>
                                 </select>
                             </label>
 
                             <label class="form-control w-full">
                                 <div class="label">
-                                    <span class="label-text">超时时间 (秒)</span>
+                                    <span class="label-text">{{ $t('cron.form.timeout') }}</span>
                                 </div>
                                 <input v-model="form.timeoutSeconds" type="number" class="input input-bordered w-full"
-                                    placeholder="例如: 30" />
+                                    :placeholder="$t('cron.form.timeoutPlaceholder')" />
                             </label>
                         </div>
 
                         <div v-if="form.deliveryMode === 'announce'" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <label class="form-control w-full">
                                 <div class="label">
-                                    <span class="label-text">频道 (Channel)</span>
+                                    <span class="label-text">{{ $t('cron.form.channel') }}</span>
                                 </div>
                                 <!-- Ideally this should be a select of available channels -->
                                 <input v-model="form.deliveryChannel" type="text" class="input input-bordered w-full"
-                                    placeholder="last (默认)" />
+                                    :placeholder="$t('cron.form.channelPlaceholder')" />
                             </label>
 
                             <label class="form-control w-full">
                                 <div class="label">
-                                    <span class="label-text">发送给 (To)</span>
+                                    <span class="label-text">{{ $t('cron.form.to') }}</span>
                                 </div>
                                 <input v-model="form.deliveryTo" type="text" class="input input-bordered w-full"
-                                    placeholder="+1555… 或 chat id" />
+                                    :placeholder="$t('cron.form.toPlaceholder')" />
                             </label>
                         </div>
                     </div>
 
 
                     <fieldset class="fieldset w-full">
-                        <legend class="fieldset-legend">{{ form.payloadKind === 'systemEvent' ? '系统事件内容' : '消息内容'
-                            }}</legend>
+                        <legend class="fieldset-legend">{{ form.payloadKind === 'systemEvent' ?
+                            $t('cron.form.payloadSystemLabel') : $t('cron.form.payloadAgentLabel')
+                        }}</legend>
                         <textarea v-model="form.payloadText" class="textarea w-full h-24"
-                            placeholder="输入内容..."></textarea>
+                            :placeholder="$t('common.inputPlaceholder')"></textarea>
                         <div class="label"></div>
                     </fieldset>
 
                     <!-- Enabled (Toggle) -->
                     <div class="form-control">
                         <label class="label cursor-pointer justify-start gap-3">
-                            <span class="label-text">启用此任务</span>
+                            <span class="label-text">{{ $t('cron.form.enableJob') }}</span>
                             <input v-model="form.enabled" type="checkbox" class="toggle toggle-primary" />
                         </label>
                     </div>
@@ -671,15 +681,15 @@ onMounted(() => {
                 </div>
 
                 <div class="modal-action">
-                    <button class="btn" @click="closeModal">取消</button>
+                    <button class="btn" @click="closeModal">{{ $t('common.cancel') }}</button>
                     <button class="btn btn-primary" @click="handleSave" :disabled="isBusy">
                         <span v-if="isBusy" class="loading loading-spinner"></span>
-                        {{ editingId ? '保存更改' : '创建任务' }}
+                        {{ editingId ? $t('common.saveChanges') : $t('cron.createJob') }}
                     </button>
                 </div>
             </div>
             <form method="dialog" class="modal-backdrop">
-                <button>关闭</button>
+                <button>{{ $t('common.close') }}</button>
             </form>
         </dialog>
 
@@ -692,7 +702,7 @@ onMounted(() => {
 
                 <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
                     <ListBulletIcon class="w-5 h-5" />
-                    执行日志: {{ logsJob?.name }}
+                    {{ $t('cron.logs.title') }}: {{ logsJob?.name }}
                 </h3>
 
                 <div v-if="logsLoading" class="flex justify-center py-8">
@@ -704,17 +714,17 @@ onMounted(() => {
                 </div>
 
                 <div v-else-if="cronRunLogs.length === 0" class="text-center py-8 opacity-50">
-                    暂无执行记录
+                    {{ $t('cron.logs.noLogs') }}
                 </div>
 
                 <div v-else class="overflow-x-auto max-h-[60vh]">
                     <table class="table table-zebra table-xs sm:table-sm w-full font-mono">
                         <thead>
                             <tr>
-                                <th>时间</th>
-                                <th>状态</th>
-                                <th>耗时</th>
-                                <th>信息</th>
+                                <th>{{ $t('common.time') }}</th>
+                                <th>{{ $t('common.status') }}</th>
+                                <th>{{ $t('common.duration') }}</th>
+                                <th>{{ $t('common.info') }}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -739,14 +749,14 @@ onMounted(() => {
                 <div class="modal-action flex justify-between items-center w-full">
                     <div class="flex items-center gap-2 text-sm opacity-70">
                         <span v-if="cronRunsTotal > 0">
-                            第 {{ page }} / {{ totalPages }} 页 (共 {{ cronRunsTotal }} 条)
+                            {{ $t('common.pagination', { page, total: totalPages, count: cronRunsTotal }) }}
                         </span>
                     </div>
 
                     <div class="flex gap-2">
                         <!-- Pagination controls hidden -->
                         <form method="dialog">
-                            <button class="btn btn-sm">关闭</button>
+                            <button class="btn btn-sm">{{ $t('common.close') }}</button>
                         </form>
                     </div>
                 </div>

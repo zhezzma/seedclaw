@@ -3,6 +3,7 @@ import { ref, watch, computed } from 'vue'
 import { useGateway } from '../../composables/useGateway'
 import { useConfigState } from '../../composables/useConfigState'
 import { useToast } from '../../composables/useToast'
+import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
     show: boolean
@@ -26,6 +27,7 @@ const emit = defineEmits<{
 const gatewayStore = useGateway()
 const configStore = useConfigState()
 const toast = useToast()
+const { t } = useI18n()
 
 // Form data
 const formData = ref({
@@ -72,8 +74,8 @@ watch(() => props.show, (newVal) => {
     }
 })
 
-const modalTitle = computed(() => props.mode === 'add' ? '添加智能体' : '编辑智能体')
-const submitLabel = computed(() => props.mode === 'add' ? '添加' : '保存')
+const modalTitle = computed(() => props.mode === 'add' ? t('agent.addTitle') : t('agent.editTitle'))
+const submitLabel = computed(() => props.mode === 'add' ? t('agent.form.random') : t('common.save'))
 
 const isFormValid = computed(() => {
     return formData.value.id.trim() && formData.value.agentName.trim()
@@ -87,7 +89,7 @@ const handleSubmit = async () => {
     // Validate ID format (only for add mode)
     if (props.mode === 'add') {
         if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(agentId)) {
-            toast.error('智能体 ID 必须以英文字母开头，只能包含英文字母、数字、下划线和连字符')
+            toast.error(t('agent.form.idError'))
             return
         }
     }
@@ -98,7 +100,7 @@ const handleSubmit = async () => {
     if (props.mode === 'add') {
         // Check for duplicate ID
         if (currentList.some((a: any) => a.id === agentId)) {
-            toast.error('智能体 ID 已存在，请使用其他 ID')
+            toast.error(t('agent.form.idExists'))
             return
         }
 
@@ -154,54 +156,56 @@ const handleClose = () => {
             <div class="space-y-4">
                 <div class="form-control">
                     <label class="label">
-                        <span class="label-text">智能体 ID <span class="text-error">*</span></span>
+                        <span class="label-text">{{ $t('agent.form.id') }} <span class="text-error">*</span></span>
                     </label>
-                    <input v-model="formData.id" type="text" placeholder="例如: main"
+                    <input v-model="formData.id" type="text" :placeholder="$t('agent.form.idPlaceholder')"
                         class="input input-bordered w-full font-mono" :disabled="mode === 'edit'" />
                 </div>
 
                 <div class="form-control">
-                    <label class="label"><span class="label-text">智能体名称 <span class="text-error">*</span></span></label>
-                    <input v-model="formData.agentName" type="text" placeholder="例如: 主助手"
+                    <label class="label"><span class="label-text">{{ $t('agent.form.name') }} <span
+                                class="text-error">*</span></span></label>
+                    <input v-model="formData.agentName" type="text" :placeholder="$t('agent.form.namePlaceholder')"
                         class="input input-bordered w-full" />
                 </div>
 
-                <div class="divider text-xs">身份设置</div>
+                <div class="divider text-xs">{{ $t('agent.form.identitySection') }}</div>
 
                 <div class="form-control">
                     <label class="label">
-                        <span class="label-text">身份名称</span>
-                        <span class="label-text-alt text-base-content/50">可选</span>
+                        <span class="label-text">{{ $t('agent.form.identityName') }}</span>
+                        <span class="label-text-alt text-base-content/50">{{ $t('common.optional') }}</span>
                     </label>
-                    <input v-model="formData.identityName" type="text" placeholder="例如: Samantha"
-                        class="input input-bordered w-full" />
+                    <input v-model="formData.identityName" type="text"
+                        :placeholder="$t('agent.form.identityNamePlaceholder')" class="input input-bordered w-full" />
                 </div>
 
                 <div class="form-control">
                     <label class="label">
-                        <span class="label-text">主题/身份描述</span>
-                        <span class="label-text-alt text-base-content/50">可选</span>
+                        <span class="label-text">{{ $t('agent.form.identityTheme') }}</span>
+                        <span class="label-text-alt text-base-content/50">{{ $t('common.optional') }}</span>
                     </label>
-                    <input v-model="formData.identityTheme" type="text" placeholder="例如: helpful sloth"
+                    <input v-model="formData.identityTheme" type="text" :placeholder="$t('agent.form.themePlaceholder')"
                         class="input input-bordered w-full" />
                 </div>
 
                 <div class="form-control">
                     <label class="label">
-                        <span class="label-text">Emoji</span>
+                        <span class="label-text">{{ $t('agent.form.emoji') }}</span>
                     </label>
                     <div class="join w-full">
                         <input v-model="formData.identityEmoji" type="text"
                             class="input input-bordered join-item flex-1 text-2xl text-center" maxlength="2" />
-                        <button type="button" @click="randomizeEmoji" class="btn join-item">🎲 随机</button>
+                        <button type="button" @click="randomizeEmoji" class="btn join-item">🎲 {{
+                            $t('agent.form.random') }}</button>
                     </div>
                 </div>
             </div>
 
             <div class="modal-action">
-                <button @click="handleClose" class="btn">取消</button>
+                <button @click="handleClose" class="btn">{{ $t('common.cancel') }}</button>
                 <button @click="handleSubmit" class="btn btn-primary" :disabled="!isFormValid">{{ submitLabel
-                    }}</button>
+                }}</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop">

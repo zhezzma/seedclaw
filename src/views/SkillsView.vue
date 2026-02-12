@@ -1,5 +1,7 @@
+```
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useGateway } from '../composables/useGateway'
 import { useUiSettingsStore } from '../stores/setting'
@@ -22,6 +24,7 @@ import type { SkillStatusEntry, SkillInstallOption } from '~openclaw/ui/src/ui/t
 
 
 const router = useRouter()
+const { t } = useI18n()
 const gatewayStore = useGateway()
 const settingsStore = useUiSettingsStore()
 
@@ -126,9 +129,9 @@ const hasSkills = computed(() => filteredSkills.value.length > 0)
 
 const getGroupTitle = (group: string) => {
     switch (group) {
-        case 'bundled': return '内置技能 (Bundled)'
-        case 'workspace': return '工作区技能 (Workspace)'
-        default: return '其他技能'
+        case 'bundled': return t('skills.bundled')
+        case 'workspace': return t('skills.workspace')
+        default: return t('skills.other')
     }
 }
 
@@ -146,12 +149,12 @@ const getGroupIcon = (group: string) => {
     <div class="flex flex-col h-full bg-base-200">
         <!-- Header -->
         <!-- Header -->
-        <ViewHeader title="技能列表" :is-main-page="true">
+        <ViewHeader :title="$t('skills.title')" :is-main-page="true">
             <template #actions>
                 <div class="relative">
                     <MagnifyingGlassIcon
                         class="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-base-content/40 z-10" />
-                    <input v-model="filter" type="text" placeholder="搜索..."
+                    <input v-model="filter" type="text" :placeholder="$t('skills.searchPlaceholder')"
                         class="input input-sm input-bordered pl-9 w-32 focus:w-48 sm:w-48 sm:focus:w-64 transition-all" />
                 </div>
             </template>
@@ -168,8 +171,10 @@ const getGroupIcon = (group: string) => {
 
                 <div v-else-if="!hasSkills" class="text-center py-16 opacity-50">
                     <CommandLineIcon class="w-16 h-16 mx-auto mb-4 opacity-30" />
-                    <p class="text-lg">未找到相关技能</p>
-                    <button @click="filter = ''" class="btn btn-link btn-sm mt-2" v-if="filter">清除搜索</button>
+                    <p class="text-lg">{{ $t('skills.noSkillsFound') }}</p>
+                    <button @click="filter = ''" class="btn btn-link btn-sm mt-2" v-if="filter">{{
+                        $t('skills.clearSearch')
+                    }}</button>
                 </div>
 
                 <!-- Skill Lists by Group -->
@@ -206,12 +211,14 @@ const getGroupIcon = (group: string) => {
                                         <!-- Status Indicators -->
                                         <div class="flex flex-col items-end gap-1">
                                             <div v-if="skill.disabled" class="badge badge-error badge-outline badge-xs">
-                                                已禁用</div>
+                                                {{ $t('skills.disabled') }}</div>
                                             <div v-else-if="skill.blockedByAllowlist"
-                                                class="badge badge-warning badge-outline badge-xs">受限</div>
+                                                class="badge badge-warning badge-outline badge-xs">{{
+                                                    $t('skills.restricted') }}</div>
                                             <div v-if="skill.missing.bins.length > 0"
                                                 class="badge badge-error badge-soft badge-xs"
-                                                :title="'Missing: ' + skill.missing.bins.join(', ')">缺少依赖</div>
+                                                :title="'Missing: ' + skill.missing.bins.join(', ')">{{
+                                                    $t('skills.missingDeps') }}</div>
                                         </div>
                                     </div>
 
@@ -231,7 +238,7 @@ const getGroupIcon = (group: string) => {
                                                 </span>
                                                 <button @click="handleEditApiKey(skill)"
                                                     class="btn btn-xs btn-circle btn-ghost opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    title="配置 API Key">
+                                                    :title="$t('skills.configApiKey')">
                                                     <KeyIcon class="w-3 h-3" />
                                                 </button>
                                             </div>
@@ -251,7 +258,7 @@ const getGroupIcon = (group: string) => {
                                                 class="dropdown dropdown-end dropdown-top">
                                                 <div tabindex="0" role="button" class="btn btn-xs btn-outline"
                                                     :class="{ 'btn-disabled': skillsState.skillsBusyKey === skill.skillKey }">
-                                                    安装</div>
+                                                    {{ $t('skills.install') }}</div>
                                                 <ul tabindex="0"
                                                     class="dropdown-content z-[10] menu p-2 shadow bg-base-100 rounded-box w-52">
                                                     <li v-for="opt in skill.install" :key="opt.id">
@@ -268,7 +275,7 @@ const getGroupIcon = (group: string) => {
                                                 skillsState.skillsBusyKey === skill.skillKey ? 'loading' : ''
                                             ]" :disabled="skillsState.skillsBusyKey === skill.skillKey">
                                                 {{ skillsState.skillsBusyKey === skill.skillKey ? '' : (skill.disabled
-                                                    ? '启用' : '禁用') }}
+                                                    ? $t('skills.enable') : $t('skills.disable')) }}
                                             </button>
                                         </div>
                                     </div>
@@ -285,16 +292,17 @@ const getGroupIcon = (group: string) => {
         <!-- API Key Modal -->
         <dialog ref="apiKeyModal" class="modal">
             <div class="modal-box">
-                <h3 class="font-bold text-lg">配置 API Key</h3>
+                <h3 class="font-bold text-lg">{{ $t('skills.configApiKey') }}</h3>
                 <p class="py-4" v-if="editingSkill">
-                    请输入 <code>{{ editingSkill.primaryEnv }}</code> 的值:
+                    {{ $t('skills.enterApiKey', { env: editingSkill.primaryEnv }) }}
                 </p>
-                <input v-model="apiKeyInput" type="text" placeholder="输入 API Key" class="input input-bordered w-full"
-                    @keyup.enter="saveApiKeyFromModal" />
+                <input v-model="apiKeyInput" type="text" :placeholder="$t('skills.enterApiKeyPlaceholder')"
+                    class="input input-bordered w-full" @keyup.enter="saveApiKeyFromModal" />
                 <div class="modal-action">
                     <form method="dialog">
-                        <button class="btn">取消</button>
-                        <button class="btn btn-primary ml-2" @click.prevent="saveApiKeyFromModal">保存</button>
+                        <button class="btn">{{ $t('skills.cancel') }}</button>
+                        <button class="btn btn-primary ml-2" @click.prevent="saveApiKeyFromModal">{{ $t('skills.save')
+                        }}</button>
                     </form>
                 </div>
             </div>

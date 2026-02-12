@@ -2,6 +2,7 @@
 import { computed, ref, watch, onErrorCaptured } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useGateway } from '../../composables/useGateway'
+import { useI18n } from 'vue-i18n'
 import {
     InformationCircleIcon,
     DocumentTextIcon,
@@ -24,6 +25,7 @@ const props = defineProps<{
 }>()
 
 const gatewayStore = useGateway()
+const { t } = useI18n()
 
 onErrorCaptured((err, instance, info) => {
     console.error('[AgentDetail Error]', err)
@@ -67,11 +69,11 @@ const rawAgentData = computed(() => {
 // Tab navigation state
 const activeTab = ref('overview')
 
-const tabs = [
-    { id: 'overview', label: '概览', component: AgentOverview },
-    { id: 'tools', label: '工具', component: AgentTools },
-    { id: 'skills', label: '技能', component: AgentSkills },
-]
+const tabs = computed(() => [
+    { id: 'overview', label: t('agent.tab.overview'), component: AgentOverview },
+    { id: 'tools', label: t('agent.tab.tools'), component: AgentTools },
+    { id: 'skills', label: t('agent.tab.skills'), component: AgentSkills },
+])
 
 // Edit modal state
 const showEditModal = ref(false)
@@ -112,7 +114,8 @@ const openEditModal = () => {
                             <div class="flex items-center gap-2">
                                 <div class="badge badge-ghost badge-sm font-mono opacity-60 text-xs">{{ agent.id }}
                                 </div>
-                                <div v-if="agent.isDefault" class="badge badge-primary badge-xs">DEFAULT</div>
+                                <div v-if="agent.isDefault" class="badge badge-primary badge-xs">{{ $t('agent.default')
+                                    }}</div>
                             </div>
                         </div>
 
@@ -147,8 +150,8 @@ const openEditModal = () => {
         <!-- Empty State (Agent Not Found) -->
         <div v-else class="h-full flex items-center justify-center">
             <div class="text-center">
-                <h3 class="font-bold text-lg">Agent not found</h3>
-                <p class="text-base-content/60">Could not find configuration for {{ agentId }}</p>
+                <h3 class="font-bold text-lg">{{ $t('agent.notFound') }}</h3>
+                <p class="text-base-content/60">{{ $t('agent.configNotFound', { id: agentId }) }}</p>
             </div>
         </div>
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { PlusIcon, PencilIcon, TrashIcon, XMarkIcon, EyeIcon, EyeSlashIcon, ArrowPathIcon } from '@heroicons/vue/24/outline'
 import { useGateway } from '../../composables/useGateway'
 import ProviderFormModal from './ProviderFormModal.vue'
@@ -30,6 +31,7 @@ const props = defineProps<{
 }>()
 
 const store = useGateway()
+const { t } = useI18n()
 const configState = useConfigState()
 const { confirm } = useConfirm()
 
@@ -58,7 +60,7 @@ const syncError = ref('')
 
 const syncModels = async () => {
     if (!provider.value?.baseUrl || !provider.value?.apiKey) {
-        syncError.value = '缺少 Base URL 或 API Key'
+        syncError.value = t('model.missingConfig')
         return
     }
 
@@ -88,7 +90,7 @@ const syncModels = async () => {
         const fetchedModels = data.data || data.models || []
 
         if (!Array.isArray(fetchedModels) || fetchedModels.length === 0) {
-            syncError.value = '未获取到模型列表'
+            syncError.value = t('model.fetchError')
             return
         }
 
@@ -129,7 +131,7 @@ const syncModels = async () => {
         await configState.saveConfig()
 
     } catch (err: any) {
-        syncError.value = err.message || '同步失败'
+        syncError.value = err.message || t('model.syncFailed')
         console.error('Sync models error:', err)
     } finally {
         syncing.value = false
@@ -207,7 +209,7 @@ const saveModel = async () => {
 }
 
 const deleteModel = async (index: number, modelId: string) => {
-    if (await confirm(`确定要删除模型 "${modelId}" 吗？`)) {
+    if (await confirm(t('model.deleteConfirm', { id: modelId }))) {
         const currentModels = [...models.value]
         currentModels.splice(index, 1)
 
@@ -254,11 +256,11 @@ const openEditProvider = () => {
                     </div>
                     <button @click="syncModels" class="btn btn-ghost btn-sm" :disabled="syncing">
                         <ArrowPathIcon class="w-4 h-4" :class="syncing ? 'animate-spin' : ''" />
-                        同步
+                        {{ $t('common.sync') }}
                     </button>
                     <button @click="openEditProvider" class="btn btn-ghost btn-sm">
                         <PencilIcon class="w-4 h-4" />
-                        编辑
+                        {{ $t('common.edit') }}
                     </button>
                 </div>
                 <div v-if="syncError" class="mt-2 text-sm text-error">{{ syncError }}</div>
@@ -266,7 +268,7 @@ const openEditProvider = () => {
 
             <!-- Content -->
             <div class="flex-1 overflow-y-auto p-4 md:p-6">
-                <h2 class="text-lg font-semibold mb-4">模型列表</h2>
+                <h2 class="text-lg font-semibold mb-4">{{ $t('model.listTitle') }}</h2>
 
                 <!-- Model Grid -->
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
@@ -274,7 +276,7 @@ const openEditProvider = () => {
                     <div @click="openAddModel"
                         class="aspect-square border-2 border-dashed border-base-300 rounded-lg flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-primary hover:bg-primary/5 transition-all">
                         <PlusIcon class="w-6 h-6 text-base-content/30" />
-                        <span class="text-xs text-base-content/50">添加</span>
+                        <span class="text-xs text-base-content/50">{{ $t('common.add') }}</span>
                     </div>
 
                     <!-- Model Cards -->
@@ -299,10 +301,13 @@ const openEditProvider = () => {
                         <!-- Badges -->
                         <div class="flex flex-wrap gap-1 mt-2">
                             <span v-if="model.input?.includes('text')"
-                                class="badge badge-ghost badge-outline text-[10px] h-5 px-1.5">文本</span>
+                                class="badge badge-ghost badge-outline text-[10px] h-5 px-1.5">{{ $t('model.input.text')
+                                }}</span>
                             <span v-if="model.input?.includes('image')"
-                                class="badge badge-secondary text-[10px] h-5 px-1.5">图片</span>
-                            <span v-if="model.reasoning" class="badge badge-primary text-[10px] h-5 px-1.5">推理</span>
+                                class="badge badge-secondary text-[10px] h-5 px-1.5">{{ $t('model.input.image')
+                                }}</span>
+                            <span v-if="model.reasoning" class="badge badge-primary text-[10px] h-5 px-1.5">{{
+                                $t('model.mode.reasoning') }}</span>
                             <span v-if="model.contextWindow" class="badge badge-ghost text-[10px] h-5 px-1.5">{{
                                 (model.contextWindow /
                                     1000).toFixed(0) }}K</span>
@@ -315,42 +320,42 @@ const openEditProvider = () => {
         <!-- Empty State -->
         <div v-else class="h-full flex items-center justify-center">
             <div class="text-center">
-                <h3 class="font-bold text-lg">提供商未找到</h3>
-                <p class="text-base-content/60">无法找到 ID 为 {{ providerId }} 的提供商</p>
+                <h3 class="font-bold text-lg">{{ $t('provider.notFound') }}</h3>
+                <p class="text-base-content/60">{{ $t('provider.notFoundDesc', { id: providerId }) }}</p>
             </div>
         </div>
 
         <!-- Model Edit Modal -->
         <dialog :class="{ 'modal modal-open': showModelModal, 'modal': !showModelModal }">
             <div class="modal-box max-w-2xl">
-                <h3 class="font-bold text-lg mb-4">{{ isEditing ? '编辑模型' : '添加模型' }}</h3>
+                <h3 class="font-bold text-lg mb-4">{{ isEditing ? $t('model.editTitle') : $t('model.addTitle') }}</h3>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="form-control">
-                        <label class="label"><span class="label-text">模型 ID</span></label>
+                        <label class="label"><span class="label-text">{{ $t('model.id') }}</span></label>
                         <input v-model="modelForm.id" type="text" placeholder="gpt-4" class="input input-bordered"
                             :disabled="isEditing" />
                     </div>
 
                     <div class="form-control">
-                        <label class="label"><span class="label-text">显示名称</span></label>
+                        <label class="label"><span class="label-text">{{ $t('model.name') }}</span></label>
                         <input v-model="modelForm.name" type="text" placeholder="GPT-4" class="input input-bordered" />
                     </div>
 
                     <div class="form-control">
-                        <label class="label"><span class="label-text">上下文窗口</span></label>
+                        <label class="label"><span class="label-text">{{ $t('model.contextWindow') }}</span></label>
                         <input v-model.number="modelForm.contextWindow" type="number" class="input input-bordered" />
                     </div>
 
                     <div class="form-control">
-                        <label class="label"><span class="label-text">最大 Token</span></label>
+                        <label class="label"><span class="label-text">{{ $t('model.maxTokens') }}</span></label>
                         <input v-model.number="modelForm.maxTokens" type="number" class="input input-bordered" />
                     </div>
 
                     <div class="form-control">
                         <label class="label cursor-pointer justify-start gap-3">
                             <input v-model="modelForm.reasoning" type="checkbox" class="checkbox checkbox-primary" />
-                            <span class="label-text">支持推理模式</span>
+                            <span class="label-text">{{ $t('model.reasoning') }}</span>
                         </label>
                     </div>
 
@@ -358,30 +363,32 @@ const openEditProvider = () => {
                         <label class="label cursor-pointer justify-start gap-3">
                             <input v-model="modelForm.compat!.supportsDeveloperRole" type="checkbox"
                                 class="checkbox checkbox-primary" />
-                            <span class="label-text">支持 Developer Role</span>
+                            <span class="label-text">{{ $t('model.developerRole') }}</span>
                         </label>
                     </div>
 
                     <div class="form-control md:col-span-2">
-                        <label class="label"><span class="label-text">输入能力 (Input Capabilities)</span></label>
+                        <label class="label"><span class="label-text">{{ $t('model.inputCapabilities') }}</span></label>
                         <div class="flex gap-4">
                             <label class="label cursor-pointer gap-2 justify-start">
                                 <input type="checkbox" class="checkbox" :checked="modelForm.input?.includes('text')"
                                     @change="toggleInputCapability('text')" />
-                                <span class="label-text">文本 (Text)</span>
+                                <span class="label-text">{{ $t('model.inputText') }}</span>
                             </label>
                             <label class="label cursor-pointer gap-2 justify-start">
                                 <input type="checkbox" class="checkbox" :checked="modelForm.input?.includes('image')"
                                     @change="toggleInputCapability('image')" />
-                                <span class="label-text">图片 (Image)</span>
+                                <span class="label-text">{{ $t('model.inputImage') }}</span>
                             </label>
                         </div>
                     </div>
                 </div>
 
                 <div class="modal-action">
-                    <button @click="showModelModal = false" class="btn">取消</button>
-                    <button @click="saveModel" class="btn btn-primary" :disabled="!modelForm.id.trim()">保存</button>
+                    <button @click="showModelModal = false" class="btn">{{ $t('common.cancel') }}</button>
+                    <button @click="saveModel" class="btn btn-primary" :disabled="!modelForm.id.trim()">{{
+                        $t('common.save')
+                        }}</button>
                 </div>
             </div>
             <form method="dialog" class="modal-backdrop">

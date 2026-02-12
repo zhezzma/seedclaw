@@ -9,6 +9,7 @@ import { createAgentMainSessionKey } from '~/src/utils/session-key-helpers'
 import ViewHeader from '@/components/ViewHeader.vue'
 import { useUiSettingsStore } from '@/stores/setting'
 import { useAgentsState } from '~/src/composables/useAgentsState'
+import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
     selectedId?: string
@@ -26,6 +27,7 @@ const router = useRouter()
 const gatewayStore = useGateway()
 const toast = useToast()
 const agentState = useAgentsState()
+const { t } = useI18n()
 
 const goBack = () => {
     router.back()
@@ -56,7 +58,7 @@ const handleAgentSaved = async (agentId: string) => {
     emit('select', agentId)
     await agentState.loadAgents();
     // Show prompt and redirect to chat
-    toast.info('要先和我说句话，才能进行角色设定哟 ✨')
+    toast.info(t('agent.firstChatHint'))
     router.push({ name: 'chat', params: { sessionkey: createAgentMainSessionKey(agentId) } })
 }
 </script>
@@ -65,7 +67,7 @@ const handleAgentSaved = async (agentId: string) => {
     <div class="h-full">
         <div class="h-full flex flex-col bg-base-100 border-r border-base-200">
             <!-- Header -->
-            <ViewHeader title="智能体" :is-main-page="true">
+            <ViewHeader :title="$t('agent.agents')" :is-main-page="true">
                 <template #actions>
                     <button @click="openAddModal" class="btn btn-ghost btn-sm btn-circle">
                         <PlusIcon class="w-5 h-5" />
@@ -78,8 +80,8 @@ const handleAgentSaved = async (agentId: string) => {
                 <div v-if="agents.length === 0"
                     class="flex flex-col items-center justify-center h-full p-8 text-base-content/50">
                     <div class="text-4xl mb-4">🤖</div>
-                    <p class="text-center">暂无智能体</p>
-                    <p class="text-sm text-center mt-2">点击右上角 + 号添加</p>
+                    <p class="text-center">{{ $t('agent.noAgents') }}</p>
+                    <p class="text-sm text-center mt-2">{{ $t('agent.addAgentHint') }}</p>
                 </div>
 
                 <ul v-else>
@@ -119,7 +121,7 @@ const handleAgentSaved = async (agentId: string) => {
             <!-- Footer -->
             <div class="p-4">
                 <div class="text-center">
-                    <p class="text-xs text-base-content/40">管理你的智能体</p>
+                    <p class="text-xs text-base-content/40">{{ $t('agent.manageAgents') }}</p>
                 </div>
             </div>
         </div>

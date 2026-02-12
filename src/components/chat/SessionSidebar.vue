@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { MagnifyingGlassIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import ViewHeader from '../ViewHeader.vue'
 
@@ -18,12 +19,13 @@ const emit = defineEmits<{
     (e: 'delete', key: string): void
 }>()
 
+const { t } = useI18n()
 const { confirm } = useConfirm()
 const { deleteSessions } = useSessionsState()
 
 const handleDeleteAll = async () => {
     if (props.sessions.length === 0) return
-    if (await confirm('确定要清空所有会话吗？此操作不可恢复。')) {
+    if (await confirm(t('chat.clearAllConfirm'))) {
         const keys = props.sessions.map(s => s.key)
         await deleteSessions(keys)
     }
@@ -32,7 +34,7 @@ const handleDeleteAll = async () => {
 
 const handleDelete = async (key: string, event: Event) => {
     event.stopPropagation()
-    if (await confirm('确定要删除此会话吗？')) {
+    if (await confirm(t('chat.deleteConfirm'))) {
         emit('delete', key)
     }
 }
@@ -62,7 +64,7 @@ const formatLabel = (s: any) => {
             <template #actions>
                 <button v-if="sessions.length > 0" @click="handleDeleteAll"
                     class="btn btn-ghost btn-circle btn-sm text-error/70 hover:text-error hover:bg-error/10"
-                    title="清空所有会话">
+                    :title="$t('chat.clearAll')">
                     <TrashIcon class="w-5 h-5" />
                 </button>
             </template>
@@ -71,7 +73,7 @@ const formatLabel = (s: any) => {
         <!-- Search -->
         <div class="p-2 shrink-0">
             <div class="relative">
-                <input v-model="searchQuery" type="text" placeholder="搜索..."
+                <input v-model="searchQuery" type="text" :placeholder="$t('common.search')"
                     class="input input-sm input-bordered w-full pl-8" />
                 <MagnifyingGlassIcon class="w-4 h-4 absolute left-2.5 top-2 opacity-50" />
             </div>
@@ -80,7 +82,7 @@ const formatLabel = (s: any) => {
         <!-- List -->
         <div class="flex-1 overflow-y-auto p-2 space-y-1">
             <div v-if="filteredSessions.length === 0" class="text-center p-4 text-base-content/50 text-sm">
-                暂无消息
+                {{ $t('chat.noSessions') }}
             </div>
             <div v-for="(s, index) in filteredSessions" :key="s.key" @click="$emit('select', s.key)"
                 class="group flex items-center gap-2 p-3 rounded-lg lg:rounded-lg cursor-pointer hover:bg-base-200 transition-colors border-b border-base-300 last:border-b-0 lg:border-b-0"

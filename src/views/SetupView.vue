@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
 import { useGateway } from '../composables/useGateway'
@@ -12,6 +13,7 @@ import {
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
+const { t } = useI18n()
 const configStore = useUiSettingsStore()
 const gatewayStore = useGateway()
 const devicesState = useDevicesState()
@@ -43,23 +45,23 @@ watch(() => gatewayStore.connected, (connected) => {
 const handleSubmit = async () => {
     // Validate
     if (!gatewayUrl.value.trim()) {
-        error.value = '请输入网关地址'
+        error.value = t('setup.enterGatewayUrl')
         return
     }
     if (!authToken.value.trim()) {
-        error.value = '请输入访问令牌'
+        error.value = t('setup.enterToken')
         return
     }
 
     // Validate URL format
     if (!gatewayUrl.value.startsWith('ws://') && !gatewayUrl.value.startsWith('wss://')) {
-        error.value = '网关地址必须以 ws:// 或 wss:// 开头'
+        error.value = t('setup.gatewayUrlFormatError')
         return
     }
 
     // Security check: HTTPS requires WSS
     if (window.location.protocol === 'https:' && !gatewayUrl.value.startsWith('wss://')) {
-        error.value = '当前网页使用 HTTPS 协议，网关地址必须使用 wss:// 安全连接'
+        error.value = t('setup.httpsWssError')
         return
     }
 
@@ -88,16 +90,16 @@ const handleSubmit = async () => {
                 pairingState.value = {
                     isPairing: true,
                     deviceId: identity.deviceId,
-                    requestId: e.details?.requestId || '未知'
+                    requestId: e.details?.requestId || t('setup.unknown')
                 }
                 // Don't show error, show pairing UI instead
             } catch (err) {
                 console.error('Failed to load device identity:', err)
-                error.value = '无法获取设备 ID'
+                error.value = t('setup.deviceIdError')
             }
         } else {
             // Connection failed, show error
-            error.value = e instanceof Error ? e.message : '连接网关失败'
+            error.value = e instanceof Error ? e.message : t('setup.connectionFailed')
             console.error(e)
         }
     } finally {
@@ -125,7 +127,7 @@ const handleSubmit = async () => {
                         class="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                         Seedclaw
                     </h1>
-                    <p class="text-base-content/60 mt-3 text-sm">配置 OpenClaw 网关以开始使用</p>
+                    <p class="text-base-content/60 mt-3 text-sm">{{ $t('setup.subtitle') }}</p>
                 </div>
 
                 <!-- Error message -->
@@ -144,14 +146,15 @@ const handleSubmit = async () => {
                     <div class="alert alert-info shadow-sm">
                         <DevicePhoneMobileIcon class="h-6 w-6" />
                         <div>
-                            <h3 class="font-bold">设备配对请求已发送</h3>
-                            <div class="text-xs">请联系管理员批准此设备连接</div>
+                            <h3 class="font-bold">{{ $t('setup.pairingSent') }}</h3>
+                            <div class="text-xs">{{ $t('setup.contactAdmin') }}</div>
                         </div>
                     </div>
 
                     <div class="bg-base-200/50 rounded-xl p-4 space-y-4 border border-base-content/5">
                         <div class="space-y-1">
-                            <div class="text-xs text-base-content/50 font-medium uppercase tracking-wider">设备 ID</div>
+                            <div class="text-xs text-base-content/50 font-medium uppercase tracking-wider">{{
+                                $t('setup.deviceId') }}</div>
                             <div
                                 class="font-mono text-sm break-all bg-base-100 p-2 rounded border border-base-content/10 select-all">
                                 {{ pairingState.deviceId }}
@@ -159,7 +162,8 @@ const handleSubmit = async () => {
                         </div>
 
                         <div class="space-y-1">
-                            <div class="text-xs text-base-content/50 font-medium uppercase tracking-wider">请求 ID</div>
+                            <div class="text-xs text-base-content/50 font-medium uppercase tracking-wider">{{
+                                $t('setup.requestId') }}</div>
                             <div
                                 class="font-mono text-sm break-all bg-base-100 p-2 rounded border border-base-content/10 select-all">
                                 {{ pairingState.requestId }}
@@ -169,12 +173,12 @@ const handleSubmit = async () => {
 
                     <div class="flex items-center justify-center gap-3 py-4 text-base-content/60">
                         <span class="loading loading-spinner loading-md text-primary"></span>
-                        <span class="text-sm">正在等待批准...</span>
+                        <span class="text-sm">{{ $t('setup.waitingApproval') }}</span>
                     </div>
 
 
                     <button @click="pairingState.isPairing = false" class="btn btn-ghost btn-block btn-sm">
-                        返回修改配置
+                        {{ $t('setup.backToConfig') }}
                     </button>
                 </div>
 
@@ -189,11 +193,11 @@ const handleSubmit = async () => {
                                 <path stroke-linecap="round" stroke-linejoin="round"
                                     d="M5.25 14.25h13.5m-13.5 0a3 3 0 0 1-3-3m3 3a3 3 0 1 0 0 6h13.5a3 3 0 1 0 0-6m-16.5-3a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3m-19.5 0a4.5 4.5 0 0 1 .9-2.7L5.737 5.1a3.375 3.375 0 0 1 2.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 0 1 .9 2.7m0 0a3 3 0 0 1-3 3m0 3h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Zm-3 6h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Z" />
                             </svg>
-                            网关地址
+                            {{ $t('setup.gatewayUrl') }}
                         </legend>
                         <input v-model="gatewayUrl" type="text" class="input w-full focus:input-primary transition-all"
                             placeholder="ws://localhost:18789" />
-                        <p class="label text-xs opacity-60">WebSocket 地址，例如: ws://192.168.1.100:18789</p>
+                        <p class="label text-xs opacity-60">{{ $t('setup.gatewayUrlHint') }}</p>
                     </fieldset>
 
                     <!-- Auth Token -->
@@ -204,29 +208,30 @@ const handleSubmit = async () => {
                                 <path stroke-linecap="round" stroke-linejoin="round"
                                     d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" />
                             </svg>
-                            访问令牌
+                            {{ $t('setup.token') }}
                         </legend>
                         <div class="relative">
                             <input v-model="authToken" :type="showPassword ? 'text' : 'password'"
-                                class="input w-full pr-12 focus:input-primary transition-all" placeholder="请输入您的访问令牌" />
+                                class="input w-full pr-12 focus:input-primary transition-all"
+                                :placeholder="$t('setup.enterTokenPlaceholder')" />
                             <button type="button" @click="showPassword = !showPassword"
                                 class="absolute right-3 top-1/2 -translate-y-1/2 btn btn-ghost btn-xs btn-circle">
                                 <EyeSlashIcon v-if="showPassword" class="h-4 w-4" />
                                 <EyeIcon v-else class="h-4 w-4" />
                             </button>
                         </div>
-                        <p class="label text-xs opacity-60">从 OpenClaw 控制台获取的认证令牌</p>
+                        <p class="label text-xs opacity-60">{{ $t('setup.tokenDesc') }}</p>
                     </fieldset>
 
                     <!-- Device Name -->
                     <fieldset class="fieldset">
                         <legend class="fieldset-legend text-sm font-medium">
                             <DevicePhoneMobileIcon class="w-4 h-4 inline mr-1" />
-                            设备名称 (可选)
+                            {{ $t('setup.deviceNameOptional') }}
                         </legend>
                         <input v-model="deviceName" type="text" class="input w-full focus:input-primary transition-all"
                             placeholder="SeedClaw Web" />
-                        <p class="label text-xs opacity-60">显示在网关的设备标识名称</p>
+                        <p class="label text-xs opacity-60">{{ $t('setup.deviceNameDesc') }}</p>
                     </fieldset>
 
 
@@ -237,19 +242,19 @@ const handleSubmit = async () => {
                         :disabled="isLoading">
                         <span v-if="isLoading" class="loading loading-spinner loading-sm"></span>
                         <template v-else>
-                            开始使用
+                            {{ $t('setup.startUsing') }}
                             <ArrowRightIcon class="h-5 w-5" />
                         </template>
                     </button>
                 </form>
 
                 <!-- Footer -->
-                <div class="divider my-6 text-xs opacity-50">或</div>
+                <div class="divider my-6 text-xs opacity-50">{{ $t('common.or') }}</div>
                 <p class="text-center text-sm text-base-content/60">
-                    还没有 OpenClaw？
+                    {{ $t('setup.noOpenClaw') }}
                     <a href="https://docs.openclaw.ai" target="_blank"
                         class="link link-primary font-medium hover:link-hover">
-                        了解更多 →
+                        {{ $t('setup.learnMore') }} →
                     </a>
                 </p>
             </div>

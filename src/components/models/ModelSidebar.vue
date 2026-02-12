@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeftIcon, PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import { useGateway } from '../../composables/useGateway'
@@ -19,6 +20,7 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
+const { t } = useI18n()
 const store = useGateway()
 const configState = useConfigState()
 const { confirm } = useConfirm()
@@ -57,7 +59,7 @@ const handleProviderSaved = (providerId: string) => {
 
 const deleteProvider = async (id: string, event: Event) => {
     event.stopPropagation()
-    if (await confirm(`确定要删除提供商 "${id}" 吗？这将同时删除其所有模型配置。`)) {
+    if (await confirm(t('provider.deleteConfirm', { id }))) {
         configState.removeConfigFormValue(['models', 'providers', id])
 
         // Sync implicitly uses updated config state
@@ -78,7 +80,7 @@ const deleteProvider = async (id: string, event: Event) => {
     <div class="h-full">
         <div class="h-full flex flex-col bg-base-100 border-r border-base-200">
             <!-- Header -->
-            <ViewHeader title="模型提供商" :is-main-page="true">
+            <ViewHeader :title="$t('provider.title')" :is-main-page="true">
                 <template #actions>
                     <button @click="openAddModal" class="btn btn-ghost btn-sm btn-circle">
                         <PlusIcon class="w-5 h-5" />
@@ -91,8 +93,8 @@ const deleteProvider = async (id: string, event: Event) => {
                 <div v-if="providers.length === 0"
                     class="flex flex-col items-center justify-center h-full p-8 text-base-content/50">
                     <div class="text-4xl mb-4">📦</div>
-                    <p class="text-center">暂无模型提供商</p>
-                    <p class="text-sm text-center mt-2">点击右上角 + 号添加</p>
+                    <p class="text-center">{{ $t('provider.noProviders') }}</p>
+                    <p class="text-sm text-center mt-2">{{ $t('provider.addDesc') }}</p>
                 </div>
 
                 <ul v-else>
@@ -115,7 +117,7 @@ const deleteProvider = async (id: string, event: Event) => {
                                     {{ provider.id }}
                                 </div>
                                 <div class="text-xs text-base-content/50 truncate">
-                                    {{ provider.models.length }} 个模型
+                                    {{ $t('provider.modelCount', { n: provider.models.length }) }}
                                 </div>
                             </div>
 
@@ -132,7 +134,7 @@ const deleteProvider = async (id: string, event: Event) => {
             <!-- Footer -->
             <div class="p-4">
                 <div class="text-center">
-                    <p class="text-xs text-base-content/40">管理 AI 模型提供商和模型配置</p>
+                    <p class="text-xs text-base-content/40">{{ $t('provider.manageDesc') }}</p>
                 </div>
             </div>
         </div>

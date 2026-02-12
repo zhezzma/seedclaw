@@ -19,15 +19,18 @@ import {
     PauseIcon
 } from '@heroicons/vue/24/outline'
 import ViewHeader from '@/components/ViewHeader.vue'
+import { useI18n } from 'vue-i18n'
 
-
+const router = useRouter()
 const store = useGateway()
 const logsState = useLogsState()
 const settingsStore = useUiSettingsStore()
+const { t } = useI18n()
 
+// Local State
 const searchQuery = ref('')
+const autoRefresh = ref(true)
 const levelFilter = ref<LogLevel | 'all'>('all')
-const autoRefresh = ref(false)
 let refreshInterval: number | null = null
 
 const levelOptions: { value: LogLevel | 'all'; label: string }[] = [
@@ -174,119 +177,91 @@ onUnmounted(() => {
 <template>
     <div class="flex flex-col h-full bg-base-200">
         <!-- Header -->
-        <!-- Header -->
-        <ViewHeader title="系统日志">
+        <ViewHeader :title="$t('log.title')">
             <template #actions>
-                <!-- Auto-refresh toggle -->
-                <label class="swap btn btn-ghost btn-sm tooltip tooltip-bottom"
-                    :data-tip="autoRefresh ? '停止自动刷新' : '开启自动刷新'">
-                    <input type="checkbox" v-model="autoRefresh" />
-                    <PlayIcon class="swap-off w-5 h-5" />
-                    <PauseIcon class="swap-on w-5 h-5 text-primary" />
-                </label>
-                <!-- Manual refresh -->
-                <button @click="handleRefresh" class="btn btn-ghost btn-sm btn-circle tooltip tooltip-bottom"
-                    :class="{ 'loading': logsState.logsLoading }" :disabled="logsState.logsLoading" data-tip="刷新">
-                    <ArrowPathIcon v-if="!logsState.logsLoading" class="w-5 h-5" />
-                </button>
+                <div class="join">
+                    <button @click="toggleAutoRefresh" class="btn btn-sm join-item"
+                        :class="autoRefresh ? 'btn-active' : ''"
+                        :title="autoRefresh ? $t('log.stopAutoRefresh') : $t('log.startAutoRefresh')">
+                        <PauseIcon v-if="autoRefresh" class="w-4 h-4" />
+                        <PlayIcon v-else class="w-4 h-4" />
+                    </button>
+                    <button @click="refreshLogs" class="btn btn-sm join-item"
+                        :class="{ 'loading': logsState.logsLoading }">
+                        <ArrowPathIcon v-if="!logsState.logsLoading" class="w-4 h-4" />
+                    </button>
+                    <button @click="logsState.resetLogs" class="btn btn-sm join-item text-error">
+                        <XCircleIcon class="w-4 h-4" />
+                    </button>
+                </div>
             </template>
         </ViewHeader>
 
-        <!-- Toolbar -->
-        <div class="shrink-0 bg-base-100 border-b border-base-300 p-3">
-            <div class="flex gap-3">
-                <!-- Search -->
-                <div class="flex-1 relative">
-                    <MagnifyingGlassIcon
-                        class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/40" />
-                    <input type="text" v-model="searchQuery" placeholder="搜索日志内容..."
-                        class="input input-bordered input-sm w-full pl-9" />
-                </div>
-                <!-- Level filter -->
-                <div class="flex items-center gap-2">
-                    <FunnelIcon class="w-4 h-4 text-base-content/60" />
-                    <select v-model="levelFilter" class="select select-bordered select-sm">
-                        <option v-for="opt in levelOptions" :key="opt.value" :value="opt.value">
-                            {{ opt.label }}
-                        </option>
-                    </select>
-                </div>
+        <!-- Filters Toolbar -->
+        <div class="p-2 border-b border-base-300 bg-base-100 flex gap-2 items-center overflow-x-auto">
+            <div class="join shrink-0">
+                <input v-model="filterText" type="text" class="input input-sm input-bordered join-item w-32 md:w-48"
+                    :placeholder="$t('common.search')" />
             </div>
-            <!-- File info -->
-            <div v-if="logsState.logsFile" class="mt-2 text-xs text-base-content/50 truncate">
-                📄 {{ logsState.logsFile }}
-                <span v-if="logsState.logsLastFetchAt">
-                    · 更新于 {{ new Date(logsState.logsLastFetchAt).toLocaleTimeString('zh-CN') }}
-                </span>
+
+            <div class="join shrink-0">
+                <select v-model="minLevel" class="select select-bordered select-sm join-item">
+                    <option value="debug">DEBUG</option>
+                    <option value="info">INFO</option>
+                    <option value="warn">WARN</option>
+                    <option value="error">ERROR</option>
+                </select>
+            </div>
+
+            <div class="flex-1"></div>
+            <div class="text-xs opacity-50 px-2 whitespace-nowrap">
+                {{ filteredLogs.length }} / {{ logsState.logsEntries.length }}
             </div>
         </div>
 
-        <!-- Content -->
-        <div class="flex-1 overflow-y-auto p-4 md:p-6">
-            <div class="mx-auto space-y-4" :class="{ 'max-w-4xl': !settingsStore.isWideMode }">
-                <!-- Loading state -->
-                <div v-if="logsState.logsLoading && !logsState.logsEntries.length"
-                    class="flex items-center justify-center py-12">
-                    <span class="loading loading-spinner loading-lg"></span>
-                </div>
-
-                <!-- Error state -->
-                <div v-else-if="logsState.logsError" class="alert alert-error">
-                    <XCircleIcon class="w-5 h-5" />
-                    <span>{{ logsState.logsError }}</span>
-                </div>
-
-                <!-- Empty state -->
-                <div v-else-if="!filteredLogs.length" class="text-center py-12 text-base-content/50">
-                    <InformationCircleIcon class="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p v-if="searchQuery || levelFilter !== 'all'">没有匹配的日志</p>
-                    <p v-else>暂无日志记录</p>
-                </div>
-
-                <!-- Log entries -->
-                <div v-else class="space-y-1">
-                    <div v-for="(log, index) in filteredLogs" :key="index"
-                        class="card bg-base-100 shadow-sm hover:shadow-md transition-shadow">
-                        <div class="card-body p-3">
-                            <div class="flex items-start gap-3">
-                                <!-- Level icon -->
-                                <div class="shrink-0 mt-0.5">
-                                    <component :is="getLevelIcon(log.level)" class="w-4 h-4 opacity-60" />
-                                </div>
-                                <!-- Content -->
-                                <div class="flex-1 min-w-0">
-                                    <!-- Header row -->
-                                    <div class="flex items-center gap-2 flex-wrap mb-1">
-                                        <span :class="['badge badge-sm', getLevelBadgeClass(log.level)]">
-                                            {{ log.level?.toUpperCase() || 'LOG' }}
-                                        </span>
-                                        <span v-if="log.subsystem"
-                                            class="badge badge-sm badge-outline text-base-content/70">
-                                            {{ log.subsystem }}
-                                        </span>
-                                        <span v-if="log.time" class="text-xs text-base-content/40 ml-auto shrink-0">
-                                            <span class="hidden sm:inline">{{ formatDate(log.time) }} </span>
-                                            {{ formatTime(log.time) }}
-                                        </span>
-                                    </div>
-                                    <!-- Message -->
-                                    <p class="text-sm break-all whitespace-pre-wrap">
-                                        {{ log.message || log.raw }}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Load more -->
-                    <div v-if="!logsState.logsTruncated && logsState.logsEntries.length > 0" class="text-center py-4">
-                        <button @click="handleLoadMore" class="btn btn-ghost btn-sm"
-                            :class="{ 'loading': logsState.logsLoading }" :disabled="logsState.logsLoading">
-                            加载更多
-                        </button>
-                    </div>
-                </div>
+        <!-- Logs Content -->
+        <div class="flex-1 overflow-y-auto p-0 scroll-smooth font-mono text-xs md:text-sm bg-base-100"
+            ref="logsContainer">
+            <div v-if="filteredLogs.length === 0" class="flex flex-col items-center justify-center h-full opacity-50">
+                <div class="text-4xl mb-2">📋</div>
+                <div v-if="logsState.logsEntries.length > 0">{{ $t('log.noMatchingLogs') }}</div>
+                <div v-else>{{ $t('log.noLogs') }}</div>
             </div>
+
+            <table v-else class="table table-xs w-full">
+                <tbody>
+                    <tr v-for="(log, idx) in filteredLogs" :key="idx" class="hover group"
+                        :class="getLevelClass(log.level)">
+                        <!-- Time -->
+                        <td class="whitespace-nowrap w-24 opacity-60 align-top">
+                            {{ formatTime(log.ts) }}
+                        </td>
+
+                        <!-- Level Icon -->
+                        <td class="w-8 align-top p-1">
+                            <component :is="getLevelIcon(log.level)" class="w-4 h-4" />
+                        </td>
+
+                        <!-- Module/Source -->
+                        <td class="w-24 align-top font-bold opacity-80 whitespace-nowrap">
+                            {{ log.module }}
+                        </td>
+
+                        <!-- Message -->
+                        <td class="align-top break-all whitespace-pre-wrap">
+                            <span>{{ log.msg }}</span>
+                            <!-- Fields -->
+                            <div v-if="Object.keys(log.fields || {}).length > 0"
+                                class="mt-1 p-1 bg-base-300/30 rounded text-xs opacity-80 overflow-x-auto">
+                                <span v-for="(val, key) in log.fields" :key="key" class="mr-3 inline-block">
+                                    <span class="opacity-60">{{ key }}:</span>
+                                    <span class="ml-1 text-primary-content/80">{{ val }}</span>
+                                </span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 </template>

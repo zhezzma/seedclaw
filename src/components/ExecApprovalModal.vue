@@ -2,9 +2,11 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useExecApproval } from '../composables/useExecApproval'
 import { useToast } from '../composables/useToast'
+import { useI18n } from 'vue-i18n'
 
 const execApproval = useExecApproval()
 const toast = useToast()
+const { t } = useI18n()
 
 const currentRequest = computed(() => {
     return execApproval.execApprovalQueue.length > 0 ? execApproval.execApprovalQueue[0] : null
@@ -17,10 +19,10 @@ const updateTime = () => {
     if (!currentRequest.value) return
     const ms = currentRequest.value.expiresAtMs - Date.now()
     if (ms <= 0) {
-        timeLeft.value = 'expired'
+        timeLeft.value = t('execApproval.expired')
     } else {
         const secs = Math.ceil(ms / 1000)
-        timeLeft.value = `expires in ${secs}s`
+        timeLeft.value = t('execApproval.expiresIn', { s: secs })
     }
 }
 
@@ -52,7 +54,7 @@ const handleDecision = async (decision: 'allow-once' | 'allow-always' | 'deny') 
         class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
         <div class="bg-base-100 rounded-lg shadow-xl p-6 w-full max-w-lg border border-base-200">
             <div class="mb-4">
-                <h3 class="text-lg font-bold">需要执行确认</h3>
+                <h3 class="text-lg font-bold">{{ $t('execApproval.title') }}</h3>
                 <p class="text-sm text-base-content/60">{{ timeLeft }}</p>
             </div>
 
@@ -62,13 +64,13 @@ const handleDecision = async (decision: 'allow-once' | 'allow-always' | 'deny') 
 
             <div class="flex gap-3">
                 <button @click="handleDecision('allow-once')" class="btn btn-error text-white">
-                    允许
+                    {{ $t('execApproval.allow') }}
                 </button>
                 <!-- <button @click="handleDecision('allow-always')" class="btn btn-outline">
-                    始终允许
+                    {{ $t('execApproval.allowAlways') }}
                 </button> -->
                 <button @click="handleDecision('deny')" class="btn btn-outline btn-error">
-                    拒绝
+                    {{ $t('execApproval.deny') }}
                 </button>
             </div>
         </div>

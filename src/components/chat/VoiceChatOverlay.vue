@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { PhoneXMarkIcon, MicrophoneIcon, SpeakerWaveIcon, EllipsisHorizontalIcon } from '@heroicons/vue/24/outline'
 
 const props = defineProps<{
@@ -14,20 +15,22 @@ const emit = defineEmits<{
     (e: 'close'): void
 }>()
 
+const { t } = useI18n()
+
 const isPeeking = ref(false)
 const startPeek = () => isPeeking.value = true
 const endPeek = () => isPeeking.value = false
 
 const statusText = computed(() => {
     switch (props.status) {
-        case 'listening': return '我在听...'
-        case 'processing': return '思考中...'
+        case 'listening': return t('voice.listening')
+        case 'processing': return t('voice.processing')
         case 'speaking':
-            if (props.speakingText) return '正在朗读'
-            if (props.isWaiting) return '正在请求语音...'
-            return 'AI正在回复...'
-        case 'error': return '出错了'
-        default: return '准备就绪'
+            if (props.speakingText) return t('voice.speaking')
+            if (props.isWaiting) return t('voice.requesting')
+            return t('voice.replying')
+        case 'error': return t('voice.error')
+        default: return t('voice.ready')
     }
 })
 
@@ -87,7 +90,8 @@ const statusColor = computed(() => {
             <!-- Controls -->
             <div class="pb-12 pointer-events-auto">
                 <button @click.stop="emit('close')"
-                    class="btn btn-error btn-circle btn-xl shadow-lg hover:scale-105 transition-transform" title="挂断">
+                    class="btn btn-error btn-circle btn-xl shadow-lg hover:scale-105 transition-transform"
+                    :title="$t('voice.hangup')">
                     <PhoneXMarkIcon class="w-8 h-8 text-white" />
                 </button>
             </div>

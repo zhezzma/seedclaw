@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
 import {
@@ -25,6 +26,7 @@ import ViewHeader from '@/components/ViewHeader.vue'
 import { useConfirm } from '../composables/useConfirm'
 
 const router = useRouter()
+const { t } = useI18n()
 const configStore = useUiSettingsStore()
 const { confirm } = useConfirm()
 
@@ -157,7 +159,7 @@ const navigateToDevices = () => {
 }
 
 const logout = async () => {
-    if (await confirm('确定要清空所有数据并退出吗？这将清除本地缓存。', '确认退出')) {
+    if (await confirm(t('settings.clearDataConfirm'), t('settings.confirmLogout'))) {
         configStore.clear()
         router.push('/setup')
     }
@@ -167,7 +169,7 @@ const logout = async () => {
 <template>
     <div class="flex flex-col h-full bg-base-200">
         <!-- Header - fixed -->
-        <ViewHeader title="设置" :is-main-page="true">
+        <ViewHeader :title="$t('settings.title')" :is-main-page="true">
         </ViewHeader>
 
         <!-- Content - scrollable -->
@@ -176,7 +178,7 @@ const logout = async () => {
 
 
                 <div class="space-y-2">
-                    <h4 class="text-sm font-medium text-base-content/60 px-2">基本设置</h4>
+                    <h4 class="text-sm font-medium text-base-content/60 px-2">{{ $t('settings.basic') }}</h4>
                     <div class="card bg-base-100 shadow-sm">
                         <ul class="divide-y divide-base-300">
                             <li class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors"
@@ -184,10 +186,10 @@ const logout = async () => {
                                 <div class="flex items-center gap-3">
                                     <ServerIcon class="h-5 w-5 text-base-content/60" />
                                     <div>
-                                        <span class="font-medium">基本设置</span>
+                                        <span class="font-medium">{{ $t('settings.basic') }}</span>
                                         <p class="text-xs text-base-content/50 truncate max-w-48">{{
                                             configStore.gatewayUrl
-                                            }}</p>
+                                        }}</p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
@@ -201,10 +203,11 @@ const logout = async () => {
                                     <template v-else>
                                         <SunIcon class="h-5 w-5 text-base-content/60" />
                                     </template>
-                                    <span class="font-medium">主题设置</span>
+                                    <span class="font-medium">{{ $t('settings.theme') }}</span>
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <span class="text-sm text-base-content/60">{{ configStore.isDark ? '深色' : '浅色'
+                                    <span class="text-sm text-base-content/60">{{ configStore.isDark ?
+                                        $t('settings.dark') : $t('settings.light')
                                         }}</span>
                                     <input type="checkbox" class="toggle toggle-primary" :checked="configStore.isDark"
                                         @change="configStore.toggleTheme()" />
@@ -216,7 +219,7 @@ const logout = async () => {
                             <li class="flex items-center justify-between p-4 lg:hidden">
                                 <div class="flex items-center gap-3">
                                     <ViewColumnsIcon class="h-5 w-5 text-base-content/60" />
-                                    <span class="font-medium">显示底部导航</span>
+                                    <span class="font-medium">{{ $t('settings.showBottomNav') }}</span>
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <input type="checkbox" class="toggle toggle-primary"
@@ -229,7 +232,7 @@ const logout = async () => {
 
                 <!-- Notification Settings -->
                 <div class="space-y-2">
-                    <h4 class="text-sm font-medium text-base-content/60 px-2">消息通知</h4>
+                    <h4 class="text-sm font-medium text-base-content/60 px-2">{{ $t('settings.notifications') }}</h4>
                     <div class="card bg-base-100 shadow-sm">
                         <ul class="divide-y divide-base-300">
                             <li class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors"
@@ -237,8 +240,10 @@ const logout = async () => {
                                 <div class="flex items-center gap-3">
                                     <BellIcon class="h-5 w-5 text-base-content/60" />
                                     <div>
-                                        <span class="font-medium">Gotify 推送</span>
-                                        <p class="text-xs text-base-content/50">{{ configStore.gotifyUrl || '未配置' }}</p>
+                                        <span class="font-medium">{{ $t('settings.gotify') }}</span>
+                                        <p class="text-xs text-base-content/50">{{ configStore.gotifyUrl ||
+                                            $t('settings.notConfigured')
+                                            }}</p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
@@ -249,7 +254,7 @@ const logout = async () => {
 
                 <!-- Voice Settings -->
                 <div class="space-y-2">
-                    <h4 class="text-sm font-medium text-base-content/60 px-2">语音设置</h4>
+                    <h4 class="text-sm font-medium text-base-content/60 px-2">{{ $t('settings.voice') }}</h4>
                     <div class="card bg-base-100 shadow-sm">
                         <ul class="divide-y divide-base-300">
                             <li class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors"
@@ -257,7 +262,7 @@ const logout = async () => {
                                 <div class="flex items-center gap-3">
                                     <MicrophoneIcon class="h-5 w-5 text-base-content/60" />
                                     <div>
-                                        <span class="font-medium">语音识别 (ASR)</span>
+                                        <span class="font-medium">{{ $t('settings.asr') }}</span>
                                         <p class="text-xs text-base-content/50">{{ configStore.asrEngine || 'Default' }}
                                         </p>
                                     </div>
@@ -269,7 +274,7 @@ const logout = async () => {
                                 <div class="flex items-center gap-3">
                                     <SpeakerWaveIcon class="h-5 w-5 text-base-content/60" />
                                     <div>
-                                        <span class="font-medium">语音合成 (TTS)</span>
+                                        <span class="font-medium">{{ $t('settings.tts') }}</span>
                                         <p class="text-xs text-base-content/50">{{ configStore.ttsEngine }}</p>
                                     </div>
                                 </div>
@@ -290,8 +295,9 @@ const logout = async () => {
                                 <div class="flex items-center gap-3">
                                     <DocumentTextIcon class="h-5 w-5 text-base-content/60" />
                                     <div>
-                                        <span class="font-medium">配置管理</span>
-                                        <p class="text-xs text-base-content/50">查看与编辑网关配置</p>
+                                        <span class="font-medium">{{ $t('settings.configManager') }}</span>
+                                        <p class="text-xs text-base-content/50">{{ $t('settings.configManagerDesc') }}
+                                        </p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
@@ -302,8 +308,9 @@ const logout = async () => {
                                 <div class="flex items-center gap-3">
                                     <ComputerDesktopIcon class="h-5 w-5 text-base-content/60" />
                                     <div>
-                                        <span class="font-medium">设备与节点</span>
-                                        <p class="text-xs text-base-content/50">管理已配对的客户端设备</p>
+                                        <span class="font-medium">{{ $t('settings.devicesNodes') }}</span>
+                                        <p class="text-xs text-base-content/50">{{ $t('settings.devicesNodesDesc') }}
+                                        </p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
@@ -314,8 +321,8 @@ const logout = async () => {
                                 <div class="flex items-center gap-3">
                                     <DocumentTextIcon class="h-5 w-5 text-base-content/60" />
                                     <div>
-                                        <span class="font-medium">系统日志</span>
-                                        <p class="text-xs text-base-content/50">查看网关运行日志</p>
+                                        <span class="font-medium">{{ $t('settings.systemLogs') }}</span>
+                                        <p class="text-xs text-base-content/50">{{ $t('settings.systemLogsDesc') }}</p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
@@ -326,14 +333,14 @@ const logout = async () => {
 
                 <!-- Help & Feedback -->
                 <div class="space-y-2">
-                    <h4 class="text-sm font-medium text-base-content/60 px-2">帮助与反馈</h4>
+                    <h4 class="text-sm font-medium text-base-content/60 px-2">{{ $t('settings.helpFeedback') }}</h4>
                     <div class="card bg-base-100 shadow-sm">
                         <ul class="divide-y divide-base-300">
                             <li @click="openHelpDocs"
                                 class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors">
                                 <div class="flex items-center gap-3">
                                     <QuestionMarkCircleIcon class="h-5 w-5 text-base-content/60" />
-                                    <span class="font-medium">使用帮助</span>
+                                    <span class="font-medium">{{ $t('settings.usageHelp') }}</span>
                                 </div>
                                 <ArrowTopRightOnSquareIcon class="h-5 w-5 text-base-content/40" />
                             </li>
@@ -345,7 +352,7 @@ const logout = async () => {
                 <div class="pt-4">
                     <button @click="logout" class="btn btn-outline btn-error btn-block gap-2">
                         <ArrowRightOnRectangleIcon class="h-5 w-5" />
-                        清空数据
+                        {{ $t('settings.clearData') }}
                     </button>
                 </div>
 
@@ -360,67 +367,67 @@ const logout = async () => {
     <!-- Modals (Basic, ASR, TTS) -->
     <dialog id="basic_settings_modal" class="modal">
         <div class="modal-box">
-            <h3 class="font-bold text-lg mb-4">基本设置</h3>
+            <h3 class="font-bold text-lg mb-4">{{ $t('settings.basic') }}</h3>
             <div class="form-control w-full space-y-4">
                 <div>
                     <label class="label">
-                        <span class="label-text">设备名称</span>
+                        <span class="label-text">{{ $t('settings.deviceName') }}</span>
                     </label>
                     <input type="text" :value="configStore.deviceName" disabled
                         class="input input-bordered w-full opacity-70 cursor-not-allowed" />
                     <label class="label">
-                        <span class="label-text-alt opacity-50">设备名称在首次配置时设定，暂不支持修改</span>
+                        <span class="label-text-alt opacity-50">{{ $t('settings.deviceNameDesc') }}</span>
                     </label>
                 </div>
                 <div>
                     <label class="label">
-                        <span class="label-text">网关地址</span>
+                        <span class="label-text">{{ $t('settings.gatewayUrl') }}</span>
                     </label>
-                    <input type="text" v-model="editForm.gatewayUrl" placeholder="例如: http://localhost:3000"
+                    <input type="text" v-model="editForm.gatewayUrl" :placeholder="$t('settings.gatewayUrlPlaceholder')"
                         class="input input-bordered w-full" />
                 </div>
                 <div>
                     <label class="label">
-                        <span class="label-text">访问令牌 (Token)</span>
+                        <span class="label-text">{{ $t('settings.token') }}</span>
                     </label>
-                    <input type="text" v-model="editForm.token" placeholder="请输入您的 Token"
+                    <input type="text" v-model="editForm.token" :placeholder="$t('settings.tokenPlaceholder')"
                         class="input input-bordered w-full" />
                 </div>
                 <div>
                     <label class="label">
-                        <span class="label-text">会话活跃天数</span>
+                        <span class="label-text">{{ $t('settings.sessionActiveDays') }}</span>
                     </label>
                     <input type="number" v-model="editForm.sessionsActiveDays" class="input input-bordered w-full"
                         placeholder="3" min="1" />
                     <label class="label">
-                        <span class="label-text-alt opacity-50">超过此天数的会话将不会被读取</span>
+                        <span class="label-text-alt opacity-50">{{ $t('settings.sessionActiveDaysDesc') }}</span>
                     </label>
                 </div>
                 <div>
                     <label class="label">
-                        <span class="label-text">语音发送等待 (毫秒)</span>
+                        <span class="label-text">{{ $t('settings.silenceDuration') }}</span>
                     </label>
                     <input type="number" v-model="editForm.silenceDuration" class="input input-bordered w-full"
                         placeholder="1500" />
                     <label class="label">
-                        <span class="label-text-alt opacity-50">说话停顿多少毫秒后自动发送</span>
+                        <span class="label-text-alt opacity-50">{{ $t('settings.silenceDurationDesc') }}</span>
                     </label>
                 </div>
                 <div>
                     <label class="label">
-                        <span class="label-text">首页默认行为</span>
+                        <span class="label-text">{{ $t('settings.homePageBehavior') }}</span>
                     </label>
                     <select v-model="editForm.homePageBehavior" class="select select-bordered w-full">
-                        <option value="last_active_session">加载上次会话</option>
-                        <option value="default_session">加载默认会话</option>
-                        <option value="new_session">新建会话</option>
+                        <option value="last_active_session">{{ $t('settings.loadLastSession') }}</option>
+                        <option value="default_session">{{ $t('settings.loadDefaultSession') }}</option>
+                        <option value="new_session">{{ $t('settings.createNewSession') }}</option>
                     </select>
                 </div>
             </div>
             <div class="modal-action">
                 <form method="dialog">
-                    <button class="btn btn-ghost mr-2">取消</button>
-                    <button class="btn btn-primary" @click="saveConnection">保存</button>
+                    <button class="btn btn-ghost mr-2">{{ $t('common.cancel') }}</button>
+                    <button class="btn btn-primary" @click="saveConnection">{{ $t('common.save') }}</button>
                 </form>
             </div>
         </div>
@@ -431,11 +438,11 @@ const logout = async () => {
 
     <dialog id="asr_settings_modal" class="modal">
         <div class="modal-box">
-            <h3 class="font-bold text-lg mb-4">语音识别 (ASR)</h3>
+            <h3 class="font-bold text-lg mb-4">{{ $t('settings.asr') }}</h3>
             <div class="form-control w-full space-y-4">
                 <div>
                     <label class="label">
-                        <span class="label-text">ASR 引擎</span>
+                        <span class="label-text">{{ $t('settings.asrEngine') }}</span>
                     </label>
                     <select v-model="editForm.asrEngine" class="select select-bordered w-full">
                         <option value="fun-asr">FunASR (Aliyun Realtime)</option>
@@ -443,23 +450,23 @@ const logout = async () => {
                 </div>
                 <div>
                     <label class="label">
-                        <span class="label-text">API Key</span>
+                        <span class="label-text">{{ $t('settings.apiKey') }}</span>
                     </label>
                     <input type="password" v-model="editForm.asrToken" placeholder="sk-..."
                         class="input input-bordered w-full" />
                 </div>
                 <div>
                     <label class="label">
-                        <span class="label-text">模型 ID</span>
+                        <span class="label-text">{{ $t('settings.modelId') }}</span>
                     </label>
-                    <input type="text" v-model="editForm.asrModel" placeholder="默认: fun-asr-realtime-2025-11-07"
+                    <input type="text" v-model="editForm.asrModel" :placeholder="$t('settings.asrModelPlaceholder')"
                         class="input input-bordered w-full" />
                 </div>
             </div>
             <div class="modal-action">
                 <form method="dialog">
-                    <button class="btn btn-ghost mr-2">取消</button>
-                    <button class="btn btn-primary" @click="saveAsr">保存</button>
+                    <button class="btn btn-ghost mr-2">{{ $t('common.cancel') }}</button>
+                    <button class="btn btn-primary" @click="saveAsr">{{ $t('common.save') }}</button>
                 </form>
             </div>
         </div>
@@ -470,36 +477,36 @@ const logout = async () => {
 
     <dialog id="tts_settings_modal" class="modal">
         <div class="modal-box">
-            <h3 class="font-bold text-lg mb-4">语音合成 (TTS)</h3>
+            <h3 class="font-bold text-lg mb-4">{{ $t('settings.tts') }}</h3>
             <div class="form-control w-full space-y-4">
                 <div>
                     <label class="label">
-                        <span class="label-text">TTS 引擎</span>
+                        <span class="label-text">{{ $t('settings.ttsEngine') }}</span>
                     </label>
                     <select v-model="editForm.ttsEngine" class="select select-bordered w-full">
-                        <option value="qwen">Qwen TTS (实时PCM/低延迟)</option>
-                        <option value="edge">Edge TTS (流式MSE/免费)</option>
+                        <option value="qwen">{{ $t('settings.ttsEngineQwen') }}</option>
+                        <option value="edge">{{ $t('settings.ttsEngineEdge') }}</option>
                     </select>
                 </div>
                 <div v-if="editForm.ttsEngine === 'qwen'">
                     <label class="label">
-                        <span class="label-text">API Key</span>
+                        <span class="label-text">{{ $t('settings.apiKey') }}</span>
                     </label>
                     <input type="password" v-model="editForm.ttsToken" placeholder="sk-..."
                         class="input input-bordered w-full" />
                 </div>
                 <div v-if="editForm.ttsEngine === 'qwen'">
                     <label class="label">
-                        <span class="label-text">模型 ID</span>
+                        <span class="label-text">{{ $t('settings.modelId') }}</span>
                     </label>
-                    <input type="text" v-model="editForm.ttsModel" placeholder="默认: qwen3-tts-flash-realtime-2025-11-27"
+                    <input type="text" v-model="editForm.ttsModel" :placeholder="$t('settings.ttsModelPlaceholder')"
                         class="input input-bordered w-full" />
                 </div>
             </div>
             <div class="modal-action">
                 <form method="dialog">
-                    <button class="btn btn-ghost mr-2">取消</button>
-                    <button class="btn btn-primary" @click="saveTts">保存</button>
+                    <button class="btn btn-ghost mr-2">{{ $t('common.cancel') }}</button>
+                    <button class="btn btn-primary" @click="saveTts">{{ $t('common.save') }}</button>
                 </form>
             </div>
         </div>
@@ -509,30 +516,30 @@ const logout = async () => {
     </dialog>
     <dialog id="gotify_settings_modal" class="modal">
         <div class="modal-box">
-            <h3 class="font-bold text-lg mb-4">Gotify 推送设置</h3>
+            <h3 class="font-bold text-lg mb-4">{{ $t('settings.gotify') }}</h3>
             <div class="form-control w-full space-y-4">
                 <div>
                     <label class="label">
-                        <span class="label-text">服务器地址</span>
+                        <span class="label-text">{{ $t('settings.serverAddress') }}</span>
                     </label>
-                    <input type="text" v-model="editForm.gotifyUrl" placeholder="例如: https://push.example.com"
+                    <input type="text" v-model="editForm.gotifyUrl" :placeholder="$t('settings.gotifyUrlPlaceholder')"
                         class="input input-bordered w-full" />
                 </div>
                 <div>
                     <label class="label">
-                        <span class="label-text">客户端 Token (必须以 'C' 开头)</span>
+                        <span class="label-text">{{ $t('settings.clientToken') }}</span>
                     </label>
                     <input type="password" v-model="editForm.gotifyToken" placeholder="Client Token (C...)"
                         class="input input-bordered w-full" />
                     <label class="label">
-                        <span class="label-text-alt opacity-50">请在 Gotify Web 端创建一个 Client 并获取 Token</span>
+                        <span class="label-text-alt opacity-50">{{ $t('settings.clientTokenDesc') }}</span>
                     </label>
                 </div>
             </div>
             <div class="modal-action">
                 <form method="dialog">
-                    <button class="btn btn-ghost mr-2">取消</button>
-                    <button class="btn btn-primary" @click="saveGotify">保存</button>
+                    <button class="btn btn-ghost mr-2">{{ $t('common.cancel') }}</button>
+                    <button class="btn btn-primary" @click="saveGotify">{{ $t('common.save') }}</button>
                 </form>
             </div>
         </div>
