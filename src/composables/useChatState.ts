@@ -361,7 +361,7 @@ const triggerSessionRename = async (targetKey: string, userText: string) => {
     }
 }
 
-const handleSessionNamingEvent = (payload: ChatEventPayload) => {
+const handleSessionNamingEvent = async (payload: ChatEventPayload) => {
     const ctx = autoNamingRuns.get(payload.runId!)!
 
     if (payload.state === 'delta') {
@@ -369,6 +369,16 @@ const handleSessionNamingEvent = (payload: ChatEventPayload) => {
         if (text) ctx.titleBuffer = text
 
     } else if (payload.state === 'final') {
+        // 当(payload as any).seq == 2的时候,可能是出现了错误,所以刷新
+        if ((payload as any).seq == 2) {
+            autoNamingRuns.delete(payload.runId)
+            if (state.renameSessionKey) {
+                const sessionsState = useSessionsState()
+                await sessionsState.deleteSession(state.renameSessionKey)
+                void sessionsState.loadSessions()
+            }
+            return
+        }
 
         const text = extractText(payload.message)
         if (text) ctx.titleBuffer = text
