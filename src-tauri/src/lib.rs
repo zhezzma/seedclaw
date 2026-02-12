@@ -92,14 +92,14 @@ pub fn run() {
             app.manage(gateway::init(app.handle()));
             Ok(())
         })
-        .on_window_event(|window, event| match event {
+        .on_window_event(|_window, event| match event {
+            #[cfg(desktop)]
             WindowEvent::CloseRequested { api, .. } => {
-                #[cfg(desktop)]
-                {
-                    window.hide().unwrap();
-                    api.prevent_close();
-                }
+                _window.hide().unwrap();
+                api.prevent_close();
             }
+            #[cfg(not(desktop))]
+            WindowEvent::CloseRequested { .. } => {}
             _ => {}
         })
         .manage(AppState {
