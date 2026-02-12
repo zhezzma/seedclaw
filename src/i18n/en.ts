@@ -1,6 +1,7 @@
 export default {
     common: {
         or: 'OR',
+        all: 'All',
         confirm: 'Confirm',
         cancel: 'Cancel',
         save: 'Save',
@@ -22,6 +23,8 @@ export default {
         add: 'Add',
         success: 'Success',
         error: 'Error',
+        refresh: 'Refresh',
+        loadMore: 'Load More',
         warning: 'Warning',
         info: 'Info',
         back: 'Back',
@@ -209,6 +212,7 @@ export default {
         title: 'System Logs',
         stopAutoRefresh: 'Stop Auto-refresh',
         startAutoRefresh: 'Start Auto-refresh',
+        searchPlaceholder: 'Search log content...',
         noMatchingLogs: 'No matching logs',
         noLogs: 'No logs',
     },

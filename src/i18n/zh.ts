@@ -1,6 +1,7 @@
 export default {
     common: {
         or: '或',
+        all: '全部',
         confirm: '确认',
         cancel: '取消',
         save: '保存',
@@ -21,6 +22,8 @@ export default {
         sync: '同步',
         add: '添加',
         success: '成功',
+        refresh: '刷新',
+        loadMore: '加载更多',
         error: '错误',
         warning: '警告',
         info: '信息',
@@ -209,6 +212,7 @@ export default {
         title: '系统日志',
         stopAutoRefresh: '停止自动刷新',
         startAutoRefresh: '开启自动刷新',
+        searchPlaceholder: '搜索日志内容...',
         noMatchingLogs: '没有匹配的日志',
         noLogs: '暂无日志记录',
     },
