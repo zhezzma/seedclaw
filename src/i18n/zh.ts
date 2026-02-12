@@ -339,6 +339,7 @@ export default {
         title: '设置',
         basic: '基本设置',
         theme: '主题设置',
+        language: '语言',
         dark: '深色',
         light: '浅色',
         showBottomNav: '显示底部导航',

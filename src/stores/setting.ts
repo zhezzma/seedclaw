@@ -23,6 +23,7 @@ export interface UiSettings {
     gotifyUrl: string
     gotifyToken: string
     assistantMsgMerge: boolean
+    language: 'zh' | 'en'
 }
 
 // ==================== Constants ====================
@@ -49,7 +50,8 @@ const getDefaultSettings = (): UiSettings => ({
     homePageBehavior: 'default_session',
     gotifyUrl: '',
     gotifyToken: '',
-    assistantMsgMerge: true
+    assistantMsgMerge: true,
+    language: 'zh'
 })
 
 const loadConfig = (): UiSettings => {
@@ -132,6 +134,37 @@ export const useUiSettingsStore = defineStore('ui-settings', {
         toggleLayout() {
             this.isWideMode = !this.isWideMode
             this.persist()
+        },
+
+        // Language
+        setLanguage(lang: 'zh' | 'en') {
+            this.language = lang
+            // Dynamic import to avoid circular dependency if possible, or just standard import
+            // But we need to update i18n instance
+            import('../i18n').then(({ i18n }) => {
+                if (i18n.global.locale instanceof Object) {
+                    // @ts-ignore
+                    i18n.global.locale.value = lang
+                } else {
+                    // @ts-ignore
+                    i18n.global.locale = lang
+                }
+            })
+            this.persist()
+        },
+
+        initLanguage() {
+            // Apply saved language on startup
+            const lang = this.language
+            import('../i18n').then(({ i18n }) => {
+                if (i18n.global.locale instanceof Object) {
+                    // @ts-ignore
+                    i18n.global.locale.value = lang
+                } else {
+                    // @ts-ignore
+                    i18n.global.locale = lang
+                }
+            })
         }
     }
 })

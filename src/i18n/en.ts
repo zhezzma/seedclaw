@@ -339,6 +339,7 @@ export default {
         title: 'Settings',
         basic: 'Basic Settings',
         theme: 'Theme Settings',
+        language: 'Language',
         dark: 'Dark',
         light: 'Light',
         showBottomNav: 'Show Bottom Nav',

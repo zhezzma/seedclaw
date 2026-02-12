@@ -11,6 +11,7 @@ import { useAppInit } from './composables/useAppInit'
 import { useToast } from './composables/useToast'
 // Initialize theme at app root
 useUiSettingsStore().initTheme()
+useUiSettingsStore().initLanguage()
 // Initialize app and connect
 useAppInit().init()
 

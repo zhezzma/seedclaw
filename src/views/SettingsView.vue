@@ -19,7 +19,8 @@ import {
     ArrowTopRightOnSquareIcon,
     ComputerDesktopIcon,
     ViewColumnsIcon,
-    BellIcon
+    BellIcon,
+    LanguageIcon
 } from '@heroicons/vue/24/outline'
 import ViewHeader from '@/components/ViewHeader.vue'
 
@@ -211,6 +212,20 @@ const logout = async () => {
                                         }}</span>
                                     <input type="checkbox" class="toggle toggle-primary" :checked="configStore.isDark"
                                         @change="configStore.toggleTheme()" />
+                                </div>
+                            </li>
+
+                            <li class="flex items-center justify-between p-4">
+                                <div class="flex items-center gap-3">
+                                    <LanguageIcon class="h-5 w-5 text-base-content/60" />
+                                    <span class="font-medium ">{{ $t('settings.language') }}</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <select class="select select-bordered select-sm" :value="configStore.language"
+                                        @change="(e: Event) => configStore.setLanguage((e.target as HTMLSelectElement).value as 'zh' | 'en')">
+                                        <option value="zh">中文</option>
+                                        <option value="en">English</option>
+                                    </select>
                                 </div>
                             </li>
 
