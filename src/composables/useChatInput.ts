@@ -145,11 +145,11 @@ export function useChatInput() {
     const addAttachment = async (file: File) => {
         try {
             const isImage = file.type.startsWith('image/')
-            if (isImage && file.size > 1024 * 500) {
-                const toast = useToast()
-                toast.error(`图片大小不能超过 500KB: ${file.name}`)
-                return
-            }
+            // if (isImage && file.size > 1024 * 500) {
+            //     const toast = useToast()
+            //     toast.error(`图片大小不能超过 500KB: ${file.name}`)
+            //     return
+            // }
 
             const result = await readFile(file)
 
