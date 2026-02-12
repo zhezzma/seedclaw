@@ -1,8 +1,10 @@
 use std::sync::Mutex;
+use tauri::{AppHandle, Manager, State, WindowEvent};
+
+#[cfg(desktop)]
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, State, WindowEvent,
 };
 
 mod gateway;
@@ -49,6 +51,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
+            #[cfg(desktop)]
             if cfg!(desktop) {
                 let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
                 let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -91,8 +94,11 @@ pub fn run() {
         })
         .on_window_event(|window, event| match event {
             WindowEvent::CloseRequested { api, .. } => {
-                window.hide().unwrap();
-                api.prevent_close();
+                #[cfg(desktop)]
+                {
+                    window.hide().unwrap();
+                    api.prevent_close();
+                }
             }
             _ => {}
         })
