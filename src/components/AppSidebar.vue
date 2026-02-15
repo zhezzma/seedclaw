@@ -9,12 +9,12 @@ import {
     TrashIcon,
 } from '@heroicons/vue/24/outline'
 import { SIDEBAR_ITEMS } from '../config/navigation'
-import { createAgentMainSessionKey, isAgentMainSession, isCronSession } from '../utils/session-key-helpers'
+
 import { useConfirm } from '../composables/useConfirm'
 import { NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
 
-import { useGateway } from '../composables/useGateway'
-import { useSessionsState } from '../composables/useSessionsState'
+
+import { SessionRow, useSessionsState } from '../composables/useSessionsState'
 import { useChatState } from '../composables/useChatState'
 import { useAgentsState } from '../composables/useAgentsState'
 import { useNavActive } from '../composables/useNavActive'
@@ -22,7 +22,7 @@ import { useI18n } from 'vue-i18n'
 
 const router = useRouter()
 const { confirm } = useConfirm()
-const gatewayStore = useGateway()
+
 const sessionsState = useSessionsState()
 const chatState = useChatState()
 const agentsState = useAgentsState()
@@ -40,27 +40,18 @@ const MAX_VISIBLE_AGENTS = 4
 
 // Computed properties for state
 const sessions = computed(() => sessionsState.sessionsResult?.sessions || [])
-const agentsList = computed(() => agentsState.agentsList?.agents || [])
 
-const visibleAgents = computed(() => {
-    if (isAgentsExpanded.value || agentsList.value.length <= MAX_VISIBLE_AGENTS) {
-        return agentsList.value
-    }
-    return agentsList.value.slice(0, MAX_VISIBLE_AGENTS)
-})
 
-const hasMoreAgents = computed(() => agentsList.value.length > MAX_VISIBLE_AGENTS)
+
+
 
 // Filter sessions for display (exclude agent main sessions if needed, logic copied)
 // Filter sessions for display (exclude agent main sessions if needed, logic copied)
 const displaySessions = computed(() => {
     return sessions.value
-        .filter((s: any) => !isAgentMainSession(s.key))
-        .filter((s: any) => !isCronSession(s.key))
-        .map((s: any) => ({
-            key: s.key,
-            label: s.displayName || s.label || s.key,
-            lastActiveAt: s.lastActiveAt || s.updatedAt
+        .map((s: SessionRow) => ({
+            key: s.id,
+            label: s?.name || s?.id
         }))
 })
 
@@ -69,10 +60,6 @@ const closeSidebarDrawer = () => {
     if (drawer) drawer.checked = false
 }
 
-const selectAgent = (agentId: string) => {
-    router.push({ name: 'chat', params: { sessionkey: createAgentMainSessionKey(agentId) } })
-    closeSidebarDrawer()
-}
 
 const selectSession = (key: string) => {
     router.push({ name: 'chat', params: { sessionkey: key } })
@@ -94,7 +81,7 @@ const handleDeleteSession = async (key: string, event: Event) => {
 
     const result = await sessionsState.deleteSession(key)
     if (result?.deleted && chatState.sessionKey === key) {
-        router.push({ name: 'chat', params: { sessionkey: gatewayStore.defaultSessionKey } })
+        router.push({ name: 'home' })
     }
 }
 
@@ -109,7 +96,7 @@ const handleDeleteAllSessions = async () => {
     const keys = sessions.map(s => s.key)
     await sessionsState.deleteSessions(keys)
     if (chatState.sessionKey && keys.includes(chatState.sessionKey)) {
-        router.push({ name: 'chat', params: { sessionkey: gatewayStore.defaultSessionKey } })
+        router.push({ name: 'home' })
     }
 }
 
@@ -119,17 +106,7 @@ const { isItemActive } = useNavActive()
 
 const handleNavClick = (item: any) => {
     if (item.route) {
-        // ... navigation logic
-        if (item.route === 'home') {
-            // If already on home/chat with a main session, do nothing or reset?
-            // Let's reset to default session
-            router.push({ name: 'chat', params: { sessionkey: gatewayStore.defaultSessionKey } })
-        } else if (item.route === 'chat' && item.query) {
-            // If it's chat with query (e.g. Messages), just push with query
-            router.push({ name: item.route, query: item.query })
-        } else {
-            router.push({ name: item.route, query: item.query })
-        }
+        router.push({ name: item.route, query: item.query })
         closeSidebarDrawer()
     }
 }
@@ -182,22 +159,6 @@ const handleNavClick = (item: any) => {
         </div>
 
 
-        <!-- Agents Section -->
-        <!-- <div class="shrink-0 px-4">
-            <div class="flex items-center justify-between mb-2">
-                <span class="text-sm font-medium text-base-content/70 uppercase tracking-wider">{{ $t('agent.agents') }}</span>
-                <button v-if="hasMoreAgents"
-                    class="btn btn-ghost btn-xs btn-circle hover:bg-base-300 transition-transform"
-                    :class="{ 'rotate-180': isAgentsExpanded }" @click="isAgentsExpanded = !isAgentsExpanded">
-                    <ChevronDownIcon class="h-4 w-4" />
-                </button>
-            </div>
-        </div> -->
-
-        <!-- Agents List - 2 columns -->
-        <!-- <AgentGrid :loading="gatewayStore.agentsLoading" :agents="agents" :visible-agents="visibleAgents"
-            :active-agent-id="activeAgentId" :current-session-key="currentSessionKey" :has-more-agents="hasMoreAgents"
-            v-model:expanded="isAgentsExpanded" :max-visible-agents="MAX_VISIBLE_AGENTS" @select-agent="selectAgent" /> -->
 
         <!-- Divider -->
         <div class="shrink-0 px-4 py-2">
@@ -223,11 +184,11 @@ const handleNavClick = (item: any) => {
         <!-- Conversations List - scrollable -->
         <div class="flex-1 overflow-y-auto px-3 pb-4 min-h-0">
             <!-- Loading state -->
-            <div v-if="sessionsState.sessionsLoading" class="flex items-center justify-center py-4">
+            <!-- <div v-if="sessionsState.sessionsLoading" class="flex items-center justify-center py-4">
                 <span class="loading loading-spinner loading-sm"></span>
-            </div>
+            </div> -->
             <!-- Empty state -->
-            <div v-else-if="displaySessions.length === 0" class="text-center py-4 text-base-content/50 text-sm">
+            <div v-if="displaySessions.length === 0" class="text-center py-4 text-base-content/50 text-sm">
                 {{ $t('sidebar.noChats') }}
             </div>
             <!-- Sessions list -->

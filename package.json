@@ -6,10 +6,9 @@
   "scripts": {
     "dev": "vite --host",
     "tcs": " vue-tsc --noEmit &&  tsc --noEmit --skipLibCheck",
-    "build": "npm run sync && npm run tcs && vite build",
+    "build": "npm run tcs && vite build",
     "preview": "vite preview",
-    "tauri": "tauri",
-    "sync": "node scripts/sync_openclaw.js"
+    "tauri": "tauri"
   },
   "dependencies": {
     "@heroicons/vue": "^2.2.0",

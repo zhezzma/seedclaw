@@ -3,9 +3,7 @@
     "baseUrl": ".", // 确保启用了 baseUrl
     "paths": {
       "~/*": ["./*"],
-      "@/*": ["src/*"],
-      // 关键在这里：告诉 TS 当遇到 ~openclaw 开头时，去 src/openclaw 找
-      "~openclaw/*": ["src/openclaw/*"] 
+      "@/*": ["src/*"]
     },
 
     "target": "ES2023",

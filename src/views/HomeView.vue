@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, onActivated, watch, reactive, to
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
-import { useGateway } from '../composables/useGateway'
+
 import { useChatMessages, type DisplayMessage } from '../composables/useChatMessages'
 import { useTTS } from '../composables/useTTS'
 import { useVoiceChat } from '../composables/useVoiceChat'
@@ -13,9 +13,9 @@ import ChatInput from '../components/chat/ChatInput.vue'
 import VoiceChatOverlay from '../components/chat/VoiceChatOverlay.vue'
 import SessionSidebar from '../components/chat/SessionSidebar.vue'
 import AppSidebar from '../components/AppSidebar.vue'
-import { createAgentMainSessionKey, isAgentMainSession, isCronSession } from '../utils/session-key-helpers'
-import { isNewSession, NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
-import { useChatState } from '../composables/useChatState'
+
+import { isNewSession, NEW_SESSION_PATH, NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
+import { useChatState, extractAgentId } from '../composables/useChatState'
 import { useSessionsState } from '../composables/useSessionsState'
 import { useAgentsState } from '../composables/useAgentsState'
 
@@ -23,17 +23,14 @@ const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const settingsStore = useUiSettingsStore()
-const gatewayStore = useGateway()
+
 
 const chatState = useChatState()
 const sessionsState = useSessionsState()
 const agentsState = useAgentsState()
 
 
-// Helper to access delegated props that were in localState
-// Use computed instead of toRef to ensure reactivity with createStateProxy
 
-const hello = computed(() => gatewayStore.hello)
 
 // Refs
 const messagesContainerRef = ref<HTMLDivElement | null>(null)
@@ -55,25 +52,8 @@ const {
 const { currentReadingMsgId, readAloud: ttsReadAloud } = useTTS()
 
 // Agent selection
-const selectedAgentId = ref('')
-
-// Get available agents from local state
-const agents = computed(() => {
-    const list = agentsState.agentsList?.agents || []
-    const defaultId = (hello.value?.snapshot as any)?.sessionDefaults?.defaultAgentId?.trim() || list[0]?.id || 'main'
-    return list.map((a: any) => ({
-        id: a.id,
-        name: a.name || a.identity?.name || a.id,
-        avatarUrl: a.identity?.avatarUrl,
-        icon: a.identity?.emoji || '🤖',
-        description: a.identity?.theme || t('home.noAgentDesc'),
-        isDefault: (a.id || a.name) === defaultId
-    }))
-})
-
-
 const selectedAgent = computed(() => {
-    return agents.value.find((a: any) => a.id === selectedAgentId.value) || agents.value[0] || { id: 'main', name: 'Assistant', icon: '🤖' }
+    return agentsState.agentsList.find((a: any) => a.id === agentsState.agentsSelectedId) || agentsState.agentsList[0]
 })
 
 
@@ -97,13 +77,13 @@ const typeSessions = computed(() => {
     // So I assume we are handling "cron" type here.
     const type = route.query.type
     if (type === 'cron') {
-        return list.filter((s: any) => isCronSession(s.key))
+        return list.filter((s: any) => s.key.includes(':cron:') || s.key.includes(':task:'))
     }
     if (type === 'main') {
-        return list.filter((s: any) => isAgentMainSession(s.key))
+        return list.filter((s: any) => s.key.endsWith(':main') || s.key.includes(':session:'))
     }
     if (type === 'other') {
-        return list.filter((s: any) => !isAgentMainSession(s.key) && !isCronSession(s.key))
+        return list.filter((s: any) => !s.key.endsWith(':main') && !s.key.includes(':session:') && !s.key.includes(':cron:') && !s.key.includes(':task:'))
     }
     return []
 })
@@ -150,12 +130,15 @@ const showMobileSessionList = computed(() => {
 
 
 
-// Watch for assistant identity changes to update selection
-watch(() => chatState.assistantAgentId, (newId) => {
-    if (newId) {
-        selectedAgentId.value = newId
+// Watch session key changes to update agent selection
+// Watch session key changes to update agent selection
+watch(() => chatState.sessionKey, (newKey) => {
+    if (newKey) {
+        agentsState.agentsSelectedId = extractAgentId(newKey)
     }
 }, { immediate: true })
+
+
 
 // Send message handler
 const handleSend = async () => {
@@ -165,14 +148,31 @@ const handleSend = async () => {
 
     if (!inputText && !hasAttachments && !isBusy.value) return
 
-    if (isBusy.value) {
-        // If busy, abort the current run
+    // Case 1: Busy + no text → abort
+    if (isBusy.value && !inputText && !hasAttachments) {
         await chatState.abortChat()
         return
     }
 
-    if (isNewSession(route)) {
-        await chatState.commitNewSession(inputText)
+    // Case 2: Busy + has text → steer (inject prompt while agent is running)
+    if (isBusy.value && inputText) {
+        if (chatInputRef.value) {
+            chatInputRef.value.inputText = ''
+        }
+        await chatState.steerMessage(inputText)
+        scrollToBottom()
+        return
+    }
+
+    // Case 3: Not busy → normal send
+    // Determine session key
+    let targetSessionKey = chatState.sessionKey
+    const isNew = isNewSession(route)
+
+    if (isNew) {
+        // Create new session via sessionsState, get sessionKey directly
+        const agentId = agentsState.agentsSelectedId
+        targetSessionKey = await sessionsState.commitNewSession(agentId, inputText)
     }
 
     // Process attachments:
@@ -204,21 +204,22 @@ const handleSend = async () => {
         }
     }
 
-    // We need to clone attachments because we clear the UI state immediately
-    // Only send image attachments to the backend as "attachments"
-    await chatState.sendMessage(inputText, [...imageAttachments])
+    // Send message with explicit sessionKey
+    await chatState.sendMessage(inputText, [...imageAttachments], targetSessionKey)
 
-    // Clear attachments in UI (actually we should do it here to completely reset)
+    // Clear attachments in UI
     if (chatInputRef.value && chatInputRef.value.attachments) {
         chatInputRef.value.attachments = []
     }
 
-    if (isNewSession(route)) {
-        router.push({ name: 'chat', params: { sessionkey: chatState.sessionKey } })
+    // Navigate to the chat session immediately
+    if (isNew) {
+        router.push({ name: 'chat', params: { sessionkey: targetSessionKey } })
     }
 
     scrollToBottom()
 }
+
 
 // Message actions
 const copyMessage = (msg: DisplayMessage) => {
@@ -266,9 +267,20 @@ const {
 } = useVoiceChat(handleRecognizedText)
 
 // Watch streaming text to speak
-watch(() => streamingText.value, (newText) => {
-    if (isVoiceChatActive.value && newText) {
-        speakStream(newText)
+watch(() => streamingText.value, (newStream) => {
+    if (isVoiceChatActive.value && newStream) {
+        let text = ''
+        if (Array.isArray(newStream)) {
+            for (const block of newStream) {
+                if (block.type === 'text' && block.text) {
+                    text += block.text
+                }
+            }
+        } else if (typeof newStream === 'string') {
+            text = newStream
+        }
+
+        if (text) speakStream(text)
     }
 })
 
@@ -329,6 +341,9 @@ watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath
     // but helper expects route object. 
     // Since we are inside component setup, 'route' is available.
     if (isNewSession(route)) {
+        if (agentsState.agentsList.length > 0) {
+            agentsState.agentsSelectedId = agentsState.agentsList[0].id
+        }
         await chatState.createNewSession()
         return
     }
@@ -345,30 +360,12 @@ watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath
     }
 
     // No session key specified, apply default behavior
-    // Wait for gateway to be connected before applying default behavior
-    if (!gatewayStore.connected) {
-        console.log('[HomeView] Gateway not connected yet, waiting...')
-        return
-    }
+    // HTTP API - always ready
     await applyDefaultSessionBehavior()
 
 }, { immediate: true })
 
-// Watch for gateway connection to apply default session behavior
-watch(() => gatewayStore.connected, async (connected, wasConnected) => {
-    if (!connected || wasConnected) return
 
-    // Only trigger when just connected (false -> true)
-    if (!chatState.sessionKey) {
-        console.log('[HomeView] Gateway connected, applying default session behavior')
-        await applyDefaultSessionBehavior()
-    } else {
-        // If session key is already set (e.g. from URL), load history now that we are connected
-        console.log('[HomeView] Gateway connected, loading history for existing session', chatState.sessionKey)
-        await chatState.loadAssistantIdentity()
-        await chatState.loadChatHistory()
-    }
-})
 
 // Helper function to apply default session behavior based on settings
 async function applyDefaultSessionBehavior() {
@@ -379,16 +376,10 @@ async function applyDefaultSessionBehavior() {
 
     // Default behavior based on settings
     if (settingsStore.homePageBehavior === 'new_session') {
-        await chatState.createNewSession()
-        router.replace({ name: NEW_SESSION_ROUTE_NAME })
-    } else if (settingsStore.homePageBehavior === 'default_session') {
-        // Load explicitly default session
-        console.log('Default: default session', gatewayStore.defaultSessionKey)
-        chatState.setSessionKey(gatewayStore.defaultSessionKey)
-        router.replace({ name: 'chat', params: { sessionkey: gatewayStore.defaultSessionKey } })
+        router.replace({ path: NEW_SESSION_PATH })
     } else {
         // Default: last active session
-        const targetKey = settingsStore.lastActiveSessionKey || gatewayStore.defaultSessionKey
+        const targetKey = settingsStore.lastActiveSessionKey
         console.log('Default: last active session', targetKey)
         chatState.setSessionKey(targetKey)
         router.replace({ name: 'chat', params: { sessionkey: targetKey } })
@@ -431,7 +422,7 @@ async function applyDefaultSessionBehavior() {
             :class="{ 'hidden lg:flex': isMessagesMode && showMobileSessionList }">
 
             <!-- Header -->
-            <ChatHeader ref="chatHeaderRef" :selected-agent="selectedAgent" :agents="agents"
+            <ChatHeader ref="chatHeaderRef" :selected-agent="selectedAgent" :agents="agentsState.agentsList"
                 @start-voice-chat="startVoiceChat" />
 
             <!-- Main content area -->
@@ -462,7 +453,7 @@ async function applyDefaultSessionBehavior() {
             </div>
 
             <!-- Input area -->
-            <ChatInput ref="chatInputRef" :is-busy="isBusy" :disabled="!gatewayStore.connected" @send="handleSend" />
+            <ChatInput ref="chatInputRef" :is-busy="isBusy" :disabled="false" @send="handleSend" />
 
             <!-- Voice Chat Overlay -->
             <VoiceChatOverlay :is-open="isVoiceChatActive" :status="voiceStatus" :transcript="transcript"

@@ -2,7 +2,6 @@
 import { onMounted, watch } from 'vue'
 import BottomNav from '../components/BottomNav.vue'
 import { useUiSettingsStore } from '../stores/setting'
-import { useGateway } from '../composables/useGateway'
 
 const settingsStore = useUiSettingsStore()
 

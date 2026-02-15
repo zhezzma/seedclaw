@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { useGateway } from '../../composables/useGateway'
-import { useConfigState } from '../../composables/useConfigState'
+// import { useConfigState } from '../../composables/useConfigState'
+import { useAgentsState } from '../../composables/useAgentsState'
 import { useToast } from '../../composables/useToast'
 import { useI18n } from 'vue-i18n'
+import { ArrowPathIcon } from '@heroicons/vue/24/outline'
 
 const props = defineProps<{
     show: boolean
@@ -24,8 +25,8 @@ const emit = defineEmits<{
     (e: 'saved', agentId: string): void
 }>()
 
-const gatewayStore = useGateway()
-const configStore = useConfigState()
+// const configStore = useConfigState()
+const agentsState = useAgentsState()
 const toast = useToast()
 const { t } = useI18n()
 
@@ -38,8 +39,10 @@ const formData = ref({
     identityEmoji: '🤖'
 })
 
+const isBusy = ref(false)
+
 // Random emoji list
-const AGENT_EMOJIS = ['🤖', '🦥', '🦊', '🐱', '🐶', '🦉', '🐼', '🦋', '🌟', '⚡', '🚀', '🎯', '💡', '🔥', '✨', '🌈', '🎨', '🎭', '🧠', '💎']
+const AGENT_EMOJIS = ['🤖', '🦥', '🦊', '🐱', '🐶', '🦉', '🐼', '🚀', '🎯', '💡', '🔥', '🌈', '🎨', '🎭']
 
 const generateRandomEmoji = () => {
     return AGENT_EMOJIS[Math.floor(Math.random() * AGENT_EMOJIS.length)]
@@ -74,142 +77,122 @@ watch(() => props.show, (newVal) => {
     }
 })
 
-const modalTitle = computed(() => props.mode === 'add' ? t('agent.addTitle') : t('agent.editTitle'))
-const submitLabel = computed(() => props.mode === 'add' ? t('agent.form.random') : t('common.save'))
-
 const isFormValid = computed(() => {
-    return formData.value.id.trim() && formData.value.agentName.trim()
+    if (props.mode === 'add' && !formData.value.id.trim()) return false
+    return true
 })
 
-const handleSubmit = async () => {
-    if (!isFormValid.value) return
-
-    const agentId = formData.value.id.trim()
-
-    // Validate ID format (only for add mode)
-    if (props.mode === 'add') {
-        if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(agentId)) {
-            toast.error(t('agent.form.idError'))
-            return
-        }
-    }
-
-    // Get current agents list from configState
-    const currentList = ((configStore.configForm?.agents as any)?.list as any[]) || []
-
-    if (props.mode === 'add') {
-        // Check for duplicate ID
-        if (currentList.some((a: any) => a.id === agentId)) {
-            toast.error(t('agent.form.idExists'))
-            return
-        }
-
-        // Create new agent config
-        const newAgentConfig = {
-            id: agentId,
-            name: formData.value.agentName.trim(),
-            identity: {
-                name: formData.value.identityName.trim() || undefined,
-                theme: formData.value.identityTheme.trim() || undefined,
-                emoji: formData.value.identityEmoji
-            }
-        }
-
-        // Add to list
-        const updatedList = [...currentList, newAgentConfig]
-        configStore.updateConfigFormValue(['agents', 'list'], updatedList)
-    } else {
-        // Edit mode: update existing agent
-        const updatedList = currentList.map((a: any) => {
-            if (a.id === agentId) {
-                return {
-                    ...a,
-                    name: formData.value.agentName.trim(),
-                    identity: {
-                        ...a.identity,
-                        name: formData.value.identityName.trim() || undefined,
-                        theme: formData.value.identityTheme.trim() || undefined,
-                        emoji: formData.value.identityEmoji
-                    }
-                }
-            }
-            return a
-        })
-        configStore.updateConfigFormValue(['agents', 'list'], updatedList)
-    }
-
-    await configStore.saveConfig()
-    emit('saved', agentId)
-    emit('close')
-}
+const submitLabel = computed(() => {
+    return isBusy.value ? t('common.saving') : (props.mode === 'add' ? t('common.create') : t('common.save'))
+})
 
 const handleClose = () => {
     emit('close')
 }
+
+const submitForm = async () => {
+    if (!isFormValid.value) return
+    isBusy.value = true
+    try {
+        const identity = {
+            name: formData.value.identityName,
+            theme: formData.value.identityTheme,
+            emoji: formData.value.identityEmoji
+        }
+
+        if (props.mode === 'add') {
+            await agentsState.createAgent({
+                id: formData.value.id,
+                name: formData.value.agentName,
+                // Cast to any to pass extra fields if backend supports it
+                // @ts-ignore
+                identity: identity
+            })
+        } else {
+            await agentsState.updateAgent({
+                agentId: formData.value.id,
+                name: formData.value.agentName,
+                // @ts-ignore
+                identity: identity
+            })
+        }
+
+        emit('saved', formData.value.id)
+        emit('close')
+    } catch (e: any) {
+        toast.error(e.message || String(e))
+    } finally {
+        isBusy.value = false
+    }
+}
 </script>
 
 <template>
-    <dialog :class="{ 'modal modal-open': show, 'modal': !show }">
-        <div class="modal-box max-w-md">
-            <h3 class="font-bold text-lg mb-6">{{ modalTitle }}</h3>
+    <div :class="{ 'modal': true, 'modal-open': show }">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg mb-4">{{ mode === 'add' ? $t('agent.addTitle') : $t('agent.editTitle') }}</h3>
 
-            <div class="space-y-4">
-                <div class="form-control">
+            <div class="form-control w-full mb-4">
+                <label class="label">
+                    <span class="label-text">{{ $t('agent.id') }}</span>
+                </label>
+                <input v-model="formData.id" type="text" :placeholder="$t('agent.idPlaceholder')"
+                    class="input input-bordered w-full" :disabled="mode === 'edit'" />
+                <label class="label" v-if="mode === 'add'">
+                    <span class="label-text-alt opacity-70">{{ $t('agent.idHelp') }}</span>
+                </label>
+            </div>
+
+            <div class="form-control w-full mb-4">
+                <label class="label">
+                    <span class="label-text">{{ $t('agent.name') }}</span>
+                </label>
+                <input v-model="formData.agentName" type="text" :placeholder="$t('agent.namePlaceholder')"
+                    class="input input-bordered w-full" />
+            </div>
+
+            <div class="divider">{{ $t('agent.identity') }}</div>
+
+            <div class="form-control w-full mb-4">
+                <label class="label">
+                    <span class="label-text">{{ $t('agent.identityName') }}</span>
+                </label>
+                <input v-model="formData.identityName" type="text" :placeholder="$t('agent.identityNamePlaceholder')"
+                    class="input input-bordered w-full" />
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="form-control w-full">
                     <label class="label">
-                        <span class="label-text">{{ $t('agent.form.id') }} <span class="text-error">*</span></span>
-                    </label>
-                    <input v-model="formData.id" type="text" :placeholder="$t('agent.form.idPlaceholder')"
-                        class="input input-bordered w-full font-mono" :disabled="mode === 'edit'" />
-                </div>
-
-                <div class="form-control">
-                    <label class="label"><span class="label-text">{{ $t('agent.form.name') }} <span
-                                class="text-error">*</span></span></label>
-                    <input v-model="formData.agentName" type="text" :placeholder="$t('agent.form.namePlaceholder')"
-                        class="input input-bordered w-full" />
-                </div>
-
-                <div class="divider text-xs">{{ $t('agent.form.identitySection') }}</div>
-
-                <div class="form-control">
-                    <label class="label">
-                        <span class="label-text">{{ $t('agent.form.identityName') }}</span>
-                        <span class="label-text-alt text-base-content/50">{{ $t('common.optional') }}</span>
-                    </label>
-                    <input v-model="formData.identityName" type="text"
-                        :placeholder="$t('agent.form.identityNamePlaceholder')" class="input input-bordered w-full" />
-                </div>
-
-                <div class="form-control">
-                    <label class="label">
-                        <span class="label-text">{{ $t('agent.form.identityTheme') }}</span>
-                        <span class="label-text-alt text-base-content/50">{{ $t('common.optional') }}</span>
-                    </label>
-                    <input v-model="formData.identityTheme" type="text" :placeholder="$t('agent.form.themePlaceholder')"
-                        class="input input-bordered w-full" />
-                </div>
-
-                <div class="form-control">
-                    <label class="label">
-                        <span class="label-text">{{ $t('agent.form.emoji') }}</span>
+                        <span class="label-text">{{ $t('agent.emoji') }}</span>
                     </label>
                     <div class="join w-full">
                         <input v-model="formData.identityEmoji" type="text"
-                            class="input input-bordered join-item flex-1 text-2xl text-center" maxlength="2" />
-                        <button type="button" @click="randomizeEmoji" class="btn join-item">🎲 {{
-                            $t('agent.form.random') }}</button>
+                            class="input input-bordered w-full join-item text-center text-xl" />
+                        <button class="btn join-item" @click="randomizeEmoji" :title="$t('common.random')">
+                            <ArrowPathIcon class="w-4 h-4" />
+                        </button>
                     </div>
+                </div>
+                <div class="form-control w-full">
+                    <label class="label">
+                        <span class="label-text">{{ $t('agent.theme') }}</span>
+                    </label>
+                    <input v-model="formData.identityTheme" type="text" placeholder="e.g. dark"
+                        class="input input-bordered w-full" />
                 </div>
             </div>
 
             <div class="modal-action">
-                <button @click="handleClose" class="btn">{{ $t('common.cancel') }}</button>
-                <button @click="handleSubmit" class="btn btn-primary" :disabled="!isFormValid">{{ submitLabel
-                }}</button>
+                <button class="btn" @click="handleClose">{{ $t('common.cancel') }}</button>
+                <button class="btn btn-primary" @click="submitForm" :disabled="!isFormValid || isBusy">
+                    <span v-if="isBusy" class="loading loading-spinner"></span>
+                    {{ submitLabel }}
+                </button>
             </div>
         </div>
-        <form method="dialog" class="modal-backdrop">
-            <button @click="handleClose">close</button>
-        </form>
-    </dialog>
+        <div class="modal-backdrop" @click="handleClose">
+            <button class="cursor-default">close</button>
+        </div>
+    </div>
 </template>

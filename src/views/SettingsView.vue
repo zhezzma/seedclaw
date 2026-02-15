@@ -32,7 +32,7 @@ const configStore = useUiSettingsStore()
 const { confirm } = useConfirm()
 
 const editForm = ref({
-    gatewayUrl: '',
+    apiBaseUrl: '',
     token: '',
     sessionsActiveDays: 3,
     silenceDuration: 1500,
@@ -44,7 +44,7 @@ const editForm = ref({
     ttsEngine: 'qwen' as 'qwen' | 'edge',
     ttsToken: '',
     ttsModel: '',
-    homePageBehavior: 'last_active_session' as 'last_active_session' | 'new_session' | 'default_session',
+    homePageBehavior: 'new_session' as 'last_active_session' | 'new_session',
     // Gotify
     gotifyUrl: '',
     gotifyToken: ''
@@ -82,7 +82,7 @@ const saveGotify = () => {
 const openConnectionModal = () => {
     editForm.value = {
         ...editForm.value,
-        gatewayUrl: configStore.gatewayUrl,
+        apiBaseUrl: configStore.apiBaseUrl,
         token: configStore.token,
         sessionsActiveDays: configStore.sessionsActiveDays,
         silenceDuration: configStore.silenceDuration,
@@ -116,7 +116,7 @@ const openTtsModal = () => {
 
 const saveConnection = () => {
     configStore.save({
-        gatewayUrl: editForm.value.gatewayUrl,
+        apiBaseUrl: editForm.value.apiBaseUrl,
         token: editForm.value.token,
         sessionsActiveDays: Number(editForm.value.sessionsActiveDays),
         silenceDuration: Number(editForm.value.silenceDuration),
@@ -189,8 +189,8 @@ const logout = async () => {
                                     <div>
                                         <span class="font-medium">{{ $t('settings.basic') }}</span>
                                         <p class="text-xs text-base-content/50 truncate max-w-48">{{
-                                            configStore.gatewayUrl
-                                        }}</p>
+                                            configStore.apiBaseUrl
+                                            }}</p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
@@ -209,7 +209,7 @@ const logout = async () => {
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm text-base-content/60">{{ configStore.isDark ?
                                         $t('settings.dark') : $t('settings.light')
-                                        }}</span>
+                                    }}</span>
                                     <input type="checkbox" class="toggle toggle-primary" :checked="configStore.isDark"
                                         @change="configStore.toggleTheme()" />
                                 </div>
@@ -258,7 +258,7 @@ const logout = async () => {
                                         <span class="font-medium">{{ $t('settings.gotify') }}</span>
                                         <p class="text-xs text-base-content/50">{{ configStore.gotifyUrl ||
                                             $t('settings.notConfigured')
-                                            }}</p>
+                                        }}</p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
@@ -299,37 +299,13 @@ const logout = async () => {
                     </div>
                 </div>
 
-                <!-- OPEN CLAW Group -->
+
+
+                <!-- Help & Feedback -->
                 <div class="space-y-2">
-                    <h4 class="text-sm font-medium text-base-content/60 px-2 uppercase tracking-wide">OPEN CLAW</h4>
+                    <h4 class="text-sm font-medium text-base-content/60 px-2">{{ $t('settings.helpFeedback') }}</h4>
                     <div class="card bg-base-100 shadow-sm">
                         <ul class="divide-y divide-base-300">
-                            <!-- 配置管理 -->
-                            <li class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors"
-                                @click="router.push('/config')">
-                                <div class="flex items-center gap-3">
-                                    <DocumentTextIcon class="h-5 w-5 text-base-content/60" />
-                                    <div>
-                                        <span class="font-medium">{{ $t('settings.configManager') }}</span>
-                                        <p class="text-xs text-base-content/50">{{ $t('settings.configManagerDesc') }}
-                                        </p>
-                                    </div>
-                                </div>
-                                <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
-                            </li>
-                            <!-- 设备与节点 -->
-                            <li @click="navigateToDevices"
-                                class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors">
-                                <div class="flex items-center gap-3">
-                                    <ComputerDesktopIcon class="h-5 w-5 text-base-content/60" />
-                                    <div>
-                                        <span class="font-medium">{{ $t('settings.devicesNodes') }}</span>
-                                        <p class="text-xs text-base-content/50">{{ $t('settings.devicesNodesDesc') }}
-                                        </p>
-                                    </div>
-                                </div>
-                                <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
-                            </li>
                             <!-- 系统日志 -->
                             <li @click="navigateToLogs"
                                 class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors">
@@ -342,15 +318,7 @@ const logout = async () => {
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
                             </li>
-                        </ul>
-                    </div>
-                </div>
 
-                <!-- Help & Feedback -->
-                <div class="space-y-2">
-                    <h4 class="text-sm font-medium text-base-content/60 px-2">{{ $t('settings.helpFeedback') }}</h4>
-                    <div class="card bg-base-100 shadow-sm">
-                        <ul class="divide-y divide-base-300">
                             <li @click="openHelpDocs"
                                 class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors">
                                 <div class="flex items-center gap-3">
@@ -398,7 +366,7 @@ const logout = async () => {
                     <label class="label">
                         <span class="label-text">{{ $t('settings.gatewayUrl') }}</span>
                     </label>
-                    <input type="text" v-model="editForm.gatewayUrl" :placeholder="$t('settings.gatewayUrlPlaceholder')"
+                    <input type="text" v-model="editForm.apiBaseUrl" :placeholder="$t('settings.gatewayUrlPlaceholder')"
                         class="input input-bordered w-full" />
                 </div>
                 <div>
@@ -434,7 +402,6 @@ const logout = async () => {
                     </label>
                     <select v-model="editForm.homePageBehavior" class="select select-bordered w-full">
                         <option value="last_active_session">{{ $t('settings.loadLastSession') }}</option>
-                        <option value="default_session">{{ $t('settings.loadDefaultSession') }}</option>
                         <option value="new_session">{{ $t('settings.createNewSession') }}</option>
                     </select>
                 </div>

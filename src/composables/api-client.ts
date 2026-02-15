@@ -1,0 +1,152 @@
+/**
+ * SeedAgent HTTP API Client
+ * 
+ * Central HTTP fetch wrapper for all REST API calls.
+ * Reads apiBaseUrl and token from the settings store.
+ */
+import { useUiSettingsStore } from '../stores/setting'
+
+// ==================== Types ====================
+
+export interface ApiResponse<T = any> {
+    status: 'success' | 'error'
+    data?: T
+    message?: string
+    code?: number
+}
+
+export class ApiError extends Error {
+    code: number
+    constructor(message: string, code: number) {
+        super(message)
+        this.name = 'ApiError'
+        this.code = code
+    }
+}
+
+// ==================== Internal Helpers ====================
+
+function getBaseUrl(): string {
+    const settings = useUiSettingsStore()
+    const url = settings.apiBaseUrl?.trim()
+    if (!url) throw new ApiError('API base URL not configured', 0)
+    // Remove trailing slash
+    return url.replace(/\/+$/, '')
+}
+
+function getHeaders(contentType?: string): Record<string, string> {
+    const settings = useUiSettingsStore()
+    const headers: Record<string, string> = {}
+    if (settings.token?.trim()) {
+        headers['Authorization'] = `Bearer ${settings.token.trim()}`
+    }
+    if (contentType) {
+        headers['Content-Type'] = contentType
+    }
+    return headers
+}
+
+async function handleResponse<T>(response: Response): Promise<T> {
+    if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}`
+        try {
+            const body = await response.json()
+            if (body?.message) errorMessage = body.message
+        } catch {
+            // ignore parse errors
+        }
+        throw new ApiError(errorMessage, response.status)
+    }
+    const body = await response.json()
+    if (body.status === 'error' || body.ok === false) {
+        throw new ApiError(body.message || 'Unknown error', body.code || 500)
+    }
+    // Support both { data: ... } and { payload: ... } response formats
+    if (body.data !== undefined) return body.data
+    if (body.payload !== undefined) return body.payload
+    return body
+}
+
+// ==================== Public API ====================
+
+export async function apiGet<T = any>(path: string): Promise<T> {
+    const url = `${getBaseUrl()}${path}`
+    const response = await fetch(url, {
+        method: 'GET',
+        headers: getHeaders(),
+    })
+    return handleResponse<T>(response)
+}
+
+export async function apiPost<T = any>(path: string, body?: any): Promise<T> {
+    const url = `${getBaseUrl()}${path}`
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: getHeaders('application/json'),
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
+    return handleResponse<T>(response)
+}
+
+export async function apiPut<T = any>(path: string, body?: any): Promise<T> {
+    const url = `${getBaseUrl()}${path}`
+    const response = await fetch(url, {
+        method: 'PUT',
+        headers: getHeaders('application/json'),
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
+    return handleResponse<T>(response)
+}
+
+export async function apiPatch<T = any>(path: string, body?: any): Promise<T> {
+    const url = `${getBaseUrl()}${path}`
+    const response = await fetch(url, {
+        method: 'PATCH',
+        headers: getHeaders('application/json'),
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
+    return handleResponse<T>(response)
+}
+
+export async function apiDelete<T = any>(path: string): Promise<T> {
+    const url = `${getBaseUrl()}${path}`
+    const response = await fetch(url, {
+        method: 'DELETE',
+        headers: getHeaders(),
+    })
+    return handleResponse<T>(response)
+}
+
+/**
+ * Upload a file via multipart/form-data
+ */
+export async function apiUpload<T = any>(path: string, formData: FormData): Promise<T> {
+    const url = `${getBaseUrl()}${path}`
+    const settings = useUiSettingsStore()
+    const headers: Record<string, string> = {}
+    if (settings.token?.trim()) {
+        headers['Authorization'] = `Bearer ${settings.token.trim()}`
+    }
+    // Do NOT set Content-Type — browser sets it with boundary for multipart
+    const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: formData,
+    })
+    return handleResponse<T>(response)
+}
+
+/**
+ * Get the full URL for a path (useful for SSE connections, etc.)
+ */
+export function getApiUrl(path: string): string {
+    return `${getBaseUrl()}${path}`
+}
+
+/**
+ * Get auth token for use in SSE or other non-standard requests
+ */
+export function getAuthToken(): string {
+    const settings = useUiSettingsStore()
+    return settings.token?.trim() || ''
+}

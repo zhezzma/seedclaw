@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
-import { useGateway } from '../composables/useGateway'
+import { apiGet } from '../composables/api-client'
 import { useDevicesState } from '../composables/useDevicesState'
 import {
     ArrowRightIcon,
@@ -15,10 +15,10 @@ import {
 const router = useRouter()
 const { t } = useI18n()
 const configStore = useUiSettingsStore()
-const gatewayStore = useGateway()
+
 const devicesState = useDevicesState()
 
-const gatewayUrl = ref('ws://localhost:18789')
+const apiBaseUrl = ref('http://localhost:18789')
 const authToken = ref('')
 const isLoading = ref(false)
 const error = ref('')
@@ -35,16 +35,11 @@ const pairingState = ref<{
     requestId: ''
 })
 
-// Watch for successful connection to redirect
-watch(() => gatewayStore.connected, (connected) => {
-    if (connected) {
-        router.push('/')
-    }
-})
+
 
 const handleSubmit = async () => {
     // Validate
-    if (!gatewayUrl.value.trim()) {
+    if (!apiBaseUrl.value.trim()) {
         error.value = t('setup.enterGatewayUrl')
         return
     }
@@ -53,17 +48,14 @@ const handleSubmit = async () => {
         return
     }
 
-    // Validate URL format
-    if (!gatewayUrl.value.startsWith('ws://') && !gatewayUrl.value.startsWith('wss://')) {
+    // Validate URL format (HTTP API)
+    if (!apiBaseUrl.value.startsWith('http://') && !apiBaseUrl.value.startsWith('https://')) {
         error.value = t('setup.gatewayUrlFormatError')
         return
     }
 
-    // Security check: HTTPS requires WSS
-    if (window.location.protocol === 'https:' && !gatewayUrl.value.startsWith('wss://')) {
-        error.value = t('setup.httpsWssError')
-        return
-    }
+    // Security check: HTTPS should be used over secure connections
+    // (relaxed from previous WS-specific check)
 
     isLoading.value = true
     error.value = ''
@@ -72,31 +64,22 @@ const handleSubmit = async () => {
     try {
         // Save configuration first
         configStore.save({
-            gatewayUrl: gatewayUrl.value.trim(),
+            apiBaseUrl: apiBaseUrl.value.trim(),
             token: authToken.value.trim(),
             deviceName: deviceName.value.trim() || 'SeedClaw'
         })
 
-        // Attempt to connect to the gateway
-        await gatewayStore.connect()
+        // Test the connection with a health check
+        await apiGet('/api/agents')
 
         // Connection successful, redirect to home
         router.push('/')
     } catch (e: any) {
         // Handle pairing requirement
         if (e.code === 'NOT_PAIRED' || e.message?.includes('pairing required') || e.message?.includes('1008')) {
-            try {
-                const identity = await devicesState.loadOrCreateDeviceIdentity()
-                pairingState.value = {
-                    isPairing: true,
-                    deviceId: identity.deviceId,
-                    requestId: e.details?.requestId || t('setup.unknown')
-                }
-                // Don't show error, show pairing UI instead
-            } catch (err) {
-                console.error('Failed to load device identity:', err)
-                error.value = t('setup.deviceIdError')
-            }
+            // Pairing not supported in new API — show generic error
+            error.value = t('setup.connectionFailed')
+
         } else {
             // Connection failed, show error
             error.value = e instanceof Error ? e.message : t('setup.connectionFailed')
@@ -195,8 +178,8 @@ const handleSubmit = async () => {
                             </svg>
                             {{ $t('setup.gatewayUrl') }}
                         </legend>
-                        <input v-model="gatewayUrl" type="text" class="input w-full focus:input-primary transition-all"
-                            placeholder="ws://localhost:18789" />
+                        <input v-model="apiBaseUrl" type="text" class="input w-full focus:input-primary transition-all"
+                            placeholder="http://localhost:18789" />
                         <p class="label text-xs opacity-60">{{ $t('setup.gatewayUrlHint') }}</p>
                     </fieldset>
 

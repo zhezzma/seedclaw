@@ -14,11 +14,11 @@ import {
     Cog6ToothIcon as Cog6ToothIconSolid
 } from '@heroicons/vue/24/solid'
 import { BOTTOM_NAV_ITEMS } from '../config/navigation'
-import { useGateway } from '../composables/useGateway'
+
 import { useNavActive } from '../composables/useNavActive'
 
 const router = useRouter()
-const gatewayStore = useGateway()
+
 const { getActiveTab } = useNavActive()
 
 const tabs = BOTTOM_NAV_ITEMS
@@ -26,12 +26,7 @@ const tabs = BOTTOM_NAV_ITEMS
 const activeTab = getActiveTab
 
 const navigateTo = (tab: typeof tabs[0]) => {
-    if (tab.route === 'home') {
-        // Navigate to chat with default session key
-        router.push({ name: 'chat', params: { sessionkey: gatewayStore.defaultSessionKey } })
-    } else {
-        router.push({ name: tab.route, query: tab.query })
-    }
+    router.push({ name: tab.route, query: tab.query })
 }
 </script>
 

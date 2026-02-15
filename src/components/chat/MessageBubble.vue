@@ -8,7 +8,8 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ToolInvocation from './ToolInvocation.vue'
-import { useChatState } from '../../composables/useChatState'
+import { useChatState, extractAgentId } from '../../composables/useChatState'
+import { useAgentsState } from '../../composables/useAgentsState'
 import { useTTS } from '../../composables/useTTS'
 import type { DisplayMessage } from '../../composables/useChatMessages'
 
@@ -24,6 +25,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const chatState = useChatState()
+const agentsState = useAgentsState()
 const { currentReadingMsgId } = useTTS()
 
 // Helper functions
@@ -38,8 +40,16 @@ const isAvatarUrl = (avatar: string | null | undefined): boolean => {
     return avatar.startsWith('http') || avatar.startsWith('data:') || avatar.startsWith('/')
 }
 
-const assistantName = computed(() => chatState.assistantName || 'Assistant')
-const assistantAvatar = computed(() => isAvatarUrl(chatState.assistantAvatar) ? chatState.chatAvatarUrl : chatState.assistantAvatar)
+// Derive assistant info from agentsState
+const currentAgent = computed(() => {
+    const agentId = extractAgentId(chatState.sessionKey)
+    return agentsState.agentsList?.find((a: any) => a.id === agentId)
+})
+const assistantName = computed(() => currentAgent.value?.identity?.name || currentAgent.value?.name || 'Assistant')
+const assistantAvatar = computed(() => {
+    const avatar = currentAgent.value?.avatar
+    return isAvatarUrl(avatar) ? avatar : (currentAgent.value?.identity?.emoji || null)
+})
 
 // Parse user message blocks to extract file content and fix image data paths
 const userParsedBlocks = computed(() => {

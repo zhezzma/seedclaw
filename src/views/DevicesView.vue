@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { useGateway } from '../composables/useGateway'
+
 import { useUiSettingsStore } from '../stores/setting'
 import {
     ArrowPathIcon,
@@ -9,13 +9,30 @@ import {
     XCircleIcon,
 } from '@heroicons/vue/24/outline'
 import ViewHeader from '@/components/ViewHeader.vue'
-import { PairedDevice, PendingDevice } from '~openclaw/ui/src/ui/controllers/devices'
+// Local type definitions (previously from ~openclaw)
+interface PairedDevice {
+    deviceId: string
+    displayName?: string
+    remoteIp?: string
+    roles?: string[]
+    scopes?: string[]
+    tokens?: { role: string; scopes?: string[]; lastUsedAtMs?: number }[]
+}
+
+interface PendingDevice {
+    requestId: string
+    deviceId: string
+    displayName?: string
+    remoteIp?: string
+    role: string
+    ts?: number
+}
 import { useDevicesState } from '../composables/useDevicesState'
 import { useI18n } from 'vue-i18n'
 import NodesList from '../components/nodes/NodesList.vue'
 
 const router = useRouter()
-const store = useGateway()
+
 const devicesState = useDevicesState()
 const settingsStore = useUiSettingsStore()
 const { t } = useI18n()
@@ -25,25 +42,19 @@ const handleRefresh = () => {
 }
 
 const handleApprove = async (req: PendingDevice) => {
-    await devicesState.approveDevicePairing(req.requestId)
+    await devicesState.approvePairRequest(req.requestId)
 }
 
 const handleReject = async (req: PendingDevice) => {
-    await devicesState.rejectDevicePairing(req.requestId)
+    await devicesState.rejectPairRequest(req.requestId)
 }
 
 const handleRotate = async (device: PairedDevice, tokenRole: string) => {
-    await devicesState.rotateDeviceToken({
-        deviceId: device.deviceId,
-        role: tokenRole
-    })
+    await devicesState.rotateDeviceToken(device.deviceId)
 }
 
 const handleRevoke = async (device: PairedDevice, tokenRole: string) => {
-    await devicesState.revokeDeviceToken({
-        deviceId: device.deviceId,
-        role: tokenRole
-    })
+    await devicesState.revokeDevice(device.deviceId)
 }
 
 const getRelativeTime = (ts?: number) => {
@@ -62,12 +73,7 @@ onMounted(async () => {
     await devicesState.loadDevices()
 })
 
-// Watch connection
-watch(() => store.connected, async (connected) => {
-    if (connected) {
-        await devicesState.loadDevices()
-    }
-})
+
 
 </script>
 
@@ -116,7 +122,7 @@ watch(() => store.connected, async (connected) => {
                                             <div class="flex items-center gap-2">
                                                 <span class="font-bold text-lg">{{ req.displayName ||
                                                     $t('device.unknownDevice')
-                                                }}</span>
+                                                    }}</span>
                                                 <span class="text-xs text-base-content/40 font-mono hidden sm:inline">{{
                                                     req.remoteIp }}</span>
                                             </div>
@@ -161,7 +167,7 @@ watch(() => store.connected, async (connected) => {
                                             <div>
                                                 <div class="flex items-center gap-2 flex-wrap">
                                                     <span class="font-bold text-lg">{{ device.displayName || '未知设备'
-                                                    }}</span>
+                                                        }}</span>
                                                     <span v-for="r in device.roles" :key="r"
                                                         class="badge badge-sm badge-primary badge-outline">{{ r
                                                         }}</span>

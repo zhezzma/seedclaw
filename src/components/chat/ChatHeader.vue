@@ -14,9 +14,9 @@ import {
     ChevronLeftIcon // Import added
 } from '@heroicons/vue/24/outline'
 import { useUiSettingsStore } from '../../stores/setting'
-import { useGateway } from '../../composables/useGateway'
-import { useChatState } from '../../composables/useChatState'
-import { createAgentMainSessionKey, isAgentMainSession } from '../../utils/session-key-helpers'
+
+import { useChatState, extractAgentId } from '../../composables/useChatState'
+
 import { isNewSession, NEW_SESSION_ROUTE_NAME } from '../../utils/route-helpers'
 import { useSessionsState } from '~/src/composables/useSessionsState'
 
@@ -46,33 +46,34 @@ const handleBack = () => {
 }
 const sessionsState = useSessionsState()
 const settingsStore = useUiSettingsStore()
-const gatewayStore = useGateway()
+
 const chatState = useChatState()
 const dropdownRef = ref<HTMLDetailsElement | null>(null)
 
-const showAgentDropdown = computed(() => isAgentMainSession(chatState.sessionKey) || isNewSession(route))
+const currentAgentId = computed(() => extractAgentId(chatState.sessionKey))
+const showAgentDropdown = computed(() => chatState.sessionKey.endsWith(':main') || chatState.sessionKey.includes(':session:') || isNewSession(route))
 
 const selectedAgentId = computed(() => props.selectedAgent?.id || '')
 
 // Get current session name from sessions list
 const currentSessionName = computed(() => {
     const sessionKey = chatState.sessionKey
-    if (!sessionKey) return 'Chat Session'
+    if (!sessionKey) return ''
 
     const sessions = sessionsState.sessionsResult?.sessions || []
-    const session = sessions.find((s: any) => s.key === sessionKey)
-    return session?.displayName || session?.label || 'Chat Session'
+    const session = sessions.find((s: any) => s.id === sessionKey)
+    return session?.name || session?.id
 })
 
 
 const selectAgent = (agentId: string) => {
 
     if (isNewSession(route)) {
-        chatState.assistantAgentId = agentId
+        // Agent selection for new session is handled via the dropdown UI
     }
     else {
         // Navigate to agent's main session
-        router.push({ name: 'chat', params: { sessionkey: createAgentMainSessionKey(agentId) } })
+        router.push({ name: 'chat', params: { sessionkey: `agent:${agentId}:main` } })
     }
 
     if (dropdownRef.value) {
@@ -134,8 +135,8 @@ defineExpose({
             <!-- Session name (for specific sessions like agent:xxx:session:xxx) -->
             <div v-else class="lg:pl-5 font-semibold flex items-center gap-2 min-w-0">
                 <span class="truncate max-w-[200px] lg:max-w-none">{{ currentSessionName }}</span>
-                <span v-if="chatState.assistantAgentId" class="badge badge-sm badge-ghost shrink-0">{{
-                    chatState.assistantAgentId }}</span>
+                <span v-if="currentAgentId" class="badge badge-sm badge-ghost shrink-0">{{
+                    currentAgentId }}</span>
             </div>
         </div>
         <!-- Connection status indicator -->
@@ -144,9 +145,9 @@ defineExpose({
 
 
                 <div class="flex items-center gap-1">
-                    <div class="w-2 h-2 rounded-full" :class="gatewayStore.connected ? 'bg-success' : 'bg-error'"></div>
+                    <div class="w-2 h-2 rounded-full bg-success"></div>
                     <span class="text-xs text-base-content/60 hidden sm:inline">
-                        {{ gatewayStore.connected ? $t('chat.connected') : $t('chat.disconnected') }}
+                        {{ $t('chat.connected') }}
                     </span>
                 </div>
             </div>

@@ -1,58 +1,116 @@
-import { reactive, watch } from 'vue'
+import { reactive } from 'vue'
 import { createStateProxy } from './utils/stateProxy'
-import { useGateway } from './useGateway'
-import type { SkillsState } from '../openclaw/ui/src/ui/controllers/skills'
-import {
-    loadSkills as _loadSkills,
-    saveSkillApiKey as _saveSkillApiKey,
-    updateSkillEdit as _updateSkillEdit,
-    updateSkillEnabled as _updateSkillEnabled,
-    installSkill as _installSkill
-} from '~openclaw/ui/src/ui/controllers/skills'
+import { apiGet, apiPost, apiPatch, apiDelete } from './api-client'
 
+// ==================== Types ====================
+export interface SkillEntry {
+    id: string
+    path?: string
+    name: string
+    description?: string
+    scope?: 'global' | 'agent'
+    enabled: boolean
+}
+
+export interface SkillsState {
+    connected: boolean
+    skillsLoading: boolean
+    skillsError: string | null
+    skillsReport: { skills: SkillEntry[] } | null
+    skillsBusyKey: string | null
+    skillMessages: Record<string, string>
+    skillEdits: Record<string, string>
+}
+
+// ==================== State ====================
 const state = reactive<SkillsState>({
-    client: null,
     connected: false,
     skillsLoading: false,
     skillsError: null,
     skillsReport: null,
     skillsBusyKey: null,
     skillMessages: {},
-    skillEdits: {}
+    skillEdits: {},
 })
 
 let initialized = false
 function ensureInit() {
     if (initialized) return
     initialized = true
-    const gatewayStore = useGateway()
-    watch(() => [gatewayStore.client, gatewayStore.connected], () => {
-        state.client = gatewayStore.client as any
-        state.connected = gatewayStore.connected
-    }, { immediate: true })
+    state.connected = true
 }
+
+// ==================== Export ====================
 
 export function useSkillsState() {
     ensureInit()
 
-    const loadSkills = async () => {
-        await _loadSkills(state as any)
+    const loadSkills = async (agentId?: string) => {
+        state.skillsLoading = true
+        state.skillsError = null
+        try {
+            const id = agentId || 'main'
+            const result = await apiGet<{ skills: SkillEntry[] }>(`/api/skills/${id}`)
+            state.skillsReport = result || { skills: [] }
+        } catch (err: any) {
+            state.skillsError = err?.message || String(err)
+        } finally {
+            state.skillsLoading = false
+        }
     }
 
-    const saveSkillApiKey = async (skillKey: string) => {
-        await _saveSkillApiKey(state as any, skillKey)
+    const updateSkillEnabled = async (agentId: string, skillId: string, enabled: boolean) => {
+        state.skillsBusyKey = skillId
+        try {
+            await apiPost(`/api/skills/${agentId}/${skillId}`, { enabled })
+            // Update local state
+            if (state.skillsReport?.skills) {
+                const skill = state.skillsReport.skills.find(s => s.id === skillId)
+                if (skill) skill.enabled = enabled
+            }
+        } catch (err: any) {
+            state.skillsError = err?.message || String(err)
+        } finally {
+            state.skillsBusyKey = null
+        }
     }
 
-    const updateSkillEdit = async (skillKey: string, value: string) => {
-        _updateSkillEdit(state as any, skillKey, value)
+    const saveSkillApiKey = async (agentId: string, skillId: string, settings?: Record<string, any>) => {
+        state.skillsBusyKey = skillId
+        try {
+            const settingsPayload = settings || {}
+            // Check if there's a pending edit value
+            if (state.skillEdits[skillId]) {
+                settingsPayload['API_KEY'] = state.skillEdits[skillId]
+            }
+            await apiPatch(`/api/skills/${agentId}/${skillId}`, { settings: settingsPayload })
+            // Clear edit
+            delete state.skillEdits[skillId]
+            state.skillMessages[skillId] = 'Settings saved'
+        } catch (err: any) {
+            state.skillsError = err?.message || String(err)
+        } finally {
+            state.skillsBusyKey = null
+        }
     }
 
-    const updateSkillEnabled = async (skillId: string, enabled: boolean) => {
-        await _updateSkillEnabled(state as any, skillId, enabled)
+    const updateSkillEdit = (skillKey: string, value: string) => {
+        state.skillEdits[skillKey] = value
     }
 
-    const installSkill = async (option: any) => {
-        await _installSkill(state as any, option.skillKey, option.skillName, option.optionId)
+    const deleteSkill = async (agentId: string, skillId: string) => {
+        state.skillsBusyKey = skillId
+        try {
+            await apiDelete(`/api/skills/${agentId}/${skillId}`)
+            // Remove from local state
+            if (state.skillsReport?.skills) {
+                state.skillsReport.skills = state.skillsReport.skills.filter(s => s.id !== skillId)
+            }
+        } catch (err: any) {
+            state.skillsError = err?.message || String(err)
+        } finally {
+            state.skillsBusyKey = null
+        }
     }
 
     const methods = {
@@ -60,9 +118,8 @@ export function useSkillsState() {
         saveSkillApiKey,
         updateSkillEdit,
         updateSkillEnabled,
-        installSkill
+        deleteSkill,
     }
 
     return createStateProxy(state, methods)
-
 }

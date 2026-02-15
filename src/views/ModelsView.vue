@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeftIcon } from '@heroicons/vue/24/outline'
 import ViewHeader from '@/components/ViewHeader.vue'
-import { useGateway } from '../composables/useGateway'
-import { useConfigState } from '../composables/useConfigState'
+
+import { useModelsState } from '../composables/useModelsState'
 import { useUiSettingsStore } from '@/stores/setting'
 
 // Components
@@ -14,8 +13,8 @@ import { useI18n } from 'vue-i18n'
 
 const router = useRouter()
 const route = useRoute()
-const store = useGateway()
-const configState = useConfigState()
+
+const { providers } = useModelsState()
 const configStore = useUiSettingsStore()
 const { t } = useI18n()
 
@@ -28,11 +27,9 @@ const selectedProviderName = computed(() => {
     return selectedProviderId.value || 'Provider'
 })
 
-// Get providers from configForm
-const providers = computed(() => {
-    const providersObj = (configState.configForm?.models as any)?.providers as Record<string, any> | undefined
-    if (!providersObj) return []
-    return Object.keys(providersObj)
+// Get provider IDs from computed providers
+const providerIds = computed(() => {
+    return providers.value.map(p => p.id)
 })
 
 const selectProvider = (providerId: string) => {
@@ -46,7 +43,7 @@ const clearSelection = () => {
 }
 
 // Default selection logic for Desktop
-watch(() => [providers.value, route.query.providerId], ([providerList, currentId]) => {
+watch(() => [providerIds.value, route.query.providerId], ([providerList, currentId]) => {
     const isDesktop = window.matchMedia('(min-width: 1024px)').matches
     if (isDesktop && !currentId && providerList && (providerList as string[]).length > 0) {
         const firstId = (providerList as string[])[0]
@@ -87,4 +84,3 @@ watch(() => [providers.value, route.query.providerId], ([providerList, currentId
         </div>
     </div>
 </template>
-```

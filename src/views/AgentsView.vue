@@ -1,23 +1,23 @@
 <script setup lang="ts">
-import { computed, onMounted, watch, reactive } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useGateway } from '../composables/useGateway'
 import { useAgentsState } from '../composables/useAgentsState'
-import { useConfigState } from '../composables/useConfigState'
 import { useUiSettingsStore } from '@/stores/setting'
+import { useI18n } from 'vue-i18n'
 import ViewHeader from '@/components/ViewHeader.vue'
 
 // Components
 import AgentSidebar from '../components/agents/AgentSidebar.vue'
 import AgentDetail from '../components/agents/AgentDetail.vue'
+import AgentFormModal from '../components/agents/AgentFormModal.vue'
 
 const router = useRouter()
 const route = useRoute()
-const gatewayStore = useGateway()
-
 const agentsState = useAgentsState()
-const configState = useConfigState()
 const settingsStore = useUiSettingsStore()
+const { t } = useI18n()
+
+const showAddModal = ref(false)
 
 // Selected Agent from Query Params - this is the source of truth for navigation state
 const selectedAgentId = computed(() => {
@@ -26,8 +26,8 @@ const selectedAgentId = computed(() => {
 
 const selectedAgentName = computed(() => {
     if (!selectedAgentId.value) return ''
-    const list = agentsState.agentsList?.agents || []
-    const agent = list.find((a: any) => (a.id || a.name) === selectedAgentId.value)
+    const list = agentsState.agentsList || []
+    const agent = list.find((a: any) => a.id === selectedAgentId.value)
     return agent?.identity?.name || agent?.name || agent?.id || 'Agent'
 })
 
@@ -43,19 +43,20 @@ const clearSelection = () => {
     router.replace({ query })
 }
 
-
+const handleAgentCreated = async (newAgentId: string) => {
+    await agentsState.loadAgents()
+    selectAgent(newAgentId)
+    showAddModal.value = false
+}
 
 // Default selection logic for Desktop
 // If no agent selected and we have agents, select the first one on large screens
 watch(() => [agentsState.agentsList, route.query.agentId], ([agentsList, currentId]) => {
-    // strict check for desktop using matchMedia to match Tailwind 'lg' breakpoint
     const isDesktop = window.matchMedia('(min-width: 1024px)').matches
+    const agents = agentsList as any[]
 
-    const agents = (agentsList as any)?.agents // Extract agents array
-
-    if (isDesktop && !currentId && agents && (agents as any[]).length > 0) {
-        // Only redirect if we are strictly on desktop and have no selection
-        const firstId = (agents as any[])[0].id || (agents as any[])[0].name
+    if (isDesktop && !currentId && agents && agents.length > 0) {
+        const firstId = agents[0].id
         router.replace({ query: { ...route.query, agentId: firstId } })
     }
 }, { immediate: true })
@@ -77,8 +78,8 @@ watch(() => [agentsState.agentsList, route.query.agentId], ([agentsList, current
         <div class="h-full bg-base-100 border-r border-base-200 flex flex-col shrink-0" :class="[
             selectedAgentId ? 'hidden lg:flex lg:w-80' : 'w-full lg:w-80 flex'
         ]">
-            <AgentSidebar :selected-id="selectedAgentId" :agents-list="agentsState.agentsList"
-                :config-state="configState" @select="selectAgent" />
+            <AgentSidebar :agents="agentsState.agentsList || []" :selectedId="selectedAgentId ?? null"
+                @select="selectAgent" @add="showAddModal = true" />
         </div>
 
         <!-- Detail Container -->
@@ -89,27 +90,30 @@ watch(() => [agentsState.agentsList, route.query.agentId], ([agentsList, current
             Desktop (lg):
                 - Always Visible (flex-1)
         -->
-        <div class="h-full bg-base-50 flex flex-col min-w-0" :class="[
+        <div class="h-full flex flex-col min-w-0" :class="[
             selectedAgentId ? 'w-full flex lg:flex-1' : 'hidden lg:flex lg:flex-1'
         ]">
 
             <!-- Mobile Back Button Header (Only on Mobile + Selected) -->
             <div class="lg:hidden shrink-0">
-                <ViewHeader :title="selectedAgentName"></ViewHeader>
+                <ViewHeader :title="selectedAgentName" @click="clearSelection"></ViewHeader>
             </div>
 
-            <AgentDetail v-if="selectedAgentId" :agent-id="selectedAgentId" :agents-list="agentsState.agentsList"
-                :config-state="configState" :default-agent-id="gatewayStore.defaultAgentId"
+            <AgentDetail v-if="selectedAgentId" :agent-id="selectedAgentId" @back="clearSelection"
                 class="flex-1 overflow-hidden" />
 
             <!-- Empty State for Desktop (if no selection) -->
             <div v-else class="hidden lg:flex flex-1 items-center justify-center text-base-content/40">
                 <div class="text-center">
-                    <div class="text-6xl mb-4">👈</div>
-                    <p>Select an agent to view details</p>
+                    <div class="text-6xl mb-4">🤖</div>
+                    <h3 class="text-xl font-bold mb-2">{{ $t('agent.noAgentSelected') }}</h3>
+                    <p>{{ $t('agent.selectAgentPrompt') }}</p>
                 </div>
             </div>
         </div>
+
+        <!-- Add Modal -->
+        <AgentFormModal :show="showAddModal" mode="add" @close="showAddModal = false" @saved="handleAgentCreated" />
     </div>
 </template>
 

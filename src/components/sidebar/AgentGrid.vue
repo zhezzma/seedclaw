@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { isAgentMainSession } from '~/src/utils/session-key-helpers';
+
 
 
 
@@ -39,7 +39,7 @@ const selectAgent = (id: string) => {
             <div class="grid grid-cols-2 gap-1">
                 <a v-for="agent in visibleAgents" :key="agent.id" @click="selectAgent(agent.id)"
                     class="flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer transition-colors"
-                    :class="activeAgentId === agent.id && currentSessionKey && isAgentMainSession(currentSessionKey) ? 'bg-primary/20 text-primary' : 'hover:bg-base-300'">
+                    :class="activeAgentId === agent.id && currentSessionKey && (currentSessionKey.endsWith(':main') || currentSessionKey.includes(':session:')) ? 'bg-primary/20 text-primary' : 'hover:bg-base-300'">
                     <div
                         class="w-5 h-5 rounded-full flex items-center justify-center bg-base-100/50 overflow-hidden shrink-0">
                         <img v-if="agent.avatarUrl" :src="agent.avatarUrl" :alt="agent.name"

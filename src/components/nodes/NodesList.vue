@@ -13,8 +13,8 @@ const { t } = useI18n()
 
 // 计算已配对的节点（node.list 返回的对象中 paired 为 true 的）
 const pairedNodes = computed(() => {
-    if (!Array.isArray(nodesState.nodes)) return []
-    return nodesState.nodes.filter((n: any) => n.paired) || []
+    if (!Array.isArray(nodesState.nodesList)) return []
+    return nodesState.nodesList.filter((n: any) => n.paired) || []
 })
 
 // 计算待配对的节点。
@@ -22,9 +22,9 @@ const pairedNodes = computed(() => {
 // 真正的“待审批”通常还在 node.pair.list 中，或者 node.list 也会包含未配对但连接中的？
 // 这里为了兼容性，我们将逻辑对齐 node.list 的结果集
 const pendingNodes = computed(() => {
-    if (!Array.isArray(nodesState.nodes)) return []
+    if (!Array.isArray(nodesState.nodesList)) return []
     // 如果 node.list 有 pending 状态字段，根据实际 API 调整
-    return nodesState.nodes.filter((n: any) => n.status === 'pending') || []
+    return nodesState.nodesList.filter((n: any) => n.status === 'pending') || []
 })
 
 const handleRefresh = async () => {
@@ -51,9 +51,9 @@ onMounted(async () => {
 <template>
     <div class="space-y-6">
         <!-- Error State -->
-        <div v-if="nodesState.nodesError || nodesState.lastError" class="alert alert-error shadow-sm">
+        <div v-if="nodesState.nodesError" class="alert alert-error shadow-sm">
             <XCircleIcon class="w-6 h-6" />
-            <span>{{ nodesState.nodesError || nodesState.lastError }}</span>
+            <span>{{ nodesState.nodesError }}</span>
         </div>
 
         <!-- Section Header with Refresh -->
@@ -92,11 +92,11 @@ onMounted(async () => {
             <h4 class="text-sm font-bold text-base-content/40 uppercase tracking-wider px-1">{{ $t('nodes.listTitle') }}
             </h4>
 
-            <div v-if="nodesState.nodesLoading && nodesState.nodes.length === 0" class="flex justify-center py-10">
+            <div v-if="nodesState.nodesLoading && nodesState.nodesList.length === 0" class="flex justify-center py-10">
                 <span class="loading loading-dots loading-lg text-primary"></span>
             </div>
 
-            <div v-else-if="!nodesState.nodes || nodesState.nodes.length === 0"
+            <div v-else-if="!nodesState.nodesList || nodesState.nodesList.length === 0"
                 class="text-center py-8 opacity-30 bg-base-100 rounded-xl border-2 border-dashed border-base-300">
                 <ServerIcon class="w-12 h-12 mx-auto mb-2" />
                 <p>{{ $t('nodes.noData') }}</p>
@@ -104,7 +104,7 @@ onMounted(async () => {
             </div>
 
             <div v-else class="space-y-3">
-                <div v-for="node in nodesState.nodes" :key="node.nodeId"
+                <div v-for="node in nodesState.nodesList" :key="node.nodeId"
                     class="card bg-base-100 shadow-sm hover:shadow-md transition-shadow">
                     <div class="card-body p-4 sm:p-5">
                         <div class="flex flex-col sm:flex-row justify-between gap-4">

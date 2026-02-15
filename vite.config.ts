@@ -14,8 +14,7 @@ export default defineConfig(async () => ({
   resolve: {
     alias: {
       '~': path.resolve(__dirname, './'),
-      '@': path.resolve(__dirname, './src'),
-      '~openclaw': path.resolve(__dirname, './src/openclaw'), //还要再tsconfig.json中配置
+      '@': path.resolve(__dirname, './src')
     },
   },
 

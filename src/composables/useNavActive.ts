@@ -1,8 +1,8 @@
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { isAgentMainSession } from '../utils/session-key-helpers'
-import { useGateway } from './useGateway'
+
 import { useChatState } from './useChatState'
+import { NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
 
 export interface NavItem {
     route: string
@@ -12,14 +12,19 @@ export interface NavItem {
     activeIcon?: any
 }
 
+
+
 export function useNavActive() {
     const router = useRouter()
     const route = useRoute()
-    const gatewayStore = useGateway()
     const chatState = useChatState()
 
     const isHomeActive = computed(() => {
         const currentRoute = router.currentRoute.value
+        // Exclude new session route
+        if (currentRoute.name == NEW_SESSION_ROUTE_NAME) {
+            return true
+        }
 
         // Check if current route is home/chat
         if (currentRoute.name !== 'home' && currentRoute.name !== 'chat') {
@@ -30,11 +35,10 @@ export function useNavActive() {
         if (currentRoute.query.type) {
             return false
         }
-
         // Check if current session is an agent main session
         const currentKey = chatState.sessionKey
         // Also include empty session key (default home) or specific main sessions
-        return !currentKey || isAgentMainSession(currentKey) || currentKey === gatewayStore.defaultSessionKey
+        return !currentKey
     })
 
     const isItemActive = (item: NavItem) => {
@@ -70,17 +74,16 @@ export function useNavActive() {
         const currentName = route.name as string
 
         // Check if we effectively are on 'home' (which includes 'chat' with main session)
-        if (currentName === 'home' || currentName === 'chat') {
+        if (currentName === 'home' || currentName === 'chat' || currentName === NEW_SESSION_ROUTE_NAME) {
             // Special case for special modes (type query param)
             if (route.query.type) {
                 return 'chat' // This matches the route name for special items like Messages
             }
 
             const currentKey = route.params.sessionkey as string
-            const defaultKey = gatewayStore.defaultSessionKey
 
             // If no key, or key is main agent session, or key is default session -> it's Home
-            if (!currentKey || isAgentMainSession(currentKey) || currentKey === defaultKey) {
+            if (!currentKey) {
                 return 'home'
             }
         }

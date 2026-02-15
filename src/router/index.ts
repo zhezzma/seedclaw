@@ -15,7 +15,7 @@ import SkillsView from '../views/SkillsView.vue'
 import CronView from '../views/CronView.vue'
 import LogView from '../views/LogView.vue'
 import DevicesView from '../views/DevicesView.vue'
-import OpenClawTest from '../views/OpenClawTest.vue'
+
 
 const router = createRouter({
     history: createWebHistory(),
@@ -24,11 +24,6 @@ const router = createRouter({
             path: '/setup',
             name: 'setup',
             component: SetupView
-        },
-        {
-            path: '/openclaw',
-            name: 'openclaw',
-            component: OpenClawTest
         },
         {
             path: '/',

@@ -1,5 +1,6 @@
 import { ASREngine } from './types';
-import { generateUUID } from '~openclaw/ui/src/ui/uuid';
+// UUID generation — replaced ~openclaw import with native API
+const generateUUID = () => crypto.randomUUID();
 import { useUiSettingsStore } from '../../stores/setting';
 import { useToast } from '../../composables/useToast';
 import WebSocket from '@tauri-apps/plugin-websocket';

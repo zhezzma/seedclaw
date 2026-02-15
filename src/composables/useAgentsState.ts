@@ -1,111 +1,150 @@
-import { reactive, watch } from 'vue'
+import { reactive } from 'vue'
 import { createStateProxy } from './utils/stateProxy'
-import { useGateway } from './useGateway'
-import type { AgentsState } from '../openclaw/ui/src/ui/controllers/agents'
-import { loadAgents as _loadAgents } from '~openclaw/ui/src/ui/controllers/agents'
-import {
-    loadAgentFiles as _loadAgentFiles,
-    loadAgentFileContent as _loadAgentFileContent,
-    saveAgentFile as _saveAgentFile,
-    type AgentFilesState
-} from '~openclaw/ui/src/ui/controllers/agent-files'
-import { handleAgentEvent } from '~openclaw/ui/src/ui/app-tool-stream'
+import { apiGet, apiPost, apiPatch, apiDelete, apiPut, apiUpload } from './api-client'
 
-// Combined State Interface?
-// The controller actions expect specific state shapes.
-// loadAgents expects AgentsState.
-// loadAgentFiles expects AgentFilesState.
-// We can merge them into one reactive object IF we are careful, or maintain separate reactive states inside?
-// Existing useAgentsState only had AgentsState.
-// But useGateway had both.
-// If I merge them into `useAgentsState`, I need to expose both capabilities.
+// ==================== Types ====================
+export interface AgentInfo {
+    id: string
+    name?: string
+    description?: string
+    agentDir?: string
+    workspaceDir?: string
+    avatar?: string
+    defaultProvider?: string
+    defaultModel?: string
+    steeringMode?: string
+    followUpMode?: string
+    compaction?: boolean
+    branchSummary?: boolean
+    retry?: number
+    hideThinkingBlock?: boolean
+    sessionId?: string
+    createdAt?: string
+    lastActiveAt?: string
+    identity?: {
+        name?: string
+        emoji?: string
+    }
+}
 
-// Define combined state
-const state = reactive<AgentsState & AgentFilesState>({
-    // AgentsState
-    client: null,
-    connected: false,
-    agentsLoading: false,
-    agentsError: null,
+export interface AgentFileInfo {
+    name: string
+    path: string
+    missing: boolean
+    size?: number
+    updatedAtMs?: number
+    content?: string
+}
+
+export interface AgentsState {
+    agentsSelectedId: string
+    agentsList: AgentInfo[],
+    // Agent files state
+    agentFilesList: AgentFileInfo[] | null
+    agentFileContents: Record<string, string>
+    agentFileDrafts: Record<string, string>
+    agentFileActive: string | null
+}
+
+// ==================== State ====================
+const state = reactive<AgentsState>({
     agentsSelectedId: '',
-    agentsList: {
-        agents: [],
-        defaultId: 'main',
-        mainKey: '',
-        scope: 'global'
-    },
-    // AgentFilesState
-    agentFilesLoading: false,
-    agentFilesError: null,
-    agentFilesList: null,
+    agentsList: [],
 
+    agentFilesList: null,
     agentFileContents: {},
     agentFileDrafts: {},
     agentFileActive: null,
-    agentFileSaving: false
 })
 
-let initialized = false
-function ensureInit() {
-    if (initialized) return
-    initialized = true
-    const gatewayStore = useGateway()
-    watch(() => [gatewayStore.client, gatewayStore.connected], ([client, connected]) => {
-        state.client = client as any
-        state.connected = connected as boolean
-        if (connected) {
-            void _loadAgents(state as any)
-        }
-    }, { immediate: true })
+const AGENT_FILES = ['AGENTS', 'IDENTITY', 'SYSTEM', 'TOOLS', 'BOOTSTRAP', 'USER', 'MEMORY']
 
-    gatewayStore.subscribe((evt) => {
-        if (evt.event === 'agent') {
-            handleAgentEvent(state as any, evt.payload as any)
-        }
-    })
-}
+// ==================== Export ====================
 
 export function useAgentsState() {
-    ensureInit()
-
     const loadAgents = async () => {
-        await _loadAgents(state as any)
+        const agents = await apiGet<AgentInfo[]>('/api/agents')
+        state.agentsList = agents || []
+    }
+
+    const initAgents = async () => {
+        await loadAgents()
+        // Auto-select first agent if none selected
+        if (!state.agentsSelectedId && state.agentsList.length > 0) {
+            state.agentsSelectedId = state.agentsList[0].id
+        }
     }
 
     const loadAgentFiles = async (agentId: string) => {
-        await _loadAgentFiles(state as any, agentId)
+
+        try {
+            const files: AgentFileInfo[] = []
+            for (const fileName of AGENT_FILES) {
+                try {
+                    const result = await apiGet<{ file: AgentFileInfo }>(`/api/agents/${agentId}/${fileName}`)
+                    if (result?.file) {
+                        files.push(result.file)
+                    }
+                } catch {
+                    files.push({ name: `${fileName}.md`, path: '', missing: true })
+                }
+            }
+            state.agentFilesList = files
+        } catch (err: any) {
+            console.error(err?.message || String(err))
+        }
     }
 
     const loadAgentFileContent = async (agentId: string, name: string, opts?: { force?: boolean; preserveDraft?: boolean }) => {
-        await _loadAgentFileContent(state as any, agentId, name, opts)
+        const key = `${agentId}:${name}`
+        if (!opts?.force && state.agentFileContents[key]) return
+        try {
+            const result = await apiGet<{ file: AgentFileInfo }>(`/api/agents/${agentId}/${name}`)
+            if (result?.file?.content !== undefined) {
+                state.agentFileContents[key] = result.file.content
+                if (!opts?.preserveDraft) {
+                    state.agentFileDrafts[key] = result.file.content
+                }
+            }
+        } catch (err: any) {
+            console.error(`Failed to load file ${name} for agent ${agentId}:`, err)
+        }
     }
 
     const saveAgentFile = async (agentId: string, name: string, content: string) => {
-        await _saveAgentFile(state as any, agentId, name, content)
+
+        try {
+            await apiPut(`/api/agents/${agentId}/${name}`, { content })
+            const key = `${agentId}:${name}`
+            state.agentFileContents[key] = content
+            state.agentFileDrafts[key] = content
+        } catch (err: any) {
+            throw err
+        }
     }
 
-    const createAgent = async (params: { name: string; workspace?: string; emoji?: string; avatar?: string }) => {
-        if (!state.client) throw new Error('Client not connected')
-        const res = await state.client.request('agents.create', params)
+    const createAgent = async (params: { id: string; name?: string; description?: string; defaultModel?: string; defaultProvider?: string; avatar?: string }) => {
+        const res = await apiPost('/api/agents', params)
         await loadAgents()
         return res
     }
 
-    const updateAgent = async (params: { agentId: string; name?: string; workspace?: string; model?: string; avatar?: string }) => {
-        if (!state.client) throw new Error('Client not connected')
-        const res = await state.client.request('agents.update', params)
+    const updateAgent = async (params: { agentId: string; name?: string; description?: string; defaultModel?: string; avatar?: string }) => {
+        const { agentId, ...body } = params
+        const res = await apiPatch(`/api/agents/${agentId}`, body)
         await loadAgents()
         return res
     }
 
     const deleteAgent = async (params: { agentId: string; deleteFiles?: boolean }) => {
-        if (!state.client) throw new Error('Client not connected')
-        const res = await state.client.request('agents.delete', params)
+        const query = params.deleteFiles ? '?deleteFiles=true' : ''
+        const res = await apiDelete(`/api/agents/${params.agentId}${query}`)
         await loadAgents()
         return res
     }
 
     const methods = {
+        initAgents,
         loadAgents,
         loadAgentFiles,
         loadAgentFileContent,
@@ -113,10 +152,7 @@ export function useAgentsState() {
         createAgent,
         updateAgent,
         deleteAgent,
-        handleAgentEvent: (payload: any) => handleAgentEvent(state as any, payload)
     }
 
     return createStateProxy(state, methods)
-
-
 }

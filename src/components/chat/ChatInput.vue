@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { parseAgentSessionKey } from '~openclaw/src/sessions/session-key-utils'
 
 import {
     CameraIcon,
@@ -17,10 +16,10 @@ import {
     XMarkIcon
 } from '@heroicons/vue/24/outline'
 import { useChatInput, COMMANDS } from '../../composables/useChatInput'
-import { useModels } from '../../composables/useModels'
+import { useModelsState } from '../../composables/useModelsState'
 import { useChatState } from '../../composables/useChatState'
-import { useConfigState } from '../../composables/useConfigState'
 import { useSessionsState } from '../../composables/useSessionsState'
+import { useAgentsState } from '../../composables/useAgentsState'
 import { useUiSettingsStore } from '../../stores/setting'
 import { computed } from 'vue'
 import { useToast } from '~/src/composables/useToast'
@@ -31,10 +30,10 @@ const props = defineProps<{
 }>()
 
 const chatState = useChatState()
-const configState = useConfigState()
 const sessionsState = useSessionsState()
+const agentsState = useAgentsState()
 const settingsStore = useUiSettingsStore()
-const { availableModels } = useModels()
+const { availableModels, models } = useModelsState()
 const { t } = useI18n()
 const isBusy = computed(() => chatState.chatSending || Boolean(chatState.chatRunId))
 const emit = defineEmits<{
@@ -68,35 +67,30 @@ const thinkingDropdownOpen = ref(false)
 
 const currentModel = ref("")
 
-watch(() => [chatState.sessionKey, sessionsState.sessionsResult, configState.configForm], () => {
-    const session = sessionsState.sessionsResult?.sessions?.find((s: any) => s.key === chatState.sessionKey)
-    if (session && session.modelProvider && session.model) {
-        currentModel.value = `${session.modelProvider}/${session.model}`
-        return
-    }
+watch(() => [chatState.sessionKey, sessionsState.sessionsResult, agentsState.agentsList, agentsState.agentsSelectedId], () => {
 
-    if (!chatState.sessionKey) return
-
-    const parsed = parseAgentSessionKey(chatState.sessionKey)
-    if (parsed) {
-        const list = (configState.configForm?.agents as any)?.list as any[]
-        const agent = list?.find((a: any) => a.id === parsed.agentId)
-        if (agent && agent.model?.primary) {
-            currentModel.value = agent.model.primary
+    //新session
+    if (chatState.sessionKey && chatState.sessionKey != '') {
+        const session = sessionsState.sessionsResult?.sessions?.find((s: any) => s.key === chatState.sessionKey)
+        if (session && session.modelProvider && session.model) {
+            currentModel.value = `${session.modelProvider}/${session.model}`
             return
         }
     }
 
-    // Fallback to default if needed (preserving previous behavior logic partially)
-    const defaultModel = (configState.configForm?.agents as any)?.defaults?.model?.primary
-    if (defaultModel) {
-        currentModel.value = defaultModel
+    const agent = agentsState.agentsList?.find((a: any) => a.id === agentsState.agentsSelectedId)
+    if (agent) {
+        currentModel.value = `${agent.defaultProvider}/${agent.defaultModel}`
     }
 
 }, { immediate: true })
 
 
 watch(() => [chatState.sessionKey, sessionsState.sessionsResult], () => {
+
+    if (!chatState.sessionKey || chatState.sessionKey == "") {
+        return
+    }
     const session = sessionsState.sessionsResult?.sessions?.find((s: any) => s.key === chatState.sessionKey)
     if (session) {
         const val = session.reasoningLevel
@@ -104,8 +98,6 @@ watch(() => [chatState.sessionKey, sessionsState.sessionsResult], () => {
 
         const level = session.thinkingLevel || 'off'
         thinkingLevel.value = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].includes(level) ? level : 'off'
-
-
     }
 }, { immediate: true })
 
@@ -274,7 +266,7 @@ defineExpose({
                                 d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                         </svg>
                         <span class="text-[9px] w-full truncate text-center opacity-70 leading-tight mt-0.5">{{ att.name
-                        }}</span>
+                            }}</span>
                     </div>
 
                     <!-- Delete Button: Always visible on mobile (using forced opacity or just remove opacity class). 
@@ -429,7 +421,7 @@ defineExpose({
                     <button @click="onSend"
                         class="btn btn-circle btn-sm btn-primary shadow-md hover:shadow-lg transition-all hover:scale-105 active:scale-95"
                         :disabled="disabled || ((!inputText.trim() && attachments.length === 0) && !isBusy)">
-                        <StopIcon v-if="isBusy" class="h-5 w-5" />
+                        <StopIcon v-if="isBusy && !inputText.trim()" class="h-5 w-5" />
                         <PaperAirplaneIcon v-else class="h-5 w-5 -rotate-45 translate-x-0.5 translate-y-px" />
                     </button>
                 </div>

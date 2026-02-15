@@ -1,12 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { useGateway } from '../composables/useGateway'
 import { useUiSettingsStore } from '../stores/setting'
-import type { LogEntry, LogLevel } from '~openclaw/ui/src/ui/types'
-import { useLogsState } from '../composables/useLogsState'
+import { useLogsState, type LogEntry } from '../composables/useLogsState'
 import {
-    ArrowLeftIcon,
     ArrowPathIcon,
     MagnifyingGlassIcon,
     FunnelIcon,
@@ -21,13 +17,14 @@ import {
 import ViewHeader from '@/components/ViewHeader.vue'
 import { useI18n } from 'vue-i18n'
 
+type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'
 
-const store = useGateway()
 const logsState = useLogsState()
 const settingsStore = useUiSettingsStore()
 const { t } = useI18n()
 
-const searchQuery = ref('')
+// Filters
+const searchQuery = ref('') // Client-side search for current page only (or could be server-side if supported)
 const levelFilter = ref<LogLevel | 'all'>('all')
 const autoRefresh = ref(false)
 let refreshInterval: number | null = null
@@ -42,40 +39,48 @@ const levelOptions = computed(() => [
     { value: 'fatal', label: 'FATAL' },
 ])
 
+const loadLogsWithFilters = (resetPage = false) => {
+    const opts: any = {
+        level: levelFilter.value === 'all' ? undefined : levelFilter.value,
+        page: resetPage ? 1 : logsState.page
+    }
+    logsState.loadLogs(opts)
+}
 
 const handleRefresh = () => {
-    logsState.loadLogs({ reset: true })
+    loadLogsWithFilters(false)
 }
 
 const handleLoadMore = () => {
-    logsState.loadLogs({ quiet: true })
+    // Legacy: load more logic replaced by pagination
 }
 
-// Filter logs based on search and level
+// Watch filters
+watch(levelFilter, () => {
+    loadLogsWithFilters(true)
+})
+
+// Client-side search (filters CURRENT page entries)
+// Note: ideally should be server-side search query
 const filteredLogs = computed(() => {
-    let logs = logsState.logsEntries as LogEntry[]
+    let logs = logsState.logsEntries || []
 
-    // Apply level filter
-    if (levelFilter.value !== 'all') {
-        logs = logs.filter(log => log.level === levelFilter.value)
-    }
-
-    // Apply search filter
+    // Search filter
     if (searchQuery.value.trim()) {
         const query = searchQuery.value.toLowerCase()
         logs = logs.filter(log => {
             const message = log.message?.toLowerCase() || ''
-            const subsystem = log.subsystem?.toLowerCase() || ''
-            const raw = log.raw?.toLowerCase() || ''
-            return message.includes(query) || subsystem.includes(query) || raw.includes(query)
+            const raw = (log as any).raw?.toLowerCase() || ''
+            return message.includes(query) || raw.includes(query)
         })
     }
 
     return logs
 })
 
+
 // Get level badge style
-const getLevelBadgeClass = (level: LogLevel | null | undefined): string => {
+const getLevelBadgeClass = (level: LogLevel | string | null | undefined): string => {
     switch (level) {
         case 'trace':
             return 'badge-ghost text-base-content/50'
@@ -95,7 +100,7 @@ const getLevelBadgeClass = (level: LogLevel | null | undefined): string => {
 }
 
 // Get level icon
-const getLevelIcon = (level: LogLevel | null | undefined) => {
+const getLevelIcon = (level: LogLevel | string | null | undefined) => {
     switch (level) {
         case 'trace':
         case 'debug':
@@ -147,7 +152,12 @@ const formatDate = (time: string | null | undefined): string => {
 watch(autoRefresh, (enabled) => {
     if (enabled) {
         refreshInterval = window.setInterval(() => {
-            logsState.loadLogs({ quiet: true })
+            // Quiet refresh
+            const opts: any = {
+                level: levelFilter.value === 'all' ? undefined : levelFilter.value,
+                quiet: true
+            }
+            logsState.loadLogs(opts)
         }, 3000)
     } else if (refreshInterval) {
         window.clearInterval(refreshInterval)
@@ -156,14 +166,7 @@ watch(autoRefresh, (enabled) => {
 })
 
 onMounted(() => {
-    logsState.loadLogs({ reset: true })
-})
-
-// Watch connection
-watch(() => store.connected, async (connected) => {
-    if (connected) {
-        await logsState.loadLogs({ reset: true })
-    }
+    loadLogsWithFilters(true)
 })
 
 onUnmounted(() => {
@@ -174,122 +177,183 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="flex flex-col h-full bg-base-200">
+    <div class="flex flex-col h-full bg-base-200/50">
         <!-- Header -->
-        <!-- Header -->
-        <!-- Header -->
-        <ViewHeader :title="$t('log.title')">
+        <ViewHeader :title="$t('log.title')" class="bg-base-100 border-b border-base-200 shadow-sm z-10">
             <template #actions>
-                <!-- Auto-refresh toggle -->
-                <label class="swap btn btn-ghost btn-sm tooltip tooltip-bottom"
-                    :data-tip="autoRefresh ? $t('log.stopAutoRefresh') : $t('log.startAutoRefresh')">
-                    <input type="checkbox" v-model="autoRefresh" />
-                    <PlayIcon class="swap-off w-5 h-5" />
-                    <PauseIcon class="swap-on w-5 h-5 text-primary" />
-                </label>
-                <!-- Manual refresh -->
-                <button @click="handleRefresh" class="btn btn-ghost btn-sm btn-circle tooltip tooltip-bottom"
-                    :class="{ 'loading': logsState.logsLoading }" :disabled="logsState.logsLoading"
-                    :data-tip="$t('common.refresh')">
-                    <ArrowPathIcon v-if="!logsState.logsLoading" class="w-5 h-5" />
-                </button>
+                <div class="flex items-center gap-2">
+                    <!-- Auto-refresh toggle -->
+                    <div class="tooltip tooltip-bottom"
+                        :data-tip="autoRefresh ? $t('log.stopAutoRefresh') : $t('log.startAutoRefresh')">
+                        <label class="swap btn btn-ghost btn-sm btn-circle text-base-content/70 hover:bg-base-200">
+                            <input type="checkbox" v-model="autoRefresh" />
+                            <PlayIcon class="swap-off w-5 h-5" />
+                            <PauseIcon class="swap-on w-5 h-5 text-primary" />
+                        </label>
+                    </div>
+
+                    <!-- Manual refresh -->
+                    <div class="tooltip tooltip-bottom" :data-tip="$t('common.refresh')">
+                        <button @click="handleRefresh"
+                            class="btn btn-ghost btn-sm btn-circle text-base-content/70 hover:bg-base-200 transition-all duration-500"
+                            :class="{ 'rotate-180': logsState.logsLoading }" :disabled="logsState.logsLoading">
+                            <ArrowPathIcon class="w-5 h-5" />
+                        </button>
+                    </div>
+                </div>
             </template>
         </ViewHeader>
 
         <!-- Toolbar -->
-        <div class="shrink-0 bg-base-100 border-b border-base-300 p-3">
-            <div class="flex gap-3">
+        <div class="shrink-0 bg-base-100 border-b border-base-200 p-4 shadow-sm z-0">
+            <div class="flex flex-col sm:flex-row gap-3 items-center">
                 <!-- Search -->
-                <div class="flex-1 relative">
+                <div class="flex-1 w-full relative group">
                     <MagnifyingGlassIcon
-                        class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/40" />
+                        class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/40 group-focus-within:text-primary transition-colors" />
                     <input type="text" v-model="searchQuery" :placeholder="$t('log.searchPlaceholder')"
-                        class="input input-bordered input-sm w-full pl-9" />
+                        class="input input-bordered input-sm w-full pl-9 bg-base-200/50 focus:bg-base-100 focus:border-primary transition-all" />
                 </div>
-                <!-- Level filter -->
-                <div class="flex items-center gap-2">
-                    <FunnelIcon class="w-4 h-4 text-base-content/60" />
-                    <select v-model="levelFilter" class="select select-bordered select-sm">
-                        <option v-for="opt in levelOptions" :key="opt.value" :value="opt.value">
-                            {{ opt.label }}
-                        </option>
-                    </select>
+
+                <!-- Filters Group -->
+                <div class="flex items-center gap-3 w-full sm:w-auto">
+                    <!-- Level filter -->
+                    <div class="join w-full sm:w-auto">
+                        <div
+                            class="join-item flex items-center bg-base-200/50 px-3 border border-base-300 border-r-0 rounded-l-lg">
+                            <FunnelIcon class="w-4 h-4 text-base-content/60" />
+                        </div>
+                        <select v-model="levelFilter"
+                            class="select select-bordered select-sm join-item w-full sm:w-32 focus:border-primary focus:outline-none">
+                            <option v-for="opt in levelOptions" :key="opt.value" :value="opt.value">
+                                {{ opt.label }}
+                            </option>
+                        </select>
+                    </div>
                 </div>
-            </div>
-            <!-- File info -->
-            <div v-if="logsState.logsFile" class="mt-2 text-xs text-base-content/50 truncate">
-                📄 {{ logsState.logsFile }}
-                <span v-if="logsState.logsLastFetchAt">
-                    · {{ $t('common.updatedAt') }} {{ new Date(logsState.logsLastFetchAt).toLocaleTimeString('zh-CN') }}
-                </span>
             </div>
         </div>
 
         <!-- Content -->
-        <div class="flex-1 overflow-y-auto p-4 md:p-6">
-            <div class="mx-auto space-y-4" :class="{ 'max-w-4xl': !settingsStore.isWideMode }">
-                <!-- Loading state -->
-                <div v-if="logsState.logsLoading && !logsState.logsEntries.length"
-                    class="flex items-center justify-center py-12">
-                    <span class="loading loading-spinner loading-lg"></span>
-                </div>
+        <div class="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth"
+            :class="{ 'opacity-60 grayscale-[0.5] pointer-events-none': logsState.logsLoading }">
+            <div class="mx-auto space-y-4 transition-all duration-300"
+                :class="{ 'max-w-7xl': !settingsStore.isWideMode }">
 
                 <!-- Error state -->
-                <div v-else-if="logsState.logsError" class="alert alert-error">
-                    <XCircleIcon class="w-5 h-5" />
-                    <span>{{ logsState.logsError }}</span>
+                <div v-if="logsState.logsError" class="alert alert-error shadow-lg">
+                    <XCircleIcon class="w-6 h-6" />
+                    <div class="flex flex-col">
+                        <span class="font-bold">Error loading logs</span>
+                        <span class="text-sm opacity-90">{{ logsState.logsError }}</span>
+                    </div>
                 </div>
 
                 <!-- Empty state -->
-                <div v-else-if="!filteredLogs.length" class="text-center py-12 text-base-content/50">
-                    <InformationCircleIcon class="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p v-if="searchQuery || levelFilter !== 'all'">{{ $t('log.noMatchingLogs') }}</p>
-                    <p v-else>{{ $t('log.noLogs') }}</p>
+                <div v-else-if="!filteredLogs.length && !logsState.logsLoading"
+                    class="flex flex-col items-center justify-center py-20 text-base-content/40 bg-base-100 rounded-2xl border border-base-200 border-dashed">
+                    <div class="bg-base-200 p-4 rounded-full mb-4">
+                        <InformationCircleIcon class="w-8 h-8 opacity-50" />
+                    </div>
+                    <p class="text-lg font-medium">{{ $t('log.noLogs') }}</p>
+                    <p class="text-sm mt-1">Try adjusting your filters or search query</p>
                 </div>
 
-                <!-- Log entries -->
-                <div v-else class="space-y-1">
-                    <div v-for="(log, index) in filteredLogs" :key="index"
-                        class="card bg-base-100 shadow-sm hover:shadow-md transition-shadow">
-                        <div class="card-body p-3">
-                            <div class="flex items-start gap-3">
-                                <!-- Level icon -->
-                                <div class="shrink-0 mt-0.5">
-                                    <component :is="getLevelIcon(log.level)" class="w-4 h-4 opacity-60" />
-                                </div>
-                                <!-- Content -->
-                                <div class="flex-1 min-w-0">
-                                    <!-- Header row -->
-                                    <div class="flex items-center gap-2 flex-wrap mb-1">
-                                        <span :class="['badge badge-sm', getLevelBadgeClass(log.level)]">
-                                            {{ log.level?.toUpperCase() || 'LOG' }}
-                                        </span>
-                                        <span v-if="log.subsystem"
-                                            class="badge badge-sm badge-outline text-base-content/70">
-                                            {{ log.subsystem }}
-                                        </span>
-                                        <span v-if="log.time" class="text-xs text-base-content/40 ml-auto shrink-0">
-                                            <span class="hidden sm:inline">{{ formatDate(log.time) }} </span>
-                                            {{ formatTime(log.time) }}
-                                        </span>
-                                    </div>
-                                    <!-- Message -->
-                                    <p class="text-sm break-all whitespace-pre-wrap">
-                                        {{ log.message || log.raw }}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+                <!-- Log Table -->
+                <div v-else
+                    class="bg-base-100 rounded-xl shadow-sm border border-base-200 overflow-hidden flex flex-col h-full">
+                    <div class="overflow-x-auto w-full">
+                        <table class="table table-sm w-full">
+                            <thead class="bg-base-200/50 text-base-content/70">
+                                <tr>
+                                    <th class="w-40 pl-6 font-semibold">{{ $t('common.time') }}</th>
+                                    <th class="w-24 text-center font-semibold">Level</th>
+                                    <th class="font-semibold">{{ $t('common.message') }}</th>
+                                    <th class="w-20 text-center font-semibold">Meta</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-sm">
+                                <tr v-for="(log, index) in filteredLogs" :key="index"
+                                    class="group hover:bg-base-200/40 transition-colors border-b border-base-100 last:border-0">
+                                    <td
+                                        class="pl-6 whitespace-nowrap font-mono text-xs opacity-60 group-hover:opacity-100 transition-opacity">
+                                        {{ formatTime(log.timestamp) }}
+                                    </td>
+                                    <td class="text-center">
+                                        <div
+                                            :class="['badge badge-sm font-bold uppercase gap-1 border-0 shadow-sm', getLevelBadgeClass(log.level as LogLevel)]">
+                                            <component :is="getLevelIcon(log.level as LogLevel)" class="w-3 h-3" />
+                                            {{ log.level }}
+                                        </div>
+                                    </td>
+                                    <td class="min-w-[300px]">
+                                        <div
+                                            class="font-mono text-xs text-base-content/80 break-all py-1 leading-relaxed selection:bg-primary/20 selection:text-primary">
+                                            {{ log.message }}
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <div v-if="log.meta && Object.keys(log.meta).length > 0"
+                                            class="dropdown dropdown-end dropdown-left dropdown-hover">
+                                            <div tabindex="0" role="button"
+                                                class="btn btn-ghost btn-xs btn-circle text-primary opacity-60 group-hover:opacity-100">
+                                                <InformationCircleIcon class="w-5 h-5" />
+                                            </div>
+                                            <div tabindex="0"
+                                                class="dropdown-content z-[50] card card-compact w-80 p-0 shadow-xl bg-base-100 text-base-content border border-base-200 backdrop-blur-md">
+                                                <div class="card-body gap-0 p-0">
+                                                    <div
+                                                        class="px-4 py-2 bg-base-200/50 border-b border-base-200 font-bold text-xs uppercase tracking-wider text-base-content/60">
+                                                        Metadata
+                                                    </div>
+                                                    <div class="p-2 max-h-60 overflow-y-auto custom-scrollbar">
+                                                        <div v-for="(val, key) in log.meta" :key="key"
+                                                            class="grid grid-cols-[1fr,2fr] gap-2 px-2 py-1 hover:bg-base-200/50 rounded text-xs items-start">
+                                                            <span
+                                                                class="font-semibold text-base-content/70 break-all select-all">{{
+                                                                    key }}:</span>
+                                                            <pre
+                                                                class="font-mono text-base-content/90 whitespace-pre-wrap break-all select-all">
+                                                        {{ typeof val === 'object' ? JSON.stringify(val, null, 2) : val
+                                                        }}</pre>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
+                </div>
 
-                    <!-- Load more -->
-                    <div v-if="!logsState.logsTruncated && logsState.logsEntries.length > 0" class="text-center py-4">
-                        <button @click="handleLoadMore" class="btn btn-ghost btn-sm"
-                            :class="{ 'loading': logsState.logsLoading }" :disabled="logsState.logsLoading">
-                            {{ $t('common.loadMore') }}
+                <!-- Pagination -->
+                <div
+                    class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-6 bg-base-100 p-3 rounded-xl border border-base-200 shadow-sm">
+                    <span class="text-xs font-medium text-base-content/60 order-2 sm:order-1">
+                        Page <span class="font-bold text-base-content">{{ logsState.page }}</span> of <span
+                            class="font-bold text-base-content">{{ logsState.totalPages }}</span>
+                        <span class="opacity-50 mx-2">|</span>
+                        Total <span class="font-bold text-base-content">{{ logsState.total }}</span> entries
+                    </span>
+
+                    <div class="join bg-base-200/50 p-1 rounded-lg order-1 sm:order-2">
+                        <button class="join-item btn btn-sm btn-ghost hover:bg-base-100 hover:shadow-sm transition-all"
+                            @click="logsState.prevPage()" :disabled="logsState.page <= 1">
+                            « Prev
+                        </button>
+                        <button
+                            class="join-item btn btn-sm bg-base-100 shadow-sm border border-base-200 px-4 min-w-[3rem] pointer-events-none">
+                            {{ logsState.page }}
+                        </button>
+                        <button class="join-item btn btn-sm btn-ghost hover:bg-base-100 hover:shadow-sm transition-all"
+                            @click="logsState.nextPage()" :disabled="logsState.page >= logsState.totalPages">
+                            Next »
                         </button>
                     </div>
                 </div>
+
             </div>
         </div>
     </div>

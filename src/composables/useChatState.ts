@@ -1,435 +1,444 @@
-import { reactive, watch } from 'vue'
+import { reactive } from 'vue'
 import { createStateProxy } from './utils/stateProxy'
-import { useGateway } from './useGateway'
-import type { ChatState, ChatEventPayload } from '~openclaw/ui/src/ui/controllers/chat'
-import { loadChatHistory as _loadChatHistory } from '~openclaw/ui/src/ui/controllers/chat'
 import { useSessionsState } from './useSessionsState'
-import { type ChatHost, handleSendChat, handleAbortChat, flushChatQueueForEvent } from '~openclaw/ui/src/ui/app-chat'
-import { loadAssistantIdentity as _loadAssistantIdentity, type AssistantIdentityState } from '~openclaw/ui/src/ui/controllers/assistant-identity'
-import { extractText } from '~openclaw/ui/src/ui/chat/message-extract'
 import { useUiSettingsStore } from '../stores/setting'
-import type { ChatAttachment } from '~openclaw/ui/src/ui/ui-types'
-import { generateUUID } from '~openclaw/ui/src/ui/uuid'
-import { resetToolStream, type ToolStreamEntry } from '~openclaw/ui/src/ui/app-tool-stream'
+import { apiGet, apiPost } from './api-client'
+import { startChatSSE, connectSessionSSE, type SSEConnection } from './sse-client'
 
-// Auto-naming runs map for session rename tracking
-const autoNamingRuns = new Map<string, { targetSessionKey: string; titleBuffer: string }>()
+// ==================== Types ====================
+export interface ChatMessage {
+    id?: string
+    role: 'user' | 'assistant' | 'toolResult'
+    content: any
+    timestamp?: number
+    model?: string
+    provider?: string
+    api?: string
+    errorMessage?: string
+    toolCallId?: string
+    isError?: boolean
+    details?: any
+}
 
-const state = reactive<ChatState & ChatHost & {
-    sessionKey: string; // Ensure sessionKey is here
+export interface ChatAttachment {
+    id: string
+    name: string
+    dataUrl: string
+    mimeType: string
+    content?: string
+}
 
-    assistantName: string;
-    assistantAvatar: string | null;
-    assistantAgentId: string | null;
+export interface ChatSessionData {
+    chatMessages: ChatMessage[]
+    chatToolMessages: ChatMessage[]
+    chatStream: any[] | null
+    chatStreamStartedAt: number | null
+    chatSending: boolean
+    chatRunId: string | null
+    chatLoading: boolean
+}
 
-    //ToolStreamHost
-    toolStreamById: Map<string, ToolStreamEntry>;
-    toolStreamOrder: string[];
-    chatToolMessages: any[];
-    toolStreamSyncTimer: number | null;
+export interface ChatState {
+    sessionKey: string
+    sessionsMap: Map<string, ChatSessionData>
+}
 
-    //SessionManagement
-    renameSessionKey: string | null;
-    settings: ReturnType<typeof useUiSettingsStore> | null;
+// Per-session SSE connections
+const sseConnections = new Map<string, SSEConnection>()
 
-}>({
-    client: null,
-    connected: false,
-    lastError: null,
-
-    // Chat State
-    chatMessages: [],
-    chatToolMessages: [],
-    chatStream: null,
-    chatLoading: false,
-    chatThinkingLevel: null,
-    chatStreamStartedAt: null,
-
-    //  Identity
-    assistantName: 'Assistant',
-    assistantAvatar: null,
-    assistantAgentId: null,
-
-    // Tool Stream
-    toolStreamById: new Map(),
-    toolStreamOrder: [],
-    toolStreamSyncTimer: null,
-
-    // Session Management
-
-    renameSessionKey: null,
-
-
-    //ChatHost
-    chatMessage: "",
-    chatAttachments: [],
-    chatQueue: [],
-    chatRunId: null,
-    chatSending: false,
-    sessionKey: "",
-    basePath: "",
-    hello: null,
-    chatAvatarUrl: "",
-    refreshSessionsAfterChat: new Set<string>(),
-
-    //Other
-    settings: null,
-
+const state = reactive<ChatState>({
+    sessionKey: '',
+    sessionsMap: new Map<string, ChatSessionData>(),
 })
 
-let initialized = false
-function ensureInit() {
-    if (initialized) return
-    initialized = true
-    const gatewayStore = useGateway()
-    state.settings = useUiSettingsStore()
-    watch(() => [gatewayStore.client, gatewayStore.connected], ([client, connected]) => {
-        state.client = client as any
-        state.connected = connected as boolean
-        if (connected) {
-            // Reset orphaned chat state equivalent to resetToolStream
-            resetState()
+// ==================== Helpers ====================
+
+function generateUUID(): string {
+    return crypto.randomUUID()
+}
+
+function extractSessionId(sessionKey: string): string {
+    return sessionKey
+}
+
+export function extractAgentId(sessionKey: string): string {
+    const sessionsState = useSessionsState()
+    const session = sessionsState.sessionsResult?.sessions?.find((s: any) => s.key === sessionKey)
+    return session?.agentId || 'main'
+}
+
+function getSessionData(key: string): ChatSessionData {
+    let data = state.sessionsMap.get(key)
+    if (!data) {
+        data = reactive<ChatSessionData>({
+            chatMessages: [],
+            chatToolMessages: [],
+            chatStream: null,
+            chatStreamStartedAt: null,
+            chatSending: false,
+            chatRunId: null,
+            chatLoading: false,
+        })
+        state.sessionsMap.set(key, data)
+    }
+    return data
+}
+
+// ==================== Actions ====================
+
+const sendMessage = async (message?: string, attachments?: ChatAttachment[], sessionKey?: string) => {
+    const targetKey = sessionKey || state.sessionKey
+    if (!targetKey) {
+        console.error('[useChatState] sendMessage called without sessionKey')
+        return
+    }
+
+    const text = message || ''
+    const images = attachments?.filter(a => a.dataUrl).map(a => a.dataUrl) || []
+
+    if (!text.trim() && images.length === 0) return
+
+    const sessionData = getSessionData(targetKey)
+    const sessionId = extractSessionId(targetKey)
+
+    // Add user message to per-session data
+    sessionData.chatMessages = [...sessionData.chatMessages, {
+        role: 'user',
+        content: text,
+        timestamp: Date.now(),
+        id: generateUUID()
+    }]
+
+    const runId = generateUUID()
+    sessionData.chatSending = true
+    sessionData.chatRunId = runId
+    sessionData.chatStreamStartedAt = Date.now()
+    sessionData.chatStream = [] // Initialize as array
+
+    // Start SSE
+    const body: { prompt: string; images?: string[] } = { prompt: text }
+    if (images.length > 0) {
+        body.images = images
+    }
+
+    // Abort any existing SSE for this session
+    const existingSSE = sseConnections.get(targetKey)
+    if (existingSSE) {
+        existingSSE.abort()
+    }
+
+    const sse = startChatSSE(
+        sessionId,
+        body,
+        (event) => {
+            handleSSEEvent(event.event, event.data, targetKey)
+        },
+        (error) => {
+            const sd = getSessionData(targetKey)
+            sd.chatSending = false
+            sd.chatRunId = null
+            sd.chatStreamStartedAt = null
+            sd.chatStream = null
         }
-    }, { immediate: true })
+    )
 
-    // Subscribe to gateway events
-    gatewayStore.subscribe((evt) => {
-        if (evt.event === 'chat') {
-            const payload = evt.payload as ChatEventPayload
+    sseConnections.set(targetKey, sse)
 
-            // Intercept auto-naming events
-            if (payload?.runId && autoNamingRuns.has(payload.runId)) {
-                handleSessionNamingEvent(payload)
-                return
+    // Wait for SSE to complete
+    sse.done.then(() => {
+        getSessionData(targetKey).chatSending = false
+        sseConnections.delete(targetKey)
+    }).catch(() => {
+        getSessionData(targetKey).chatSending = false
+        sseConnections.delete(targetKey)
+    })
+}
+
+// 处理 SSE 事件，更新会话状态
+const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
+    const sessionData = getSessionData(targetKey)
+    if (!sessionData.chatStream) {
+        sessionData.chatStream = []
+    }
+    const stream = sessionData.chatStream as any[]
+
+    switch (eventType) {
+        case 'message_start':
+            // 消息开始，无需特殊处理，stream 已初始化
+            break
+        case 'text_delta':
+        case 'thinking_delta': {
+            // 合并文本或思考过程增量
+            // 使用通用逻辑处理 delta
+            const type = eventType === 'text_delta' ? 'text' : 'thinking'
+            const contentKey = type // 'text' or 'thinking'
+
+            if (data?.delta) {
+                const lastBlock = stream.length > 0 ? stream[stream.length - 1] : null
+                if (lastBlock?.type === type) {
+                    lastBlock[contentKey] = (lastBlock[contentKey] || '') + data.delta
+                } else {
+                    stream.push({ type, [contentKey]: data.delta })
+                }
             }
-            // Update settings
-            if (payload?.sessionKey) {
-                const settings = useUiSettingsStore()
-                settings.setLastActiveSessionKey(payload.sessionKey)
+            break
+        }
+        case 'tool_start':
+            // 添加新的工具调用 Block
+            stream.push({
+                type: 'toolCall',
+                id: generateUUID(), // Server doesn't send ID, so we generate one
+                name: data.toolName,
+                toolState: 'calling',
+                arguments: {}
+            })
+            break
+        case 'tool_update':
+            // 工具参数更新 (暂未实现复杂合并逻辑)
+            if (data) {
+                const lastBlock = stream.length > 0 ? stream[stream.length - 1] : null
+                if (lastBlock?.type === 'toolCall') {
+                    // Update arguments if present
+                }
             }
-            // Handle event
-            const res = handleChatEvent(payload)
-            // Side effects
-            if (res === 'final' || res === 'error' || res === 'aborted') {
-                resetToolStream(state as any)
-                flushChatQueueForEvent(state as any)
-                const runId = payload?.runId;
+            break
+        case 'tool_end':
 
-                if (runId && state.refreshSessionsAfterChat.has(runId)) {
-                    state.refreshSessionsAfterChat.delete(runId);
-                    if (res === "final") {
+            // 1. 更新流中的 Block 以获得即时反馈 (UI 显示从 Loading -> Success)
+            let toolCallItem = null
 
-                        //由于重命名也会拉取session列表,所以这里要判断一下
-                        const sessions = useSessionsState()
-                        if (!sessions.hasSession(payload.sessionKey)) {
-                            void sessions.loadSessions()
-                        }
-                        //CHANGE_OPENCLAW: 还要重新加载历史..如果是/new或者是/reset会将runId添加到refreshSessionsAfterChat,这个时候需要加载历史刷新页面
-                        void _loadChatHistory(state as unknown as ChatState)
+            // 因为服务端没有返回 ID，所以我们需要从流中找到最后一个“正在调用中”且名字匹配的工具
+            if (stream.length > 0) {
+                // 从后往前搜索，找到最后一个同名且未完成的工具调用
+                for (let i = stream.length - 1; i >= 0; i--) {
+                    const item = stream[i]
+                    if (item.type === 'toolCall' && item.name === data.toolName && (!item.toolState || item.toolState === 'calling')) {
+                        toolCallItem = item
+                        break
                     }
                 }
             }
-            // CHANGE_OPENCLAW:🔧 修复页面闪烁: 移除loadChatHistory调用
-            // 原因: 消息已通过delta事件同步到前端，重新加载会导致chatLoading状态闪烁
-            // 当(payload as any).seq == 2的时候,可能是出现了错误,所以刷新
-            if (res === 'final' && (payload as any).seq == 2) {
-                void loadChatHistory()
+
+            if (toolCallItem) {
+                // 找到对应的工具调用对象了，直接修改它的属性
+                // 这会触发 Vue 的响应式更新，界面上的 Loading 状态会立即消失并显示结果
+                toolCallItem.toolResult = data.result.content
+                toolCallItem.toolError = data.isError ? (typeof data.result === 'string' ? data.result : JSON.stringify(data.result)) : undefined
+                toolCallItem.toolState = data.isError ? 'error' : 'success'
             }
-        }
-    })
 
+            // 2. Add independent ToolResult message for history integrity
+            // Note: This duplicates what convertToBlocks does, but keeps local state consistent
+            sessionData.chatToolMessages = [...sessionData.chatToolMessages, {
+                role: 'toolResult',
+                content: data.result.content,  // data.result can be object or string
+                timestamp: Date.now(),
+                toolCallId: toolCallItem ? toolCallItem.id : generateUUID(), // Link to the item we found or new ID
+                isError: data.isError
+            }]
 
-}
-
-
-
-const sendMessage = async (message?: string, attachments?: ChatAttachment[]) => {
-    state.chatMessage = message || ""
-    state.chatAttachments = attachments || []
-    // Passing undefined as messageOverride forces handleSendChat to use state.chatMessage and state.chatAttachments
-    // This is required because handleSendChat ignores state.chatAttachments if messageOverride is provided
-    await handleSendChat(state as unknown as ChatHost, undefined, {})
-}
-
-const abortChat = async () => {
-    await handleAbortChat(state as unknown as ChatHost)
-}
-
-const loadAssistantIdentity = async () => {
-    await _loadAssistantIdentity(state as any)
-    // Set avatar url if needed
-    const settings = useUiSettingsStore()
-    const basePath = settings.gatewayUrl?.replace("ws://", 'http://').replace("wss://", 'https://') || '';
-    if (state.assistantAvatar) {
-        state.chatAvatarUrl = `${basePath}${state.assistantAvatar}`;
-    }
-}
-
-const loadChatHistory = async () => {
-    await _loadChatHistory(state as any)
-}
-
-
-//CHANGE_OPENCLAW:主要是为了解决,接收完ai消息后,页面会刷新,从chat.ts中分离出来,
-//openclaw的流运行的时候不会传递role==toolResult,以及assistant角色包含type: "toolCall"的内容
-//只有结束后通过chat.history加载才能看到..但是加载会导致页面刷新.所以这里是获取到数据然后添加进去
-const handleChatEvent = (payload?: ChatEventPayload) => {
-    if (!payload) {
-        return null;
-    }
-    if (payload.sessionKey !== state.sessionKey) {
-        return null;
-    }
-
-    if (payload.runId && state.chatRunId && payload.runId !== state.chatRunId) {
-        if (payload.state === "final") {
-            return "final";
-        }
-        return null;
-    }
-
-    if (payload.state === "delta") {
-        const next = extractText(payload.message);
-        if (typeof next === "string") {
-            const current = state.chatStream ?? "";
-            if (!current || next.length >= current.length) {
-                state.chatStream = next;
+            break
+        case 'message_end':
+            // 消息结束，将流内容转为正式消息
+            if (stream.length > 0) {
+                sessionData.chatMessages = [...sessionData.chatMessages, {
+                    role: 'assistant',
+                    content: JSON.parse(JSON.stringify(stream)), // 深拷贝流内容
+                    timestamp: Date.now(),
+                    id: generateUUID()
+                }]
             }
-        }
-    } else if (payload.state === "final") {
-        console.log('💾 [handleChatEvent] final - Smart Syncing tools')
+            sessionData.chatStream = null
+            break
+        case 'turn_end':
+            break
+        case 'agent_end':
+        case 'done':
+            // 会话彻底结束
+            sessionData.chatRunId = null
+            sessionData.chatStreamStartedAt = null
+            sessionData.chatSending = false
+            break
+    }
+}
 
-        // 1. 手动追加最终的文本消息（以避免闪烁）
-        if (payload.message) {
-            state.chatMessages = [...state.chatMessages, payload.message];
+const abortChat = async (sessionKey?: string) => {
+    const targetKey = sessionKey || state.sessionKey
+    const sse = sseConnections.get(targetKey)
+    if (sse) {
+        sse.abort()
+        sseConnections.delete(targetKey)
+    }
+    if (targetKey) {
+        try {
+            await apiPost(`/api/chat/${extractSessionId(targetKey)}/abort`)
+        } catch {
+            // Ignore abort errors
         }
+        const sd = getSessionData(targetKey)
+        sd.chatStream = null
+        sd.chatRunId = null
+        sd.chatStreamStartedAt = null
+        sd.chatSending = false
+    }
+}
 
-        // 2. 获取最近的历史记录，以查找并插入缺失的工具消息
-        // 因为发送/status这种,不会有user的消息..只会返回(payload.message as any).model != "gateway-injected"
-        if (state.client && state.connected && payload.message && (payload.message as any).model != "gateway-injected") {
-            const localMsg = payload.message as any;
-            state.client.request('chat.history', {
-                sessionKey: state.sessionKey,
-                limit: 20
-            }).then((res: any) => {
-                const history = (res.messages || []) as any[];
-                let matchIndex = -1;
-                if (localMsg.id) {
-                    matchIndex = history.findIndex((m: any) => m.id === localMsg.id);
-                }
-                if (matchIndex === -1 && localMsg.timestamp) {
-                    matchIndex = history.findIndex((m: any) =>
-                        m.timestamp === localMsg.timestamp && m.role === localMsg.role
-                    );
-                }
-                if (matchIndex === -1) {
-                    const localText = extractText(localMsg) || '';
-                    for (let i = history.length - 1; i >= 0; i--) {
-                        const m = history[i];
-                        if (m.role === localMsg.role) {
-                            const mText = extractText(m) || '';
-                            if (mText && (mText === localText)) {
-                                matchIndex = i;
-                                break;
+const loadChatHistory = async (sessionKey?: string) => {
+    const targetKey = sessionKey || state.sessionKey
+    if (!targetKey) return
+    const sd = getSessionData(targetKey)
+    sd.chatLoading = true
+    try {
+        const sessionId = extractSessionId(targetKey)
+        const result = await apiGet<{ messages: ChatMessage[], isStreaming?: boolean, partialText?: string }>(`/api/chat/${sessionId}/messages`)
+        sd.chatMessages = result?.messages || []
+        // 清空本地临时存储的 toolResult 消息，因为历史记录中应该已经包含（或者由 chatMessages 自行管理）
+        sd.chatToolMessages = []
+
+        // Handle resuming stream if active
+        if (result.isStreaming) {
+            sd.chatSending = true
+            sd.chatRunId = generateUUID() // Generate a temp run ID for UI
+            sd.chatStreamStartedAt = Date.now()
+
+            // Initialize stream with partial text if available
+            sd.chatStream = []
+
+            // Connect to existing stream
+            const existingSSE = sseConnections.get(targetKey)
+            if (existingSSE) {
+                existingSSE.abort()
+            }
+
+            const sse = connectSessionSSE(
+                sessionId,
+                (event) => {
+                    // Handle initial state sync message separately
+                    if (event.event === 'message_state') {
+                        const data = event.data
+                        if (data) {
+                            const sd = getSessionData(targetKey)
+
+                            // 1. Sync full history
+                            if (data.messages && Array.isArray(data.messages)) {
+                                sd.chatMessages = data.messages
+                            }
+
+                            // 2. Sync streaming status
+                            if (typeof data.isStreaming === 'boolean') {
+                                sd.chatSending = data.isStreaming
+                            }
+
+                            // 3. Sync current stream content
+                            if (data.streamMessage) {
+                                // Important: The server sends the full AgentMessage object as streamMessage.
+                                // The client's chatStream expects the *content* array of that message.
+                                if (data.streamMessage.content && Array.isArray(data.streamMessage.content)) {
+                                    sd.chatStream = JSON.parse(JSON.stringify(data.streamMessage.content))
+                                }
+                            } else if (data.isStreaming && !sd.chatStream) {
+                                // If streaming but no content sent yet, init empty
+                                sd.chatStream = []
                             }
                         }
+                        return
                     }
+
+                    handleSSEEvent(event.event, event.data, targetKey)
+                },
+                (error) => {
+                    const sd = getSessionData(targetKey)
+                    sd.chatSending = false
+                    sd.chatRunId = null
+                    sd.chatStreamStartedAt = null
+                    sd.chatStream = null
                 }
+            )
 
-                if (matchIndex > 0) {
-                    const missingMessages: any[] = [];
-                    for (let i = matchIndex - 1; i >= 0; i--) {
-                        const prev = history[i];
-                        if (prev.role === 'user') break;
+            sseConnections.set(targetKey, sse)
 
-                        const exists = prev.id && state.chatMessages.some((existing: any) => existing.id === prev.id);
-                        if (exists) break;
-
-                        missingMessages.unshift(prev);
-                    }
-
-                    let changed = false;
-                    const newMsgList = [...state.chatMessages];
-                    if (missingMessages.length > 0) {
-                        const insertPos = newMsgList.length - 1;
-                        if (insertPos >= 0) {
-                            newMsgList.splice(insertPos, 0, ...missingMessages);
-                            changed = true;
-                        }
-                    }
-
-                    if (history[matchIndex].content.length > localMsg.content.length) {
-                        //替换掉因为其中可能也包含思考或者工具
-                        newMsgList[newMsgList.length - 1] = history[matchIndex]
-                        changed = true;
-                    }
-
-                    if (changed) {
-                        state.chatMessages = [...newMsgList];
-                    }
-                }
-            }).catch(e => console.warn("[SmartSync] Failed to sync tools", e));
+            sse.done.then(() => {
+                getSessionData(targetKey).chatSending = false
+                sseConnections.delete(targetKey)
+                // Reload history to ensure we have the final complete message state
+                loadChatHistory(targetKey)
+            }).catch(() => {
+                getSessionData(targetKey).chatSending = false
+                sseConnections.delete(targetKey)
+            })
         }
-
-        state.chatStream = null;
-        state.chatRunId = null;
-        state.chatStreamStartedAt = null;
-    } else if (payload.state === "aborted") {
-        state.chatStream = null;
-        state.chatRunId = null;
-        state.chatStreamStartedAt = null;
-    } else if (payload.state === "error") {
-        state.chatStream = null;
-        state.chatRunId = null;
-        state.chatStreamStartedAt = null;
-        state.lastError = payload.errorMessage ?? "chat error";
+    } catch (err: any) {
+        console.error('Failed to load chat history:', err)
+    } finally {
+        // Only set loading to false, don't touch chatSending if we are streaming
+        sd.chatLoading = false
     }
-    return payload.state;
 }
-
-
-
-
-const resetState = () => {
-    state.chatRunId = null
-    state.chatStream = null
-    state.chatStreamStartedAt = null
-    state.chatThinkingLevel = null
-    resetToolStream(state as unknown as Parameters<typeof resetToolStream>[0])
-}
-
 
 const setSessionKey = async (key: string, loadHistory = true) => {
-    // Reset Chat State
-    resetState()
-    state.chatMessages = []
     state.sessionKey = key
 
-    // Update Settings
     const settings = useUiSettingsStore()
     settings.setLastActiveSessionKey(key)
 
-    // Update Identity
-    await loadAssistantIdentity()
-
-
-    if (loadHistory) {
-        await loadChatHistory();
+    if (loadHistory && !state.sessionsMap.has(key)) {
+        await loadChatHistory(key)
     }
 }
 
-//创建新session,其实就是清空当前的sessionkey
 const createNewSession = async () => {
-    const gatewayStore = useGateway() // Lazy load to avoid circular dependency issues if any
-
-    state.assistantAgentId = gatewayStore.defaultAgentId
-
-    resetState()
     state.sessionKey = ''
-    state.chatMessages = []
     const settings = useUiSettingsStore()
-    settings.setLastActiveSessionKey("")
+    settings.setLastActiveSessionKey('')
 }
 
+const steerMessage = async (message: string, sessionKey?: string) => {
+    const targetKey = sessionKey || state.sessionKey
+    if (!targetKey) {
+        console.error('[useChatState] steerMessage called without sessionKey')
+        return
+    }
 
-//只有在第一次发送消息的时候,才是真正创建session
-const commitNewSession = async (inputText: string) => {
-    const newKey = `agent:${state.assistantAgentId}:session:${generateUUID()}`
-    await setSessionKey(newKey, false)
-    void triggerSessionRename(state.sessionKey, inputText)
-}
+    const sessionId = extractSessionId(targetKey)
+    const sessionData = getSessionData(targetKey)
 
-const triggerSessionRename = async (targetKey: string, userText: string) => {
-    const gatewayStore = useGateway()
-    if (!gatewayStore.client || !gatewayStore.connected || !userText) return
-    const runId = generateUUID()
-    autoNamingRuns.set(runId, { targetSessionKey: targetKey, titleBuffer: '' })
+    // Add user message to per-session data
+    sessionData.chatMessages = [...sessionData.chatMessages, {
+        role: 'user',
+        content: message,
+        timestamp: Date.now(),
+        id: generateUUID()
+    }]
 
     try {
-        state.renameSessionKey = `agent:${state.assistantAgentId}:session:rename`
-        // Request agent to generate a title
-        await gatewayStore.client.request('chat.send', {
-            sessionKey: state.renameSessionKey,
-            message: `Generate a short title (max 6 words) for this conversation.\nUser: ${userText.substring(0, 500)}`,
-            deliver: false,
-            idempotencyKey: runId,
-            //thinking: "off"
-        })
-    } catch (err) {
-        console.error('Failed to trigger auto-rename', err)
-        autoNamingRuns.delete(runId)
+        await apiPost(`/api/chat/${sessionId}/steer`, { prompt: message })
+    } catch (err: any) {
+        console.error('Failed to steer:', err)
     }
 }
 
-const handleSessionNamingEvent = async (payload: ChatEventPayload) => {
-    const ctx = autoNamingRuns.get(payload.runId!)!
 
-    if (payload.state === 'delta') {
-        const text = extractText(payload.message)
-        if (text) ctx.titleBuffer = text
-
-    } else if (payload.state === 'final') {
-        // 当(payload as any).seq == 2的时候,可能是出现了错误,所以刷新
-        if ((payload as any).seq == 2) {
-            autoNamingRuns.delete(payload.runId)
-            if (state.renameSessionKey) {
-                const sessionsState = useSessionsState()
-                await sessionsState.deleteSession(state.renameSessionKey)
-                void sessionsState.loadSessions()
-            }
-            return
-        }
-
-        const text = extractText(payload.message)
-        if (text) ctx.titleBuffer = text
-        // Clean up title (remove quotes, trim)
-        let title = ctx.titleBuffer.trim()
-        if (title.startsWith('"') && title.endsWith('"')) {
-            title = title.slice(1, -1).trim()
-        }
-        autoNamingRuns.delete(payload.runId!);
-        // Execute async update sequentially
-        (async () => {
-            try {
-                // Delete the naming session
-                if (state.renameSessionKey) {
-                    const sessionsState = useSessionsState()
-                    await sessionsState.deleteSession(state.renameSessionKey)
-                }
-            } catch (e) {
-                console.warn('Failed to cleanup auto-naming session', e)
-            }
-
-            if (title) {
-                // patchSession internally calls loadSessions
-                const sessionsState = useSessionsState()
-                await sessionsState.patchSession(ctx.targetSessionKey, { label: title })
-            } else {
-                const sessionsState = useSessionsState()
-                await sessionsState.loadSessions()
-            }
-        })()
-    } else if (payload.state === 'error' || payload.state === 'aborted') {
-        autoNamingRuns.delete(payload.runId!)
-    }
-}
 
 export function useChatState() {
-    ensureInit()
-
     const methods = {
+        // Derived getters from sessionsMap (for backward compat with useChatMessages)
+        get chatMessages() { return getSessionData(state.sessionKey).chatMessages },
+        get chatToolMessages() { return getSessionData(state.sessionKey).chatToolMessages },
+        get chatStream() { return getSessionData(state.sessionKey).chatStream },
+        get chatSending() { return getSessionData(state.sessionKey).chatSending },
+        get chatRunId() { return getSessionData(state.sessionKey).chatRunId },
+        get chatStreamStartedAt() { return getSessionData(state.sessionKey).chatStreamStartedAt },
+        get chatLoading() { return getSessionData(state.sessionKey).chatLoading },
+
         sendMessage,
+        steerMessage,
         abortChat,
-        loadAssistantIdentity,
         loadChatHistory,
-        handleChatEvent,
         setSessionKey,
         createNewSession,
-        commitNewSession,
-        triggerSessionRename,
-        handleSessionNamingEvent
+        getSessionData,
+        extractAgentId
     }
 
     return createStateProxy(state, methods)
 }
-

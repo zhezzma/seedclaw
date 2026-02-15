@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 // ==================== Types ====================
 export interface UiSettings {
-    gatewayUrl: string
+    apiBaseUrl: string
     token: string
     deviceName: string
     lastActiveSessionKey: string
@@ -19,7 +19,7 @@ export interface UiSettings {
     ttsModel: string
     silenceDuration: number // Auto-send delay in ms
     autoSendCommands: boolean // Whether to auto-send after selecting a command
-    homePageBehavior: 'new_session' | 'last_active_session' | 'default_session' // Default action on home page
+    homePageBehavior: 'new_session' | 'last_active_session'  // Default action on home page
     gotifyUrl: string
     gotifyToken: string
     assistantMsgMerge: boolean
@@ -30,7 +30,7 @@ export interface UiSettings {
 const CONFIG_KEY = 'openclaw_config'
 
 const getDefaultSettings = (): UiSettings => ({
-    gatewayUrl: '',
+    apiBaseUrl: '',
     token: '',
     deviceName: "SeedClaw",
     lastActiveSessionKey: '',
@@ -47,7 +47,7 @@ const getDefaultSettings = (): UiSettings => ({
     ttsModel: '',
     silenceDuration: 2000,
     autoSendCommands: true,
-    homePageBehavior: 'default_session',
+    homePageBehavior: 'new_session',
     gotifyUrl: '',
     gotifyToken: '',
     assistantMsgMerge: true,
@@ -58,7 +58,16 @@ const loadConfig = (): UiSettings => {
     try {
         const saved = localStorage.getItem(CONFIG_KEY)
         if (saved) {
-            return { ...getDefaultSettings(), ...JSON.parse(saved) }
+            const parsed = JSON.parse(saved)
+            // Migrate: old gatewayUrl → apiBaseUrl
+            if (parsed.gatewayUrl && !parsed.apiBaseUrl) {
+                // Convert ws:// to http:// if needed
+                let url = parsed.gatewayUrl as string
+                url = url.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://')
+                parsed.apiBaseUrl = url
+                delete parsed.gatewayUrl
+            }
+            return { ...getDefaultSettings(), ...parsed }
         }
     } catch (e) {
         console.error('Failed to load config:', e)
@@ -71,7 +80,7 @@ export const useUiSettingsStore = defineStore('ui-settings', {
     state: (): UiSettings => loadConfig(),
 
     getters: {
-        isConfigured: (state) => state.gatewayUrl.trim() !== '' && state.token.trim() !== '',
+        isConfigured: (state) => state.apiBaseUrl.trim() !== '' && state.token.trim() !== '',
         authToken: (state) => state.token,
         isDark: (state) => state.theme === 'dark'
     },
@@ -139,8 +148,6 @@ export const useUiSettingsStore = defineStore('ui-settings', {
         // Language
         setLanguage(lang: 'zh' | 'en') {
             this.language = lang
-            // Dynamic import to avoid circular dependency if possible, or just standard import
-            // But we need to update i18n instance
             import('../i18n').then(({ i18n }) => {
                 if (i18n.global.locale instanceof Object) {
                     // @ts-ignore
@@ -154,7 +161,6 @@ export const useUiSettingsStore = defineStore('ui-settings', {
         },
 
         initLanguage() {
-            // Apply saved language on startup
             const lang = this.language
             import('../i18n').then(({ i18n }) => {
                 if (i18n.global.locale instanceof Object) {
@@ -168,4 +174,3 @@ export const useUiSettingsStore = defineStore('ui-settings', {
         }
     }
 })
-

@@ -1,131 +1,201 @@
-import { reactive, watch } from 'vue'
+import { reactive } from 'vue'
 import { createStateProxy } from './utils/stateProxy'
-import { useGateway } from './useGateway'
-import type { SessionsState } from '~/openclaw/ui/src/ui/controllers/sessions'
-import { loadSessions as _loadSessions, patchSession as _patchSession } from '~openclaw/ui/src/ui/controllers/sessions'
-import { useUiSettingsStore } from '../stores/setting'
-import { GatewaySessionRow } from '~/openclaw/ui/src/ui/types'
+import { apiGet, apiPost, apiDelete, apiPatch, getApiUrl, getAuthToken } from './api-client'
 
-const state = reactive<SessionsState>({
-    client: null,
-    connected: false,
-    sessionsLoading: false,
-    sessionsError: null,
-    sessionsResult: null,
-    sessionsFilterActive: '0',
-    sessionsFilterLimit: '0',
-    sessionsIncludeGlobal: false,
-    sessionsIncludeUnknown: false
-})
-
-let initialized = false
-function ensureInit() {
-    if (initialized) return
-    initialized = true
-    const gatewayStore = useGateway()
-    watch(() => [gatewayStore.client, gatewayStore.connected], ([client, connected]) => {
-        state.client = client as any
-        state.connected = connected as boolean
-        if (connected) {
-            const settings = useUiSettingsStore()
-            const activeMinutes = settings.sessionsActiveDays * 24 * 60
-            void _loadSessions(state as any, { activeMinutes })
-        }
-    }, { immediate: true })
+// ==================== Types ====================
+export interface SessionRow {
+    id: string
+    agentId?: string
+    agentName?: string
+    created?: string
+    cwd?: string
+    firstMessage?: string
+    name?: string
+    messageCount?: number
+    modelProvider?: string
+    model?: string
+    modified?: string
+    path?: string
+    thinkingLevel?: string
+    reasoningLevel?: string
 }
 
+export interface SessionsResult {
+    sessions: SessionRow[]
+    total?: number
+    page?: number
+    pageSize?: number
+}
+
+export interface SessionsState {
+    sessionsResult: SessionsResult | null
+}
+
+// ==================== State ====================
+const state = reactive<SessionsState>({
+    sessionsResult: null,
+})
+
+
+
 export function useSessionsState() {
-    ensureInit()
 
     const loadSessions = async (opts?: any) => {
-        // Use settings store for defaults if not provided?
-        // useGateway used settings.sessionsActiveDays
-        const settings = useUiSettingsStore()
-        const activeMinutes = settings.sessionsActiveDays * 24 * 60
-        await _loadSessions(state as any, { activeMinutes, ...opts })
+        const result = await apiGet<SessionsResult>('/api/sessions')
+        state.sessionsResult = result || { sessions: [] }
     }
 
-
-    //CHANGE_OPENCLAW:loadSessions改成通用的使用了settings.sessionsActiveDays
     const patchSession = async (key: string, patch: { label?: string | null }) => {
-        if (!state.client || !state.connected) {
-            return;
-        }
-        const params: Record<string, unknown> = { key };
-        if ("label" in patch) {
-            params.label = patch.label;
-        }
-        if ("thinkingLevel" in patch) {
-            params.thinkingLevel = patch.thinkingLevel;
-        }
-        if ("verboseLevel" in patch) {
-            params.verboseLevel = patch.verboseLevel;
-        }
-        if ("reasoningLevel" in patch) {
-            params.reasoningLevel = patch.reasoningLevel;
-        }
         try {
-            await state.client.request("sessions.patch", params);
-            await loadSessions()
-        } catch (err) {
-            state.sessionsError = String(err);
+            // Call rename API
+            await apiPost(`/api/sessions/${encodeURIComponent(key)}/name`, { name: patch.label })
+
+            // Update local state
+            if (state.sessionsResult?.sessions) {
+                const sessions = state.sessionsResult.sessions.map((s: SessionRow) => {
+                    if (s.id === key) {
+                        return { ...s, name: patch.label || undefined }
+                    }
+                    return s
+                })
+                state.sessionsResult = { ...state.sessionsResult, sessions }
+            }
+        } catch (error) {
+            console.error('Failed to rename session', error)
+            throw error
         }
     }
 
-    //CHANGE_OPENCLAW:需要返回删除结果,且openclaw中的里面有弹窗,从session控制器中分离出来
-    const deleteSession = async (key: string) => {
-        if (!state.client || !state.connected) {
-            return { deleted: false };
-        }
-        if (state.sessionsLoading) {
-            return { deleted: false };
-        }
-        state.sessionsLoading = true;
-        state.sessionsError = null;
+    const triggerSessionRename = async (targetKey: string, agentId: string, userText: string) => {
+        if (!userText) return
+
         try {
-            const res: any = await state.client.request("sessions.delete", { key, deleteTranscript: true });
-            const deleted = res?.deleted === true;
-            if (deleted && state.sessionsResult?.sessions) {
-                state.sessionsResult = {
-                    ...state.sessionsResult,
-                    sessions: state.sessionsResult.sessions.filter((s: any) => s.key !== key)
-                };
+            const token = getAuthToken()
+            const response = await fetch(getApiUrl(`/api/chat/${agentId}/direct`), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
+                body: JSON.stringify({
+                    model: "LongCat-Flash-Lite",
+                    provider: "longcat",
+                    thinkingLevel: "off",
+                    prompt: `Summarize the following text into a short, concise title (3-5 words) for a chat session. Do not use quotes or punctuation. Text: "${userText.substring(0, 500)}"`
+                })
+            })
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`)
+            if (!response.body) throw new Error('No response body')
+
+            const reader = response.body.getReader()
+            const decoder = new TextDecoder()
+            let title = ''
+
+            // Simple SSE parser
+            let buffer = ''
+            let currentEvent = ''
+
+            while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+
+                buffer += decoder.decode(value, { stream: true })
+                const lines = buffer.split('\n')
+                buffer = lines.pop() || ''
+
+                for (const line of lines) {
+                    const trimmedLine = line.trim()
+                    if (trimmedLine.startsWith('event:')) {
+                        currentEvent = trimmedLine.slice(6).trim()
+                    } else if (trimmedLine.startsWith('data:')) {
+                        // Only add to title if it's a text_delta event
+                        if (currentEvent === 'text_delta') {
+                            try {
+                                const dataStr = trimmedLine.slice(5).trim()
+                                const data = JSON.parse(dataStr)
+                                if (data.delta) {
+                                    title += data.delta
+                                }
+                            } catch (e) {
+                                // Ignore parse errors for intermediate chunks
+                            }
+                        }
+                        // Explicitly ignore thinking_delta and other events
+                    } else if (trimmedLine === '') {
+                        currentEvent = '' // Reset event type for the next block
+                    }
+                }
             }
-            return { deleted };
-        } catch (err) {
-            state.sessionsError = String(err);
-            return { deleted: false };
-        } finally {
-            state.sessionsLoading = false;
+
+            // Final rename if we got a title
+            if (title && title.trim()) {
+                await patchSession(targetKey, { label: title.trim() })
+            }
+
+        } catch (e) {
+            console.warn('Failed to auto-rename session', e)
         }
+    }
+
+    const deleteSession = async (key: string) => {
+        // apiDelete throws on error, so successful execution means deleted
+        await apiDelete(`/api/sessions/${encodeURIComponent(key)}`)
+
+        if (state.sessionsResult?.sessions) {
+            state.sessionsResult = {
+                ...state.sessionsResult,
+                sessions: state.sessionsResult.sessions.filter((s: SessionRow) => s.id !== key),
+                total: Math.max(0, (state.sessionsResult.total || 0) - 1)
+            }
+        }
+        return { deleted: true }
     }
 
     const deleteSessions = async (keys: string[]) => {
-        const client = state.client;
-        if (!client || !state.connected || keys.length === 0) return;
-
-        state.sessionsLoading = true;
-        state.sessionsError = null;
-        try {
-            await Promise.all(keys.map(key => client.request("sessions.delete", { key, deleteTranscript: true })));
-
-            if (state.sessionsResult?.sessions) {
-                state.sessionsResult = {
-                    ...state.sessionsResult,
-                    sessions: state.sessionsResult.sessions.filter((s: any) => !keys.includes(s.key))
-                };
+        const results = await Promise.all(keys.map(async key => {
+            try {
+                await apiDelete(`/api/sessions/${encodeURIComponent(key)}`)
+                return key
+            } catch {
+                return null
             }
-            return { deleted: true };
-        } catch (err) {
-            state.sessionsError = String(err);
-            return { deleted: false };
-        } finally {
-            state.sessionsLoading = false;
+        }))
+
+        const deletedKeys = results.filter((k): k is string => k !== null)
+
+        if (deletedKeys.length > 0 && state.sessionsResult?.sessions) {
+            state.sessionsResult = {
+                ...state.sessionsResult,
+                sessions: state.sessionsResult.sessions.filter((s: SessionRow) => !deletedKeys.includes(s.id)),
+                total: Math.max(0, (state.sessionsResult.total || 0) - deletedKeys.length)
+            }
         }
+        return { deleted: deletedKeys.length > 0, deletedCount: deletedKeys.length }
     }
 
     const hasSession = (key: string) => {
-        return state.sessionsResult?.sessions?.some((s: GatewaySessionRow) => s.key === key) ?? false;
+        return state.sessionsResult?.sessions?.some((s: SessionRow) => s.id === key) ?? false
+    }
+
+    const commitNewSession = async (agentId: string, inputText?: string): Promise<string> => {
+        const session = await apiPost<SessionRow>(`/api/sessions/${agentId}`)
+        if (state.sessionsResult) {
+            state.sessionsResult = {
+                ...state.sessionsResult,
+                sessions: [session, ...(state.sessionsResult.sessions || [])],
+                total: (state.sessionsResult.total || 0) + 1
+            }
+        }
+
+        // Trigger auto-rename in background if we have input text
+        if (inputText && session.id) {
+            triggerSessionRename(session.id, agentId, inputText).catch(err => {
+                console.error('Auto-rename failed', err)
+            })
+        }
+
+        return session.id
     }
 
     const methods = {
@@ -133,9 +203,9 @@ export function useSessionsState() {
         patchSession,
         deleteSession,
         deleteSessions,
-        hasSession
+        hasSession,
+        commitNewSession
     }
 
     return createStateProxy(state, methods)
-
 }

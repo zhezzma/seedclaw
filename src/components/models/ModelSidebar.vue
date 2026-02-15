@@ -1,16 +1,11 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeftIcon, PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
-import { useGateway } from '../../composables/useGateway'
-import ProviderFormModal from './ProviderFormModal.vue'
-import { useConfigState } from '../../composables/useConfigState'
-import { useConfirm } from '../../composables/useConfirm'
 import ViewHeader from '@/components/ViewHeader.vue'
 import { useUiSettingsStore } from '@/stores/setting'
+import { useModelsState } from '../../composables/useModelsState'
+import { useI18n } from 'vue-i18n'
 
-import { useModels } from '../../composables/useModels'
 const props = defineProps<{
     selectedId?: string
 }>()
@@ -21,58 +16,12 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const { t } = useI18n()
-const store = useGateway()
-const configState = useConfigState()
-const { confirm } = useConfirm()
+const { providers } = useModelsState()
 const settingsStore = useUiSettingsStore()
-
-
-const { syncAgentsDefaultModels } = useModels()
 
 const goBack = () => {
     router.back()
 }
-
-// Get providers from configForm
-const providers = computed(() => {
-    const providersObj = (configState.configForm?.models as any)?.providers as Record<string, any> | undefined
-    if (!providersObj) return []
-    return Object.entries(providersObj).map(([id, config]) => ({
-        id,
-        baseUrl: config.baseUrl || '',
-        apiKey: config.apiKey || '',
-        api: config.api || 'openai-completions',
-        models: config.models || []
-    }))
-})
-
-// Add Provider Modal
-const showAddModal = ref(false)
-
-const openAddModal = () => {
-    showAddModal.value = true
-}
-
-const handleProviderSaved = (providerId: string) => {
-    emit('select', providerId)
-}
-
-const deleteProvider = async (id: string, event: Event) => {
-    event.stopPropagation()
-    if (await confirm(t('provider.deleteConfirm', { id }))) {
-        configState.removeConfigFormValue(['models', 'providers', id])
-
-        // Sync implicitly uses updated config state
-        syncAgentsDefaultModels()
-
-        await configState.saveConfig()
-
-        if (props.selectedId === id) {
-            emit('select', '')
-        }
-    }
-}
-
 
 </script>
 
@@ -81,11 +30,6 @@ const deleteProvider = async (id: string, event: Event) => {
         <div class="h-full flex flex-col bg-base-100 border-r border-base-200">
             <!-- Header -->
             <ViewHeader :title="$t('provider.title')" :is-main-page="true">
-                <template #actions>
-                    <button @click="openAddModal" class="btn btn-ghost btn-sm btn-circle">
-                        <PlusIcon class="w-5 h-5" />
-                    </button>
-                </template>
             </ViewHeader>
 
             <!-- Provider List -->
@@ -94,7 +38,6 @@ const deleteProvider = async (id: string, event: Event) => {
                     class="flex flex-col items-center justify-center h-full p-8 text-base-content/50">
                     <div class="text-4xl mb-4">📦</div>
                     <p class="text-center">{{ $t('provider.noProviders') }}</p>
-                    <p class="text-sm text-center mt-2">{{ $t('provider.addDesc') }}</p>
                 </div>
 
                 <ul v-else>
@@ -119,13 +62,10 @@ const deleteProvider = async (id: string, event: Event) => {
                                 <div class="text-xs text-base-content/50 truncate">
                                     {{ $t('provider.modelCount', { n: provider.models.length }) }}
                                 </div>
+                                <div v-if="provider.maskedKey" class="text-xs text-base-content/30 truncate font-mono">
+                                    🔑 {{ provider.maskedKey }}
+                                </div>
                             </div>
-
-                            <!-- Delete Button -->
-                            <button @click="deleteProvider(provider.id, $event)"
-                                class="btn btn-ghost btn-sm btn-circle text-error opacity-0 group-hover:opacity-100 lg:opacity-0 lg:group-hover:opacity-100 max-lg:opacity-100 transition-opacity shrink-0">
-                                <TrashIcon class="w-4 h-4" />
-                            </button>
                         </div>
                     </li>
                 </ul>
@@ -138,8 +78,5 @@ const deleteProvider = async (id: string, event: Event) => {
                 </div>
             </div>
         </div>
-
-        <!-- Add Provider Modal -->
-        <ProviderFormModal :show="showAddModal" mode="add" @close="showAddModal = false" @saved="handleProviderSaved" />
     </div>
 </template>
