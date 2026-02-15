@@ -49,7 +49,7 @@ export function useSkillsState() {
         state.skillsLoading = true
         state.skillsError = null
         try {
-            const id = agentId || 'main'
+            const id = agentId || ''
             const result = await apiGet<{ skills: SkillEntry[] }>(`/api/skills/${id}`)
             state.skillsReport = result || { skills: [] }
         } catch (err: any) {

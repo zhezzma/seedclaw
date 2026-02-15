@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import ViewHeader from '@/components/ViewHeader.vue'
 import { useUiSettingsStore } from '@/stores/setting'
 import { useModelsState } from '../../composables/useModelsState'
 import { useI18n } from 'vue-i18n'
-
+import { ArrowLeftIcon, PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
+import ProviderFormModal from './ProviderFormModal.vue'
 const props = defineProps<{
     selectedId?: string
 }>()
@@ -17,11 +18,20 @@ const emit = defineEmits<{
 const router = useRouter()
 const { t } = useI18n()
 const { providers } = useModelsState()
-const settingsStore = useUiSettingsStore()
 
-const goBack = () => {
-    router.back()
+
+
+// Add Provider Modal
+const showAddModal = ref(false)
+
+const openAddModal = () => {
+    showAddModal.value = true
 }
+
+const handleProviderSaved = (providerId: string) => {
+    emit('select', providerId)
+}
+
 
 </script>
 
@@ -30,6 +40,11 @@ const goBack = () => {
         <div class="h-full flex flex-col bg-base-100 border-r border-base-200">
             <!-- Header -->
             <ViewHeader :title="$t('provider.title')" :is-main-page="true">
+                <template #actions>
+                    <button @click="openAddModal" class="btn btn-ghost btn-sm btn-circle">
+                        <PlusIcon class="w-5 h-5" />
+                    </button>
+                </template>
             </ViewHeader>
 
             <!-- Provider List -->
@@ -62,9 +77,6 @@ const goBack = () => {
                                 <div class="text-xs text-base-content/50 truncate">
                                     {{ $t('provider.modelCount', { n: provider.models.length }) }}
                                 </div>
-                                <div v-if="provider.maskedKey" class="text-xs text-base-content/30 truncate font-mono">
-                                    🔑 {{ provider.maskedKey }}
-                                </div>
                             </div>
                         </div>
                     </li>
@@ -78,5 +90,9 @@ const goBack = () => {
                 </div>
             </div>
         </div>
+
+
+        <!-- Add Provider Modal -->
+        <ProviderFormModal :show="showAddModal" mode="add" @close="showAddModal = false" @saved="handleProviderSaved" />
     </div>
 </template>

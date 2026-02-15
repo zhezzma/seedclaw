@@ -18,6 +18,7 @@ import { isNewSession, NEW_SESSION_PATH, NEW_SESSION_ROUTE_NAME } from '../utils
 import { useChatState, extractAgentId } from '../composables/useChatState'
 import { useSessionsState } from '../composables/useSessionsState'
 import { useAgentsState } from '../composables/useAgentsState'
+import { useToast } from '../composables/useToast'
 
 const route = useRoute()
 const router = useRouter()
@@ -63,27 +64,13 @@ const selectedAgent = computed(() => {
 
 
 // Messages / Cron Mode Logic
-const isMessagesMode = computed(() => route.query.type)
-
+const isTypeMode = computed(() => route.query.type)
 
 
 const typeSessions = computed(() => {
-    const list = sessionsState.sessionsResult?.sessions || []
-    // If type is cron, filter cron sessions. If not, maybe return empty or all?
-    // User context implies restoring typeSessions logic.
-    // If isMessagesMode is truthy (type is present), we might want to filter by that type.
-    // But for now, let's implement what was requested: "isMessagesMode且displaySessions是空...".
-    // And user snippet called it "typeSessions".
-    // So I assume we are handling "cron" type here.
     const type = route.query.type
     if (type === 'cron') {
-        return list.filter((s: any) => s.key.includes(':cron:') || s.key.includes(':task:'))
-    }
-    if (type === 'main') {
-        return list.filter((s: any) => s.key.endsWith(':main') || s.key.includes(':session:'))
-    }
-    if (type === 'other') {
-        return list.filter((s: any) => !s.key.endsWith(':main') && !s.key.includes(':session:') && !s.key.includes(':cron:') && !s.key.includes(':task:'))
+        return []
     }
     return []
 })
@@ -120,7 +107,7 @@ watch(() => [route.query.type, typeSessions.value, route.params.sessionkey], (va
 }, { immediate: true })
 
 const showMobileSessionList = computed(() => {
-    if (!isMessagesMode.value) return false
+    if (!isTypeMode.value) return false
     return !typeSelectedKey.value
 })
 
@@ -172,6 +159,10 @@ const handleSend = async () => {
     if (isNew) {
         // Create new session via sessionsState, get sessionKey directly
         const agentId = agentsState.agentsSelectedId
+        if (!agentId) {
+            useToast().warning('请先创建一个智能体')
+            return
+        }
         targetSessionKey = await sessionsState.commitNewSession(agentId, inputText)
     }
 
@@ -369,7 +360,7 @@ watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath
 
 // Helper function to apply default session behavior based on settings
 async function applyDefaultSessionBehavior() {
-    if (isMessagesMode.value) {
+    if (isTypeMode.value) {
         console.log('[HomeView] Messages mode, skipping default session behavior')
         return
     }
@@ -400,8 +391,8 @@ async function applyDefaultSessionBehavior() {
             </div>
         </div>
 
-        <!-- NEW: Messages List Column (Desktop: visible if isMessagesMode; Mobile: visible if isMessagesMode && showMobileSessionList) -->
-        <div v-if="isMessagesMode" class="w-full lg:w-80 bg-base-100 border-r border-base-200 flex flex-col shrink-0"
+        <!-- NEW: Messages List Column (Desktop: visible if isTypeMode; Mobile: visible if isTypeMode && showMobileSessionList) -->
+        <div v-if="isTypeMode" class="w-full lg:w-80 bg-base-100 border-r border-base-200 flex flex-col shrink-0"
             :class="{ 'hidden lg:flex': !showMobileSessionList, 'flex': showMobileSessionList }">
             <SessionSidebar :title="$t('home.messageList')" :sessions="typeSessions" :selected-key="typeSelectedKey"
                 @select="handleTypeSessionselect" @delete="handleTypeSessionDelete" />
@@ -409,7 +400,7 @@ async function applyDefaultSessionBehavior() {
 
 
         <!-- Empty Messages list state -->
-        <div v-if="isMessagesMode && !typeSelectedKey" class="flex-1 flex flex-col items-center justify-center p-4">
+        <div v-if="isTypeMode && !typeSelectedKey" class="flex-1 flex flex-col items-center justify-center p-4">
             <div class="text-center text-base-content/60">
                 <div class="text-center">
                     <h1 class="text-3xl font-bold mb-2">{{ $t('home.welcomeTitle') }}</h1>
@@ -419,7 +410,7 @@ async function applyDefaultSessionBehavior() {
         </div>
         <!-- Chat Area -->
         <div v-else class="flex-1 flex flex-col h-full min-w-0"
-            :class="{ 'hidden lg:flex': isMessagesMode && showMobileSessionList }">
+            :class="{ 'hidden lg:flex': isTypeMode && showMobileSessionList }">
 
             <!-- Header -->
             <ChatHeader ref="chatHeaderRef" :selected-agent="selectedAgent" :agents="agentsState.agentsList"

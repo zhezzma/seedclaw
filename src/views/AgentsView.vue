@@ -44,7 +44,6 @@ const clearSelection = () => {
 }
 
 const handleAgentCreated = async (newAgentId: string) => {
-    await agentsState.loadAgents()
     selectAgent(newAgentId)
     showAddModal.value = false
 }

@@ -1,6 +1,6 @@
 import { reactive } from 'vue'
 import { createStateProxy } from './utils/stateProxy'
-import { apiGet, apiPost, apiPatch, apiDelete, apiPut, apiUpload } from './api-client'
+import { apiGet, apiPost, apiPatch, apiDelete, apiPut, apiUpload, apiPatchMultipart } from './api-client'
 
 // ==================== Types ====================
 export interface AgentInfo {
@@ -24,6 +24,8 @@ export interface AgentInfo {
     identity?: {
         name?: string
         emoji?: string
+        vibe?: string
+        creature?: string
     }
 }
 
@@ -40,10 +42,10 @@ export interface AgentsState {
     agentsSelectedId: string
     agentsList: AgentInfo[],
     // Agent files state
-    agentFilesList: AgentFileInfo[] | null
-    agentFileContents: Record<string, string>
-    agentFileDrafts: Record<string, string>
-    agentFileActive: string | null
+
+    agentFiles: Record<string, AgentFileInfo>
+
+
 }
 
 // ==================== State ====================
@@ -51,13 +53,13 @@ const state = reactive<AgentsState>({
     agentsSelectedId: '',
     agentsList: [],
 
-    agentFilesList: null,
-    agentFileContents: {},
-    agentFileDrafts: {},
-    agentFileActive: null,
+
+    agentFiles: {},
+
+
 })
 
-const AGENT_FILES = ['AGENTS', 'IDENTITY', 'SYSTEM', 'TOOLS', 'BOOTSTRAP', 'USER', 'MEMORY']
+const AGENT_FILES = ['AGENTS.md', 'IDENTITY.md', 'SYSTEM.md', 'TOOLS.md', 'BOOTSTRAP.md', 'USER.md', 'MEMORY.md', 'HEARTBEAT.md']
 
 // ==================== Export ====================
 
@@ -76,35 +78,44 @@ export function useAgentsState() {
     }
 
     const loadAgentFiles = async (agentId: string) => {
-
         try {
             const files: AgentFileInfo[] = []
             for (const fileName of AGENT_FILES) {
+                const key = `${agentId}:${fileName}`
+
+                // If content exists in cache, use it to avoid request
+                if (state.agentFiles[key] !== undefined) {
+                    files.push(state.agentFiles[key])
+                    continue
+                }
+
                 try {
                     const result = await apiGet<{ file: AgentFileInfo }>(`/api/agents/${agentId}/${fileName}`)
                     if (result?.file) {
                         files.push(result.file)
+                        // Update cache
+                        if (result.file) {
+                            state.agentFiles[key] = result.file
+                        }
                     }
                 } catch {
-                    files.push({ name: `${fileName}.md`, path: '', missing: true })
+                    state.agentFiles[key] = { name: fileName, path: '', missing: true }
+                    files.push({ name: fileName, path: '', missing: true })
                 }
             }
-            state.agentFilesList = files
+            return files
         } catch (err: any) {
             console.error(err?.message || String(err))
+            return []
         }
     }
 
-    const loadAgentFileContent = async (agentId: string, name: string, opts?: { force?: boolean; preserveDraft?: boolean }) => {
+    const loadAgentFileContent = async (agentId: string, name: string) => {
         const key = `${agentId}:${name}`
-        if (!opts?.force && state.agentFileContents[key]) return
         try {
             const result = await apiGet<{ file: AgentFileInfo }>(`/api/agents/${agentId}/${name}`)
-            if (result?.file?.content !== undefined) {
-                state.agentFileContents[key] = result.file.content
-                if (!opts?.preserveDraft) {
-                    state.agentFileDrafts[key] = result.file.content
-                }
+            if (result?.file) {
+                state.agentFiles[key] = result.file
             }
         } catch (err: any) {
             console.error(`Failed to load file ${name} for agent ${agentId}:`, err)
@@ -112,34 +123,56 @@ export function useAgentsState() {
     }
 
     const saveAgentFile = async (agentId: string, name: string, content: string) => {
-
         try {
-            await apiPut(`/api/agents/${agentId}/${name}`, { content })
+            const result = await apiPut<{ file: AgentFileInfo }>(`/api/agents/${agentId}/${name}`, { content })
             const key = `${agentId}:${name}`
-            state.agentFileContents[key] = content
-            state.agentFileDrafts[key] = content
+            if (result?.file) {
+                state.agentFiles[key] = result.file
+            }
         } catch (err: any) {
             throw err
         }
     }
 
-    const createAgent = async (params: { id: string; name?: string; description?: string; defaultModel?: string; defaultProvider?: string; avatar?: string }) => {
-        const res = await apiPost('/api/agents', params)
-        await loadAgents()
+    const createAgent = async (params: FormData | any) => {
+        let res
+        if (params instanceof FormData) {
+            res = await apiUpload<AgentInfo>('/api/agents', params)
+        } else {
+            res = await apiPost<AgentInfo>('/api/agents', params)
+        }
+        if (res) {
+            state.agentsList.push(res)
+        }
         return res
     }
 
-    const updateAgent = async (params: { agentId: string; name?: string; description?: string; defaultModel?: string; avatar?: string }) => {
-        const { agentId, ...body } = params
-        const res = await apiPatch(`/api/agents/${agentId}`, body)
-        await loadAgents()
+    const updateAgent = async (params: FormData | ({ agentId: string } & Record<string, any>)) => {
+        let res
+        if (params instanceof FormData) {
+            const agentId = params.get('id') as string
+            if (!agentId) throw new Error("Agent ID is required")
+            res = await apiPatchMultipart<AgentInfo>(`/api/agents/${agentId}`, params)
+        } else {
+            const { agentId, ...body } = params
+            res = await apiPatch<AgentInfo>(`/api/agents/${agentId}`, body)
+        }
+
+        if (res) {
+            const index = state.agentsList.findIndex(a => a.id === res.id)
+            if (index !== -1) {
+                state.agentsList[index] = res
+            }
+        }
         return res
     }
 
     const deleteAgent = async (params: { agentId: string; deleteFiles?: boolean }) => {
-        const query = params.deleteFiles ? '?deleteFiles=true' : ''
-        const res = await apiDelete(`/api/agents/${params.agentId}${query}`)
-        await loadAgents()
+        const res = await apiDelete(`/api/agents/${params.agentId}`)
+        state.agentsList = state.agentsList.filter(a => a.id !== params.agentId)
+        if (state.agentsSelectedId === params.agentId) {
+            state.agentsSelectedId = ''
+        }
         return res
     }
 

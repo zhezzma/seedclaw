@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useToast } from '../../../composables/useToast'
+
 import { useModelsState } from '../../../composables/useModelsState'
-import { AgentInfo, useAgentsState } from '../../../composables/useAgentsState'
+import { AgentInfo, useAgentsState, AgentFileInfo } from '../../../composables/useAgentsState'
 import { useI18n } from 'vue-i18n'
 import {
     FingerPrintIcon,
@@ -11,6 +12,7 @@ import {
     DocumentTextIcon,
     ChevronRightIcon
 } from '@heroicons/vue/24/outline'
+
 
 // Props
 const props = defineProps<{
@@ -24,12 +26,13 @@ const emit = defineEmits<{
 const toast = useToast()
 const agentsState = useAgentsState()
 const modelsState = useModelsState()
+
 const { t } = useI18n()
 
 // File Management
 const ROLE_FILES = computed(() => [
     { name: 'AGENTS.md', label: t('agent.files.agent') },
-    { name: 'SOUL.md', label: t('agent.files.soul') },
+    { name: 'SYSTEM.md', label: t('agent.files.system') },
     { name: 'TOOLS.md', label: t('agent.files.tools') },
     { name: 'IDENTITY.md', label: t('agent.files.identity') },
     { name: 'USER.md', label: t('agent.files.user') },
@@ -48,19 +51,22 @@ const editingFileLabel = computed(() => {
 
 const editingFileName = computed(() => editingFile.value)
 
+// File Management
+const agentFilesList = ref<AgentFileInfo[]>([])
+// ... existing code ...
+
 // Load files when agent changes
-watch(() => props.agent.id, (newId) => {
-    if (newId) {
-        agentsState.loadAgentFiles(newId)
-    }
+watch(() => props.agent.id, async (newId) => {
+    agentFilesList.value = await agentsState.loadAgentFiles(newId) || []
 }, { immediate: true })
+
 
 async function openFile(filename: string) {
     editingFile.value = filename
     showFileModal.value = true
     editingContent.value = '' // Clear previous content while loading
-    await agentsState.loadAgentFileContent(props.agent.id, filename, { force: true })
-    editingContent.value = agentsState.agentFileContents[`${props.agent.id}:${filename}`] || ''
+    await agentsState.loadAgentFileContent(props.agent.id, filename)
+    editingContent.value = agentsState.agentFiles[`${props.agent.id}:${filename}`]?.content || ''
 }
 
 function closeFileModal() {
@@ -82,13 +88,19 @@ async function saveCurrentFile() {
 // Current model binding — uses agent.defaultModel via updateAgent API
 const currentModel = computed({
     get: () => {
-        return `${props.agent?.defaultProvider}/${props.agent?.defaultModel}` || ''
+        if (props.agent?.defaultProvider && props.agent?.defaultModel) {
+            return `${props.agent.defaultProvider}/${props.agent.defaultModel}`
+        }
+        return ''
     },
     set: async (val: string) => {
         try {
+            const [provider, ...rest] = val.split('/')
+            const model = rest.join('/')
             await agentsState.updateAgent({
                 agentId: props.agent.id,
-                defaultModel: val
+                defaultModel: model,
+                defaultProvider: provider
             })
         } catch (err: any) {
             toast.error(err.message || String(err))
@@ -96,20 +108,19 @@ const currentModel = computed({
     }
 })
 
-// Available models flattened
-const availableModels = computed((): any[] => {
-    const raw = modelsState.availableModels
-    return (raw && typeof raw === 'object' && 'value' in raw) ? (raw as any).value : raw as any[] || []
-})
+// Top-level alias so Vue auto-unwraps in template
+const availableModels = modelsState.availableModels
 
 const isCurrentModelAvailable = computed(() => {
-    const modelId = currentModel.value
-    if (!modelId) return true
+    const val = currentModel.value
+    if (!val) return true
     for (const group of availableModels.value) {
-        if (group.models.some((m: any) => m.id === modelId)) return true
+        if (group.models.some((m: any) => `${group.provider}/${m.id}` === val)) return true
     }
     return false
 })
+
+
 
 // Delete Agent Logic
 import { useRouter } from 'vue-router'
@@ -177,8 +188,8 @@ const handleDeleteAgent = async () => {
                                     </option>
                                     <optgroup v-for="group in availableModels" :key="group.provider"
                                         :label="group.provider">
-                                        <option v-for="model in group.models" :key="model.id" :value="model.id"
-                                            class="w-100 truncate block">
+                                        <option v-for="model in group.models" :key="model.id"
+                                            :value="`${group.provider}/${model.id}`" class="w-100 truncate block">
                                             {{ model.name }} ({{ model.id }})
                                         </option>
                                     </optgroup>
@@ -210,14 +221,14 @@ const handleDeleteAgent = async () => {
 
                             <div class="flex items-center gap-3">
                                 <!-- Status Badge -->
-                                <div v-if="agentsState.agentFilesList?.find((f: any) => f.name === file.name)?.missing"
+                                <div v-if="agentFilesList?.find((f: any) => f.name === file.name)?.missing"
                                     class="badge badge-warning badge-xs gap-1">
                                     {{ $t('agent.missing') }}
                                 </div>
                                 <div v-else class="badge badge-ghost badge-xs opacity-50">
-                                    {{(agentsState.agentFilesList?.find((f: any) => f.name === file.name)?.size || 0) >
+                                    {{(agentFilesList?.find((f: any) => f.name === file.name)?.size || 0) >
                                         0
-                                        ? (agentsState.agentFilesList?.find((f: any) => f.name === file.name)?.size +
+                                        ? (agentFilesList?.find((f: any) => f.name === file.name)?.size +
                                             ' B')
                                         : $t('agent.empty')}}
                                 </div>

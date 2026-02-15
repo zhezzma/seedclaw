@@ -4,9 +4,11 @@ import { useI18n } from 'vue-i18n'
 import { PlusIcon } from '@heroicons/vue/24/outline'
 import ViewHeader from '@/components/ViewHeader.vue'
 import AgentAvatar from './AgentAvatar.vue'
+import { AgentInfo } from '~/src/composables/useAgentsState'
+
 
 const props = defineProps<{
-    agents: any[]
+    agents: AgentInfo[]
     selectedId: string | null
 }>()
 
@@ -23,7 +25,7 @@ const { t } = useI18n()
         <!-- Header -->
         <ViewHeader :title="$t('agent.title')" :is-main-page="true">
             <template #actions>
-                <button @click="emit('add')" class="btn btn-primary btn-sm btn-square">
+                <button @click="emit('add')" class="btn btn-ghost btn-sm btn-circle">
                     <PlusIcon class="w-5 h-5" />
                 </button>
             </template>
@@ -57,7 +59,7 @@ const { t } = useI18n()
                                 {{ agent.name || agent.id }}
                             </div>
                             <div class="text-xs text-base-content/50 truncate">
-                                {{ agent.identity?.name || t('agent.unknownIdentity') }}
+                                {{ agent.description }}
                             </div>
                         </div>
                     </div>

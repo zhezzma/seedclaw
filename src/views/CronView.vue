@@ -35,7 +35,7 @@ interface SimpleCronForm {
 
 const defaultForm: SimpleCronForm = {
     cron: '*/30 * * * *',
-    agentId: 'main',
+    agentId: '',
     prompt: '',
     enabled: true,
 }
@@ -90,7 +90,7 @@ const handleOpenEdit = (job: TaskJob) => {
     modalError.value = null
     form.value = {
         cron: job.cron,
-        agentId: job.agentId || 'main',
+        agentId: job.agentId || '',
         prompt: job.prompt || '',
         enabled: job.enabled
     }
@@ -202,7 +202,7 @@ onMounted(() => {
                                     <div class="flex items-center gap-1 shrink-0">
                                         <span v-if="job.agentId"
                                             class="badge badge-xs badge-outline font-mono opacity-80">{{
-                                            job.agentId.slice(0, 8) }}</span>
+                                                job.agentId.slice(0, 8) }}</span>
                                     </div>
                                 </div>
 
@@ -316,7 +316,7 @@ onMounted(() => {
                                 <td>
                                     <span class="badge badge-xs"
                                         :class="{ 'badge-success': log.status === 'ok', 'badge-error': log.status === 'error', 'badge-warning': log.status === 'skipped' }">{{
-                                        log.status }}</span>
+                                            log.status }}</span>
                                 </td>
                                 <td>{{ log.durationMs ? log.durationMs + 'ms' : '-' }}</td>
                                 <td class="max-w-[200px] truncate" :title="log.error || log.summary">{{ log.error ||

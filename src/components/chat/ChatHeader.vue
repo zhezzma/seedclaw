@@ -19,13 +19,7 @@ import { useChatState, extractAgentId } from '../../composables/useChatState'
 
 import { isNewSession, NEW_SESSION_ROUTE_NAME } from '../../utils/route-helpers'
 import { useSessionsState } from '~/src/composables/useSessionsState'
-
-interface Agent {
-    id: string
-    name: string
-    icon: string
-    description?: string
-}
+import { useAgentsState } from '~/src/composables/useAgentsState'
 
 const props = defineProps<{
     selectedAgent: any
@@ -46,12 +40,13 @@ const handleBack = () => {
 }
 const sessionsState = useSessionsState()
 const settingsStore = useUiSettingsStore()
+const agentState = useAgentsState()
 
 const chatState = useChatState()
 const dropdownRef = ref<HTMLDetailsElement | null>(null)
 
 const currentAgentId = computed(() => extractAgentId(chatState.sessionKey))
-const showAgentDropdown = computed(() => chatState.sessionKey.endsWith(':main') || chatState.sessionKey.includes(':session:') || isNewSession(route))
+const showAgentDropdown = computed(() => isNewSession(route))
 
 const selectedAgentId = computed(() => props.selectedAgent?.id || '')
 
@@ -67,15 +62,9 @@ const currentSessionName = computed(() => {
 
 
 const selectAgent = (agentId: string) => {
-
     if (isNewSession(route)) {
-        // Agent selection for new session is handled via the dropdown UI
+        agentState.agentsSelectedId = agentId
     }
-    else {
-        // Navigate to agent's main session
-        router.push({ name: 'chat', params: { sessionkey: `agent:${agentId}:main` } })
-    }
-
     if (dropdownRef.value) {
         dropdownRef.value.open = false
     }
@@ -117,7 +106,7 @@ defineExpose({
 
         <div class="flex-1">
             <!-- Agent dropdown (for agent main sessions) -->
-            <details v-if="showAgentDropdown" class="dropdown" ref="dropdownRef">
+            <details v-if="showAgentDropdown && selectedAgent" class="dropdown" ref="dropdownRef">
                 <summary class="btn btn-ghost gap-1 list-none">
                     <span class="font-semibold text-lg">{{ selectedAgent?.name || 'Assistant' }}</span>
                     <ChevronDownIcon class="h-4 w-4" />
@@ -139,19 +128,7 @@ defineExpose({
                     currentAgentId }}</span>
             </div>
         </div>
-        <!-- Connection status indicator -->
-        <div class="flex-none flex items-center gap-2 pr-1">
-            <div class="flex items-center gap-3 min-w-0">
 
-
-                <div class="flex items-center gap-1">
-                    <div class="w-2 h-2 rounded-full bg-success"></div>
-                    <span class="text-xs text-base-content/60 hidden sm:inline">
-                        {{ $t('chat.connected') }}
-                    </span>
-                </div>
-            </div>
-        </div>
         <!-- Mobile buttons -->
         <div class="flex-none flex gap-1 lg:hidden">
             <button @click="startVoiceChat" class="btn btn-ghost btn-circle btn-sm" :title="$t('chat.voiceChat')">

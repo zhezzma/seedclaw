@@ -137,6 +137,24 @@ export async function apiUpload<T = any>(path: string, formData: FormData): Prom
 }
 
 /**
+ * Update a resource via multipart/form-data using PATCH
+ */
+export async function apiPatchMultipart<T = any>(path: string, formData: FormData): Promise<T> {
+    const url = `${getBaseUrl()}${path}`
+    const settings = useUiSettingsStore()
+    const headers: Record<string, string> = {}
+    if (settings.token?.trim()) {
+        headers['Authorization'] = `Bearer ${settings.token.trim()}`
+    }
+    const response = await fetch(url, {
+        method: 'PATCH',
+        headers,
+        body: formData,
+    })
+    return handleResponse<T>(response)
+}
+
+/**
  * Get the full URL for a path (useful for SSE connections, etc.)
  */
 export function getApiUrl(path: string): string {

@@ -244,7 +244,7 @@ onUnmounted(() => {
                 <div v-if="logsState.logsError" class="alert alert-error shadow-lg">
                     <XCircleIcon class="w-6 h-6" />
                     <div class="flex flex-col">
-                        <span class="font-bold">Error loading logs</span>
+                        <span class="font-bold">{{ $t('log.errorLoading') }}</span>
                         <span class="text-sm opacity-90">{{ logsState.logsError }}</span>
                     </div>
                 </div>
@@ -256,7 +256,7 @@ onUnmounted(() => {
                         <InformationCircleIcon class="w-8 h-8 opacity-50" />
                     </div>
                     <p class="text-lg font-medium">{{ $t('log.noLogs') }}</p>
-                    <p class="text-sm mt-1">Try adjusting your filters or search query</p>
+                    <p class="text-sm mt-1">{{ $t('log.adjustFilters') }}</p>
                 </div>
 
                 <!-- Log Table -->
@@ -267,9 +267,9 @@ onUnmounted(() => {
                             <thead class="bg-base-200/50 text-base-content/70">
                                 <tr>
                                     <th class="w-40 pl-6 font-semibold">{{ $t('common.time') }}</th>
-                                    <th class="w-24 text-center font-semibold">Level</th>
+                                    <th class="w-24 text-center font-semibold">{{ $t('log.level') }}</th>
                                     <th class="font-semibold">{{ $t('common.message') }}</th>
-                                    <th class="w-20 text-center font-semibold">Meta</th>
+                                    <th class="w-20 text-center font-semibold">{{ $t('log.meta') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="text-sm">
@@ -304,7 +304,7 @@ onUnmounted(() => {
                                                 <div class="card-body gap-0 p-0">
                                                     <div
                                                         class="px-4 py-2 bg-base-200/50 border-b border-base-200 font-bold text-xs uppercase tracking-wider text-base-content/60">
-                                                        Metadata
+                                                        {{ $t('log.metadata') }}
                                                     </div>
                                                     <div class="p-2 max-h-60 overflow-y-auto custom-scrollbar">
                                                         <div v-for="(val, key) in log.meta" :key="key"
@@ -332,16 +332,17 @@ onUnmounted(() => {
                 <div
                     class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-6 bg-base-100 p-3 rounded-xl border border-base-200 shadow-sm">
                     <span class="text-xs font-medium text-base-content/60 order-2 sm:order-1">
-                        Page <span class="font-bold text-base-content">{{ logsState.page }}</span> of <span
-                            class="font-bold text-base-content">{{ logsState.totalPages }}</span>
+                        {{ $t('log.page') }} <span class="font-bold text-base-content">{{ logsState.page }}</span> {{
+                        $t('log.of') }} <span class="font-bold text-base-content">{{ logsState.totalPages }}</span>
                         <span class="opacity-50 mx-2">|</span>
-                        Total <span class="font-bold text-base-content">{{ logsState.total }}</span> entries
+                        {{ $t('log.total') }} <span class="font-bold text-base-content">{{ logsState.total }}</span> {{
+                        $t('log.entries') }}
                     </span>
 
                     <div class="join bg-base-200/50 p-1 rounded-lg order-1 sm:order-2">
                         <button class="join-item btn btn-sm btn-ghost hover:bg-base-100 hover:shadow-sm transition-all"
                             @click="logsState.prevPage()" :disabled="logsState.page <= 1">
-                            « Prev
+                            « {{ $t('common.prev') }}
                         </button>
                         <button
                             class="join-item btn btn-sm bg-base-100 shadow-sm border border-base-200 px-4 min-w-[3rem] pointer-events-none">
@@ -349,7 +350,7 @@ onUnmounted(() => {
                         </button>
                         <button class="join-item btn btn-sm btn-ghost hover:bg-base-100 hover:shadow-sm transition-all"
                             @click="logsState.nextPage()" :disabled="logsState.page >= logsState.totalPages">
-                            Next »
+                            {{ $t('common.next') }} »
                         </button>
                     </div>
                 </div>

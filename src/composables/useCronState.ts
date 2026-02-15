@@ -41,7 +41,7 @@ export interface CronState {
 // ==================== State ====================
 const defaultForm: CronFormState = {
     cron: '*/30 * * * *',
-    agentId: 'main',
+    agentId: '',
     prompt: '',
     enabled: true,
 }

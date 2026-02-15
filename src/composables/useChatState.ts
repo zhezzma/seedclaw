@@ -1,6 +1,6 @@
 import { reactive } from 'vue'
 import { createStateProxy } from './utils/stateProxy'
-import { useSessionsState } from './useSessionsState'
+import { SessionRow, useSessionsState } from './useSessionsState'
 import { useUiSettingsStore } from '../stores/setting'
 import { apiGet, apiPost } from './api-client'
 import { startChatSSE, connectSessionSSE, type SSEConnection } from './sse-client'
@@ -63,8 +63,9 @@ function extractSessionId(sessionKey: string): string {
 
 export function extractAgentId(sessionKey: string): string {
     const sessionsState = useSessionsState()
-    const session = sessionsState.sessionsResult?.sessions?.find((s: any) => s.key === sessionKey)
-    return session?.agentId || 'main'
+    const session = sessionsState.sessionsResult?.sessions?.find((s: SessionRow) => s.id === sessionKey)
+
+    return session?.agentId || ''
 }
 
 function getSessionData(key: string): ChatSessionData {

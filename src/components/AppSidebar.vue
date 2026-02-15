@@ -43,9 +43,6 @@ const sessions = computed(() => sessionsState.sessionsResult?.sessions || [])
 
 
 
-
-
-// Filter sessions for display (exclude agent main sessions if needed, logic copied)
 // Filter sessions for display (exclude agent main sessions if needed, logic copied)
 const displaySessions = computed(() => {
     return sessions.value
