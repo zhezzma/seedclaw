@@ -10,6 +10,7 @@ import { useDevicesState } from './useDevicesState'
 import { useNodesState } from './useNodesState'
 import { usePresence } from './usePresence'
 import { useModelsState } from './useModelsState'
+import { useSkillsState } from './useSkillsState'
 
 /**
  * Initializes all domain-specific state composables.
@@ -20,10 +21,10 @@ export function useAppInit() {
     const agentsState = useAgentsState()
     const sessionsState = useSessionsState()
     const { loadModels } = useModelsState()
+    const { fetchGlobalSkills, initConvexConnection } = useSkillsState()
+
 
     const chatState = useChatState()
-
-
     const cronState = useCronState()
     const execApprovalState = useExecApproval()
     const devicesState = useDevicesState()
@@ -40,9 +41,10 @@ export function useAppInit() {
         await Promise.all([
             agentsState.initAgents(),
             sessionsState.loadSessions(),
-            loadModels()
+            loadModels(),
+            fetchGlobalSkills()
         ])
-
+        initConvexConnection()
     }
 
     return {

@@ -27,6 +27,7 @@ export interface AgentInfo {
         vibe?: string
         creature?: string
     }
+    skills?: string[]
 }
 
 export interface AgentFileInfo {
@@ -176,6 +177,8 @@ export function useAgentsState() {
         return res
     }
 
+
+
     const methods = {
         initAgents,
         loadAgents,
@@ -185,6 +188,7 @@ export function useAgentsState() {
         createAgent,
         updateAgent,
         deleteAgent,
+
     }
 
     return createStateProxy(state, methods)

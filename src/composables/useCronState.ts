@@ -104,7 +104,7 @@ export function useCronState() {
         state.cronError = null
         try {
             const endpoint = enabled ? 'enable' : 'disable'
-            await apiPost(`/api/tasks/${job.id}/${endpoint}`)
+            await apiPost(`/api/crons/${job.id}/${endpoint}`)
             await loadCron()
         } catch (err: any) {
             state.cronError = String(err)
@@ -117,7 +117,7 @@ export function useCronState() {
         state.cronBusy = true
         state.cronError = null
         try {
-            await apiDelete(`/api/tasks/${job.id}`)
+            await apiDelete(`/api/crons/${job.id}`)
             await loadCron()
         } catch (err: any) {
             state.cronError = String(err)
@@ -131,7 +131,7 @@ export function useCronState() {
         state.cronBusy = true
         state.cronError = null
         try {
-            await apiPatch(`/api/tasks/${id}`, {
+            await apiPatch(`/api/crons/${id}`, {
                 cron: state.cronForm.cron,
                 agentId: state.cronForm.agentId,
                 prompt: state.cronForm.prompt,
@@ -151,7 +151,7 @@ export function useCronState() {
         // Assuming POST /api/tasks/:id/run
         state.cronBusy = true
         try {
-            await apiPost(`/api/tasks/${job.id}/run`)
+            await apiPost(`/api/crons/${job.id}/run`)
             await loadCron()
         } catch (err: any) {
             state.cronError = String(err)
