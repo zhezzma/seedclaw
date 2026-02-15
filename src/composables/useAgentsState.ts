@@ -39,25 +39,31 @@ export interface AgentFileInfo {
     content?: string
 }
 
+export interface AgentTool {
+    name: string
+    description?: string
+    parameters?: any
+    active: boolean
+    denied: boolean
+}
+
 export interface AgentsState {
     agentsSelectedId: string
     agentsList: AgentInfo[],
     // Agent files state
-
     agentFiles: Record<string, AgentFileInfo>
-
-
+    // Agent tools state
+    agentTools: Record<string, AgentTool[]>
+    agentToolsBusy: Record<string, boolean>
 }
 
 // ==================== State ====================
 const state = reactive<AgentsState>({
     agentsSelectedId: '',
     agentsList: [],
-
-
     agentFiles: {},
-
-
+    agentTools: {},
+    agentToolsBusy: {},
 })
 
 const AGENT_FILES = ['AGENTS.md', 'IDENTITY.md', 'SYSTEM.md', 'TOOLS.md', 'BOOTSTRAP.md', 'USER.md', 'MEMORY.md', 'HEARTBEAT.md']
@@ -98,6 +104,9 @@ export function useAgentsState() {
                         if (result.file) {
                             state.agentFiles[key] = result.file
                         }
+                    } else {
+                        state.agentFiles[key] = { name: fileName, path: '', missing: true }
+                        files.push({ name: fileName, path: '', missing: true })
                     }
                 } catch {
                     state.agentFiles[key] = { name: fileName, path: '', missing: true }
@@ -177,9 +186,57 @@ export function useAgentsState() {
         return res
     }
 
+    const loadAgentTools = async (agentId: string) => {
+        state.agentToolsBusy[agentId] = true
+        try {
+            const res = await apiGet<{
+                tools: { name: string, description?: string, parameters?: any }[],
+                activeToolNames: string[],
+                deniedTools: string[]
+            }>(`/api/agents/${agentId}/tools`)
 
+            if (res) {
+                // Map API response to Client AgentTool model
+                state.agentTools[agentId] = res.tools.map(t => ({
+                    name: t.name,
+                    description: t.description,
+                    parameters: t.parameters,
+                    active: res.activeToolNames.includes(t.name),
+                    denied: res.deniedTools.includes(t.name)
+                }))
+            }
+        } catch (err: any) {
+            console.error(`Failed to load tools for agent ${agentId}:`, err)
+        } finally {
+            state.agentToolsBusy[agentId] = false
+        }
+    }
 
-    const methods = {
+    const toggleAgentTool = async (agentId: string, toolName: string, enable: boolean) => {
+        try {
+            // Optimistic update
+            const tools = state.agentTools[agentId]
+            if (tools) {
+                const tool = tools.find(t => t.name === toolName)
+                if (tool) {
+                    tool.denied = !enable
+                    tool.active = enable // assumption: un-denying makes it active or available
+                }
+            }
+
+            const body = enable ? { enable: [toolName] } : { disable: [toolName] }
+            await apiPatch<{ deniedTools: string[] }>(`/api/agents/${agentId}/tools`, body)
+
+            // Reload tools to ensure sync
+            await loadAgentTools(agentId)
+        } catch (err: any) {
+            console.error(`Failed to toggle tool ${toolName} for agent ${agentId}:`, err)
+            // Revert on error
+            await loadAgentTools(agentId)
+        }
+    }
+
+    return createStateProxy(state, {
         initAgents,
         loadAgents,
         loadAgentFiles,
@@ -188,8 +245,7 @@ export function useAgentsState() {
         createAgent,
         updateAgent,
         deleteAgent,
-
-    }
-
-    return createStateProxy(state, methods)
+        loadAgentTools,
+        toggleAgentTool,
+    })
 }

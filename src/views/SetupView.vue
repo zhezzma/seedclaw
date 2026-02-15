@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
 import { apiGet } from '../composables/api-client'
-import { useDevicesState } from '../composables/useDevicesState'
+
 import {
     ArrowRightIcon,
     EyeIcon,
@@ -16,7 +16,6 @@ const router = useRouter()
 const { t } = useI18n()
 const configStore = useUiSettingsStore()
 
-const devicesState = useDevicesState()
 
 const apiBaseUrl = ref('http://localhost:18789')
 const authToken = ref('')
@@ -25,15 +24,7 @@ const error = ref('')
 const showPassword = ref(false)
 const deviceName = ref(configStore.deviceName || 'SeedClaw')
 
-const pairingState = ref<{
-    isPairing: boolean
-    deviceId: string
-    requestId: string
-}>({
-    isPairing: false,
-    deviceId: '',
-    requestId: ''
-})
+
 
 
 
@@ -59,7 +50,6 @@ const handleSubmit = async () => {
 
     isLoading.value = true
     error.value = ''
-    pairingState.value.isPairing = false
 
     try {
         // Save configuration first
@@ -75,16 +65,9 @@ const handleSubmit = async () => {
         // Connection successful, redirect to home
         router.push('/')
     } catch (e: any) {
-        // Handle pairing requirement
-        if (e.code === 'NOT_PAIRED' || e.message?.includes('pairing required') || e.message?.includes('1008')) {
-            // Pairing not supported in new API — show generic error
-            error.value = t('setup.connectionFailed')
-
-        } else {
-            // Connection failed, show error
-            error.value = e instanceof Error ? e.message : t('setup.connectionFailed')
-            console.error(e)
-        }
+        // Connection failed, show error
+        error.value = e instanceof Error ? e.message : t('setup.connectionFailed')
+        console.error(e)
     } finally {
         isLoading.value = false
     }
@@ -124,49 +107,8 @@ const handleSubmit = async () => {
                 </div>
 
 
-                <!-- Pairing UI -->
-                <div v-if="pairingState.isPairing" class="space-y-6 animate-fade-in">
-                    <div class="alert alert-info shadow-sm">
-                        <DevicePhoneMobileIcon class="h-6 w-6" />
-                        <div>
-                            <h3 class="font-bold">{{ $t('setup.pairingSent') }}</h3>
-                            <div class="text-xs">{{ $t('setup.contactAdmin') }}</div>
-                        </div>
-                    </div>
-
-                    <div class="bg-base-200/50 rounded-xl p-4 space-y-4 border border-base-content/5">
-                        <div class="space-y-1">
-                            <div class="text-xs text-base-content/50 font-medium uppercase tracking-wider">{{
-                                $t('setup.deviceId') }}</div>
-                            <div
-                                class="font-mono text-sm break-all bg-base-100 p-2 rounded border border-base-content/10 select-all">
-                                {{ pairingState.deviceId }}
-                            </div>
-                        </div>
-
-                        <div class="space-y-1">
-                            <div class="text-xs text-base-content/50 font-medium uppercase tracking-wider">{{
-                                $t('setup.requestId') }}</div>
-                            <div
-                                class="font-mono text-sm break-all bg-base-100 p-2 rounded border border-base-content/10 select-all">
-                                {{ pairingState.requestId }}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="flex items-center justify-center gap-3 py-4 text-base-content/60">
-                        <span class="loading loading-spinner loading-md text-primary"></span>
-                        <span class="text-sm">{{ $t('setup.waitingApproval') }}</span>
-                    </div>
-
-
-                    <button @click="pairingState.isPairing = false" class="btn btn-ghost btn-block btn-sm">
-                        {{ $t('setup.backToConfig') }}
-                    </button>
-                </div>
-
                 <!-- Config Form -->
-                <form v-else @submit.prevent="handleSubmit" class="space-y-6 animate-fade-in">
+                <form @submit.prevent="handleSubmit" class="space-y-6 animate-fade-in">
 
                     <!-- Gateway URL -->
                     <fieldset class="fieldset">
@@ -231,15 +173,7 @@ const handleSubmit = async () => {
                     </button>
                 </form>
 
-                <!-- Footer -->
-                <div class="divider my-6 text-xs opacity-50">{{ $t('common.or') }}</div>
-                <p class="text-center text-sm text-base-content/60">
-                    {{ $t('setup.noOpenClaw') }}
-                    <a href="https://docs.openclaw.ai" target="_blank"
-                        class="link link-primary font-medium hover:link-hover">
-                        {{ $t('setup.learnMore') }} →
-                    </a>
-                </p>
+
             </div>
         </div>
     </div>

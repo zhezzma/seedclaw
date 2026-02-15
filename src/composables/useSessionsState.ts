@@ -164,14 +164,16 @@ export function useSessionsState() {
 
         const deletedKeys = results.filter((k): k is string => k !== null)
 
-        if (deletedKeys.length > 0 && state.sessionsResult?.sessions) {
-            state.sessionsResult = {
-                ...state.sessionsResult,
-                sessions: state.sessionsResult.sessions.filter((s: SessionRow) => !deletedKeys.includes(s.id)),
-                total: Math.max(0, (state.sessionsResult.total || 0) - deletedKeys.length)
+        if (deletedKeys.length > 0) {
+            if (state.sessionsResult?.sessions) {
+                state.sessionsResult = {
+                    ...state.sessionsResult,
+                    sessions: state.sessionsResult.sessions.filter((s: SessionRow) => !deletedKeys.includes(s.id)),
+                    total: Math.max(0, (state.sessionsResult.total || 0) - deletedKeys.length)
+                }
             }
         }
-        return { deleted: deletedKeys.length > 0, deletedCount: deletedKeys.length }
+        return { deleted: true, deletedCount: deletedKeys.length }
     }
 
     const hasSession = (key: string) => {
@@ -198,8 +200,19 @@ export function useSessionsState() {
         return session.id
     }
 
+    const loadCronSessions = async (page = 1, pageSize = 50): Promise<SessionsResult> => {
+        try {
+            const result = await apiGet<SessionsResult>(`/api/sessions/crons?page=${page}&pageSize=${pageSize}`)
+            return result || { sessions: [] }
+        } catch (error) {
+            console.error('Failed to load cron sessions', error)
+            return { sessions: [] }
+        }
+    }
+
     const methods = {
         loadSessions,
+        loadCronSessions,
         patchSession,
         deleteSession,
         deleteSessions,

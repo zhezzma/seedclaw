@@ -162,10 +162,6 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
                     if (lastMsg && lastMsg.role === 'assistant') {
                         shouldMerge = true;
                     }
-                    // Gateway 注入的消息不合并
-                    if ((msg as any).provider == "openclaw" && (msg as any).model == "gateway-injected") {
-                        shouldMerge = false;
-                    }
                 }
 
                 if (shouldMerge && lastMsg) {

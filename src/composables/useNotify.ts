@@ -4,6 +4,7 @@ import { useUiSettingsStore } from '../stores/setting'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
 
 import { useSessionsState } from './useSessionsState'
+import { connect as connectNotifyWs, disconnect as disconnectNotifyWs, getWsUrl } from './notify-client'
 
 let initialized = false
 const NOTIFY_LENGTH_THRESHOLD = 20
@@ -19,7 +20,7 @@ const showInAppNotification = (title: string, body: string, sessionKey: string) 
             router.push({
                 name: 'chat',
                 params: { sessionkey: sessionKey },
-                query: sessionKey.includes(':cron:') ? { type: 'cron' } : undefined
+                query: { type: 'cron' }
             });
         }
     });
@@ -42,7 +43,7 @@ const showNativeNotification = (title: string, body: string, sessionKey: string)
                 router.push({
                     name: 'chat',
                     params: { sessionkey: sessionKey },
-                    query: sessionKey.includes(':cron:') ? { type: 'cron' } : undefined
+                    query: { type: 'cron' }
                 });
             }
         };
@@ -52,12 +53,86 @@ const showNativeNotification = (title: string, body: string, sessionKey: string)
     }
 };
 
+export const triggerNotify = (title: string, body: string, sessionKey: string) => {
+    // 3. 主逻辑判断
+    try {
+        console.log('trigger notification check', title, body);
+
+        // A. 检查浏览器是否支持
+        if (!("Notification" in window)) {
+            showInAppNotification(title, body, sessionKey); // 不支持 -> 兜底
+        }
+        // B. 权限已允许
+        else if (Notification.permission === 'granted') {
+            showNativeNotification(title, body, sessionKey); // 允许 -> 原生
+        }
+        // C. 权限被明确拒绝 (Denied)
+        else if (Notification.permission === 'denied') {
+            showInAppNotification(title, body, sessionKey); // 拒绝 -> 兜底
+        }
+        // D. 权限是默认状态 (Default/Pending)，需要询问
+        else {
+            showInAppNotification(title, body, sessionKey); // Default -> 兜底
+
+            //现代浏览器中的通知权限必须手动触发。为了防止垃圾信息骚扰，浏览器（如 Chrome、Firefox、Safari）通常要求只有在用户通过点击按钮或类似操作产生交互后，网站才能弹出权限申请请求。直接在页面加载时自动申请通知权限的方法大部分已被禁止。 
+            //所以下面的请求权限的代码是无效的
+            Notification.requestPermission().then((permission) => {
+                if (permission === 'granted') {
+                    showNativeNotification(title, body, sessionKey); // 用户点了允许 -> 原生
+                } else {
+                    showInAppNotification(title, body, sessionKey); // 用户点了拒绝或关闭了弹窗 -> 兜底
+                }
+            });
+        }
+    } catch (error) {
+        // 捕获其他未知的语法或运行时错误
+        console.error('Notification logic error:', error);
+        showInAppNotification(title, body, sessionKey);
+    }
+}
+
 export function useNotify() {
     if (initialized) return
     initialized = true
 
-    // Note: Without WebSocket gateway, real-time notifications for background events 
-    // (like cron job completions) are not available. This module now only provides
-    // the notification display infrastructure. SSE chat events handle in-chat notifications.
-    // Future: could add a polling mechanism or SSE connection for background events.
+    const isTauri = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__;
+    if (isTauri) {
+        // Tauri 环境: 使用 Rust 的 WebSocket 连接（安卓 WebView 的 WS 容易断开）
+        // Rust 端负责发送系统原生通知，前端只监听消息用于 in-app toast 补充
+        initTauriNotify()
+    } else {
+        // 浏览器环境: 使用浏览器原生 WebSocket
+        connectNotifyWs(triggerNotify)
+    }
 }
+
+/**
+ * Tauri 环境通知初始化
+ * 1. 调用 Rust invoke('notify_connect') 启动 Rust 端 WS 连接
+ * 2. 监听 'notify://message' 事件，解析消息后显示 in-app toast
+ */
+async function initTauriNotify() {
+    try {
+        const { invoke } = await import('@tauri-apps/api/core')
+
+        const settings = useUiSettingsStore()
+        const wsUrl = getWsUrl()
+
+        if (!wsUrl) {
+            console.warn('[useNotify] No API base URL configured, skipping Tauri WS connection.')
+            return
+        }
+
+        const token = settings.token?.trim() || undefined
+        const origin = settings.apiBaseUrl?.trim().replace(/\/+$/, '') || 'http://localhost'
+
+        // 启动 Rust 端 WebSocket 连接
+        // Rust 端负责接收消息并直接触发系统原生通知，不经过 WebView
+        await invoke('notify_connect', { url: wsUrl, token, origin })
+
+        console.log('[useNotify] Tauri notify_connect invoked successfully')
+    } catch (err) {
+        console.error('[useNotify] Failed to initialize Tauri notify:', err)
+    }
+}
+

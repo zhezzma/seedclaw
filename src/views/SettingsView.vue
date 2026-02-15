@@ -155,9 +155,7 @@ const navigateToLogs = () => {
     router.push('/logs')
 }
 
-const navigateToDevices = () => {
-    router.push('/devices')
-}
+
 
 const logout = async () => {
     if (await confirm(t('settings.clearDataConfirm'), t('settings.confirmLogout'))) {
@@ -190,7 +188,7 @@ const logout = async () => {
                                         <span class="font-medium">{{ $t('settings.basic') }}</span>
                                         <p class="text-xs text-base-content/50 truncate max-w-48">{{
                                             configStore.apiBaseUrl
-                                            }}</p>
+                                        }}</p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
@@ -209,7 +207,7 @@ const logout = async () => {
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm text-base-content/60">{{ configStore.isDark ?
                                         $t('settings.dark') : $t('settings.light')
-                                    }}</span>
+                                        }}</span>
                                     <input type="checkbox" class="toggle toggle-primary" :checked="configStore.isDark"
                                         @change="configStore.toggleTheme()" />
                                 </div>
@@ -258,7 +256,7 @@ const logout = async () => {
                                         <span class="font-medium">{{ $t('settings.gotify') }}</span>
                                         <p class="text-xs text-base-content/50">{{ configStore.gotifyUrl ||
                                             $t('settings.notConfigured')
-                                        }}</p>
+                                            }}</p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />

@@ -36,7 +36,7 @@ const getDefaultSettings = (): UiSettings => ({
     lastActiveSessionKey: '',
     theme: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
     isSidebarOpen: false,
-    isWideMode: false,
+    isWideMode: true,
     showBottomNav: false,
     sessionsActiveDays: 3,
     asrToken: '',

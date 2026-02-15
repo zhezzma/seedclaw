@@ -5,13 +5,13 @@ import { MagnifyingGlassIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import ViewHeader from '../ViewHeader.vue'
 
 import { useConfirm } from '../../composables/useConfirm'
-import { useSessionsState } from '../../composables/useSessionsState'
+import { SessionRow, useSessionsState } from '../../composables/useSessionsState'
 
 
 const props = defineProps<{
     title?: string
     selectedKey?: string
-    sessions: any[]
+    sessions: SessionRow[]
 }>()
 
 const emit = defineEmits<{
@@ -23,11 +23,33 @@ const { t } = useI18n()
 const { confirm } = useConfirm()
 const { deleteSessions } = useSessionsState()
 
+const normalizedSessions = computed(() => {
+    return props.sessions.map((s: any) => {
+        const id = s.id || s.sessionId || s.key
+        const label = s.name || s.displayLabel || s.displayName || s.label || s.agentName || id || 'Session'
+        const rawDate = s.timestamp || s.lastActiveAt || s.updatedAt || s.created || s.modified
+
+        let displayLabel = label
+        if (typeof displayLabel === 'string' && displayLabel.startsWith('Cron: ')) {
+            displayLabel = displayLabel.slice(6)
+        }
+
+        return {
+            ...s,
+            _id: id,
+            _label: displayLabel,
+            _date: rawDate ? new Date(rawDate) : null
+        }
+    })
+})
+
 const handleDeleteAll = async () => {
     if (props.sessions.length === 0) return
     if (await confirm(t('chat.clearAllConfirm'))) {
-        const keys = props.sessions.map(s => s.key)
-        await deleteSessions(keys)
+        const keys = normalizedSessions.value.map(s => s._id).filter(id => !!id)
+        if (keys.length > 0) {
+            await deleteSessions(keys)
+        }
     }
 }
 
@@ -42,19 +64,15 @@ const handleDelete = async (key: string, event: Event) => {
 const searchQuery = ref('')
 
 const filteredSessions = computed(() => {
-    const list = props.sessions
+    const list = normalizedSessions.value
     if (!searchQuery.value) return list
     const query = searchQuery.value.toLowerCase()
     return list.filter((s: any) =>
-        (s.displayLabel || s.label || '').toLowerCase().includes(query)
+        (s._label || '').toLowerCase().includes(query)
     )
-}) as any // ComputedRef<any> or just use any inside template
+})
 
 
-const formatLabel = (s: any) => {
-    const label = s.displayLabel || s.displayName || s.label || s.key || 'Session'
-    return label.startsWith('Cron: ') ? label.slice(6) : label
-}
 </script>
 
 <template>
@@ -84,16 +102,16 @@ const formatLabel = (s: any) => {
             <div v-if="filteredSessions.length === 0" class="text-center p-4 text-base-content/50 text-sm">
                 {{ $t('chat.noSessions') }}
             </div>
-            <div v-for="(s, index) in filteredSessions" :key="s.key" @click="$emit('select', s.key)"
+            <div v-for="(s, index) in filteredSessions" :key="s._id" @click="$emit('select', s._id)"
                 class="group flex items-center gap-2 p-3 rounded-lg lg:rounded-lg cursor-pointer hover:bg-base-200 transition-colors border-b border-base-300 last:border-b-0 lg:border-b-0"
-                :class="{ 'bg-primary/10 text-primary': selectedKey === s.key }">
+                :class="{ 'bg-primary/10 text-primary': selectedKey === s._id }">
                 <div class="flex-1 min-w-0">
-                    <div class="font-medium truncate">{{ formatLabel(s) }}</div>
-                    <div class="text-xs opacity-60 mt-1">{{ new Date(s.lastActiveAt ||
-                        s.updatedAt).toLocaleString() }}
+                    <div class="font-medium truncate">{{ s._label }}</div>
+                    <div v-if="s._date" class="text-xs opacity-60 mt-1">
+                        {{ s._date.toLocaleString() }}
                     </div>
                 </div>
-                <button @click="handleDelete(s.key, $event)"
+                <button @click="handleDelete(s._id, $event)"
                     class="btn btn-ghost btn-circle btn-xs opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity hover:bg-error/20 hover:text-error shrink-0">
                     <TrashIcon class="h-4 w-4" />
                 </button>

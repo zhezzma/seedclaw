@@ -163,6 +163,9 @@ export default {
             creaturePlaceholder: 'e.g. Owl, Robot, Cat',
         },
         showMore: 'Show More',
+        toolActive: 'Active',
+        toolDenied: 'Denied',
+        noTools: 'No tools available'
     },
     config: {
         title: 'Configuration',
@@ -224,6 +227,14 @@ export default {
             payloadSystemLabel: 'System Event Content',
             payloadAgentLabel: 'Message Content',
             enableJob: 'Enable this job',
+            cronHint: 'min hour day month dow',
+            payloadLabel: 'Payload (Text/Args)',
+        },
+        display: {
+            cron: 'Cron: {expr}',
+            every: 'Every {amount} {unit}',
+            at: 'At: {date}',
+            unknown: 'Unknown',
         },
         createJob: 'Create Job',
         logs: {
@@ -234,23 +245,13 @@ export default {
         confirmDelete: 'Are you sure you want to delete this job?',
         errorMainSession: 'Main session jobs require "System Event" payload.',
         errorIsolatedSession: 'Isolated session jobs require "Agent Turn" payload.',
+        units: {
+            minutes: 'Minutes',
+            hours: 'Hours',
+            days: 'Days',
+        },
     },
-    device: {
-        title: 'Devices & Nodes',
-        listTitle: 'Device List',
-        listDesc: 'Manage paired client devices and approve new connection requests.',
-        pendingTitle: 'Pending Devices',
-        unknownDevice: 'Unknown Device',
-        requestRole: 'Request Role',
-        requestedAt: 'Requested At',
-        pairedTitle: 'Paired Devices',
-        noPairedDevices: 'No paired devices',
-        activeTokens: 'Active Tokens',
-        permissions: 'Permissions',
-        lastUsed: 'Last Used',
-        rotate: 'Rotate',
-        revoke: 'Revoke',
-    },
+
     log: {
         title: 'System Logs',
         stopAutoRefresh: 'Stop Auto-refresh',
@@ -412,8 +413,7 @@ export default {
         tts: 'Voice Synthesis (TTS)',
         configManager: 'Config Manager',
         configManagerDesc: 'View and edit gateway configuration',
-        devicesNodes: 'Devices & Nodes',
-        devicesNodesDesc: 'Manage paired client devices',
+
         systemLogs: 'System Logs',
         systemLogsDesc: 'View gateway running logs',
         helpFeedback: 'Help & Feedback',
@@ -456,12 +456,7 @@ export default {
         deviceIdError: 'Unable to get Device ID',
         connectionFailed: 'Connection to Gateway failed',
         subtitle: 'Configure OpenClaw Gateway to start using',
-        pairingSent: 'Device pairing request sent',
-        contactAdmin: 'Please contact administrator to approve this device connection',
-        deviceId: 'Device ID',
-        requestId: 'Request ID',
-        waitingApproval: 'Waiting for approval...',
-        backToConfig: 'Back to Configuration',
+
         gatewayUrl: 'Gateway URL',
         token: 'Access Token',
         enterTokenPlaceholder: 'Please enter your Access Token',

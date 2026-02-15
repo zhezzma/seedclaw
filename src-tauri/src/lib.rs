@@ -7,8 +7,8 @@ use tauri::{
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
 };
 
-mod gateway;
 mod gotify;
+mod notify;
 
 struct AppState {
     gotify: Mutex<Option<gotify::GotifyManager>>,
@@ -89,7 +89,7 @@ pub fn run() {
                     .build(app)?;
             }
 
-            app.manage(gateway::init(app.handle()));
+            app.manage(notify::init(app.handle()));
             Ok(())
         })
         .on_window_event(|_window, event| match event {
@@ -109,9 +109,9 @@ pub fn run() {
             greet,
             start_gotify,
             stop_gotify,
-            gateway::gateway_connect,
-            gateway::gateway_disconnect,
-            gateway::gateway_send
+            notify::notify_connect,
+            notify::notify_disconnect,
+            notify::notify_send
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

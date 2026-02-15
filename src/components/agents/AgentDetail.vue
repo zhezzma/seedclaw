@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onErrorCaptured } from 'vue'
+import { computed, ref } from 'vue'
 import { useAgentsState } from '../../composables/useAgentsState'
 import { useI18n } from 'vue-i18n'
 import { PencilIcon } from '@heroicons/vue/24/outline'
@@ -22,12 +22,7 @@ const emit = defineEmits<{
 const agentsState = useAgentsState()
 const { t } = useI18n()
 
-onErrorCaptured((err, instance, info) => {
-    console.error('[AgentDetail Error]', err)
-    console.error('Component:', instance)
-    console.error('Info:', info)
-    return false
-})
+
 
 // Get full agent object from agentsState
 const agent = computed(() => {
@@ -75,10 +70,10 @@ const handleAgentSaved = async () => {
 </script>
 
 <template>
-    <div class="h-full w-full relative">
-        <div v-if="agent" class="h-full flex flex-col bg-base-100">
+    <div class="h-full w-full relative overflow-y-auto">
+        <div v-if="agent" class="min-h-full flex flex-col bg-base-100">
             <!-- Detail Header -->
-            <div class="px-6 py-6 border-b border-base-200">
+            <div class="px-6 py-6 border-b border-base-200 sticky top-0 z-50 bg-base-100/95 backdrop-blur-sm">
                 <div class="flex flex-col items-center gap-4">
                     <!-- Avatar with Edit Button -->
                     <div class="relative shrink-0 group">
@@ -124,8 +119,8 @@ const handleAgentSaved = async () => {
             </div>
 
             <!-- Content Area -->
-            <div class="flex-1 overflow-y-auto bg-base-50/50 p-4 md:px-8 md:py-6">
-                <div class="w-full h-full max-w-6xl">
+            <div class="flex-1 bg-base-50/50 p-4 md:px-8 md:py-6">
+                <div class="w-full h-full max-w-6xl mx-auto">
                     <keep-alive>
                         <component :is="tabs.find(t => t.id === activeTab)?.component" :agent="agent"
                             @deleted="$emit('back')" />

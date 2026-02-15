@@ -16,7 +16,7 @@ import AppSidebar from '../components/AppSidebar.vue'
 
 import { isNewSession, NEW_SESSION_PATH, NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
 import { useChatState, extractAgentId } from '../composables/useChatState'
-import { useSessionsState } from '../composables/useSessionsState'
+import { useSessionsState, type SessionsResult } from '../composables/useSessionsState'
 import { useAgentsState } from '../composables/useAgentsState'
 import { useToast } from '../composables/useToast'
 
@@ -67,13 +67,14 @@ const selectedAgent = computed(() => {
 const isTypeMode = computed(() => route.query.type)
 
 
-const typeSessions = computed(() => {
-    const type = route.query.type
-    if (type === 'cron') {
-        return []
+const cronSessionsResult = ref<SessionsResult | null>(null)
+const typeSessions = computed(() => cronSessionsResult.value?.sessions || [])
+
+watch(() => route.query.type, async (val) => {
+    if (val === 'cron') {
+        cronSessionsResult.value = await sessionsState.loadCronSessions()
     }
-    return []
-})
+}, { immediate: true })
 
 const handleTypeSessionselect = (key: string) => {
     router.push({
@@ -85,9 +86,14 @@ const handleTypeSessionselect = (key: string) => {
 
 const handleTypeSessionDelete = async (key: string) => {
     const result = await sessionsState.deleteSession(key)
-    if (result?.deleted && chatState.sessionKey === key) {
-        // If we deleted the currently viewed session, clear selection
-        router.push({ name: 'chat', query: { type: 'cron' } })
+    if (result?.deleted) {
+        if (cronSessionsResult.value?.sessions) {
+            cronSessionsResult.value.sessions = cronSessionsResult.value.sessions.filter(s => s.id !== key)
+        }
+        if (chatState.sessionKey === key) {
+            // If we deleted the currently viewed session, clear selection
+            router.push({ name: 'chat', query: { type: 'cron' } })
+        }
     }
 }
 

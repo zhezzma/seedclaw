@@ -5,10 +5,6 @@ import { useChatState } from './useChatState'
 import { useSessionsState } from './useSessionsState'
 import { useGotify } from './useGotify'
 import { useCronState } from './useCronState'
-import { useExecApproval } from './useExecApproval'
-import { useDevicesState } from './useDevicesState'
-import { useNodesState } from './useNodesState'
-import { usePresence } from './usePresence'
 import { useModelsState } from './useModelsState'
 import { useSkillsState } from './useSkillsState'
 
@@ -26,10 +22,6 @@ export function useAppInit() {
 
     const chatState = useChatState()
     const cronState = useCronState()
-    const execApprovalState = useExecApproval()
-    const devicesState = useDevicesState()
-    const nodesState = useNodesState()
-    const presenceState = usePresence()
     useNotify()
     // Initialize Gotify
     useGotify().init()

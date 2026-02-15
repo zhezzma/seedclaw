@@ -1,66 +1,70 @@
-import { reactive } from 'vue'
+import { reactive, ref, computed, toRefs } from 'vue'
 import { createStateProxy } from './utils/stateProxy'
-import { useToast } from './useToast'
 import { apiGet, apiPost, apiPatch, apiDelete } from './api-client'
 
 // ==================== Types ====================
 export interface TaskJob {
     id: string
-    cron: string
-    agentId?: string
-    prompt?: string
+    name: string
+    description: string
+    agentId: string
     enabled: boolean
-    createdAt?: number
+    scheduleKind: 'at' | 'every' | 'cron'
+    scheduleAt: string
+    everyAmount: string
+    everyUnit: 'minutes' | 'hours' | 'days'
+    cron: string
+    cronExpr: string
+    cronTz: string
+    payloadText: string
+    timeoutSeconds: string
+    lastRun?: string
+    createdAt: string
 }
 
 export interface CronRunLogEntry {
-    ts: number
+    logTimestamp: string
     status: string
-    durationMs?: number
+    start: string
+    durationMs: number
+    agentId: string
+    kind: string
+    cron: string
+    prompt: string
+    sessionId: string
+    result: string
     error?: string
-    summary?: string
 }
 
 export interface CronFormState {
-    cron: string
+    name: string
+    description: string
     agentId: string
-    prompt: string
     enabled: boolean
+    scheduleKind: 'at' | 'every' | 'cron'
+    scheduleAt: string
+    everyAmount: string
+    everyUnit: 'minutes' | 'hours' | 'days'
+    cronExpr: string
+    cronTz: string
+    payloadText: string
+    timeoutSeconds: string
 }
 
 export interface CronState {
-    connected: boolean
-    cronLoading: boolean
-    cronBusy: boolean
-    cronError: string | null
     cronJobs: TaskJob[]
-    cronRuns: CronRunLogEntry[]
-    cronForm: CronFormState
 }
 
 // ==================== State ====================
-const defaultForm: CronFormState = {
-    cron: '*/30 * * * *',
-    agentId: '',
-    prompt: '',
-    enabled: true,
-}
 
 const state = reactive<CronState>({
-    connected: false,
-    cronLoading: false,
-    cronBusy: false,
-    cronError: null,
     cronJobs: [],
-    cronRuns: [],
-    cronForm: { ...defaultForm },
 })
 
 let initialized = false
 function ensureInit() {
     if (initialized) return
     initialized = true
-    state.connected = true
 }
 
 // ==================== Export ====================
@@ -68,113 +72,118 @@ function ensureInit() {
 export function useCronState() {
     ensureInit()
 
+    const cronLoading = ref(false)
+    const cronBusy = ref(false)
+    const cronError = ref<string | null>(null)
+
     const loadCron = async () => {
-        state.cronLoading = true
-        state.cronError = null
+        cronLoading.value = true
+        cronError.value = null
         try {
-            const result = await apiGet<{ tasks: TaskJob[] }>('/api/tasks')
-            state.cronJobs = result?.tasks || []
+            const result = await apiGet<{ crons: TaskJob[] }>('/api/crons')
+            state.cronJobs = result?.crons || []
         } catch (err: any) {
-            state.cronError = err?.message || String(err)
+            cronError.value = err?.message || String(err)
         } finally {
-            state.cronLoading = false
+            cronLoading.value = false
         }
     }
 
-    const addCronJob = async () => {
-        state.cronBusy = true
-        state.cronError = null
+    const addCronJob = async (form: CronFormState) => {
+        cronBusy.value = true
+        cronError.value = null
         try {
-            await apiPost('/api/tasks', {
-                cron: state.cronForm.cron,
-                agentId: state.cronForm.agentId,
-                prompt: state.cronForm.prompt,
-            })
-            await loadCron()
+            const newJob = await apiPost<TaskJob>('/api/crons', { ...form })
+            state.cronJobs.push(newJob)
         } catch (err: any) {
-            state.cronError = String(err)
+            cronError.value = String(err)
             throw err
         } finally {
-            state.cronBusy = false
+            cronBusy.value = false
         }
     }
 
     const toggleCronJob = async (job: TaskJob, enabled: boolean) => {
-        state.cronBusy = true
-        state.cronError = null
+        cronBusy.value = true
+        cronError.value = null
         try {
             const endpoint = enabled ? 'enable' : 'disable'
             await apiPost(`/api/crons/${job.id}/${endpoint}`)
-            await loadCron()
+            const idx = state.cronJobs.findIndex(j => j.id === job.id)
+            if (idx !== -1) {
+                state.cronJobs[idx].enabled = enabled
+            }
         } catch (err: any) {
-            state.cronError = String(err)
+            cronError.value = String(err)
         } finally {
-            state.cronBusy = false
+            cronBusy.value = false
         }
     }
 
     const removeCronJob = async (job: TaskJob) => {
-        state.cronBusy = true
-        state.cronError = null
+        cronBusy.value = true
+        cronError.value = null
         try {
             await apiDelete(`/api/crons/${job.id}`)
-            await loadCron()
+            state.cronJobs = state.cronJobs.filter(j => j.id !== job.id)
         } catch (err: any) {
-            state.cronError = String(err)
+            cronError.value = String(err)
         } finally {
-            state.cronBusy = false
+            cronBusy.value = false
         }
     }
 
-    const updateCronJob = async (id: string) => {
-        if (state.cronBusy) return
-        state.cronBusy = true
-        state.cronError = null
+    const updateCronJob = async (id: string, form: CronFormState) => {
+        if (cronBusy.value) return
+        cronBusy.value = true
+        cronError.value = null
         try {
-            await apiPatch(`/api/crons/${id}`, {
-                cron: state.cronForm.cron,
-                agentId: state.cronForm.agentId,
-                prompt: state.cronForm.prompt,
-                enabled: state.cronForm.enabled,
-            })
-            await loadCron()
+            const updatedJob = await apiPatch<TaskJob>(`/api/crons/${id}`, { ...form })
+            const idx = state.cronJobs.findIndex(j => j.id === id)
+            if (idx !== -1) {
+                state.cronJobs[idx] = updatedJob
+            }
         } catch (err: any) {
-            state.cronError = String(err)
+            cronError.value = String(err)
             throw err
         } finally {
-            state.cronBusy = false
+            cronBusy.value = false
         }
     }
 
     const runCronJob = async (job: TaskJob) => {
-        // Stub: /api/tasks/:id/run not implemented in backend yet or different?
-        // Assuming POST /api/tasks/:id/run
-        state.cronBusy = true
+        cronBusy.value = true
         try {
             await apiPost(`/api/crons/${job.id}/run`)
-            await loadCron()
         } catch (err: any) {
-            state.cronError = String(err)
+            cronError.value = String(err)
             throw err
         } finally {
-            state.cronBusy = false
+            cronBusy.value = false
         }
     }
 
-    const loadCronRuns = async (jobId: string) => {
-        // Stub: no endpoint for logs yet
-        state.cronRuns = []
+    const loadCronRuns = async (jobId: string): Promise<CronRunLogEntry[]> => {
+        try {
+            const result = await apiGet<{ logs: CronRunLogEntry[] }>(`/api/crons/${jobId}/logs`)
+            return result?.logs || []
+        } catch (err: any) {
+            console.error('Failed to load cron logs', err)
+            return []
+        }
     }
 
-    const methods = {
+    return {
+        cronLoading,
+        cronBusy,
+        cronError,
+        cronJobs: computed(() => state.cronJobs),
         loadCron,
         addCronJob,
-        updateCronJob,
         toggleCronJob,
         removeCronJob,
+        updateCronJob,
         runCronJob,
         loadCronRuns
     }
-
-    return createStateProxy(state, methods)
 }
