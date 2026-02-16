@@ -55,8 +55,19 @@ const { currentReadingMsgId, readAloud: ttsReadAloud } = useTTS()
 // 当前选中的 Agent（直接从 chatState 获取，无需额外 watch）
 const selectedAgent = computed(() => chatState.currentAgent)
 
-// 当前会话名称（直接从 chatState.currentSession 获取）
+// 当前会话名称（优先从 sessionsState 获取最新值，因为 patchSession 会更新它）
 const currentSessionName = computed(() => {
+    const sessionKey = chatState.sessionKey
+    if (!sessionKey) return ''
+
+    // 从 sessionsState 中取最新数据（patchSession / triggerSessionRename 会更新这里）
+    const sessions = sessionsState.sessionsResult?.sessions
+    if (sessions) {
+        const found = sessions.find((s: SessionRow) => s.id === sessionKey)
+        if (found?.name) return found.name
+    }
+
+    // Fallback 到 chatState.currentSession
     const session = chatState.currentSession
     if (!session) return ''
     return session.name || session.id || ''

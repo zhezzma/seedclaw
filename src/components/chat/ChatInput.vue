@@ -15,7 +15,7 @@ import {
     LightBulbIcon,
     XMarkIcon
 } from '@heroicons/vue/24/outline'
-import { useChatInput, COMMANDS } from '../../composables/useChatInput'
+import { useChatInput, COMMANDS, type CommandItem } from '../../composables/useChatInput'
 import { useModelsState } from '../../composables/useModelsState'
 import { useChatState } from '../../composables/useChatState'
 import { useUiSettingsStore } from '../../stores/setting'
@@ -115,7 +115,7 @@ const selectThinkingLevel = (level: string) => {
         return
     }
     thinkingLevel.value = level
-    inputText.value = `/think ${level}`
+    inputText.value = `/thinking ${level}`
 
     // 更新本地 session 缓存
     const session = chatState.currentSession
@@ -171,9 +171,9 @@ const onSend = () => {
     emit('send')
 }
 
-const handleCommandSelect = (cmd: string) => {
-    selectCommand(cmd)
-    if (settingsStore.autoSendCommands) {
+const handleCommandSelect = (cmd: CommandItem) => {
+    selectCommand(cmd.value)
+    if (settingsStore.autoSendCommands && cmd.autoSend !== false) {
         nextTick(() => {
             onSend()
         })
@@ -253,7 +253,7 @@ defineExpose({
                                 d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                         </svg>
                         <span class="text-[9px] w-full truncate text-center opacity-70 leading-tight mt-0.5">{{ att.name
-                            }}</span>
+                        }}</span>
                     </div>
 
                     <!-- Delete Button: Always visible on mobile (using forced opacity or just remove opacity class). 
@@ -297,7 +297,7 @@ defineExpose({
                             class="dropdown-content menu p-2 shadow-xl bg-base-100 rounded-box w-56 border border-base-300 mb-2 z-[100]">
                             <li class="menu-title"><span>{{ $t('chat.commonCommands') }}</span></li>
                             <li v-for="cmd in COMMANDS" :key="cmd.value">
-                                <a @click="handleCommandSelect(cmd.value)" class="rounded-lg">{{ cmd.label }}</a>
+                                <a @click="handleCommandSelect(cmd)" class="rounded-lg">{{ cmd.label }}</a>
                             </li>
                             <!-- Divider -->
                             <li class="my-1 border-t border-base-200"></li>
@@ -383,7 +383,7 @@ defineExpose({
                     </div>
 
                     <!-- Reasoning -->
-                    <button @click="toggleReasoning"
+                    <!-- <button @click="toggleReasoning"
                         class="btn btn-sm gap-1 font-normal rounded-full transition-all duration-300 border-primary/20"
                         :class="reasoningState !== 'off' ? 'bg-primary/10 text-primary hover:bg-primary/20 ' : 'btn-ghost hover:bg-base-300'"
                         :title="$t('model.mode.reasoning')">
@@ -392,7 +392,7 @@ defineExpose({
                             (reasoningState === 'on' ?
                                 $t('chat.reasoningStatus.on') : $t('chat.reasoningStatus.off'))
                         }}</span>
-                    </button>
+                    </button> -->
                 </div>
 
                 <!-- Right Actions -->

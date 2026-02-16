@@ -256,6 +256,15 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
                 })
             }
         })
+        // 当会话从 busy→idle 时（例如 /command 快速完成），确保滚动到底部
+        watch(isBusy, (newVal, oldVal) => {
+            if (!newVal && oldVal) {
+                nextTick(() => {
+                    scrollToBottom()
+                    setTimeout(scrollToBottom, 300)
+                })
+            }
+        })
     }
 
     const formatTime = (timestamp?: number): string => {

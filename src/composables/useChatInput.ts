@@ -8,6 +8,7 @@ import { readFile } from '../utils/fileReader'
 export interface CommandItem {
     label: string
     value: string
+    autoSend?: boolean
 }
 
 export interface ModelItem {
@@ -16,10 +17,13 @@ export interface ModelItem {
 }
 
 export const COMMANDS: CommandItem[] = [
-    { label: '/new (新建)', value: '/new' },
-    { label: '/reset (重置)', value: '/reset' },
-    { label: '/status (状态)', value: '/status' },
-    { label: '/commands (命令)', value: '/commands' },
+    { label: '/name (会话重命名)', value: '/name', autoSend: false },
+    { label: '/compact (会话压缩)', value: '/compact' },
+    { label: '/session (会话信息)', value: '/session' },
+    { label: '/debug (调试信息)', value: '/debug' },
+    { label: '/tools (工具列表)', value: '/tools' },
+    { label: '/steer (干预插入消息)', value: '/steer', autoSend: false },
+    { label: '/follow-up (排队后续消息)', value: '/follow-up', autoSend: false },
     { label: '/help (帮助)', value: '/help' }
 ]
 
