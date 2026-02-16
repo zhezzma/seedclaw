@@ -15,8 +15,8 @@ import SessionSidebar from '../components/chat/SessionSidebar.vue'
 import AppSidebar from '../components/AppSidebar.vue'
 
 import { isNewSession, NEW_SESSION_PATH, NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
-import { useChatState, extractAgentId } from '../composables/useChatState'
-import { useSessionsState, type SessionsResult } from '../composables/useSessionsState'
+import { useChatState } from '../composables/useChatState'
+import { SessionRow, useSessionsState, type SessionsResult } from '../composables/useSessionsState'
 import { useAgentsState } from '../composables/useAgentsState'
 import { useToast } from '../composables/useToast'
 
@@ -52,27 +52,30 @@ const {
 // TTS
 const { currentReadingMsgId, readAloud: ttsReadAloud } = useTTS()
 
-// Agent selection
-const selectedAgent = computed(() => {
-    return agentsState.agentsList.find((a: any) => a.id === agentsState.agentsSelectedId) || agentsState.agentsList[0]
+// 当前选中的 Agent（直接从 chatState 获取，无需额外 watch）
+const selectedAgent = computed(() => chatState.currentAgent)
+
+// 当前会话名称（直接从 chatState.currentSession 获取）
+const currentSessionName = computed(() => {
+    const session = chatState.currentSession
+    if (!session) return ''
+    return session.name || session.id || ''
 })
 
-
-
-// Sessions list for sidebar - No longer needed here as AppSidebar handles it
-// const sessions = computed(() => sessionsState.sessionsResult?.sessions || [])
-
-
 // Messages / Cron Mode Logic
-const isTypeMode = computed(() => route.query.type)
+// 根据路由 query.type 决定展示哪个 session 列表
+const currentSessions = computed(() => {
+    if (route.query && route.query.type === 'cron') {
+        return sessionsState.cronSessionsResult?.sessions || []
+    }
+    return sessionsState.sessionsResult?.sessions || []
+})
+const isTypeMode = computed(() => route.query && route.query.type)
 
-
-const cronSessionsResult = ref<SessionsResult | null>(null)
-const typeSessions = computed(() => cronSessionsResult.value?.sessions || [])
 
 watch(() => route.query.type, async (val) => {
-    if (val === 'cron') {
-        cronSessionsResult.value = await sessionsState.loadCronSessions()
+    if (route.query.type === 'cron') {
+        await sessionsState.loadCronSessions()
     }
 }, { immediate: true })
 
@@ -87,9 +90,6 @@ const handleTypeSessionselect = (key: string) => {
 const handleTypeSessionDelete = async (key: string) => {
     const result = await sessionsState.deleteSession(key)
     if (result?.deleted) {
-        if (cronSessionsResult.value?.sessions) {
-            cronSessionsResult.value.sessions = cronSessionsResult.value.sessions.filter(s => s.id !== key)
-        }
         if (chatState.sessionKey === key) {
             // If we deleted the currently viewed session, clear selection
             router.push({ name: 'chat', query: { type: 'cron' } })
@@ -100,7 +100,7 @@ const handleTypeSessionDelete = async (key: string) => {
 const typeSelectedKey = ref("")
 
 // Auto-select first session
-watch(() => [route.query.type, typeSessions.value, route.params.sessionkey], (values) => {
+watch(() => [route.query.type, currentSessions.value, route.params.sessionkey], (values) => {
     const type = values[0] as string | null
     const sessions = values[1] as any[]
     const currentKey = values[2] as string | null
@@ -116,21 +116,6 @@ const showMobileSessionList = computed(() => {
     if (!isTypeMode.value) return false
     return !typeSelectedKey.value
 })
-
-
-
-
-
-
-
-// Watch session key changes to update agent selection
-// Watch session key changes to update agent selection
-watch(() => chatState.sessionKey, (newKey) => {
-    if (newKey) {
-        agentsState.agentsSelectedId = extractAgentId(newKey)
-    }
-}, { immediate: true })
-
 
 
 // Send message handler
@@ -163,8 +148,8 @@ const handleSend = async () => {
     const isNew = isNewSession(route)
 
     if (isNew) {
-        // Create new session via sessionsState, get sessionKey directly
-        const agentId = agentsState.agentsSelectedId
+        // 新会话：使用 chatState 中的 agentsSelectedId
+        const agentId = chatState.agentsSelectedId
         if (!agentId) {
             useToast().warning('请先创建一个智能体')
             return
@@ -329,25 +314,23 @@ onUnmounted(() => {
 
 
 
-// Handle route params for session switching
+// 路由变化 → 切换会话（核心路由处理逻辑）
 watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath]) => {
     console.log("[HomeView] watch route.params", sessionkey, routePath)
 
-    // Handle new session route
-    // We can pass the route object if we accessed it, or just use implicit route from closure, 
-    // but helper expects route object. 
-    // Since we are inside component setup, 'route' is available.
+    // /new 路由 → 创建新会话
     if (isNewSession(route)) {
+        // 新会话时，如果还没选择 agent，默认选第一个
         if (agentsState.agentsList.length > 0) {
-            agentsState.agentsSelectedId = agentsState.agentsList[0].id
+            chatState.selectAgent(agentsState.agentsList[0].id)
         }
         await chatState.createNewSession()
         return
     }
 
-    // Handle session key in route params
+    // 路由中有 sessionKey → 切换到该会话（setSessionKey 内部会处理 currentSession / currentAgent）
     if (sessionkey && typeof sessionkey === 'string') {
-        // Optimize: Don't reload if session key is already set
+        // 优化：如果 sessionKey 未变则跳过
         if (chatState.sessionKey === sessionkey) {
             console.log('[HomeView] Session key unchanged, skipping reload', sessionkey)
             return
@@ -356,8 +339,7 @@ watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath
         return
     }
 
-    // No session key specified, apply default behavior
-    // HTTP API - always ready
+    // 没有指定 sessionKey，执行默认行为
     await applyDefaultSessionBehavior()
 
 }, { immediate: true })
@@ -377,9 +359,14 @@ async function applyDefaultSessionBehavior() {
     } else {
         // Default: last active session
         const targetKey = settingsStore.lastActiveSessionKey
-        console.log('Default: last active session', targetKey)
-        chatState.setSessionKey(targetKey)
-        router.replace({ name: 'chat', params: { sessionkey: targetKey } })
+        if (targetKey && sessionsState.hasSession(targetKey)) {
+            console.log('Default: last active session', targetKey)
+            chatState.setSessionKey(targetKey)
+            router.replace({ name: 'chat', params: { sessionkey: targetKey } })
+        } else {
+            // If session doesn't exist, go to new session
+            router.replace({ path: NEW_SESSION_PATH })
+        }
     }
 }
 </script>
@@ -400,7 +387,7 @@ async function applyDefaultSessionBehavior() {
         <!-- NEW: Messages List Column (Desktop: visible if isTypeMode; Mobile: visible if isTypeMode && showMobileSessionList) -->
         <div v-if="isTypeMode" class="w-full lg:w-80 bg-base-100 border-r border-base-200 flex flex-col shrink-0"
             :class="{ 'hidden lg:flex': !showMobileSessionList, 'flex': showMobileSessionList }">
-            <SessionSidebar :title="$t('home.messageList')" :sessions="typeSessions" :selected-key="typeSelectedKey"
+            <SessionSidebar :title="$t('home.messageList')" :sessions="currentSessions" :selected-key="typeSelectedKey"
                 @select="handleTypeSessionselect" @delete="handleTypeSessionDelete" />
         </div>
 
@@ -420,7 +407,7 @@ async function applyDefaultSessionBehavior() {
 
             <!-- Header -->
             <ChatHeader ref="chatHeaderRef" :selected-agent="selectedAgent" :agents="agentsState.agentsList"
-                @start-voice-chat="startVoiceChat" />
+                @start-voice-chat="startVoiceChat" :session-name="currentSessionName" />
 
             <!-- Main content area -->
             <div class="flex-1 flex flex-col min-h-0">

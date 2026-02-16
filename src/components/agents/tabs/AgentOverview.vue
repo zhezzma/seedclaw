@@ -125,8 +125,10 @@ const isCurrentModelAvailable = computed(() => {
 // Delete Agent Logic
 import { useRouter } from 'vue-router'
 import { useConfirm } from '../../../composables/useConfirm'
+import { useChatState } from '../../../composables/useChatState'
 
 const router = useRouter()
+const chatState = useChatState()
 const { confirm } = useConfirm()
 const isDeleting = ref(false)
 
@@ -139,6 +141,12 @@ const handleDeleteAgent = async () => {
     try {
         const agentId = props.agent.id
         await agentsState.deleteAgent({ agentId, deleteFiles: true })
+
+        // 如果删除的是当前选中的 agent，清空选择
+        if (chatState.agentsSelectedId === agentId) {
+            chatState.selectAgent('')
+        }
+
         toast.success(t('agent.deleteSuccess'))
 
         // Redirect

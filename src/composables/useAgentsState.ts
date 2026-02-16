@@ -48,7 +48,6 @@ export interface AgentTool {
 }
 
 export interface AgentsState {
-    agentsSelectedId: string
     agentsList: AgentInfo[],
     // Agent files state
     agentFiles: Record<string, AgentFileInfo>
@@ -59,7 +58,6 @@ export interface AgentsState {
 
 // ==================== State ====================
 const state = reactive<AgentsState>({
-    agentsSelectedId: '',
     agentsList: [],
     agentFiles: {},
     agentTools: {},
@@ -76,13 +74,7 @@ export function useAgentsState() {
         state.agentsList = agents || []
     }
 
-    const initAgents = async () => {
-        await loadAgents()
-        // Auto-select first agent if none selected
-        if (!state.agentsSelectedId && state.agentsList.length > 0) {
-            state.agentsSelectedId = state.agentsList[0].id
-        }
-    }
+
 
     const loadAgentFiles = async (agentId: string) => {
         try {
@@ -180,9 +172,6 @@ export function useAgentsState() {
     const deleteAgent = async (params: { agentId: string; deleteFiles?: boolean }) => {
         const res = await apiDelete(`/api/agents/${params.agentId}`)
         state.agentsList = state.agentsList.filter(a => a.id !== params.agentId)
-        if (state.agentsSelectedId === params.agentId) {
-            state.agentsSelectedId = ''
-        }
         return res
     }
 
@@ -237,7 +226,6 @@ export function useAgentsState() {
     }
 
     return createStateProxy(state, {
-        initAgents,
         loadAgents,
         loadAgentFiles,
         loadAgentFileContent,

@@ -1,4 +1,4 @@
-import { reactive } from 'vue'
+import { reactive, computed, watch } from 'vue'
 import { createStateProxy } from './utils/stateProxy'
 import { apiGet, apiPost, apiDelete, apiPatch, getApiUrl, getAuthToken } from './api-client'
 
@@ -27,18 +27,32 @@ export interface SessionsResult {
     pageSize?: number
 }
 
+// ==================== State ====================
 export interface SessionsState {
     sessionsResult: SessionsResult | null
+    cronSessionsResult: SessionsResult | null
 }
 
-// ==================== State ====================
 const state = reactive<SessionsState>({
     sessionsResult: null,
+    cronSessionsResult: null,
 })
+
+// Session ID → SessionRow 的索引，用于 O(1) 快速查找
+const sessionsIndex = new Map<string, SessionRow>()
 
 
 
 export function useSessionsState() {
+
+    const rebuildIndex = () => {
+        sessionsIndex.clear()
+        state.sessionsResult?.sessions?.forEach(s => sessionsIndex.set(s.id, s))
+        state.cronSessionsResult?.sessions?.forEach(s => sessionsIndex.set(s.id, s))
+    }
+
+    // sessions 变更时自动重建索引
+    watch(() => [state.sessionsResult, state.cronSessionsResult], rebuildIndex, { immediate: true, deep: false })
 
     const loadSessions = async (opts?: any) => {
         const result = await apiGet<SessionsResult>('/api/sessions')
@@ -78,10 +92,8 @@ export function useSessionsState() {
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 },
                 body: JSON.stringify({
-                    model: "LongCat-Flash-Lite",
-                    provider: "longcat",
                     thinkingLevel: "off",
-                    prompt: `Summarize the following text into a short, concise title (3-5 words) for a chat session. Do not use quotes or punctuation. Text: "${userText.substring(0, 500)}"`
+                    prompt: `将以下文本总结为一个简短、简洁的聊天会话标题（5-10个字）。不要使用引号或标点符号。文本： "${userText.substring(0, 500)}"`
                 })
             })
 
@@ -149,6 +161,14 @@ export function useSessionsState() {
                 total: Math.max(0, (state.sessionsResult.total || 0) - 1)
             }
         }
+
+        if (state.cronSessionsResult?.sessions) {
+            state.cronSessionsResult = {
+                ...state.cronSessionsResult,
+                sessions: state.cronSessionsResult.sessions.filter((s: SessionRow) => s.id !== key),
+                total: Math.max(0, (state.cronSessionsResult.total || 0) - 1)
+            }
+        }
         return { deleted: true }
     }
 
@@ -170,6 +190,13 @@ export function useSessionsState() {
                     ...state.sessionsResult,
                     sessions: state.sessionsResult.sessions.filter((s: SessionRow) => !deletedKeys.includes(s.id)),
                     total: Math.max(0, (state.sessionsResult.total || 0) - deletedKeys.length)
+                }
+            }
+            if (state.cronSessionsResult?.sessions) {
+                state.cronSessionsResult = {
+                    ...state.cronSessionsResult,
+                    sessions: state.cronSessionsResult.sessions.filter((s: SessionRow) => !deletedKeys.includes(s.id)),
+                    total: Math.max(0, (state.cronSessionsResult.total || 0) - deletedKeys.length)
                 }
             }
         }
@@ -203,10 +230,41 @@ export function useSessionsState() {
     const loadCronSessions = async (page = 1, pageSize = 50): Promise<SessionsResult> => {
         try {
             const result = await apiGet<SessionsResult>(`/api/sessions/crons?page=${page}&pageSize=${pageSize}`)
+            state.cronSessionsResult = result || { sessions: [] }
             return result || { sessions: [] }
         } catch (error) {
             console.error('Failed to load cron sessions', error)
             return { sessions: [] }
+        }
+    }
+
+    const fetchSessionInfo = (id: string) =>
+        apiGet<SessionRow>(`/api/sessions/${encodeURIComponent(id)}/info`)
+
+    const getSessionById = async (id: string): Promise<SessionRow | undefined> => {
+        // O(1) 从索引中查找
+        const cached = sessionsIndex.get(id)
+        if (cached) return cached
+
+        // 本地未找到，从服务器获取
+        try {
+            const session = await fetchSessionInfo(id)
+            if (!session) return undefined
+
+            // 加入主列表缓存并更新索引
+            if (state.sessionsResult) {
+                state.sessionsResult = {
+                    ...state.sessionsResult,
+                    sessions: [session, ...(state.sessionsResult.sessions || [])],
+                }
+            } else {
+                state.sessionsResult = { sessions: [session] }
+            }
+            sessionsIndex.set(id, session)
+            return session
+        } catch (error) {
+            console.warn('Failed to fetch session by id', id, error)
+            return undefined
         }
     }
 
@@ -217,7 +275,8 @@ export function useSessionsState() {
         deleteSession,
         deleteSessions,
         hasSession,
-        commitNewSession
+        commitNewSession,
+        getSessionById,
     }
 
     return createStateProxy(state, methods)

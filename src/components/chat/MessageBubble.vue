@@ -8,11 +8,9 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ToolInvocation from './ToolInvocation.vue'
-import { useChatState, extractAgentId } from '../../composables/useChatState'
-import { useAgentsState } from '../../composables/useAgentsState'
+import { useChatState } from '../../composables/useChatState'
 import { useTTS } from '../../composables/useTTS'
 import type { DisplayMessage } from '../../composables/useChatMessages'
-
 const props = defineProps<{
     message: DisplayMessage
     isLoading?: boolean
@@ -22,10 +20,8 @@ const emit = defineEmits<{
     (e: 'copy', msg: DisplayMessage): void
     (e: 'read-aloud', msg: DisplayMessage): void
 }>()
-
 const { t } = useI18n()
 const chatState = useChatState()
-const agentsState = useAgentsState()
 const { currentReadingMsgId } = useTTS()
 
 // Helper functions
@@ -40,11 +36,8 @@ const isAvatarUrl = (avatar: string | null | undefined): boolean => {
     return avatar.startsWith('http') || avatar.startsWith('data:') || avatar.startsWith('/')
 }
 
-// Derive assistant info from agentsState
-const currentAgent = computed(() => {
-    const agentId = extractAgentId(chatState.sessionKey)
-    return agentsState.agentsList?.find((a: any) => a.id === agentId)
-})
+// 当前 Agent 信息直接从 chatState 获取，无需额外 watch 和查询
+const currentAgent = computed(() => chatState.currentAgent)
 const assistantName = computed(() => currentAgent.value?.identity?.name || currentAgent.value?.name || 'Assistant')
 const assistantAvatar = computed(() => {
     const avatar = currentAgent.value?.avatar

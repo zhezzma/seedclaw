@@ -122,7 +122,7 @@ const handleDeleteModel = async (modelId: string) => {
                         <h1 class="text-xl font-bold truncate">{{ provider.id }}</h1>
                         <p class="text-sm text-base-content/60 truncate">{{ provider.baseUrl }}</p>
                     </div>
-                    <button @click="syncModels" class="btn btn-ghost btn-sm" :disabled="syncing">
+                    <button @click="syncModels" class="btn btn-ghost btn-sm" :disabled="syncing" v-if="provider.custom">
                         <ArrowPathIcon class="w-4 h-4" :class="syncing ? 'animate-spin' : ''" />
                         {{ $t('common.sync') }}
                     </button>
@@ -130,7 +130,7 @@ const handleDeleteModel = async (modelId: string) => {
                         <PencilIcon class="w-4 h-4" />
                         {{ $t('common.edit') }}
                     </button>
-                    <button @click="deleteProvider" class="btn btn-ghost btn-sm">
+                    <button @click="deleteProvider" class="btn btn-ghost btn-sm" v-if="provider.custom">
                         <TrashIcon class="w-4 h-4" />
                         {{ $t('common.delete') }}
                     </button>

@@ -466,6 +466,33 @@ export default {
         startUsing: '开始使用',
         noOpenClaw: '还没有 OpenClaw？',
         learnMore: '了解更多',
+        steps: {
+            connect: '连接',
+            model: '模型',
+            agent: '智能体',
+        },
+        modelStep: {
+            description: '添加模型提供商以开始对话。',
+            providerId: '提供商 ID',
+            selectProvider: '选择提供商',
+            customProvider: '自定义提供商',
+            startTyping: '开始输入...',
+            baseUrl: 'Base URL',
+            apiKey: 'API Key',
+            skip: '跳过',
+            next: '下一步',
+            errorMissingFields: '请填写所有字段。',
+            errorSave: '保存模型提供商失败。',
+        },
+        agentStep: {
+            description: '创建你的第一个 AI 智能体。',
+            name: '智能体名称',
+            namePlaceholder: '我的智能体',
+            finish: '完成设置',
+            errorCreate: '创建智能体失败。',
+            defaultDescription: '你的第一个 AI 智能体。',
+            uploadAvatar: '上传头像',
+        }
     },
     skills: {
         title: '技能',

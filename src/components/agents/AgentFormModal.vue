@@ -59,7 +59,7 @@ const fileInput = ref<HTMLInputElement | null>(null)
 
 // Load models if not loaded
 onMounted(() => {
-    if (!modelsState.models.value) {
+    if (modelsState.providers.value.length === 0) {
         modelsState.loadModels()
     }
 })
@@ -265,7 +265,7 @@ const submitForm = async () => {
                                 class="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity duration-300 text-white gap-2">
                                 <PhotoIcon class="w-8 h-8" />
                                 <span class="text-xs font-bold uppercase tracking-wider">{{ t('agent.form.uploadAvatar')
-                                    }}</span>
+                                }}</span>
                             </div>
 
                             <input ref="fileInput" type="file" accept="image/*" class="hidden"
@@ -284,7 +284,7 @@ const submitForm = async () => {
                             <div class="form-control w-full">
                                 <label class="label justify-start pb-1 pt-0">
                                     <span class="label-text-alt text-xs opacity-60">{{ t('agent.form.identityName')
-                                        }}</span>
+                                    }}</span>
                                 </label>
                                 <input v-model="formData.identityName" type="text"
                                     :placeholder="t('agent.form.identityNamePlaceholder')"
@@ -329,7 +329,7 @@ const submitForm = async () => {
                             <div class="form-control w-full">
                                 <label class="label justify-start pb-1 pt-0">
                                     <span class="label-text-alt text-xs opacity-60">{{ t('agent.form.creature')
-                                        }}</span>
+                                    }}</span>
                                 </label>
                                 <input v-model="formData.identityCreature" type="text"
                                     :placeholder="t('agent.form.creaturePlaceholder')"

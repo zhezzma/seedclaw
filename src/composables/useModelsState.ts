@@ -106,7 +106,11 @@ export function useModelsState() {
                 ...config
             })
         }
-        return result
+        return result.sort((a, b) => {
+            if (a.custom && !b.custom) return -1
+            if (!a.custom && b.custom) return 1
+            return 0
+        })
     })
 
     /** Providers list */
@@ -120,7 +124,11 @@ export function useModelsState() {
                 ...config
             })
         }
-        return result
+        return result.sort((a, b) => {
+            if (a.custom && !b.custom) return -1
+            if (!a.custom && b.custom) return 1
+            return 0
+        })
     })
 
     const saveProvider = async (providerData: { id: string, baseUrl: string, apiKey?: string, api: string, headers?: Record<string, string> }) => {
@@ -334,7 +342,6 @@ export function useModelsState() {
     }
 
     return {
-        models: computed(() => state.providers),
         availableModels,
         providers,
         loadModels,

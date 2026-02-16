@@ -31,11 +31,17 @@ export function useAppInit() {
     const init = async () => {
 
         await Promise.all([
-            agentsState.initAgents(),
+            agentsState.loadAgents(),
             sessionsState.loadSessions(),
             loadModels(),
             fetchGlobalSkills()
         ])
+
+        // 加载完 agents 后，如果还没有选中的 agent，自动选择第一个
+        if (!chatState.agentsSelectedId && agentsState.agentsList.length > 0) {
+            chatState.selectAgent(agentsState.agentsList[0].id)
+        }
+
         initConvexConnection()
     }
 

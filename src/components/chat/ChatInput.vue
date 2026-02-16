@@ -18,8 +18,6 @@ import {
 import { useChatInput, COMMANDS } from '../../composables/useChatInput'
 import { useModelsState } from '../../composables/useModelsState'
 import { useChatState } from '../../composables/useChatState'
-import { useSessionsState } from '../../composables/useSessionsState'
-import { useAgentsState } from '../../composables/useAgentsState'
 import { useUiSettingsStore } from '../../stores/setting'
 import { computed } from 'vue'
 import { useToast } from '~/src/composables/useToast'
@@ -30,10 +28,8 @@ const props = defineProps<{
 }>()
 
 const chatState = useChatState()
-const sessionsState = useSessionsState()
-const agentsState = useAgentsState()
 const settingsStore = useUiSettingsStore()
-const { availableModels, models } = useModelsState()
+const { availableModels } = useModelsState()
 const { t } = useI18n()
 const isBusy = computed(() => chatState.chatSending || Boolean(chatState.chatRunId))
 const emit = defineEmits<{
@@ -67,38 +63,29 @@ const thinkingDropdownOpen = ref(false)
 
 const currentModel = ref("")
 
-watch(() => [chatState.sessionKey, sessionsState.sessionsResult, agentsState.agentsList, agentsState.agentsSelectedId], () => {
-
-    //新session
-    if (chatState.sessionKey && chatState.sessionKey != '') {
-        const session = sessionsState.sessionsResult?.sessions?.find((s: any) => s.key === chatState.sessionKey)
-        if (session && session.modelProvider && session.model) {
-            currentModel.value = `${session.modelProvider}/${session.model}`
-            return
-        }
+// 当前模型：优先从 session 获取，否则从 agent 默认值获取
+watch(() => [chatState.currentSession, chatState.currentAgent], () => {
+    const session = chatState.currentSession
+    if (session && session.modelProvider && session.model) {
+        currentModel.value = `${session.modelProvider}/${session.model}`
+        return
     }
 
-    const agent = agentsState.agentsList?.find((a: any) => a.id === agentsState.agentsSelectedId)
+    const agent = chatState.currentAgent
     if (agent) {
         currentModel.value = `${agent.defaultProvider}/${agent.defaultModel}`
     }
-
 }, { immediate: true })
 
+// 推理状态和思考级别：从 currentSession 获取
+watch(() => chatState.currentSession, (session) => {
+    if (!session) return
 
-watch(() => [chatState.sessionKey, sessionsState.sessionsResult], () => {
+    const val = session.reasoningLevel
+    reasoningState.value = (val === 'on' || val === 'stream') ? val : 'off'
 
-    if (!chatState.sessionKey || chatState.sessionKey == "") {
-        return
-    }
-    const session = sessionsState.sessionsResult?.sessions?.find((s: any) => s.key === chatState.sessionKey)
-    if (session) {
-        const val = session.reasoningLevel
-        reasoningState.value = (val === 'on' || val === 'stream') ? val : 'off'
-
-        const level = session.thinkingLevel || 'off'
-        thinkingLevel.value = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].includes(level) ? level : 'off'
-    }
+    const level = session.thinkingLevel || 'off'
+    thinkingLevel.value = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].includes(level) ? level : 'off'
 }, { immediate: true })
 
 const toggleReasoning = () => {
@@ -108,7 +95,8 @@ const toggleReasoning = () => {
     else if (reasoningState.value === 'stream') next = 'off'
 
     reasoningState.value = next
-    const session = sessionsState.sessionsResult?.sessions?.find((s: any) => s.key === chatState.sessionKey)
+    // 更新本地 session 缓存
+    const session = chatState.currentSession
     if (session) {
         session.reasoningLevel = next
     }
@@ -129,12 +117,11 @@ const selectThinkingLevel = (level: string) => {
     thinkingLevel.value = level
     inputText.value = `/think ${level}`
 
-
-    const session = sessionsState.sessionsResult?.sessions?.find((s: any) => s.key === chatState.sessionKey)
+    // 更新本地 session 缓存
+    const session = chatState.currentSession
     if (session) {
         session.thinkingLevel = level
     }
-
 
     nextTick(() => {
         onSend()
@@ -202,8 +189,8 @@ const handleModelSelect = (modelId: string) => {
     currentModel.value = modelId
     inputText.value = `/model ${modelId}`
 
-
-    const session = sessionsState.sessionsResult?.sessions?.find((s: any) => s.key === chatState.sessionKey)
+    // 更新本地 session 缓存
+    const session = chatState.currentSession
     if (session) {
         const [modelProvider, model] = modelId.split('/');
         session.modelProvider = modelProvider
@@ -266,7 +253,7 @@ defineExpose({
                                 d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                         </svg>
                         <span class="text-[9px] w-full truncate text-center opacity-70 leading-tight mt-0.5">{{ att.name
-                        }}</span>
+                            }}</span>
                     </div>
 
                     <!-- Delete Button: Always visible on mobile (using forced opacity or just remove opacity class). 

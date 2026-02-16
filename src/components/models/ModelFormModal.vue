@@ -60,7 +60,7 @@ const isFormValid = computed(() => {
     return formData.id.trim().length > 0 && formData.name.trim().length > 0
 })
 
-const isReadonly = computed(() => props.custom === false)
+const isReadonly = computed(() => props.mode === 'edit' && props.custom === false)
 
 const handleClose = () => {
     emit('close')

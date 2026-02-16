@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useRouter, useRoute } from 'vue-router' // Added useRoute
+import { useRouter, useRoute } from 'vue-router'
 import {
     Bars3Icon,
     ChevronDownIcon,
@@ -11,19 +11,18 @@ import {
     ArrowsPointingInIcon,
     PlusIcon,
     PhoneIcon,
-    ChevronLeftIcon // Import added
+    ChevronLeftIcon
 } from '@heroicons/vue/24/outline'
 import { useUiSettingsStore } from '../../stores/setting'
 
-import { useChatState, extractAgentId } from '../../composables/useChatState'
-
 import { isNewSession, NEW_SESSION_ROUTE_NAME } from '../../utils/route-helpers'
-import { useSessionsState } from '~/src/composables/useSessionsState'
-import { useAgentsState } from '~/src/composables/useAgentsState'
+import { useChatState } from '../../composables/useChatState'
+import { AgentInfo, useAgentsState } from '~/src/composables/useAgentsState'
 
 const props = defineProps<{
-    selectedAgent: any
-    agents: any[]
+    sessionName?: string
+    selectedAgent: AgentInfo | null
+    agents: AgentInfo[]
 }>()
 
 
@@ -33,37 +32,26 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const route = useRoute()
-
+const chatState = useChatState()
 const handleBack = () => {
     // Go back to list view
     router.back()
 }
-const sessionsState = useSessionsState()
 const settingsStore = useUiSettingsStore()
-const agentState = useAgentsState()
 
-const chatState = useChatState()
+
 const dropdownRef = ref<HTMLDetailsElement | null>(null)
 
-const currentAgentId = computed(() => extractAgentId(chatState.sessionKey))
 const showAgentDropdown = computed(() => isNewSession(route))
 
 const selectedAgentId = computed(() => props.selectedAgent?.id || '')
 
-// Get current session name from sessions list
-const currentSessionName = computed(() => {
-    const sessionKey = chatState.sessionKey
-    if (!sessionKey) return ''
-
-    const sessions = sessionsState.sessionsResult?.sessions || []
-    const session = sessions.find((s: any) => s.id === sessionKey)
-    return session?.name || session?.id
-})
 
 
+// 选择 Agent（新会话下拉菜单）→ 通过 chatState.selectAgent 统一管理
 const selectAgent = (agentId: string) => {
     if (isNewSession(route)) {
-        agentState.agentsSelectedId = agentId
+        chatState.selectAgent(agentId)
     }
     if (dropdownRef.value) {
         dropdownRef.value.open = false
@@ -71,7 +59,7 @@ const selectAgent = (agentId: string) => {
 }
 
 const createNewSession = () => {
-    router.push({ name: NEW_SESSION_ROUTE_NAME }) // Or use path '/new' if preferred, but name is safe with constant
+    router.push({ name: NEW_SESSION_ROUTE_NAME })
 }
 
 const startVoiceChat = () => {
@@ -94,7 +82,8 @@ defineExpose({
     <div class="navbar bg-base-100 border-b border-base-300">
 
         <!-- Back Button (Messages Mode) -->
-        <button v-if="route.query.type" @click="handleBack" class="btn btn-ghost btn-circle btn-sm -ml-2 lg:hidden">
+        <button v-if="route.query && route.query.type" @click="handleBack"
+            class="btn btn-ghost btn-circle btn-sm -ml-2 lg:hidden">
             <ChevronLeftIcon class="h-5 w-5" />
         </button>
         <!-- Hamburger menu (mobile only) -->
@@ -123,9 +112,9 @@ defineExpose({
             </details>
             <!-- Session name (for specific sessions like agent:xxx:session:xxx) -->
             <div v-else class="lg:pl-5 font-semibold flex items-center gap-2 min-w-0">
-                <span class="truncate max-w-[200px] lg:max-w-none">{{ currentSessionName }}</span>
-                <span v-if="currentAgentId" class="badge badge-sm badge-ghost shrink-0">{{
-                    currentAgentId }}</span>
+                <span class="truncate max-w-[200px] lg:max-w-none">{{ sessionName }}</span>
+                <span v-if="chatState.agentsSelectedId" class="badge badge-sm badge-ghost shrink-0">{{
+                    chatState.agentsSelectedId }}</span>
             </div>
         </div>
 

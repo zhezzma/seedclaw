@@ -39,13 +39,13 @@ const isAgentsExpanded = ref(false)
 const MAX_VISIBLE_AGENTS = 4
 
 // Computed properties for state
-const sessions = computed(() => sessionsState.sessionsResult?.sessions || [])
+
 
 
 
 // Filter sessions for display (exclude agent main sessions if needed, logic copied)
 const displaySessions = computed(() => {
-    return sessions.value
+    return sessionsState.sessionsResult?.sessions
         .map((s: SessionRow) => ({
             key: s.id,
             label: s?.name || s?.id
@@ -84,7 +84,7 @@ const handleDeleteSession = async (key: string, event: Event) => {
 
 const handleDeleteAllSessions = async () => {
     const sessions = displaySessions.value
-    if (sessions.length === 0) return
+    if (!sessions || sessions.length === 0) return
 
     if (!await confirm(t('sidebar.deleteAllChatsConfirm', { n: sessions.length }))) {
         return
@@ -165,9 +165,9 @@ const handleNavClick = (item: any) => {
         <!-- Conversations Header -->
         <div class="shrink-0 px-4 pt-2 pb-2 flex items-center justify-between">
             <span class="text-sm font-medium text-base-content/70 uppercase tracking-wider">{{ $t('sidebar.recentChats')
-                }}</span>
+            }}</span>
             <div class="flex gap-1">
-                <button v-if="displaySessions.length > 0"
+                <button v-if="displaySessions && displaySessions.length > 0"
                     class="btn btn-ghost btn-circle btn-xs hover:bg-error/20 hover:text-error"
                     :title="$t('sidebar.clearAll')" @click="handleDeleteAllSessions">
                     <TrashIcon class="h-4 w-4" />
@@ -185,7 +185,8 @@ const handleNavClick = (item: any) => {
                 <span class="loading loading-spinner loading-sm"></span>
             </div> -->
             <!-- Empty state -->
-            <div v-if="displaySessions.length === 0" class="text-center py-4 text-base-content/50 text-sm">
+            <div v-if="!displaySessions || displaySessions.length === 0"
+                class="text-center py-4 text-base-content/50 text-sm">
                 {{ $t('sidebar.noChats') }}
             </div>
             <!-- Sessions list -->

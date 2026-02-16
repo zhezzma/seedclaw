@@ -17,7 +17,7 @@ const props = defineProps<{
     }
 }>()
 
-const isReadonly = computed(() => props.custom === false)
+const isReadonly = computed(() => props.mode === 'edit' && props.custom === false)
 
 const emit = defineEmits<{
     (e: 'close'): void
@@ -166,7 +166,7 @@ const handleSubmit = async () => {
                 <button @click="handleClose" class="btn">{{ $t('common.cancel') }}</button>
                 <button @click="handleSubmit" class="btn btn-primary" :disabled="!isFormValid || isSubmitting">{{
                     submitLabel
-                    }}</button>
+                }}</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop">

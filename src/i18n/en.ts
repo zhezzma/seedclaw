@@ -468,6 +468,33 @@ export default {
         learnMore: 'Learn More',
         gatewayUrlHint: 'WebSocket URL, e.g. ws://192.168.1.100:18789',
         unknown: 'Unknown',
+        steps: {
+            connect: 'Connect',
+            model: 'Model',
+            agent: 'Agent',
+        },
+        modelStep: {
+            description: 'Add a model provider to start chatting.',
+            providerId: 'Provider ID',
+            selectProvider: 'Select Provider',
+            customProvider: 'Custom Provider',
+            startTyping: 'Start typing...',
+            baseUrl: 'Base URL',
+            apiKey: 'API Key',
+            skip: 'Skip',
+            next: 'Next',
+            errorMissingFields: 'Please fill in all fields.',
+            errorSave: 'Failed to save model provider.',
+        },
+        agentStep: {
+            description: 'Create your first AI Agent.',
+            name: 'Agent Name',
+            namePlaceholder: 'My Agent',
+            finish: 'Finish Setup',
+            errorCreate: 'Failed to create agent.',
+            defaultDescription: 'Your first AI agent.',
+            uploadAvatar: 'Upload Avatar',
+        }
     },
     skills: {
         title: 'Skills List',

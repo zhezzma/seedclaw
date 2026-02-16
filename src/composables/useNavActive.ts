@@ -76,7 +76,7 @@ export function useNavActive() {
         // Check if we effectively are on 'home' (which includes 'chat' with main session)
         if (currentName === 'home' || currentName === 'chat' || currentName === NEW_SESSION_ROUTE_NAME) {
             // Special case for special modes (type query param)
-            if (route.query.type) {
+            if (route.query && route.query.type) {
                 return 'chat' // This matches the route name for special items like Messages
             }
 

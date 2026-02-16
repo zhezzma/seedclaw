@@ -4,6 +4,7 @@ import { SessionRow, useSessionsState } from './useSessionsState'
 import { useUiSettingsStore } from '../stores/setting'
 import { apiGet, apiPost } from './api-client'
 import { startChatSSE, connectSessionSSE, type SSEConnection } from './sse-client'
+import { AgentInfo, useAgentsState } from './useAgentsState'
 
 // ==================== Types ====================
 export interface ChatMessage {
@@ -41,6 +42,12 @@ export interface ChatSessionData {
 export interface ChatState {
     sessionKey: string
     sessionsMap: Map<string, ChatSessionData>
+    // 当前会话信息（从 sessionsState 获取）
+    currentSession: SessionRow | null
+    // 当前选中的 Agent（新会话时通过 UI 下拉选择，已有会话时通过 session.agentId 推导）
+    currentAgent: AgentInfo | null
+    // 选中的 Agent ID（新会话场景下由 UI 下拉菜单驱动）
+    agentsSelectedId: string
 }
 
 // Per-session SSE connections
@@ -49,6 +56,9 @@ const sseConnections = new Map<string, SSEConnection>()
 const state = reactive<ChatState>({
     sessionKey: '',
     sessionsMap: new Map<string, ChatSessionData>(),
+    currentSession: null,
+    currentAgent: null,
+    agentsSelectedId: '',
 })
 
 // ==================== Helpers ====================
@@ -57,16 +67,7 @@ function generateUUID(): string {
     return crypto.randomUUID()
 }
 
-function extractSessionId(sessionKey: string): string {
-    return sessionKey
-}
 
-export function extractAgentId(sessionKey: string): string {
-    const sessionsState = useSessionsState()
-    const session = sessionsState.sessionsResult?.sessions?.find((s: SessionRow) => s.id === sessionKey)
-
-    return session?.agentId || ''
-}
 
 function getSessionData(key: string): ChatSessionData {
     let data = state.sessionsMap.get(key)
@@ -85,6 +86,14 @@ function getSessionData(key: string): ChatSessionData {
     return data
 }
 
+/**
+ * 根据 agentId 从 agentsList 中查找 Agent
+ */
+function findAgent(agentId: string): AgentInfo | null {
+    const agentsState = useAgentsState()
+    return agentsState.agentsList?.find((a: any) => a.id === agentId) || null
+}
+
 // ==================== Actions ====================
 
 const sendMessage = async (message?: string, attachments?: ChatAttachment[], sessionKey?: string) => {
@@ -100,7 +109,7 @@ const sendMessage = async (message?: string, attachments?: ChatAttachment[], ses
     if (!text.trim() && images.length === 0) return
 
     const sessionData = getSessionData(targetKey)
-    const sessionId = extractSessionId(targetKey)
+    const sessionId = targetKey
 
     // Add user message to per-session data
     sessionData.chatMessages = [...sessionData.chatMessages, {
@@ -184,33 +193,61 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
             }
             break
         }
-        case 'tool_start':
+        case 'tool_execution_start':
             // 添加新的工具调用 Block
             stream.push({
                 type: 'toolCall',
-                id: generateUUID(), // Server doesn't send ID, so we generate one
+                id: data.toolCallId,
                 name: data.toolName,
                 toolState: 'calling',
-                arguments: {}
+                arguments: data.args
             })
             break
-        case 'tool_update':
-            // 工具参数更新 (暂未实现复杂合并逻辑)
+        case 'tool_execution_update':
+            // 工具参数更新，支持 partialResult
             if (data) {
-                const lastBlock = stream.length > 0 ? stream[stream.length - 1] : null
-                if (lastBlock?.type === 'toolCall') {
+                let toolCallItem = null
+                if (data.toolCallId) {
+                    toolCallItem = stream.find(item => item.type === 'toolCall' && item.id === data.toolCallId)
+                }
+
+                // Fallback to last item (optional but safe)
+                if (!toolCallItem && stream.length > 0) {
+                    const last = stream[stream.length - 1]
+                    if (last.type === 'toolCall' && last.name === data.toolName) {
+                        toolCallItem = last
+                    }
+                }
+
+                if (toolCallItem) {
                     // Update arguments if present
+                    if (data.args) {
+                        // If args is string, append (for streaming args). If object, merge/replace.
+                        if (typeof data.args === 'string') {
+                            toolCallItem.arguments = (toolCallItem.arguments || '') + data.args
+                        } else {
+                            toolCallItem.arguments = { ...toolCallItem.arguments, ...data.args }
+                        }
+                    }
+
+                    // Update partial result (e.g. streaming output)
+                    if (data.partialResult) {
+                        toolCallItem.toolResult = data.partialResult.content
+                    }
                 }
             }
             break
-        case 'tool_end':
-
-            // 1. 更新流中的 Block 以获得即时反馈 (UI 显示从 Loading -> Success)
+        case 'tool_execution_end':
+            // 1. Find the tool call item
             let toolCallItem = null
 
-            // 因为服务端没有返回 ID，所以我们需要从流中找到最后一个“正在调用中”且名字匹配的工具
-            if (stream.length > 0) {
-                // 从后往前搜索，找到最后一个同名且未完成的工具调用
+            if (data.toolCallId) {
+                // Precise lookup by ID
+                toolCallItem = stream.find(item => item.type === 'toolCall' && item.id === data.toolCallId)
+            }
+
+            // Fallback: search by name and state (as before)
+            if (!toolCallItem && stream.length > 0) {
                 for (let i = stream.length - 1; i >= 0; i--) {
                     const item = stream[i]
                     if (item.type === 'toolCall' && item.name === data.toolName && (!item.toolState || item.toolState === 'calling')) {
@@ -221,20 +258,18 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
             }
 
             if (toolCallItem) {
-                // 找到对应的工具调用对象了，直接修改它的属性
-                // 这会触发 Vue 的响应式更新，界面上的 Loading 状态会立即消失并显示结果
+                // Update final result and status
                 toolCallItem.toolResult = data.result.content
                 toolCallItem.toolError = data.isError ? (typeof data.result === 'string' ? data.result : JSON.stringify(data.result)) : undefined
                 toolCallItem.toolState = data.isError ? 'error' : 'success'
             }
 
             // 2. Add independent ToolResult message for history integrity
-            // Note: This duplicates what convertToBlocks does, but keeps local state consistent
             sessionData.chatToolMessages = [...sessionData.chatToolMessages, {
                 role: 'toolResult',
-                content: data.result.content,  // data.result can be object or string
+                content: data.result.content,
                 timestamp: Date.now(),
-                toolCallId: toolCallItem ? toolCallItem.id : generateUUID(), // Link to the item we found or new ID
+                toolCallId: toolCallItem ? toolCallItem.id : data.toolCallId,
                 isError: data.isError
             }]
 
@@ -272,7 +307,7 @@ const abortChat = async (sessionKey?: string) => {
     }
     if (targetKey) {
         try {
-            await apiPost(`/api/chat/${extractSessionId(targetKey)}/abort`)
+            await apiPost(`/api/chat/${targetKey}/abort`)
         } catch {
             // Ignore abort errors
         }
@@ -290,7 +325,7 @@ const loadChatHistory = async (sessionKey?: string) => {
     const sd = getSessionData(targetKey)
     sd.chatLoading = true
     try {
-        const sessionId = extractSessionId(targetKey)
+        const sessionId = targetKey
         const result = await apiGet<{ messages: ChatMessage[], isStreaming?: boolean, partialText?: string }>(`/api/chat/${sessionId}/messages`)
         sd.chatMessages = result?.messages || []
         // 清空本地临时存储的 toolResult 消息，因为历史记录中应该已经包含（或者由 chatMessages 自行管理）
@@ -332,13 +367,10 @@ const loadChatHistory = async (sessionKey?: string) => {
 
                             // 3. Sync current stream content
                             if (data.streamMessage) {
-                                // Important: The server sends the full AgentMessage object as streamMessage.
-                                // The client's chatStream expects the *content* array of that message.
                                 if (data.streamMessage.content && Array.isArray(data.streamMessage.content)) {
                                     sd.chatStream = JSON.parse(JSON.stringify(data.streamMessage.content))
                                 }
                             } else if (data.isStreaming && !sd.chatStream) {
-                                // If streaming but no content sent yet, init empty
                                 sd.chatStream = []
                             }
                         }
@@ -361,8 +393,6 @@ const loadChatHistory = async (sessionKey?: string) => {
             sse.done.then(() => {
                 getSessionData(targetKey).chatSending = false
                 sseConnections.delete(targetKey)
-                // Reload history to ensure we have the final complete message state
-                loadChatHistory(targetKey)
             }).catch(() => {
                 getSessionData(targetKey).chatSending = false
                 sseConnections.delete(targetKey)
@@ -376,21 +406,62 @@ const loadChatHistory = async (sessionKey?: string) => {
     }
 }
 
+/**
+ * 切换到已有会话
+ * 1. 设置 sessionKey
+ * 2. 通过 getSessionById 获取 session 信息 → 设置 currentSession
+ * 3. 通过 session.agentId 推导 agentsSelectedId 和 currentAgent
+ * 4. 加载聊天历史
+ */
 const setSessionKey = async (key: string, loadHistory = true) => {
+    // 在设置 sessionKey 之前先判断是否需要加载历史
+    // 因为设置 sessionKey 后，UI 会通过 getter 读取数据，自动创建 sessionsMap entry
+    const needsLoad = loadHistory && !state.sessionsMap.has(key)
+
     state.sessionKey = key
 
     const settings = useUiSettingsStore()
     settings.setLastActiveSessionKey(key)
 
-    if (loadHistory && !state.sessionsMap.has(key)) {
+    // 获取 session 信息并设置 currentSession / currentAgent
+    const sessionsState = useSessionsState()
+    const session = await sessionsState.getSessionById(key)
+    state.currentSession = session || null
+    if (session?.agentId) {
+        state.agentsSelectedId = session.agentId
+        state.currentAgent = findAgent(session.agentId)
+    }
+
+    if (needsLoad) {
         await loadChatHistory(key)
     }
 }
 
+/**
+ * 创建新会话（/new 页面）
+ * 1. 清空 sessionKey 和 currentSession
+ * 2. currentAgent 由 agentsSelectedId 推导（用户通过下拉菜单选择）
+ */
 const createNewSession = async () => {
     state.sessionKey = ''
+    state.currentSession = null
+
     const settings = useUiSettingsStore()
     settings.setLastActiveSessionKey('')
+
+    // 新会话场景：currentAgent 由 agentsSelectedId 决定
+    if (state.currentAgent?.id != state.agentsSelectedId) {
+        state.currentAgent = findAgent(state.agentsSelectedId)
+    }
+}
+
+/**
+ * 选择 Agent（新会话下拉菜单触发）
+ * 同时更新 agentsSelectedId 和 currentAgent
+ */
+const selectAgent = (agentId: string) => {
+    state.agentsSelectedId = agentId
+    state.currentAgent = findAgent(agentId)
 }
 
 const steerMessage = async (message: string, sessionKey?: string) => {
@@ -400,7 +471,7 @@ const steerMessage = async (message: string, sessionKey?: string) => {
         return
     }
 
-    const sessionId = extractSessionId(targetKey)
+    const sessionId = targetKey
     const sessionData = getSessionData(targetKey)
 
     // Add user message to per-session data
@@ -437,8 +508,8 @@ export function useChatState() {
         loadChatHistory,
         setSessionKey,
         createNewSession,
-        getSessionData,
-        extractAgentId
+        selectAgent,
+        getSessionData
     }
 
     return createStateProxy(state, methods)
