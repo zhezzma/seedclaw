@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, onActivated, watch, reactive, toRef } from 'vue'
+import { ref, computed, onMounted, onUnmounted, onActivated, watch, reactive, toRef, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
+import { ChevronDoubleDownIcon } from '@heroicons/vue/24/outline'
 
 import { useChatMessages, type DisplayMessage } from '../composables/useChatMessages'
+import type { BranchInfo } from '../components/chat/MessageBubble.vue'
 import { useTTS } from '../composables/useTTS'
 import { useVoiceChat } from '../composables/useVoiceChat'
 import ChatHeader from '../components/chat/ChatHeader.vue'
@@ -44,6 +46,7 @@ const {
     isLoading,
     isBusy,
     streamingText,
+    userScrolledUp,
     scrollToBottom,
     setupScrollWatchers,
     refreshChatAndScroll
@@ -230,6 +233,126 @@ const readAloud = (msg: DisplayMessage) => {
         .join('\n')
     ttsReadAloud(msg.id, text)
 }
+
+// ==================== Delete / Retry / Branch ====================
+
+// Session tree data for branch navigation
+const sessionTreeEntries = ref<any[] | null>(null)
+// Map: parentId → array of child message entry IDs (only type="message")
+const childrenMap = ref<Map<string, string[]>>(new Map())
+// Map: parentId → array of ALL child entry IDs (for finding leaf nodes)
+const allChildrenMap = ref<Map<string, string[]>>(new Map())
+// Map: id → entry (for quick lookup)
+const entryMap = ref<Map<string, any>>(new Map())
+
+const loadSessionTree = async () => {
+    if (!chatState.sessionKey) return
+    const tree = await chatState.fetchSessionTree()
+    sessionTreeEntries.value = tree
+
+    const msgChildren = new Map<string, string[]>()
+    const allChildren = new Map<string, string[]>()
+    const entries = new Map<string, any>()
+
+    if (tree && Array.isArray(tree)) {
+        for (const entry of tree) {
+            entries.set(entry.id, entry)
+            if (!entry.parentId) continue
+            // allChildrenMap: 所有类型的子节点
+            const allArr = allChildren.get(entry.parentId)
+            if (allArr) allArr.push(entry.id)
+            else allChildren.set(entry.parentId, [entry.id])
+            // childrenMap: 只包含 message 类型
+            if (entry.type === 'message') {
+                const msgArr = msgChildren.get(entry.parentId)
+                if (msgArr) msgArr.push(entry.id)
+                else msgChildren.set(entry.parentId, [entry.id])
+            }
+        }
+    }
+    childrenMap.value = msgChildren
+    allChildrenMap.value = allChildren
+    entryMap.value = entries
+}
+
+// 找到某个 entry 分支的叶子节点 ID
+const findLeafId = (startId: string): string => {
+    let leafId = startId
+    while (true) {
+        const childIds = allChildrenMap.value.get(leafId)
+        if (!childIds || childIds.length === 0) break
+        const messageChild = childIds.find(cid => entryMap.value.get(cid)?.type === 'message')
+        leafId = messageChild || childIds[0]
+    }
+    return leafId
+}
+
+// Compute branch info for each message based on the session tree
+const getBranchInfo = (msg: DisplayMessage): BranchInfo | null => {
+    if (!msg.entryId || !msg.parentEntryId) return null
+
+    // 1. 检查自身兄弟（直接 retry 场景：同一 parent 下多个 assistant）
+    const ownSiblings = childrenMap.value.get(msg.parentEntryId)
+    if (ownSiblings && ownSiblings.length > 1) {
+        const currentIndex = ownSiblings.indexOf(msg.entryId)
+        if (currentIndex >= 0) {
+            return { siblings: ownSiblings, currentIndex }
+        }
+    }
+
+    // 2. assistant 消息向上冒泡，检查父级 user 消息的兄弟
+    if (msg.role === 'assistant') {
+        const parentEntry = entryMap.value.get(msg.parentEntryId)
+        if (parentEntry?.parentId) {
+            const parentSiblings = childrenMap.value.get(parentEntry.parentId)
+            if (parentSiblings && parentSiblings.length > 1) {
+                const parentIndex = parentSiblings.indexOf(msg.parentEntryId)
+                if (parentIndex >= 0) {
+                    return { siblings: parentSiblings, currentIndex: parentIndex }
+                }
+            }
+        }
+    }
+
+    return null
+}
+
+const deleteMessage = async (msg: DisplayMessage) => {
+    if (!msg.entryId) return
+    await chatState.deleteMessage(msg.entryId)
+    // delete 后 chatMessages 由后端刷新，entries 也需要更新
+    await loadSessionTree()
+}
+
+const retryMessage = async (msg: DisplayMessage) => {
+    if (!msg.entryId) return
+    await chatState.retryMessage(msg.entryId)
+    // retry 完成后 SSE done 事件会静默刷新 chatMessages，这里更新 entries
+    await loadSessionTree()
+}
+
+const navigateBranch = async (msg: DisplayMessage, direction: 'prev' | 'next') => {
+    const info = getBranchInfo(msg)
+    if (!info) return
+
+    const newIndex = direction === 'prev' ? info.currentIndex - 1 : info.currentIndex + 1
+    if (newIndex < 0 || newIndex >= info.siblings.length) return
+
+    // 找到目标分支的叶子节点 ID（后端需要 leaf ID 才能返回完整分支）
+    const leafId = findLeafId(info.siblings[newIndex])
+    await chatState.navigateBranch(leafId)
+    // 切换后强制滚动到底部（延迟确保 DOM 渲染完成）
+    scrollToBottom(true)
+    setTimeout(() => scrollToBottom(true), 200)
+}
+
+// 初始加载 entries（仅在 chatMessages 首次有值时加载一次）
+watch(() => chatState.chatMessages, (msgs, oldMsgs) => {
+    // 从空到有值 或 首次加载时加载 entries
+    if (msgs?.length && (!oldMsgs || oldMsgs.length === 0)) {
+        loadSessionTree()
+    }
+}, { deep: false })
 
 
 // Voice Chat
@@ -436,14 +559,25 @@ async function applyDefaultSessionBehavior() {
                 </div>
 
                 <!-- Chat messages - only this area scrolls -->
-                <div v-else ref="messagesContainerRef" class="flex-1 overflow-y-auto p-4">
+                <div v-else ref="messagesContainerRef" class="flex-1 overflow-y-auto p-4 relative">
                     <div class="space-y-4 mx-auto w-full" :class="{ 'max-w-3xl': !settingsStore.isWideMode }">
-                        <MessageBubble v-for="(msg, index) in processedMessages" :key="index" :message="msg"
-                            @copy="copyMessage" @read-aloud="readAloud"
-                            :is-loading="isBusy && (index === processedMessages.length - 1)" />
+                        <MessageBubble v-for="(msg, index) in processedMessages" :key="msg.entryId || index"
+                            :message="msg" @copy="copyMessage" @read-aloud="readAloud" @delete="deleteMessage"
+                            @retry="retryMessage" @navigate-branch="navigateBranch"
+                            :is-loading="isBusy && (index === processedMessages.length - 1)" :is-busy="isBusy"
+                            :branch-info="getBranchInfo(msg)" />
 
 
                     </div>
+
+                    <!-- Scroll to bottom FAB -->
+                    <Transition name="fade-up">
+                        <button v-if="userScrolledUp" @click="scrollToBottom(true)"
+                            class="sticky bottom-4 left-1/2 -translate-x-1/2 btn btn-circle btn-sm bg-base-200 hover:bg-base-300 text-base-content border border-base-300 shadow-lg opacity-90 hover:opacity-100 transition-all duration-200 z-10"
+                            :title="$t('common.scrollToBottom')">
+                            <ChevronDoubleDownIcon class="h-4 w-4" />
+                        </button>
+                    </Transition>
                 </div>
             </div>
 

@@ -145,9 +145,11 @@ const confirmInstall = () => {
 }
 
 // Installation Status Logic
+const installedGlobalSkills = ref<any[]>([])
+
 const isGlobalInstalled = computed(() => {
-    if (!selectedSkill.value || !skillsState.globalSkills) return false
-    return skillsState.globalSkills.some((s: any) =>
+    if (!selectedSkill.value) return false
+    return installedGlobalSkills.value.some((s: any) =>
         (s.slug && s.slug === selectedSkill.value.skill.slug) ||
         (s.id && s.id === selectedSkill.value.skill._id) ||
         (s.name && s.name === selectedSkill.value.skill.slug)
@@ -160,11 +162,17 @@ const loadingAgentSkills = ref(false)
 const fetchAgentSkillsStatus = async () => {
     loadingAgentSkills.value = true
     try {
-        await Promise.all(agents.value.map(async (agent) => {
-            const skills = await skillsState.loadAgentSkills(agent.id)
-            // Store set of installed skill identifiers (slugs or names)
-            agentInstalledSkills.value[agent.id] = new Set(skills.map((s: any) => s.slug || s.name))
-        }))
+        const [globalSkills, ...agentResults] = await Promise.all([
+            skillsState.fetchGlobalSkills(),
+            ...agents.value.map(async (agent) => {
+                const skills = await skillsState.loadAgentSkills(agent.id)
+                return { agentId: agent.id, skills }
+            })
+        ])
+        installedGlobalSkills.value = globalSkills
+        for (const { agentId, skills } of agentResults) {
+            agentInstalledSkills.value[agentId] = new Set(skills.map((s: any) => s.slug || s.name))
+        }
     } catch (err) {
         console.error('Failed to fetch agent skills status:', err)
     } finally {
@@ -363,7 +371,7 @@ const handleInstall = async (skill: any, agentId?: string) => {
                                     </div>
                                     <div class="mt-0.5 flex items-center  gap-2">
                                         <span class="text-xs text-base-content/60">{{ $t('skills.installGlobalDesc')
-                                            }}</span>
+                                        }}</span>
                                         <span v-if="isGlobalInstalled" class="badge badge-xs badge-success">
                                             <CheckIcon class="w-3 h-3 mr-1" />
                                             {{ $t('skills.installed') }}
@@ -374,7 +382,7 @@ const handleInstall = async (skill: any, agentId?: string) => {
 
                             <div v-if="agents.length > 0" class="divider text-xs my-2 font-mono opacity-50">{{
                                 $t('common.or')
-                                }}</div>
+                            }}</div>
 
                             <!-- Agent Options -->
                             <div class="grid grid-cols-1 gap-1">

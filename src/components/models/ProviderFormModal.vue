@@ -126,7 +126,7 @@ const handleSubmit = async () => {
                 <div class="form-control md:col-span-2">
                     <label class="label"><span class="label-text">{{ $t('provider.baseUrl') }} <span
                                 class="text-error">*</span></span></label>
-                    <input v-model="formData.baseUrl" type="text" placeholder="https://api.openai.com/v1"
+                    <input v-model="formData.baseUrl" type="text" placeholder="https://...com/v1"
                         class="input input-bordered w-full" :disabled="isReadonly" />
                 </div>
 
@@ -166,7 +166,7 @@ const handleSubmit = async () => {
                 <button @click="handleClose" class="btn">{{ $t('common.cancel') }}</button>
                 <button @click="handleSubmit" class="btn btn-primary" :disabled="!isFormValid || isSubmitting">{{
                     submitLabel
-                }}</button>
+                    }}</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop">

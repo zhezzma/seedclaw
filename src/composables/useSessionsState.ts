@@ -1,6 +1,6 @@
 import { reactive, computed, watch } from 'vue'
 import { createStateProxy } from './utils/stateProxy'
-import { apiGet, apiPost, apiDelete, apiPatch, getApiUrl, getAuthToken } from './api-client'
+import { apiGet, apiPost, apiDelete, apiPatch } from './api-client'
 
 // ==================== Types ====================
 export interface SessionRow {
@@ -84,67 +84,20 @@ export function useSessionsState() {
         if (!userText) return
 
         try {
-            const token = getAuthToken()
-            const response = await fetch(getApiUrl(`/api/chat/${agentId}/direct`), {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                },
-                body: JSON.stringify({
-                    thinkingLevel: "off",
-                    prompt: `将以下文本总结为一个简短、简洁的聊天会话标题（5-10个字）。不要使用引号或标点符号。文本： "${userText.substring(0, 500)}"`
-                })
-            })
+            const result = await apiPost<{ sessionId: string; name: string }>(
+                `/api/sessions/${encodeURIComponent(targetKey)}/generate-title`,
+                { text: userText.substring(0, 500) }
+            )
 
-            if (!response.ok) throw new Error(`HTTP ${response.status}`)
-            if (!response.body) throw new Error('No response body')
-
-            const reader = response.body.getReader()
-            const decoder = new TextDecoder()
-            let title = ''
-
-            // Simple SSE parser
-            let buffer = ''
-            let currentEvent = ''
-
-            while (true) {
-                const { done, value } = await reader.read()
-                if (done) break
-
-                buffer += decoder.decode(value, { stream: true })
-                const lines = buffer.split('\n')
-                buffer = lines.pop() || ''
-
-                for (const line of lines) {
-                    const trimmedLine = line.trim()
-                    if (trimmedLine.startsWith('event:')) {
-                        currentEvent = trimmedLine.slice(6).trim()
-                    } else if (trimmedLine.startsWith('data:')) {
-                        // Only add to title if it's a text_delta event
-                        if (currentEvent === 'text_delta') {
-                            try {
-                                const dataStr = trimmedLine.slice(5).trim()
-                                const data = JSON.parse(dataStr)
-                                if (data.delta) {
-                                    title += data.delta
-                                }
-                            } catch (e) {
-                                // Ignore parse errors for intermediate chunks
-                            }
-                        }
-                        // Explicitly ignore thinking_delta and other events
-                    } else if (trimmedLine === '') {
-                        currentEvent = '' // Reset event type for the next block
-                    }
+            const name = result?.name
+            if (name && state.sessionsResult?.sessions) {
+                state.sessionsResult = {
+                    ...state.sessionsResult,
+                    sessions: state.sessionsResult.sessions.map((s: SessionRow) =>
+                        s.id === targetKey ? { ...s, name } : s
+                    )
                 }
             }
-
-            // Final rename if we got a title
-            if (title && title.trim()) {
-                await patchSession(targetKey, { label: title.trim() })
-            }
-
         } catch (e) {
             console.warn('Failed to auto-rename session', e)
         }

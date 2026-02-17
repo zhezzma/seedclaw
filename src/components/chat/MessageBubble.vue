@@ -2,7 +2,11 @@
 import {
     ClipboardIcon,
     SpeakerWaveIcon,
-    StopIcon
+    StopIcon,
+    TrashIcon,
+    ArrowPathIcon,
+    ChevronLeftIcon,
+    ChevronRightIcon
 } from '@heroicons/vue/24/outline'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -11,14 +15,25 @@ import ToolInvocation from './ToolInvocation.vue'
 import { useChatState } from '../../composables/useChatState'
 import { useTTS } from '../../composables/useTTS'
 import type { DisplayMessage } from '../../composables/useChatMessages'
+
+export interface BranchInfo {
+    siblings: string[]
+    currentIndex: number
+}
+
 const props = defineProps<{
     message: DisplayMessage
     isLoading?: boolean
+    isBusy?: boolean
+    branchInfo?: BranchInfo | null
 }>()
 
 const emit = defineEmits<{
     (e: 'copy', msg: DisplayMessage): void
     (e: 'read-aloud', msg: DisplayMessage): void
+    (e: 'delete', msg: DisplayMessage): void
+    (e: 'retry', msg: DisplayMessage): void
+    (e: 'navigate-branch', msg: DisplayMessage, direction: 'prev' | 'next'): void
 }>()
 const { t } = useI18n()
 const chatState = useChatState()
@@ -167,7 +182,7 @@ const closeFileViewer = () => {
         </div>
 
         <!-- User Message Bubble -->
-        <div v-if="message.role === 'user'" class="chat-bubble chat-bubble-primary relative">
+        <div v-if="message.role === 'user'" class="max-w-full    chat-bubble chat-bubble-primary relative">
             <div class="whitespace-normal flex flex-col gap-2">
                 <!-- Text blocks first -->
                 <template v-for="(block, bIndex) in userParsedBlocks" :key="'text-' + bIndex">
@@ -216,16 +231,21 @@ const closeFileViewer = () => {
         </div>
         <!-- User Actions (Hover) -->
         <div v-if="message.role === 'user'"
-            class="chat-footer opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all duration-200 mt-1">
+            class="chat-footer opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all duration-200 mt-1 flex items-center gap-1">
             <button @click="emit('copy', message)"
                 class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-primary hover:bg-base-200"
                 :title="$t('common.copy')">
                 <ClipboardIcon class="h-4 w-4" />
             </button>
+            <button v-if="!isBusy && message.entryId" @click="emit('delete', message)"
+                class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-error hover:bg-error/10"
+                :title="$t('common.delete')">
+                <TrashIcon class="h-4 w-4" />
+            </button>
         </div>
 
         <!-- Assistant Message Bubble -->
-        <div v-else class="chat-bubble w-full relative">
+        <div v-else class="max-w-full md:max-w-[90%]  w-full chat-bubble   relative">
             <div class="whitespace-normal flex flex-col gap-2">
                 <!-- Loading indicator if empty or just waiting -->
                 <div v-if="isLoading && (!message.blocks.length || (message.blocks.length === 1 && message.blocks[0].type === 'text' && !message.blocks[0].text))"
@@ -281,7 +301,7 @@ const closeFileViewer = () => {
             </div>
         </div>
         <!-- Assistant Actions (Fixed) -->
-        <div v-if="message.role !== 'user'" class="chat-footer mt-1 flex gap-1">
+        <div v-if="message.role !== 'user'" class="chat-footer mt-1 flex items-center gap-1">
             <button @click="emit('copy', message)"
                 class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-primary hover:bg-base-200"
                 :title="$t('common.copy')">
@@ -298,6 +318,32 @@ const closeFileViewer = () => {
                     <SpeakerWaveIcon class="h-4 w-4" />
                 </template>
             </button>
+            <button v-if="!isBusy && message.entryId" @click="emit('delete', message)"
+                class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-error hover:bg-error/10"
+                :title="$t('common.delete')">
+                <TrashIcon class="h-4 w-4" />
+            </button>
+            <button v-if="!isBusy && message.entryId" @click="emit('retry', message)"
+                class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-warning hover:bg-warning/10"
+                :title="$t('chat.retry') || 'Retry'">
+                <ArrowPathIcon class="h-4 w-4" />
+            </button>
+
+            <!-- Branch Navigation -->
+            <div v-if="branchInfo && branchInfo.siblings.length > 1" class="flex items-center gap-0.5 ml-1">
+                <button @click="emit('navigate-branch', message, 'prev')" :disabled="branchInfo.currentIndex <= 0"
+                    class="btn btn-ghost btn-xs btn-circle text-base-content/60 hover:text-primary hover:bg-base-200 disabled:opacity-30 disabled:cursor-not-allowed">
+                    <ChevronLeftIcon class="h-3.5 w-3.5" />
+                </button>
+                <span class="text-xs text-base-content/50 min-w-[2rem] text-center select-none">
+                    {{ branchInfo.currentIndex + 1 }}/{{ branchInfo.siblings.length }}
+                </span>
+                <button @click="emit('navigate-branch', message, 'next')"
+                    :disabled="branchInfo.currentIndex >= branchInfo.siblings.length - 1"
+                    class="btn btn-ghost btn-xs btn-circle text-base-content/60 hover:text-primary hover:bg-base-200 disabled:opacity-30 disabled:cursor-not-allowed">
+                    <ChevronRightIcon class="h-3.5 w-3.5" />
+                </button>
+            </div>
         </div>
     </div>
 

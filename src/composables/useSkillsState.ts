@@ -12,7 +12,6 @@ export interface SkillsState {
     publicSkills: ConvexSkill[]
     publicSkillsLoading: boolean
     connectionStatus: ConnectionStatus
-    globalSkills: any[]
 }
 
 // ==================== State ====================
@@ -23,7 +22,6 @@ const state = reactive<SkillsState>({
     publicSkills: [],
     publicSkillsLoading: false,
     connectionStatus: 'disconnected',
-    globalSkills: [],
 })
 
 // ==================== Init Callbacks ====================
@@ -77,28 +75,27 @@ export function useSkillsState() {
                 await apiPost(`/api/skills/${agentId}/install`, body)
             } else {
                 await apiPost('/api/skills/global/install', body)
-                await fetchGlobalSkills()
             }
-            return true
         } catch (err: any) {
             console.error('Failed to install skill:', err)
             throw err
         }
     }
 
-    const fetchGlobalSkills = async () => {
+    const fetchGlobalSkills = async (agentId?: string) => {
         try {
-            const res = await apiGet<{ skills: any[] }>('/api/skills/global')
-            state.globalSkills = res?.skills || []
+            const query = agentId ? `?agentId=${agentId}` : ''
+            const res = await apiGet<{ skills: any[] }>(`/api/skills/global${query}`)
+            return res?.skills || []
         } catch (err) {
             console.error('Failed to fetch global skills:', err)
+            return []
         }
     }
 
     const uninstallGlobalSkill = async (skillId: string) => {
         try {
             await apiDelete(`/api/skills/global/${skillId}`)
-            await fetchGlobalSkills()
         } catch (err) {
             console.error('Failed to uninstall global skill:', err)
             throw err
@@ -116,11 +113,7 @@ export function useSkillsState() {
     }
 
     const toggleAgentSkill = async (agentId: string, skillId: string, enabled: boolean) => {
-        try {
-            await apiPost(`/api/skills/${agentId}/${skillId}`, { enabled })
-        } catch (err: any) {
-            throw err
-        }
+        await apiPost(`/api/skills/${agentId}/${skillId}`, { enabled })
     }
 
     const uninstallAgentSkill = async (agentId: string, skillId: string) => {
@@ -131,6 +124,17 @@ export function useSkillsState() {
         }
     }
 
+    const fetchSystemSkills = async (agentId?: string) => {
+        try {
+            const query = agentId ? `?agentId=${agentId}` : ''
+            const res = await apiGet<{ skills: any[] }>(`/api/skills/system${query}`)
+            return res?.skills || []
+        } catch (err) {
+            console.error('Failed to fetch system skills:', err)
+            return []
+        }
+    }
+
     const methods = {
         initConvexConnection,
         fetchPublicSkills,
@@ -138,6 +142,7 @@ export function useSkillsState() {
         getSkillReadme,
         installSkill,
         fetchGlobalSkills,
+        fetchSystemSkills,
         uninstallGlobalSkill,
         loadAgentSkills,
         toggleAgentSkill,

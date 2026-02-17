@@ -3,7 +3,7 @@ import { createStateProxy } from './utils/stateProxy'
 import { SessionRow, useSessionsState } from './useSessionsState'
 import { useUiSettingsStore } from '../stores/setting'
 import { apiGet, apiPost } from './api-client'
-import { startChatSSE, connectSessionSSE, type SSEConnection } from './sse-client'
+import { startChatSSE, connectSessionSSE, startRetrySSE, type SSEConnection } from './sse-client'
 import { AgentInfo, useAgentsState } from './useAgentsState'
 
 // ==================== Types ====================
@@ -19,6 +19,8 @@ export interface ChatMessage {
     toolCallId?: string
     isError?: boolean
     details?: any
+    entryId?: string
+    parentEntryId?: string | null
 }
 
 export interface ChatAttachment {
@@ -156,8 +158,16 @@ const sendMessage = async (message?: string, attachments?: ChatAttachment[], ses
 
     // Wait for SSE to complete
     sse.done.then(() => {
-        getSessionData(targetKey).chatSending = false
+        const sd = getSessionData(targetKey)
+        sd.chatSending = false
         sseConnections.delete(targetKey)
+
+        // If the message starts with /reset, clear all messages
+        if (text.startsWith('/reset')) {
+            sd.chatMessages = []
+            sd.chatToolMessages = []
+            sd.chatStream = null
+        }
     }).catch(() => {
         getSessionData(targetKey).chatSending = false
         sseConnections.delete(targetKey)
@@ -294,6 +304,12 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
             sessionData.chatRunId = null
             sessionData.chatStreamStartedAt = null
             sessionData.chatSending = false
+            // 静默刷新消息，补上 entryId/parentEntryId（不设置 chatLoading，避免页面闪烁）
+            apiGet<{ messages: ChatMessage[] }>(`/api/chat/${targetKey}/messages`).then(result => {
+                if (result?.messages) {
+                    getSessionData(targetKey).chatMessages = result.messages
+                }
+            }).catch(() => { /* 静默失败不影响使用 */ })
             break
     }
 }
@@ -491,6 +507,125 @@ const steerMessage = async (message: string, sessionKey?: string) => {
 
 
 
+// ==================== Delete / Retry / Branch ====================
+
+const deleteMessage = async (entryId: string, sessionKey?: string) => {
+    const targetKey = sessionKey || state.sessionKey
+    if (!targetKey) {
+        console.error('[useChatState] deleteMessage called without sessionKey')
+        return
+    }
+
+    try {
+        const result = await apiPost<{ messages: ChatMessage[], deleted: boolean }>(
+            `/api/chat/${targetKey}/delete`,
+            { entryId }
+        )
+        if (result?.messages) {
+            const sd = getSessionData(targetKey)
+            sd.chatMessages = result.messages
+            sd.chatToolMessages = []
+        }
+    } catch (err: any) {
+        console.error('[useChatState] deleteMessage failed:', err)
+    }
+}
+
+const retryMessage = async (entryId: string, sessionKey?: string) => {
+    const targetKey = sessionKey || state.sessionKey
+    if (!targetKey) {
+        console.error('[useChatState] retryMessage called without sessionKey')
+        return
+    }
+
+    const sessionData = getSessionData(targetKey)
+
+    // Remove the assistant message being retried from local state
+    // (the server navigates back and re-prompts, creating a new branch)
+    const entryIndex = sessionData.chatMessages.findIndex(m => m.entryId === entryId)
+    if (entryIndex >= 0) {
+        // Remove from the assistant entry onwards (it and any subsequent messages on this branch)
+        sessionData.chatMessages = sessionData.chatMessages.slice(0, entryIndex)
+    }
+
+    const runId = generateUUID()
+    sessionData.chatSending = true
+    sessionData.chatRunId = runId
+    sessionData.chatStreamStartedAt = Date.now()
+    sessionData.chatStream = []
+
+    // Abort any existing SSE for this session
+    const existingSSE = sseConnections.get(targetKey)
+    if (existingSSE) {
+        existingSSE.abort()
+    }
+
+    const sse = startRetrySSE(
+        targetKey,
+        { entryId },
+        (event) => {
+            handleSSEEvent(event.event, event.data, targetKey)
+        },
+        (error) => {
+            const sd = getSessionData(targetKey)
+            sd.chatSending = false
+            sd.chatRunId = null
+            sd.chatStreamStartedAt = null
+            sd.chatStream = null
+        }
+    )
+
+    sseConnections.set(targetKey, sse)
+
+    sse.done.then(() => {
+        const sd = getSessionData(targetKey)
+        sd.chatSending = false
+        sseConnections.delete(targetKey)
+    }).catch(() => {
+        getSessionData(targetKey).chatSending = false
+        sseConnections.delete(targetKey)
+    })
+}
+
+export interface SessionTreeEntry {
+    id: string
+    parentId: string | null
+    type: string
+    message?: any
+}
+
+const fetchSessionTree = async (sessionKey?: string): Promise<SessionTreeEntry[] | null> => {
+    const targetKey = sessionKey || state.sessionKey
+    if (!targetKey) return null
+
+    try {
+        const result = await apiGet<any>(`/api/chat/${targetKey}/entries`)
+        return result?.entries || result || null
+    } catch (err: any) {
+        console.error('[useChatState] fetchSessionTree failed:', err)
+        return null
+    }
+}
+
+const navigateBranch = async (targetEntryId: string, sessionKey?: string) => {
+    const targetKey = sessionKey || state.sessionKey
+    if (!targetKey) return
+
+    try {
+        const result = await apiPost<{ messages: ChatMessage[], navigated: boolean }>(
+            `/api/chat/${targetKey}/navigate`,
+            { entryId: targetEntryId }
+        )
+        // 直接用后端返回的消息列表更新 chatMessages
+        if (result?.messages) {
+            const sd = getSessionData(targetKey)
+            sd.chatMessages = result.messages
+        }
+    } catch (err: any) {
+        console.error('[useChatState] navigateBranch failed:', err)
+    }
+}
+
 export function useChatState() {
     const methods = {
         // Derived getters from sessionsMap (for backward compat with useChatMessages)
@@ -509,7 +644,11 @@ export function useChatState() {
         setSessionKey,
         createNewSession,
         selectAgent,
-        getSessionData
+        getSessionData,
+        deleteMessage,
+        retryMessage,
+        fetchSessionTree,
+        navigateBranch,
     }
 
     return createStateProxy(state, methods)

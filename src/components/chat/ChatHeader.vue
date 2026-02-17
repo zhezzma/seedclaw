@@ -11,7 +11,8 @@ import {
     ArrowsPointingInIcon,
     PlusIcon,
     PhoneIcon,
-    ChevronLeftIcon
+    ChevronLeftIcon,
+    ArrowPathIcon
 } from '@heroicons/vue/24/outline'
 import { useUiSettingsStore } from '../../stores/setting'
 
@@ -64,6 +65,10 @@ const createNewSession = () => {
 
 const startVoiceChat = () => {
     emit('start-voice-chat')
+}
+
+const refreshPage = () => {
+    window.location.reload()
 }
 
 // Close dropdown when clicking outside
@@ -122,6 +127,9 @@ defineExpose({
         <div class="flex-none flex gap-1 lg:hidden">
             <button @click="startVoiceChat" class="btn btn-ghost btn-circle btn-sm" :title="$t('chat.voiceChat')">
                 <PhoneIcon class="h-5 w-5" />
+            </button>
+            <button @click="refreshPage" class="btn btn-ghost btn-circle btn-sm" :title="$t('common.refresh')">
+                <ArrowPathIcon class="h-5 w-5" />
             </button>
             <button @click="createNewSession" class="btn btn-ghost btn-circle btn-sm" :title="$t('chat.newChat')">
                 <PlusIcon class="h-5 w-5" />

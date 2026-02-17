@@ -1,4 +1,4 @@
-import { computed, watch, nextTick, ref, type Ref } from 'vue'
+import { computed, watch, nextTick, ref, onMounted, onUnmounted, type Ref } from 'vue'
 import { useChatState, type ChatMessage } from './useChatState'
 import { useUiSettingsStore } from '../stores/setting'
 
@@ -26,6 +26,8 @@ export interface DisplayMessage {
     role: 'user' | 'assistant'
     blocks: DisplayBlock[]
     timestamp?: number
+    entryId?: string
+    parentEntryId?: string | null
 }
 
 export interface ChatStateShape {
@@ -181,7 +183,9 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
                         id: msg.id || `${state.sessionKey || 'temp'}-msg-${displayMessages.length}`,
                         role: msg.role as 'user' | 'assistant',
                         blocks,
-                        timestamp: msg.timestamp
+                        timestamp: msg.timestamp,
+                        entryId: msg.entryId,
+                        parentEntryId: msg.parentEntryId,
                     }
                     displayMessages.push(newMsg)
                     // 注册新消息中的 Tool Call
@@ -237,7 +241,24 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
     const isBusy = computed(() => state.chatSending || Boolean(state.chatRunId))
     const streamingText = computed(() => state.chatStream)
 
-    const scrollToBottom = () => {
+    // ==================== Smart Auto-Scroll ====================
+    // Track whether the user has manually scrolled up.
+    // If so, we pause auto-scroll until they return to the bottom.
+    const userScrolledUp = ref(false)
+    const SCROLL_THRESHOLD = 80 // px from bottom to consider "at bottom"
+
+    const isNearBottom = (): boolean => {
+        const el = messagesContainerRef.value
+        if (!el) return true
+        return el.scrollHeight - el.scrollTop - el.clientHeight <= SCROLL_THRESHOLD
+    }
+
+    const handleScroll = () => {
+        userScrolledUp.value = !isNearBottom()
+    }
+
+    const scrollToBottom = (force = false) => {
+        if (!force && userScrolledUp.value) return
         nextTick(() => {
             if (messagesContainerRef.value) {
                 messagesContainerRef.value.scrollTop = messagesContainerRef.value.scrollHeight
@@ -246,24 +267,46 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
     }
 
     const setupScrollWatchers = () => {
-        watch(processedMessages, scrollToBottom, { deep: true })
-        watch(() => streamingText.value, scrollToBottom)
+        // Listen to user scroll events
+        const el = messagesContainerRef.value
+        if (el) {
+            el.addEventListener('scroll', handleScroll, { passive: true })
+        }
+
+        // Watch for container ref changes (in case it mounts later)
+        watch(messagesContainerRef, (newEl, oldEl) => {
+            if (oldEl) oldEl.removeEventListener('scroll', handleScroll)
+            if (newEl) newEl.addEventListener('scroll', handleScroll, { passive: true })
+        })
+
+        // Auto-scroll on new messages / stream updates (respects userScrolledUp)
+        watch(processedMessages, () => scrollToBottom(), { deep: true })
+        watch(() => streamingText.value, () => scrollToBottom())
+
         watch(isLoading, (newVal, oldVal) => {
             if (!newVal && oldVal) {
+                // Loading finished → force scroll to bottom
                 nextTick(() => {
-                    scrollToBottom()
-                    setTimeout(scrollToBottom, 500)
+                    scrollToBottom(true)
+                    setTimeout(() => scrollToBottom(true), 500)
                 })
             }
         })
-        // 当会话从 busy→idle 时（例如 /command 快速完成），确保滚动到底部
+
+        // When session goes from busy→idle, scroll only if user is at bottom
         watch(isBusy, (newVal, oldVal) => {
             if (!newVal && oldVal) {
                 nextTick(() => {
                     scrollToBottom()
-                    setTimeout(scrollToBottom, 300)
+                    setTimeout(() => scrollToBottom(), 300)
                 })
             }
+        })
+
+        // Cleanup on unmount
+        onUnmounted(() => {
+            const el = messagesContainerRef.value
+            if (el) el.removeEventListener('scroll', handleScroll)
         })
     }
 
@@ -289,6 +332,7 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
         isLoading,
         isBusy,
         streamingText,
+        userScrolledUp,
         scrollToBottom,
         setupScrollWatchers,
         formatTime,

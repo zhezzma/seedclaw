@@ -23,6 +23,7 @@ export default {
         add: '添加',
         success: '成功',
         refresh: '刷新',
+        scrollToBottom: '滚动到底部',
         loadMore: '加载更多',
         error: '错误',
         warning: '警告',
@@ -57,6 +58,7 @@ export default {
         uninstall: '卸载',
         disabled: '已禁用',
         enabled: '已启用',
+        system: '系统',
     },
     sidebar: {
         newChat: '新对话',
@@ -84,6 +86,7 @@ export default {
         firstChatHint: '要先和我说句话，才能进行角色设定哟 ✨',
         tab: {
             overview: '概览',
+            settings: '设定',
             tools: '工具',
             skills: '技能',
         },
@@ -330,6 +333,7 @@ export default {
         you: '你',
         reasoning: '思考过程 (Reasoning)',
         readAloud: '朗读',
+        retry: '重试',
         waitMessage: '请等待当前消息发送完成',
         inputPlaceholder: "发消息或输入'/'选择技能",
         uploadAttachment: '上传附件',
@@ -534,6 +538,8 @@ export default {
         globalSkills: '全局技能',
         noGlobalSkills: '暂无全局技能',
         updateFailed: '更新技能失败: {error}',
+        systemSkills: '系统技能 (System)',
+        noSystemSkills: '暂无系统技能',
         sort: {
             downloads: '下载量',
             installs: '安装量',

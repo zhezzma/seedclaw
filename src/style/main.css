@@ -5,6 +5,17 @@
     themes: light --default, dark --prefersdark;
 }
 
+/* Vue transition: fade-up (for scroll-to-bottom button) */
+.fade-up-enter-active,
+.fade-up-leave-active {
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.fade-up-enter-from,
+.fade-up-leave-to {
+    opacity: 0;
+    transform: translateY(8px);
+}
+
 html, body {
     height: 100%;
     margin: 0;

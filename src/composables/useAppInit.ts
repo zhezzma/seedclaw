@@ -17,7 +17,7 @@ export function useAppInit() {
     const agentsState = useAgentsState()
     const sessionsState = useSessionsState()
     const { loadModels } = useModelsState()
-    const { fetchGlobalSkills, initConvexConnection } = useSkillsState()
+    const { initConvexConnection } = useSkillsState()
 
 
     const chatState = useChatState()
@@ -33,8 +33,7 @@ export function useAppInit() {
         await Promise.all([
             agentsState.loadAgents(),
             sessionsState.loadSessions(),
-            loadModels(),
-            fetchGlobalSkills()
+            loadModels()
         ])
 
         // 加载完 agents 后，如果还没有选中的 agent，自动选择第一个

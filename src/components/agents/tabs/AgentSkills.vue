@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
-import { useAgentsState } from '../../../composables/useAgentsState'
+import { ref, watch } from 'vue'
+
 import { useSkillsState } from '../../../composables/useSkillsState'
 import { useToast } from '../../../composables/useToast'
 import { useI18n } from 'vue-i18n'
@@ -11,16 +11,15 @@ const props = defineProps<{
     agent: any
 }>()
 
-const agentsState = useAgentsState()
-const skillsState = useSkillsState() // Helper to get skill details if possible
+const skillsState = useSkillsState()
 const toast = useToast()
 const { t } = useI18n()
 
 const loading = ref(false)
 const processing = ref<Record<string, boolean>>({})
 
-const globalSkills = computed(() => skillsState.globalSkills || [])
-const processingGlobal = ref<Record<string, boolean>>({})
+const globalSkills = ref<any[]>([])
+const systemSkills = ref<any[]>([])
 
 // Agent skills are now full objects, not just strings
 const agentSkills = ref<any[]>([])
@@ -29,7 +28,14 @@ const fetchSkills = async () => {
     if (!props.agent?.id) return
     loading.value = true
     try {
-        agentSkills.value = await skillsState.loadAgentSkills(props.agent.id)
+        const [agent, global, system] = await Promise.all([
+            skillsState.loadAgentSkills(props.agent.id),
+            skillsState.fetchGlobalSkills(props.agent.id),
+            skillsState.fetchSystemSkills(props.agent.id)
+        ])
+        agentSkills.value = agent
+        globalSkills.value = global
+        systemSkills.value = system
     } finally {
         loading.value = false
     }
@@ -43,8 +49,8 @@ const handleUninstall = async (skillId: string) => {
     processing.value[skillId] = true
     try {
         await skillsState.uninstallAgentSkill(props.agent.id, skillId)
+        agentSkills.value = agentSkills.value.filter(s => s.id !== skillId)
         toast.success(t('skills.uninstallSuccess', { name: skillId }))
-        await fetchSkills()
     } catch (e: any) {
         toast.error(t('skills.uninstallFailed', { error: e.message }))
     } finally {
@@ -56,8 +62,9 @@ const toggleSkill = async (skill: any) => {
     const skillId = skill.id
     processing.value[skillId] = true
     try {
-        await skillsState.toggleAgentSkill(props.agent.id, skillId, !skill.enabled)
-        await fetchSkills()
+        const newEnabled = !skill.enabled
+        await skillsState.toggleAgentSkill(props.agent.id, skillId, newEnabled)
+        skill.enabled = newEnabled
     } catch (e: any) {
         toast.error(t('skills.updateFailed', { error: e.message }))
     } finally {
@@ -74,16 +81,29 @@ const getSkillDisplayName = (skillId: string) => {
 const handleUninstallGlobal = async (skillId: string) => {
     if (!confirm(t('skills.confirmUninstall', { name: skillId }))) return
 
-    processingGlobal.value[skillId] = true
+    processing.value[skillId] = true
     try {
         await skillsState.uninstallGlobalSkill(skillId)
+        globalSkills.value = globalSkills.value.filter(s => s.id !== skillId)
         toast.success(t('skills.uninstallSuccess', { name: skillId }))
-        // Refresh global skills
-        await skillsState.fetchGlobalSkills()
     } catch (e: any) {
         toast.error(t('skills.uninstallFailed', { error: e.message }))
     } finally {
-        processingGlobal.value[skillId] = false
+        processing.value[skillId] = false
+    }
+}
+
+const toggleGlobalOrSystemSkill = async (skill: any) => {
+    const skillId = skill.id
+    processing.value[skillId] = true
+    try {
+        const newEnabled = !skill.enabled
+        await skillsState.toggleAgentSkill(props.agent.id, skillId, newEnabled)
+        skill.enabled = newEnabled
+    } catch (e: any) {
+        toast.error(t('skills.updateFailed', { error: e.message }))
+    } finally {
+        processing.value[skillId] = false
     }
 }
 </script>
@@ -145,6 +165,46 @@ const handleUninstallGlobal = async (skillId: string) => {
             </div>
         </div>
 
+        <!-- System Skills -->
+        <div>
+            <h3
+                class="text-sm font-bold text-base-content/70 uppercase tracking-wider mb-4 px-1 flex items-center gap-2">
+                {{ $t('skills.systemSkills') }}
+                <span class="badge badge-ghost badge-sm font-normal normal-case">{{ systemSkills.length }}</span>
+            </h3>
+
+            <div v-if="!systemSkills.length" class="text-center p-8 border-2 border-dashed border-base-200 rounded-lg">
+                <p class="text-base-content/50">{{ $t('skills.noSystemSkills') }}</p>
+            </div>
+
+            <div v-else class="grid grid-cols-1 gap-3">
+                <div v-for="skill in systemSkills" :key="skill.id"
+                    class="card bg-base-100 border border-base-200 shadow-sm opacity-90 hover:opacity-100 transition-opacity">
+                    <div class="card-body p-4 flex-row items-center justify-between gap-4">
+                        <div class="flex items-center gap-3 overflow-hidden">
+                            <div
+                                class="w-10 h-10 rounded-lg bg-info/10 flex items-center justify-center text-info shrink-0">
+                                <CubeTransparentIcon class="w-6 h-6" />
+                            </div>
+                            <div class="min-w-0">
+                                <h3 class="font-bold truncate" :title="skill.name">
+                                    {{ getSkillDisplayName(skill.id) }}
+                                </h3>
+                                <p class="text-xs text-base-content/60 font-mono truncate">{{ skill.path }}</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2 shrink-0">
+                            <input type="checkbox" class="toggle toggle-sm toggle-info" :checked="skill.enabled"
+                                :disabled="processing[skill.id]" @change="toggleGlobalOrSystemSkill(skill)" />
+                            <div class="badge badge-ghost badge-sm border-info/20 text-info">{{ $t('common.system') }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Global Skills -->
         <div>
             <h3
@@ -175,13 +235,16 @@ const handleUninstallGlobal = async (skillId: string) => {
                         </div>
 
                         <div class="flex items-center gap-2 shrink-0">
+                            <!-- Toggle for Global Skill -->
+                            <input type="checkbox" class="toggle toggle-sm toggle-secondary" :checked="skill.enabled"
+                                :disabled="processing[skill.id]" @change="toggleGlobalOrSystemSkill(skill)" />
+
                             <div class="badge badge-ghost badge-sm">{{ $t('common.global') }}</div>
 
                             <button class="btn btn-ghost btn-square btn-sm text-base-content/40 hover:text-error"
-                                :disabled="processingGlobal[skill.id]" @click="handleUninstallGlobal(skill.id)"
+                                :disabled="processing[skill.id]" @click="handleUninstallGlobal(skill.id)"
                                 :title="$t('common.uninstall')">
-                                <span v-if="processingGlobal[skill.id]"
-                                    class="loading loading-spinner loading-xs"></span>
+                                <span v-if="processing[skill.id]" class="loading loading-spinner loading-xs"></span>
                                 <TrashIcon v-else class="w-4 h-4" />
                             </button>
                         </div>

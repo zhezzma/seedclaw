@@ -206,9 +206,9 @@ onUnmounted(() => {
 
         <!-- Toolbar -->
         <div class="shrink-0 bg-base-100 border-b border-base-200 p-4 shadow-sm z-0">
-            <div class="flex flex-col sm:flex-row gap-3 items-center">
+            <div class="flex flex-row gap-2 items-center">
                 <!-- Search -->
-                <div class="flex-1 w-full relative group">
+                <div class="flex-1 relative group min-w-0">
                     <MagnifyingGlassIcon
                         class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/40 group-focus-within:text-primary transition-colors" />
                     <input type="text" v-model="searchQuery" :placeholder="$t('log.searchPlaceholder')"
@@ -216,15 +216,15 @@ onUnmounted(() => {
                 </div>
 
                 <!-- Filters Group -->
-                <div class="flex items-center gap-3 w-full sm:w-auto">
+                <div class="flex items-center gap-2 shrink-0">
                     <!-- Level filter -->
-                    <div class="join w-full sm:w-auto">
+                    <div class="join">
                         <div
-                            class="join-item flex items-center bg-base-200/50 px-3 border border-base-300 border-r-0 rounded-l-lg">
+                            class="join-item flex items-center bg-base-200/50 px-3 border border-base-300 border-r-0 rounded-l-lg hidden sm:flex">
                             <FunnelIcon class="w-4 h-4 text-base-content/60" />
                         </div>
                         <select v-model="levelFilter"
-                            class="select select-bordered select-sm join-item w-full sm:w-32 focus:border-primary focus:outline-none">
+                            class="select select-bordered select-sm join-item w-24 sm:w-32 focus:border-primary focus:outline-none">
                             <option v-for="opt in levelOptions" :key="opt.value" :value="opt.value">
                                 {{ opt.label }}
                             </option>
@@ -333,10 +333,10 @@ onUnmounted(() => {
                     class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-6 bg-base-100 p-3 rounded-xl border border-base-200 shadow-sm">
                     <span class="text-xs font-medium text-base-content/60 order-2 sm:order-1">
                         {{ $t('log.page') }} <span class="font-bold text-base-content">{{ logsState.page }}</span> {{
-                        $t('log.of') }} <span class="font-bold text-base-content">{{ logsState.totalPages }}</span>
+                            $t('log.of') }} <span class="font-bold text-base-content">{{ logsState.totalPages }}</span>
                         <span class="opacity-50 mx-2">|</span>
                         {{ $t('log.total') }} <span class="font-bold text-base-content">{{ logsState.total }}</span> {{
-                        $t('log.entries') }}
+                            $t('log.entries') }}
                     </span>
 
                     <div class="join bg-base-200/50 p-1 rounded-lg order-1 sm:order-2">

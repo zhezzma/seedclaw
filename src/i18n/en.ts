@@ -24,6 +24,7 @@ export default {
         success: 'Success',
         error: 'Error',
         refresh: 'Refresh',
+        scrollToBottom: 'Scroll to bottom',
         loadMore: 'Load More',
         warning: 'Warning',
         info: 'Info',
@@ -57,6 +58,7 @@ export default {
         uninstall: 'Uninstall',
         disabled: 'Disabled',
         enabled: 'Enabled',
+        system: 'System',
     },
     sidebar: {
         newChat: 'New Chat',
@@ -84,6 +86,7 @@ export default {
         firstChatHint: 'Say something to me first to set the role ✨',
         tab: {
             overview: 'Overview',
+            settings: 'Settings',
             tools: 'Tools',
             skills: 'Skills',
         },
@@ -330,6 +333,7 @@ export default {
         you: 'You',
         reasoning: 'Reasoning Process',
         readAloud: 'Read Aloud',
+        retry: 'Retry',
         waitMessage: 'Please wait for the current message to finish sending',
         inputPlaceholder: "Type a message or '/' to select a skill",
         uploadAttachment: 'Upload Attachment',
@@ -536,6 +540,8 @@ export default {
         globalSkills: 'Global Skills',
         noGlobalSkills: 'No global skills installed',
         updateFailed: 'Failed to update skill: {error}',
+        systemSkills: 'System Skills',
+        noSystemSkills: 'No system skills available',
         sort: {
             downloads: 'Downloads',
             installs: 'Installs',
