@@ -351,8 +351,6 @@ const navigateBranch = async (msg: DisplayMessage, direction: 'prev' | 'next') =
     // 切换后强制滚动到底部（延迟确保 DOM 渲染完成）
     scrollToBottom(true)
     setTimeout(() => scrollToBottom(true), 200)
-    // 重新加载 tree，以防 entry 数据与消息不一致
-    await loadSessionTree()
 }
 
 // Reload session tree whenever chat history is loaded
