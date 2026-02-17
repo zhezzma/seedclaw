@@ -163,11 +163,17 @@ export function useSessionsState() {
     const commitNewSession = async (agentId: string, inputText?: string): Promise<string> => {
         const session = await apiPost<SessionRow>(`/api/sessions/${agentId}`)
         if (state.sessionsResult) {
-            state.sessionsResult = {
-                ...state.sessionsResult,
-                sessions: [session, ...(state.sessionsResult.sessions || [])],
-                total: (state.sessionsResult.total || 0) + 1
+            // 去重：防止并发导致同一 session 被添加两次
+            const existing = state.sessionsResult.sessions || []
+            if (!existing.some(s => s.id === session.id)) {
+                state.sessionsResult = {
+                    ...state.sessionsResult,
+                    sessions: [session, ...existing],
+                    total: (state.sessionsResult?.total || 0) + 1
+                }
             }
+            // 同步更新索引，避免后续 getSessionById 在 watcher 执行前查不到
+            sessionsIndex.set(session.id, session)
         }
 
         // Trigger auto-rename in background if we have input text
@@ -206,9 +212,13 @@ export function useSessionsState() {
 
             // 加入主列表缓存并更新索引
             if (state.sessionsResult) {
-                state.sessionsResult = {
-                    ...state.sessionsResult,
-                    sessions: [session, ...(state.sessionsResult.sessions || [])],
+                // 去重
+                const existing = state.sessionsResult.sessions || []
+                if (!existing.some(s => s.id === id)) {
+                    state.sessionsResult = {
+                        ...state.sessionsResult,
+                        sessions: [session, ...existing],
+                    }
                 }
             } else {
                 state.sessionsResult = { sessions: [session] }

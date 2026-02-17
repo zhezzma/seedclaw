@@ -245,25 +245,47 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
     // Track whether the user has manually scrolled up.
     // If so, we pause auto-scroll until they return to the bottom.
     const userScrolledUp = ref(false)
-    const SCROLL_THRESHOLD = 80 // px from bottom to consider "at bottom"
+    const isAutoScrolling = ref(false) // Lock to prevent scroll event from setting userScrolledUp
+    const SCROLL_THRESHOLD = 50 // px from bottom to consider "at bottom"
 
     const isNearBottom = (): boolean => {
         const el = messagesContainerRef.value
         if (!el) return true
-        return el.scrollHeight - el.scrollTop - el.clientHeight <= SCROLL_THRESHOLD
+        // Allow a small error margin (pixel rounding)
+        return Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) <= SCROLL_THRESHOLD
     }
 
     const handleScroll = () => {
+        if (isAutoScrolling.value) return
         userScrolledUp.value = !isNearBottom()
     }
 
     const scrollToBottom = (force = false) => {
+        // If not forcing and user is scrolled up, do nothing
         if (!force && userScrolledUp.value) return
-        nextTick(() => {
-            if (messagesContainerRef.value) {
-                messagesContainerRef.value.scrollTop = messagesContainerRef.value.scrollHeight
-            }
-        })
+
+        const el = messagesContainerRef.value
+        if (el) {
+            isAutoScrolling.value = true
+            // If we are forcing scroll, we are resetting the user's scroll state
+            if (force) userScrolledUp.value = false
+
+            nextTick(() => {
+                if (el) {
+                    el.scrollTop = el.scrollHeight
+                    // Reset lock after a short delay to allow scroll event to fire
+                    setTimeout(() => {
+                        isAutoScrolling.value = false
+                        // Double check state after scroll settles
+                        if (isNearBottom()) {
+                            userScrolledUp.value = false
+                        }
+                    }, 50)
+                } else {
+                    isAutoScrolling.value = false
+                }
+            })
+        }
     }
 
     const setupScrollWatchers = () => {
