@@ -301,12 +301,19 @@ const getBranchInfo = (msg: DisplayMessage): BranchInfo | null => {
     }
 
     // 2. assistant 消息向上冒泡，检查父级 user 消息的兄弟
+    //    场景：用户删除后重新发送，导致同一父节点下有多个 user 分支
+    //    注意：中间可能包含非 message 类型的 entry（如 session_info），需要向上回溯找到最近的 message 祖先
     if (msg.role === 'assistant') {
-        const parentEntry = entryMap.value.get(msg.parentEntryId)
-        if (parentEntry?.parentId) {
-            const parentSiblings = childrenMap.value.get(parentEntry.parentId)
+        let curr = entryMap.value.get(msg.parentEntryId)
+        // 向上回溯直到找到 message 类型的节点（即 User 消息），或者到顶
+        while (curr && curr.type !== 'message' && curr.parentId) {
+            curr = entryMap.value.get(curr.parentId)
+        }
+
+        if (curr && curr.type === 'message' && curr.parentId) {
+            const parentSiblings = childrenMap.value.get(curr.parentId)
             if (parentSiblings && parentSiblings.length > 1) {
-                const parentIndex = parentSiblings.indexOf(msg.parentEntryId)
+                const parentIndex = parentSiblings.indexOf(curr.id)
                 if (parentIndex >= 0) {
                     return { siblings: parentSiblings, currentIndex: parentIndex }
                 }
@@ -344,6 +351,8 @@ const navigateBranch = async (msg: DisplayMessage, direction: 'prev' | 'next') =
     // 切换后强制滚动到底部（延迟确保 DOM 渲染完成）
     scrollToBottom(true)
     setTimeout(() => scrollToBottom(true), 200)
+    // 重新加载 tree，以防 entry 数据与消息不一致
+    await loadSessionTree()
 }
 
 // Reload session tree whenever chat history is loaded
