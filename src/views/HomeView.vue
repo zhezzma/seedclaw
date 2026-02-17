@@ -346,13 +346,20 @@ const navigateBranch = async (msg: DisplayMessage, direction: 'prev' | 'next') =
     setTimeout(() => scrollToBottom(true), 200)
 }
 
-// 初始加载 entries（仅在 chatMessages 首次有值时加载一次）
+// Reload session tree whenever chat history is loaded
 watch(() => chatState.chatMessages, (msgs, oldMsgs) => {
     // 从空到有值 或 首次加载时加载 entries
     if (msgs?.length && (!oldMsgs || oldMsgs.length === 0)) {
         loadSessionTree()
     }
 }, { deep: false })
+
+// 监听发送状态：流结束时（chatSending: true -> false）刷新 tree，确保显示新生成的分支
+watch(() => chatState.chatSending, (isSending) => {
+    if (!isSending) {
+        loadSessionTree()
+    }
+})
 
 
 // Voice Chat
