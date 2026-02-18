@@ -360,7 +360,7 @@ watch(() => chatState.sessionKey, (newKey, oldKey) => {
     }
 })
 
-// Reload session tree whenever chat history is loaded
+// 确保在页面刷新或初次进入会话时，消息的分支数据（Session Tree）能够被正确加载。
 watch(() => chatState.chatMessages, (msgs, oldMsgs) => {
     // 从空到有值 或 首次加载时加载 entries
     if (msgs?.length && (!oldMsgs || oldMsgs.length === 0)) {
