@@ -353,6 +353,13 @@ const navigateBranch = async (msg: DisplayMessage, direction: 'prev' | 'next') =
     setTimeout(() => scrollToBottom(true), 200)
 }
 
+// 切换会话时重新加载 session tree（确保分支导航更新）
+watch(() => chatState.sessionKey, (newKey, oldKey) => {
+    if (newKey && newKey !== oldKey) {
+        loadSessionTree()
+    }
+})
+
 // Reload session tree whenever chat history is loaded
 watch(() => chatState.chatMessages, (msgs, oldMsgs) => {
     // 从空到有值 或 首次加载时加载 entries
