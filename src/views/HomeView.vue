@@ -237,7 +237,9 @@ const readAloud = (msg: DisplayMessage) => {
 // ==================== Delete / Retry / Branch ====================
 
 // Session tree data for branch navigation
-const sessionTreeEntries = ref<any[] | null>(null)
+// 直接使用 chatState 中的响应式数据
+const sessionTreeEntries = computed(() => chatState.sessionTree)
+
 // Map: parentId → array of child message entry IDs (only type="message")
 const childrenMap = ref<Map<string, string[]>>(new Map())
 // Map: parentId → array of ALL child entry IDs (for finding leaf nodes)
@@ -245,11 +247,9 @@ const allChildrenMap = ref<Map<string, string[]>>(new Map())
 // Map: id → entry (for quick lookup)
 const entryMap = ref<Map<string, any>>(new Map())
 
-const loadSessionTree = async () => {
-    if (!chatState.sessionKey) return
-    const tree = await chatState.fetchSessionTree()
-    sessionTreeEntries.value = tree
 
+// 监听 chatState.sessionTree 的变化，自动更新派生的 Map
+watch(sessionTreeEntries, (tree) => {
     const msgChildren = new Map<string, string[]>()
     const allChildren = new Map<string, string[]>()
     const entries = new Map<string, any>()
@@ -264,8 +264,8 @@ const loadSessionTree = async () => {
             else allChildren.set(entry.parentId, [entry.id])
             // childrenMap: 只包含 message 类型
             if (entry.type === 'message') {
-                const msgArr = msgChildren.get(entry.parentId)
-                if (msgArr) msgArr.push(entry.id)
+                const msgChildrenArr = msgChildren.get(entry.parentId)
+                if (msgChildrenArr) msgChildrenArr.push(entry.id)
                 else msgChildren.set(entry.parentId, [entry.id])
             }
         }
@@ -273,7 +273,9 @@ const loadSessionTree = async () => {
     childrenMap.value = msgChildren
     allChildrenMap.value = allChildren
     entryMap.value = entries
-}
+}, { immediate: true })
+
+// 原有手动加载逻辑已废弃，直接移除 loadSessionTree / debounce 函数
 
 // 找到某个 entry 分支的叶子节点 ID
 const findLeafId = (startId: string): string => {
@@ -327,15 +329,13 @@ const getBranchInfo = (msg: DisplayMessage): BranchInfo | null => {
 const deleteMessage = async (msg: DisplayMessage) => {
     if (!msg.entryId) return
     await chatState.deleteMessage(msg.entryId)
-    // delete 后 chatMessages 由后端刷新，entries 也需要更新
-    await loadSessionTree()
+    // delete 后 chatState 内部会自动 fetchSessionTree，这里无需手动调用
 }
 
 const retryMessage = async (msg: DisplayMessage) => {
     if (!msg.entryId) return
     await chatState.retryMessage(msg.entryId)
-    // retry 完成后 SSE done 事件会静默刷新 chatMessages，这里更新 entries
-    await loadSessionTree()
+    // retry 逻辑同上，chatState 会接管
 }
 
 const navigateBranch = async (msg: DisplayMessage, direction: 'prev' | 'next') => {
@@ -353,27 +353,9 @@ const navigateBranch = async (msg: DisplayMessage, direction: 'prev' | 'next') =
     setTimeout(() => scrollToBottom(true), 200)
 }
 
-// 切换会话时重新加载 session tree（确保分支导航更新）
-watch(() => chatState.sessionKey, (newKey, oldKey) => {
-    if (newKey && newKey !== oldKey) {
-        loadSessionTree()
-    }
-})
-
-// 确保在页面刷新或初次进入会话时，消息的分支数据（Session Tree）能够被正确加载。
-watch(() => chatState.chatMessages, (msgs, oldMsgs) => {
-    // 从空到有值 或 首次加载时加载 entries
-    if (msgs?.length && (!oldMsgs || oldMsgs.length === 0)) {
-        loadSessionTree()
-    }
-}, { deep: false })
-
-// 监听发送状态：流结束时（chatSending: true -> false）刷新 tree，确保显示新生成的分支
-watch(() => chatState.chatSending, (isSending) => {
-    if (!isSending) {
-        loadSessionTree()
-    }
-})
+// 原有的复杂 Session Tree 监听逻辑全部移除
+// chatState 内部现在负责在合适时机更新 sessionTree
+// HomeView 只需要响应式消费 chatState.sessionTree 即可
 
 
 // Voice Chat

@@ -34,6 +34,8 @@ export interface ChatAttachment {
 export interface ChatSessionData {
     chatMessages: ChatMessage[]
     chatToolMessages: ChatMessage[]
+    // New: Session Tree (Branching info)
+    sessionTree: any[] | null
     chatStream: any[] | null
     chatStreamStartedAt: number | null
     chatSending: boolean
@@ -77,6 +79,7 @@ function getSessionData(key: string): ChatSessionData {
         data = reactive<ChatSessionData>({
             chatMessages: [],
             chatToolMessages: [],
+            sessionTree: null,
             chatStream: null,
             chatStreamStartedAt: null,
             chatSending: false,
@@ -338,6 +341,9 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
                 }]
             }
             sessionData.chatStream = null
+            // Stream finished -> Tree structure might have changed (new message added)
+            // Fetch updated tree to show branching controls
+            fetchSessionTree(targetKey)
             break
         case 'command_delta':
             stream.push({ type: 'text', text: data.delta })
@@ -356,6 +362,8 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
             apiGet<{ messages: ChatMessage[] }>(`/api/chat/${targetKey}/messages`).then(result => {
                 if (result?.messages) {
                     getSessionData(targetKey).chatMessages = result.messages
+                    // Messages reloaded -> Tree structure definitely valid now
+                    fetchSessionTree(targetKey)
                 }
             }).catch(() => { /* 静默失败不影响使用 */ })
             break
@@ -467,6 +475,11 @@ const loadChatHistory = async (sessionKey?: string) => {
     } finally {
         // Only set loading to false, don't touch chatSending if we are streaming
         sd.chatLoading = false
+        // Finally, load the tree structure for this session
+        // This ensures the UI has branching info once history is loaded
+        if (targetKey) {
+            fetchSessionTree(targetKey)
+        }
     }
 }
 
@@ -573,6 +586,8 @@ const deleteMessage = async (entryId: string, sessionKey?: string) => {
             const sd = getSessionData(targetKey)
             sd.chatMessages = result.messages
             sd.chatToolMessages = []
+            // Message deleted -> Tree changed
+            fetchSessionTree(targetKey)
         }
     } catch (err: any) {
         console.error('[useChatState] deleteMessage failed:', err)
@@ -648,7 +663,13 @@ const fetchSessionTree = async (sessionKey?: string): Promise<SessionTreeEntry[]
 
     try {
         const result = await apiGet<any>(`/api/chat/${targetKey}/entries`)
-        return result?.entries || result || null
+        const entries = result?.entries || result || null
+
+        // Update store state
+        const sd = getSessionData(targetKey)
+        sd.sessionTree = entries
+
+        return entries
     } catch (err: any) {
         console.error('[useChatState] fetchSessionTree failed:', err)
         return null
@@ -679,6 +700,8 @@ export function useChatState() {
         // Derived getters from sessionsMap (for backward compat with useChatMessages)
         get chatMessages() { return getSessionData(state.sessionKey).chatMessages },
         get chatToolMessages() { return getSessionData(state.sessionKey).chatToolMessages },
+        // Expose sessionTree
+        get sessionTree() { return getSessionData(state.sessionKey).sessionTree },
         get chatStream() { return getSessionData(state.sessionKey).chatStream },
         get chatSending() { return getSessionData(state.sessionKey).chatSending },
         get chatRunId() { return getSessionData(state.sessionKey).chatRunId },
