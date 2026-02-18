@@ -299,6 +299,8 @@ export default {
         confirmDelete: 'Are you sure you want to delete provider "{id}"?',
         toolCallBridge: 'Tool Call Bridge',
         toolCallBridgeDesc: 'Enable tool call bridging for this provider.',
+        showAll: 'Show All',
+        showConfigured: 'Configured Only',
     },
     model: {
         missingConfig: 'Missing Base URL or API Key',

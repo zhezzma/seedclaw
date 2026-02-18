@@ -299,6 +299,8 @@ export default {
         confirmDelete: '确定要删除提供商 "{id}" 吗？',
         toolCallBridge: '工具调用桥接',
         toolCallBridgeDesc: '为此提供商启用工具调用桥接。',
+        showAll: '显示全部',
+        showConfigured: '仅已配置',
     },
     model: {
         missingConfig: '缺少 Base URL 或 API Key',

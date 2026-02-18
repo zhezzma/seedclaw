@@ -24,6 +24,7 @@ export interface UiSettings {
     gotifyToken: string
     assistantMsgMerge: boolean
     language: 'zh' | 'en'
+    showAllProviders: boolean  // 是否显示没有 apiKey 的提供商
 }
 
 // ==================== Constants ====================
@@ -51,7 +52,8 @@ const getDefaultSettings = (): UiSettings => ({
     gotifyUrl: '',
     gotifyToken: '',
     assistantMsgMerge: true,
-    language: 'zh'
+    language: 'zh',
+    showAllProviders: true
 })
 
 const loadConfig = (): UiSettings => {

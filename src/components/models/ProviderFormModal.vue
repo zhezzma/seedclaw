@@ -62,7 +62,9 @@ watch(() => props.show, (newVal) => {
 })
 
 const isFormValid = computed(() => {
-    if (!formData.id || !formData.baseUrl) return false
+    if (!formData.id) return false
+    // 自定义提供商或新增时，baseUrl 必填；非自定义编辑时不要求
+    if ((props.custom || props.mode === 'add') && !formData.baseUrl) return false
     // Headers JSON validation
     if (formData.headers) {
         try {
@@ -99,7 +101,7 @@ const handleSubmit = async () => {
         await saveProvider({
             id: formData.id,
             baseUrl: formData.baseUrl,
-            apiKey: formData.apiKey || undefined,
+            apiKey: formData.apiKey,
             api: formData.api,
             headers: parsedHeaders,
             toolCallBridge: formData.toolCallBridge
