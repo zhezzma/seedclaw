@@ -28,7 +28,7 @@ const selectedAgentName = computed(() => {
     if (!selectedAgentId.value) return ''
     const list = agentsState.agentsList || []
     const agent = list.find((a: any) => a.id === selectedAgentId.value)
-    return agent?.identity?.name || agent?.name || agent?.id || 'Agent'
+    return agent?.name || agent?.identity?.name || agent?.id || 'Agent'
 })
 
 const selectAgent = (agentId: string) => {

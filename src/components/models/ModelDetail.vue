@@ -213,6 +213,7 @@ const handleDeleteModel = async (modelId: string) => {
             api: provider.api,
             apiKey: provider.apiKey,
             headers: provider.headers,
+            toolCallBridge: provider.toolCallBridge
         } : undefined" @close="showEditProviderModal = false" @saved="handleProviderSaved" />
 
         <!-- Model Form Modal -->

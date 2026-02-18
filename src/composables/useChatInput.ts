@@ -17,13 +17,14 @@ export interface ModelItem {
 }
 
 export const COMMANDS: CommandItem[] = [
+    { label: '/reset (会话重置)', value: '/reset' },
     { label: '/name (会话重命名)', value: '/name', autoSend: false },
     { label: '/compact (会话压缩)', value: '/compact' },
-    { label: '/session (会话信息)', value: '/session' },
-    { label: '/debug (调试信息)', value: '/debug' },
-    { label: '/tools (工具列表)', value: '/tools' },
     { label: '/steer (干预插入消息)', value: '/steer', autoSend: false },
     { label: '/follow-up (排队后续消息)', value: '/follow-up', autoSend: false },
+    { label: '/tools (工具列表)', value: '/tools' },
+    { label: '/session (会话信息)', value: '/session' },
+    { label: '/debug (调试信息)', value: '/debug' },
     { label: '/help (帮助)', value: '/help' }
 ]
 

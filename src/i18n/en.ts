@@ -102,6 +102,8 @@ export default {
         cannotConfig: 'Cannot Configure',
         configNotInList: 'This agent is not defined in the configuration list, cannot modify model.',
         roleSettings: 'Role Settings',
+        capabilitySettings: 'Capability Settings',
+        memorySettings: 'Memory Settings',
         files: {
             agent: 'Agent Definition',
             system: 'System',
@@ -111,6 +113,8 @@ export default {
             heartbeat: 'Heartbeat Config',
             bootstrap: 'Bootstrap Script',
             memory: 'Memory Storage',
+            memoryToday: 'Today\'s Memory',
+            memoryYesterday: 'Yesterday\'s Memory',
         },
         missing: 'Missing',
         empty: 'Empty',
@@ -293,6 +297,8 @@ export default {
         notFound: 'Provider Not Found',
         notFoundDesc: 'Cannot find provider with ID {id}',
         confirmDelete: 'Are you sure you want to delete provider "{id}"?',
+        toolCallBridge: 'Tool Call Bridge',
+        toolCallBridgeDesc: 'Enable tool call bridging for this provider.',
     },
     model: {
         missingConfig: 'Missing Base URL or API Key',

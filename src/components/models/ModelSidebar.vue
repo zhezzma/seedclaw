@@ -93,6 +93,7 @@ const handleProviderSaved = (providerId: string) => {
 
 
         <!-- Add Provider Modal -->
-        <ProviderFormModal :show="showAddModal" mode="add" @close="showAddModal = false" @saved="handleProviderSaved" />
+        <ProviderFormModal :show="showAddModal" mode="add" :custom="true" @close="showAddModal = false"
+            @saved="handleProviderSaved" />
     </div>
 </template>

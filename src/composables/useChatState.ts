@@ -161,17 +161,40 @@ const sendMessage = async (message?: string, attachments?: ChatAttachment[], ses
         const sd = getSessionData(targetKey)
         sd.chatSending = false
         sseConnections.delete(targetKey)
-
-        // If the message starts with /reset, clear all messages
-        if (text.startsWith('/reset')) {
-            sd.chatMessages = []
-            sd.chatToolMessages = []
-            sd.chatStream = null
-        }
     }).catch(() => {
         getSessionData(targetKey).chatSending = false
         sseConnections.delete(targetKey)
     })
+}
+
+// 处理 command_delta 事件的副作用
+// 后端通过 command_delta 显式告知命令类型和数据，前端根据命令名执行对应的副作用
+const handleCommandDelta = (data: any, targetKey: string) => {
+    const sessionData = getSessionData(targetKey)
+    const command = data?.command as string
+    if (!command) return
+
+    switch (command) {
+        case 'reset':
+            // /reset 命令：清空当前会话的所有消息
+            sessionData.chatMessages = []
+            sessionData.chatToolMessages = []
+            sessionData.chatStream = null
+            break
+        case 'name': {
+            // /name 命令：更新会话名称（后端已持久化，此处仅同步前端状态）
+            // currentSession 和 sessionsResult.sessions 中的对象是同一个 reactive 引用
+            // 直接修改属性即可同时更新 ChatHeader 和侧边栏
+            const newName = data.data?.name
+            if (newName && state.currentSession) {
+                state.currentSession.name = newName
+            }
+            break
+        }
+        default:
+            // 其他命令暂无特殊前端副作用
+            break
+    }
 }
 
 // 处理 SSE 事件，更新会话状态
@@ -295,6 +318,11 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
                 }]
             }
             sessionData.chatStream = null
+            break
+        case 'command_delta':
+            stream.push({ type: 'text', text: data.delta })
+            // 命令事件：由后端显式推送，触发前端副作用（如 /reset 清空消息、/name 更新标题等）
+            handleCommandDelta(data, targetKey)
             break
         case 'turn_end':
             break

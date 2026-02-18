@@ -29,6 +29,7 @@ export interface ProviderConfig {
     headers?: Record<string, string>
     models: AvailableModel[]
     custom: boolean
+    toolCallBridge?: boolean
 }
 
 /** Shape of the API response payload for /api/models */
@@ -131,7 +132,7 @@ export function useModelsState() {
         })
     })
 
-    const saveProvider = async (providerData: { id: string, baseUrl: string, apiKey?: string, api: string, headers?: Record<string, string> }) => {
+    const saveProvider = async (providerData: { id: string, baseUrl: string, apiKey?: string, api: string, headers?: Record<string, string>, toolCallBridge?: boolean }) => {
         const existing = state.providers[providerData.id]
 
         if (existing) {
@@ -141,6 +142,7 @@ export function useModelsState() {
                 apiKey: providerData.apiKey,
                 api: providerData.api,
                 headers: providerData.headers,
+                toolCallBridge: providerData.toolCallBridge,
             })
             // Update local state
             state.providers[providerData.id] = {
@@ -149,6 +151,7 @@ export function useModelsState() {
                 apiKey: providerData.apiKey,
                 api: providerData.api,
                 headers: providerData.headers,
+                toolCallBridge: providerData.toolCallBridge,
             }
         } else {
             // Create
@@ -158,7 +161,8 @@ export function useModelsState() {
                 api: providerData.api,
                 headers: providerData.headers,
                 models: [],
-                custom: true // Assuming manually created providers are custom
+                custom: true, // Assuming manually created providers are custom
+                toolCallBridge: providerData.toolCallBridge
             }
             await apiPost('/api/models/providers', {
                 id: providerData.id,

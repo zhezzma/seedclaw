@@ -102,6 +102,8 @@ export default {
         cannotConfig: '无法配置',
         configNotInList: '此智能体未在配置列表中定义，无法修改模型。',
         roleSettings: '角色设定',
+        capabilitySettings: '能力设定',
+        memorySettings: '记忆设定',
         files: {
             agent: '智能体定义',
             system: '核心人设',
@@ -111,6 +113,8 @@ export default {
             heartbeat: '心跳配置',
             bootstrap: '引导脚本',
             memory: '记忆存储',
+            memoryToday: '今日记忆',
+            memoryYesterday: '昨日记忆',
         },
         missing: '缺失',
         empty: '空',
@@ -293,6 +297,8 @@ export default {
         notFound: '提供商未找到',
         notFoundDesc: '无法找到 ID 为 {id} 的提供商',
         confirmDelete: '确定要删除提供商 "{id}" 吗？',
+        toolCallBridge: '工具调用桥接',
+        toolCallBridgeDesc: '为此提供商启用工具调用桥接。',
     },
     model: {
         missingConfig: '缺少 Base URL 或 API Key',

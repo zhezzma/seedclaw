@@ -14,6 +14,7 @@ import MarkdownRenderer from './MarkdownRenderer.vue'
 import ToolInvocation from './ToolInvocation.vue'
 import { useChatState } from '../../composables/useChatState'
 import { useTTS } from '../../composables/useTTS'
+import { useConfirm } from '../../composables/useConfirm'
 import type { DisplayMessage } from '../../composables/useChatMessages'
 
 export interface BranchInfo {
@@ -38,6 +39,17 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const chatState = useChatState()
 const { currentReadingMsgId } = useTTS()
+const { confirm } = useConfirm()
+
+const handleDelete = async () => {
+    const result = await confirm(
+        '⚠️ 删除用户消息会同时删除其后的所有消息,确定要删除吗？',
+        '删除确认'
+    )
+    if (result) {
+        emit('delete', props.message)
+    }
+}
 
 // Helper functions
 const formatTime = (timestamp?: number): string => {
@@ -237,7 +249,7 @@ const closeFileViewer = () => {
                 :title="$t('common.copy')">
                 <ClipboardIcon class="h-4 w-4" />
             </button>
-            <button v-if="!isBusy && message.entryId" @click="emit('delete', message)"
+            <button v-if="!isBusy && message.entryId" @click="handleDelete"
                 class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-error hover:bg-error/10"
                 :title="$t('common.delete')">
                 <TrashIcon class="h-4 w-4" />
@@ -318,7 +330,7 @@ const closeFileViewer = () => {
                     <SpeakerWaveIcon class="h-4 w-4" />
                 </template>
             </button>
-            <button v-if="!isBusy && message.entryId" @click="emit('delete', message)"
+            <button v-if="!isBusy && message.entryId" @click="handleDelete"
                 class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-error hover:bg-error/10"
                 :title="$t('common.delete')">
                 <TrashIcon class="h-4 w-4" />

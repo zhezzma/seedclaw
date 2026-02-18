@@ -14,6 +14,7 @@ const props = defineProps<{
         api: string
         apiKey?: string
         headers?: Record<string, string>
+        toolCallBridge?: boolean
     }
 }>()
 
@@ -32,7 +33,8 @@ const formData = reactive({
     baseUrl: '',
     apiKey: '',
     api: 'openai-completions',
-    headers: ''
+    headers: '',
+    toolCallBridge: false
 })
 const showApiKey = ref(false)
 const isSubmitting = ref(false)
@@ -46,6 +48,7 @@ watch(() => props.show, (newVal) => {
             formData.api = props.initialData.api
             formData.apiKey = props.initialData.apiKey || ''
             formData.headers = props.initialData.headers ? JSON.stringify(props.initialData.headers, null, 2) : ''
+            formData.toolCallBridge = props.initialData.toolCallBridge || false
         } else {
             // Reset for add
             formData.id = ''
@@ -53,6 +56,7 @@ watch(() => props.show, (newVal) => {
             formData.apiKey = ''
             formData.api = 'openai-completions'
             formData.headers = ''
+            formData.toolCallBridge = false
         }
     }
 })
@@ -97,7 +101,8 @@ const handleSubmit = async () => {
             baseUrl: formData.baseUrl,
             apiKey: formData.apiKey || undefined,
             api: formData.api,
-            headers: parsedHeaders
+            headers: parsedHeaders,
+            toolCallBridge: formData.toolCallBridge
         })
 
         emit('saved', formData.id)
@@ -151,6 +156,15 @@ const handleSubmit = async () => {
                     </select>
                 </div>
 
+                <!-- <div v-if="custom" class="form-control md:col-span-2">
+                    <label class="label cursor-pointer justify-start gap-4">
+                        <span class="label-text">{{ $t('provider.toolCallBridge') }}</span>
+                        <input type="checkbox" v-model="formData.toolCallBridge" class="checkbox"
+                            :disabled="isReadonly" />
+                    </label>
+                    <div class="text-xs opacity-50 px-1">{{ $t('provider.toolCallBridgeDesc') }}</div>
+                </div> -->
+
                 <div class="form-control md:col-span-2">
                     <label class="label">
                         <span class="label-text">{{ $t('provider.customHeaders') }}</span>
@@ -166,7 +180,7 @@ const handleSubmit = async () => {
                 <button @click="handleClose" class="btn">{{ $t('common.cancel') }}</button>
                 <button @click="handleSubmit" class="btn btn-primary" :disabled="!isFormValid || isSubmitting">{{
                     submitLabel
-                    }}</button>
+                }}</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop">

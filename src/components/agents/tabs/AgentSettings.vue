@@ -18,15 +18,32 @@ const agentsState = useAgentsState()
 const { t } = useI18n()
 
 // File Management
-const ROLE_FILES = computed(() => [
-    { name: 'AGENTS.md', label: t('agent.files.agent') },
-    { name: 'SYSTEM.md', label: t('agent.files.system') },
-    { name: 'TOOLS.md', label: t('agent.files.tools') },
-    { name: 'IDENTITY.md', label: t('agent.files.identity') },
-    { name: 'USER.md', label: t('agent.files.user') },
-    { name: 'HEARTBEAT.md', label: t('agent.files.heartbeat') },
-    { name: 'BOOTSTRAP.md', label: t('agent.files.bootstrap') },
-    { name: 'MEMORY.md', label: t('agent.files.memory') },
+const FILE_GROUPS = computed(() => [
+    {
+        title: t('agent.roleSettings'),
+        files: [
+            { name: 'AGENTS.md', label: t('agent.files.agent') },
+            { name: 'SYSTEM.md', label: t('agent.files.system') },
+            { name: 'IDENTITY.md', label: t('agent.files.identity') },
+            { name: 'USER.md', label: t('agent.files.user') },
+        ]
+    },
+    {
+        title: t('agent.capabilitySettings'),
+        files: [
+            { name: 'TOOLS.md', label: t('agent.files.tools') },
+            { name: 'HEARTBEAT.md', label: t('agent.files.heartbeat') },
+            { name: 'BOOTSTRAP.md', label: t('agent.files.bootstrap') },
+        ]
+    },
+    {
+        title: t('agent.memorySettings'),
+        files: [
+            { name: 'MEMORY.md', label: t('agent.files.memory') },
+            { name: 'MEMORY_TODAY.md', label: t('agent.files.memoryToday') },
+            { name: 'MEMORY_YESTERDAY.md', label: t('agent.files.memoryYesterday') },
+        ]
+    }
 ])
 
 const showFileModal = ref(false)
@@ -34,7 +51,11 @@ const editingFile = ref('')
 const editingContent = ref('')
 
 const editingFileLabel = computed(() => {
-    return ROLE_FILES.value.find(f => f.name === editingFile.value)?.label || editingFile.value
+    for (const group of FILE_GROUPS.value) {
+        const file = group.files.find(f => f.name === editingFile.value)
+        if (file) return file.label
+    }
+    return editingFile.value
 })
 
 const editingFileName = computed(() => editingFile.value)
@@ -75,15 +96,15 @@ async function saveCurrentFile() {
 <template>
     <div>
         <div class="space-y-6 pb-20 md:pb-6">
-            <!-- Role Settings -->
-            <div class="space-y-2">
+            <!-- Settings Groups -->
+            <div v-for="group in FILE_GROUPS" :key="group.title" class="space-y-2">
                 <h4 class="text-sm font-medium text-base-content/60 px-2 flex items-center gap-2">
                     <DocumentTextIcon class="w-4 h-4" />
-                    {{ $t('agent.roleSettings') }}
+                    {{ group.title }}
                 </h4>
                 <div class="card bg-base-100 shadow-sm overflow-hidden">
                     <ul class="divide-y divide-base-300">
-                        <li v-for="file in ROLE_FILES" :key="file.name"
+                        <li v-for="file in group.files" :key="file.name"
                             class="flex items-center justify-between p-4 bg-base-100 hover:bg-base-200/50 transition-colors cursor-pointer"
                             @click="openFile(file.name)">
                             <div class="flex items-center gap-3">
