@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useToast } from '../../../composables/useToast'
-import { AgentInfo, useAgentsState, AgentFileInfo } from '../../../composables/useAgentsState'
+import { AgentInfo, useAgentsState, AgentFileInfo, AGENT_FILE_DEFINITIONS } from '../../../composables/useAgentsState'
 import { useI18n } from 'vue-i18n'
 import {
     DocumentTextIcon,
@@ -18,33 +18,16 @@ const agentsState = useAgentsState()
 const { t } = useI18n()
 
 // File Management
-const FILE_GROUPS = computed(() => [
-    {
-        title: t('agent.roleSettings'),
-        files: [
-            { name: 'AGENTS.md', label: t('agent.files.agent') },
-            { name: 'SYSTEM.md', label: t('agent.files.system') },
-            { name: 'IDENTITY.md', label: t('agent.files.identity') },
-            { name: 'USER.md', label: t('agent.files.user') },
-        ]
-    },
-    {
-        title: t('agent.capabilitySettings'),
-        files: [
-            { name: 'TOOLS.md', label: t('agent.files.tools') },
-            { name: 'HEARTBEAT.md', label: t('agent.files.heartbeat') },
-            { name: 'BOOTSTRAP.md', label: t('agent.files.bootstrap') },
-        ]
-    },
-    {
-        title: t('agent.memorySettings'),
-        files: [
-            { name: 'MEMORY.md', label: t('agent.files.memory') },
-            { name: 'MEMORY_TODAY.md', label: t('agent.files.memoryToday') },
-            { name: 'MEMORY_YESTERDAY.md', label: t('agent.files.memoryYesterday') },
-        ]
-    }
-])
+// 使用 computed 确保语言切换时标签自动更新
+const FILE_GROUPS = computed(() => {
+    return AGENT_FILE_DEFINITIONS.map(group => ({
+        title: t(group.groupKey),
+        files: group.files.map(file => ({
+            name: file.name,
+            label: t(file.labelKey)
+        }))
+    }))
+})
 
 const showFileModal = ref(false)
 const editingFile = ref('')

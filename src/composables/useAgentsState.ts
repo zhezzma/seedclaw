@@ -64,7 +64,36 @@ const state = reactive<AgentsState>({
     agentToolsBusy: {},
 })
 
-const AGENT_FILES = ['AGENTS.md', 'IDENTITY.md', 'SYSTEM.md', 'TOOLS.md', 'BOOTSTRAP.md', 'USER.md', 'MEMORY.md', 'HEARTBEAT.md']
+// File Definitions
+export const AGENT_FILE_DEFINITIONS = [
+    {
+        groupKey: 'agent.roleSettings',
+        files: [
+            { name: 'AGENTS.md', labelKey: 'agent.files.agent' },
+            { name: 'SYSTEM.md', labelKey: 'agent.files.system' },
+            { name: 'IDENTITY.md', labelKey: 'agent.files.identity' },
+            { name: 'USER.md', labelKey: 'agent.files.user' },
+        ]
+    },
+    {
+        groupKey: 'agent.capabilitySettings',
+        files: [
+            { name: 'TOOLS.md', labelKey: 'agent.files.tools' },
+            { name: 'HEARTBEAT.md', labelKey: 'agent.files.heartbeat' },
+            { name: 'BOOTSTRAP.md', labelKey: 'agent.files.bootstrap' },
+        ]
+    },
+    {
+        groupKey: 'agent.memorySettings',
+        files: [
+            { name: 'MEMORY.md', labelKey: 'agent.files.memory' },
+            { name: 'MEMORY_TODAY.md', labelKey: 'agent.files.memoryToday' },
+            { name: 'MEMORY_YESTERDAY.md', labelKey: 'agent.files.memoryYesterday' },
+        ]
+    }
+]
+
+const AGENT_FILES = AGENT_FILE_DEFINITIONS.flatMap(g => g.files.map(f => f.name))
 
 // ==================== Export ====================
 
