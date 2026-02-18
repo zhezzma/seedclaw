@@ -4,7 +4,8 @@ import { onServerMessage, sendRequest, WsMessage } from './notify-server-connect
 
 export interface ExecApprovalRequest {
     id: string
-    command: string
+    command: string,
+    reason: string,
     expiresAtMs: number
 }
 
@@ -18,25 +19,17 @@ const state = reactive<ExecApprovalState>({
 
 
 function handleServerMessage(msg: WsMessage) {
-    if (msg.type === 'exec_approval_request') {
-        const { id, command, expiresAtMs } = msg.data
+    if (msg.event === 'permission_request') {
+        const { id, command, expiresAtMs, reason } = msg.payload
         if (id && command) {
             // Avoid duplicates
             if (!state.execApprovalQueue.find(req => req.id === id)) {
                 state.execApprovalQueue.push({
                     id,
                     command,
+                    reason,
                     expiresAtMs: expiresAtMs || (Date.now() + 60000) // Default 1 min expiry
                 })
-            }
-        }
-    } else if (msg.type === 'exec_approval_cancel') {
-        // Optional: Handle cancellation if server sends it
-        const { id } = msg.data
-        if (id) {
-            const idx = state.execApprovalQueue.findIndex(req => req.id === id)
-            if (idx > -1) {
-                state.execApprovalQueue.splice(idx, 1)
             }
         }
     }
@@ -60,7 +53,7 @@ export function useExecApproval() {
             state.execApprovalQueue.splice(idx, 1)
         }
 
-        return await sendRequest('exec.approval.resolve', { id, decision })
+        return await sendRequest('permission_response', { id, approved: decision === 'allow' })
     }
 
     const methods = {

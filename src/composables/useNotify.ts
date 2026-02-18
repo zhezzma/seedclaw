@@ -1,6 +1,6 @@
 import { useToast } from './useToast'
 import router from '../router'
-import { onServerMessage, type WsMessage } from './notify-server-connection'
+import { isTauri, onServerMessage, type WsMessage } from './notify-server-connection'
 
 export interface WsTaskData {
     taskId: string
@@ -98,8 +98,13 @@ export const triggerNotify = (title: string, body: string, sessionKey: string) =
 }
 
 function handleServerMessage(msg: WsMessage) {
-    if (msg.type === 'task_complete') {
-        const { taskName, sessionId, resultSnippet } = msg.data
+
+    if (isTauri) {
+        return;
+    }
+
+    if (msg.event === 'task_complete') {
+        const { taskName, sessionId, resultSnippet } = msg.payload
         const title = `✅ ${taskName || 'Task'} Completed`
         const body = resultSnippet
             ? (resultSnippet.length > 80 ? resultSnippet.slice(0, 80) + '…' : resultSnippet)
@@ -107,8 +112,8 @@ function handleServerMessage(msg: WsMessage) {
         const sessionKey = sessionId || ''
 
         triggerNotify(title, body, sessionKey)
-    } else if (msg.type === 'task_error') {
-        const { taskName, sessionId, error } = msg.data
+    } else if (msg.event === 'task_error') {
+        const { taskName, sessionId, error } = msg.payload
         const title = `❌ ${taskName || 'Task'} Error`
         const body = error || 'An error occurred.'
         const sessionKey = sessionId || ''

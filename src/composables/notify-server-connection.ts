@@ -6,18 +6,20 @@ import { connectBrowserWs, disconnectBrowserWs, getWsUrl, sendBrowserWs } from '
 
 export interface WsMessage {
     type: string
-    data: any
+    event?: string
+    payload: any
 }
 
 type MessageHandler = (msg: WsMessage) => void
 
 // ==================== State ====================
 
-const isTauri = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
+export const isTauri = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
 const listeners: MessageHandler[] = []
 let isConnected = ref(false)
+export const clientId = ref<string | null>(null)
 
-const pendingRequests = new Map<number, { resolve: (value: any) => void, reject: (reason?: any) => void, timeout: any }>()
+const pendingRequests = new Map<number | string, { resolve: (value: any) => void, reject: (reason?: any) => void, timeout: any }>()
 
 
 // ==================== Public API ====================
@@ -53,19 +55,27 @@ export function disconnectServer() {
 // ==================== Internal: Message Dispatch ====================
 
 function dispatchMessage(msg: WsMessage) {
+    if (msg.type === 'event' && msg.event === 'hello_ok') {
+        clientId.value = msg.payload?.clientId || null
+        isConnected.value = true
+        // Fall through to notify other listeners (e.g. for logging)
+    }
+
     // Check if it's a response to a pending request
-    // Assuming response format: { id: number, result?: any, error?: any }
-    if ((msg as any).id && pendingRequests.has((msg as any).id)) {
-        const requestId = (msg as any).id
+    const msgWithId = msg as any
+    if (msgWithId.id && pendingRequests.has(msgWithId.id)) {
+        const requestId = msgWithId.id
         const { resolve, reject, timeout } = pendingRequests.get(requestId)!
 
         clearTimeout(timeout)
         pendingRequests.delete(requestId)
 
-        if ((msg as any).error) {
-            reject((msg as any).error)
+        if (msgWithId.error) {
+            reject(msgWithId.error)
         } else {
-            resolve((msg as any).result)
+            // Support various result field names: payload, data, or result
+            const result = msgWithId.payload
+            resolve(result !== undefined ? result : msg)
         }
         return
     }
@@ -78,9 +88,11 @@ function dispatchMessage(msg: WsMessage) {
 function initBrowserConnection() {
     connectBrowserWs((msg) => {
         dispatchMessage(msg)
-        isConnected.value = true
-    }, () => {
-        isConnected.value = false
+    }, (connected) => {
+        if (!connected) {
+            isConnected.value = false
+            clientId.value = null
+        }
     })
 }
 
@@ -114,7 +126,10 @@ async function initTauriConnection() {
 
         // Listen for connection state changes
         await listen<string>('notify://connection-state', (event) => {
-            isConnected.value = event.payload === 'connected'
+            if (event.payload !== 'connected') {
+                isConnected.value = false
+                clientId.value = null
+            }
         })
 
         // Start connection
@@ -138,11 +153,11 @@ async function disconnectTauriConnection() {
 // ==================== Public API: Request ====================
 
 export async function sendRequest(method: string, params: any = {}): Promise<any> {
-    const id = Date.now() + Math.random()
+    const id = crypto.randomUUID()
     const payload = {
-        jsonrpc: '2.0',
-        id,
+        type: "req",
         method,
+        id,
         params
     }
 

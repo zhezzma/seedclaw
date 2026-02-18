@@ -70,26 +70,26 @@ impl<R: Runtime> NotifyContext<R> {
             Err(_) => return,
         };
 
-        let msg_type = match msg.get("type").and_then(|v| v.as_str()) {
+        let msg_event = match msg.get("event").and_then(|v| v.as_str()) {
             Some(t) => t,
             None => return,
         };
 
-        let data = match msg.get("data") {
-            Some(d) => d,
-            None => return,
-        };
-
-        let task_name = data
-            .get("taskName")
-            .and_then(|v| v.as_str())
-            .unwrap_or("Task");
-        let session_id = data.get("sessionId").and_then(|v| v.as_str()).unwrap_or("");
-
-        match msg_type {
+        match msg_event {
             "task_complete" => {
-                let title = format!("✅ {} Completed", task_name);
-                let result_snippet = data
+                let payload = match msg.get("payload") {
+                    Some(d) => d,
+                    None => return,
+                };
+                let title = payload
+                    .get("sessionName")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let session_id = payload
+                    .get("sessionId")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let result_snippet = payload
                     .get("resultSnippet")
                     .and_then(|v| v.as_str())
                     .unwrap_or("Task finished successfully.");
