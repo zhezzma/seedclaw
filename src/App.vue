@@ -6,7 +6,7 @@ import { useRouter } from 'vue-router'
 import { useUiSettingsStore } from './stores/setting'
 import MessagePlugin from './components/MessagePlugin.vue'
 import ConfirmPlugin from './components/ConfirmPlugin.vue'
-
+import ExecApprovalModal from './components/ExecApprovalModal.vue'
 import { useAppInit } from './composables/useAppInit'
 import { onAction } from '@tauri-apps/plugin-notification'
 import { listen } from '@tauri-apps/api/event'
@@ -123,6 +123,7 @@ onUnmounted(() => {
     <div class="fixed inset-0 bg-base-100 overflow-hidden text-base-content font-sans">
         <RouterView />
         <MessagePlugin />
+        <ExecApprovalModal />
         <ConfirmPlugin />
     </div>
 </template>

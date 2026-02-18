@@ -425,4 +425,14 @@ const closeFileViewer = () => {
 .fade-leave-to {
     opacity: 0;
 }
+
+@media (max-width: 768px) {
+    .chat {
+        column-gap: 0 !important;
+    }
+
+    .chat-bubble::before {
+        display: none !important;
+    }
+}
 </style>

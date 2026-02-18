@@ -7,6 +7,8 @@ import { useGotify } from './useGotify'
 import { useCronState } from './useCronState'
 import { useModelsState } from './useModelsState'
 import { useSkillsState } from './useSkillsState'
+import { connectServer } from './notify-server-connection'
+import { useExecApproval } from './useExecApproval'
 
 /**
  * Initializes all domain-specific state composables.
@@ -18,30 +20,28 @@ export function useAppInit() {
     const sessionsState = useSessionsState()
     const { loadModels } = useModelsState()
     const { initConvexConnection } = useSkillsState()
-
-
+    const { initGotify } = useGotify()
     const chatState = useChatState()
-    const cronState = useCronState()
+    useCronState()
     useNotify()
-    // Initialize Gotify
-    useGotify().init()
-
-    const settingsStore = useUiSettingsStore()
+    useExecApproval()
+    useUiSettingsStore()
 
     const init = async () => {
-
         await Promise.all([
             agentsState.loadAgents(),
             sessionsState.loadSessions(),
             loadModels()
         ])
 
+        initConvexConnection()
+        connectServer()
+        initGotify()
+
         // 加载完 agents 后，如果还没有选中的 agent，自动选择第一个
         if (!chatState.agentsSelectedId && agentsState.agentsList.length > 0) {
             chatState.selectAgent(agentsState.agentsList[0].id)
         }
-
-        initConvexConnection()
     }
 
     return {

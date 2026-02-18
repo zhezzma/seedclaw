@@ -80,8 +80,8 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
                             type: 'image',
                             source: {
                                 type: 'base64',
-                                media_type: item.mimeType || item.source?.media_type,
-                                data: item.data || item.source?.data
+                                media_type: item.mimeType,
+                                data: item.data
                             }
                         })
                     } else if (item.type === 'thinking') {

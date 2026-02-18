@@ -1,15 +1,21 @@
 import { useToast } from './useToast'
 import router from '../router'
-import { useUiSettingsStore } from '../stores/setting'
-import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
+import { onServerMessage, type WsMessage } from './notify-server-connection'
 
-import { useSessionsState } from './useSessionsState'
-import { connect as connectNotifyWs, disconnect as disconnectNotifyWs, getWsUrl } from './notify-client'
-
-let initialized = false
-const NOTIFY_LENGTH_THRESHOLD = 20
-
-
+export interface WsTaskData {
+    taskId: string
+    taskName: string
+    agentId: string
+    sessionId?: string
+    sessionName?: string
+    prompt?: string
+    resultSnippet?: string
+    error?: string
+    // Command execution approval
+    command?: string
+    expiresAtMs?: number
+    id?: string
+}
 // 1. 定义兜底逻辑（App内通知），避免代码重复
 const showInAppNotification = (title: string, body: string, sessionKey: string) => {
     const { info } = useToast()
@@ -91,48 +97,33 @@ export const triggerNotify = (title: string, body: string, sessionKey: string) =
     }
 }
 
+function handleServerMessage(msg: WsMessage) {
+    if (msg.type === 'task_complete') {
+        const { taskName, sessionId, resultSnippet } = msg.data
+        const title = `✅ ${taskName || 'Task'} Completed`
+        const body = resultSnippet
+            ? (resultSnippet.length > 80 ? resultSnippet.slice(0, 80) + '…' : resultSnippet)
+            : 'Task finished successfully.'
+        const sessionKey = sessionId || ''
+
+        triggerNotify(title, body, sessionKey)
+    } else if (msg.type === 'task_error') {
+        const { taskName, sessionId, error } = msg.data
+        const title = `❌ ${taskName || 'Task'} Error`
+        const body = error || 'An error occurred.'
+        const sessionKey = sessionId || ''
+
+        triggerNotify(title, body, sessionKey)
+    }
+    // task_trigger, agent_start etc. are informational — no notification needed
+}
+
 export function useNotify() {
-    if (initialized) return
-    initialized = true
+    // Subscribe to server messages
+    onServerMessage(handleServerMessage)
 
-    const isTauri = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__;
-    if (isTauri) {
-        // Tauri 环境: 使用 Rust 的 WebSocket 连接（安卓 WebView 的 WS 容易断开）
-        // Rust 端负责发送系统原生通知，前端只监听消息用于 in-app toast 补充
-        initTauriNotify()
-    } else {
-        // 浏览器环境: 使用浏览器原生 WebSocket
-        connectNotifyWs(triggerNotify)
+    return {
     }
 }
 
-/**
- * Tauri 环境通知初始化
- * 1. 调用 Rust invoke('notify_connect') 启动 Rust 端 WS 连接
- * 2. 监听 'notify://message' 事件，解析消息后显示 in-app toast
- */
-async function initTauriNotify() {
-    try {
-        const { invoke } = await import('@tauri-apps/api/core')
-
-        const settings = useUiSettingsStore()
-        const wsUrl = getWsUrl()
-
-        if (!wsUrl) {
-            console.warn('[useNotify] No API base URL configured, skipping Tauri WS connection.')
-            return
-        }
-
-        const token = settings.token?.trim() || undefined
-        const origin = settings.apiBaseUrl?.trim().replace(/\/+$/, '') || 'http://localhost'
-
-        // 启动 Rust 端 WebSocket 连接
-        // Rust 端负责接收消息并直接触发系统原生通知，不经过 WebView
-        await invoke('notify_connect', { url: wsUrl, token, origin })
-
-        console.log('[useNotify] Tauri notify_connect invoked successfully')
-    } catch (err) {
-        console.error('[useNotify] Failed to initialize Tauri notify:', err)
-    }
-}
 

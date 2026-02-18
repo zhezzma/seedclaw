@@ -580,7 +580,7 @@ async function applyDefaultSessionBehavior() {
                 </div>
 
                 <!-- Chat messages - only this area scrolls -->
-                <div v-else ref="messagesContainerRef" class="flex-1 overflow-y-auto p-4 relative">
+                <div v-else ref="messagesContainerRef" class="flex-1 overflow-y-auto p-2 md:p-4 relative">
                     <div class="space-y-4 mx-auto w-full" :class="{ 'max-w-3xl': !settingsStore.isWideMode }">
                         <MessageBubble v-for="(msg, index) in processedMessages" :key="msg.entryId || index"
                             :message="msg" @copy="copyMessage" @read-aloud="readAloud" @delete="deleteMessage"

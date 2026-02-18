@@ -1,38 +1,26 @@
 /**
- * WebSocket Notify Client
+ * WebSocket Notify Client (Browser Implementation)
  *
- * Connects to the server's WebSocket endpoint and listens for task events.
- * When a `task_complete` event is received, calls the provided notification callback.
+ * Connects to the server's WebSocket endpoint using standard Browser WebSocket API.
  */
 import { useUiSettingsStore } from '../stores/setting'
 
 // ==================== Types ====================
 
-export type NotifyCallback = (title: string, body: string, sessionKey: string) => void
+// Re-export specific types if needed, but mainly we deal with raw objects here
+// and let the consumer validate.
+import type { WsMessage } from './notify-server-connection'
 
-interface WsTaskData {
-    taskId: string
-    taskName: string
-    agentId: string
-    sessionId?: string
-    sessionName?: string
-    prompt?: string
-    resultSnippet?: string
-    error?: string
-}
-
-interface WsMessage {
-    type: string
-    agentId?: string
-    data: WsTaskData & { message?: string }
-}
+type MessageCallback = (msg: WsMessage) => void
+type StatusCallback = (connected: boolean) => void
 
 // ==================== State ====================
 
 let ws: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let isManualClose = false
-let notifyFn: NotifyCallback | null = null
+let onMessageFn: MessageCallback | null = null
+let onStatusFn: StatusCallback | null = null
 
 const RECONNECT_DELAY = 5000 // 5 seconds
 
@@ -57,42 +45,22 @@ export function getWsUrl(): string {
 
 // ==================== Core ====================
 
-function handleMessage(msg: WsMessage) {
-    if (!notifyFn) return
-
-    if (msg.type === 'task_complete') {
-        const { taskName, sessionId, resultSnippet } = msg.data
-        const title = `✅ ${taskName || 'Task'} Completed`
-        const body = resultSnippet
-            ? (resultSnippet.length > 80 ? resultSnippet.slice(0, 80) + '…' : resultSnippet)
-            : 'Task finished successfully.'
-        const sessionKey = sessionId || ''
-
-        notifyFn(title, body, sessionKey)
-    } else if (msg.type === 'task_error') {
-        const { taskName, sessionId, error } = msg.data
-        const title = `❌ ${taskName || 'Task'} Error`
-        const body = error || 'An error occurred.'
-        const sessionKey = sessionId || ''
-
-        notifyFn(title, body, sessionKey)
-    }
-    // task_trigger, agent_start etc. are informational — no notification needed
-}
-
 function scheduleReconnect() {
     if (reconnectTimer) return
     reconnectTimer = setTimeout(() => {
         reconnectTimer = null
-        connect(notifyFn!)
+        if (onMessageFn && onStatusFn) {
+            connectBrowserWs(onMessageFn, onStatusFn)
+        }
     }, RECONNECT_DELAY)
 }
 
-export function connect(onNotify: NotifyCallback) {
+export function connectBrowserWs(onMessage: MessageCallback, onStatus?: StatusCallback) {
     // Clean up previous connection
-    disconnect()
+    disconnectBrowserWs()
     isManualClose = false
-    notifyFn = onNotify
+    onMessageFn = onMessage
+    if (onStatus) onStatusFn = onStatus
 
     const wsUrl = getWsUrl()
     if (!wsUrl) {
@@ -119,12 +87,13 @@ export function connect(onNotify: NotifyCallback) {
 
     ws.onopen = () => {
         console.log('[notify-client] Connected! Listening for events...')
+        if (onStatusFn) onStatusFn(true)
     }
 
     ws.onmessage = (event) => {
         try {
-            const message: WsMessage = JSON.parse(event.data)
-            handleMessage(message)
+            const message = JSON.parse(event.data)
+            if (onMessageFn) onMessageFn(message)
         } catch (err) {
             console.error('[notify-client] Failed to parse message:', err)
         }
@@ -133,6 +102,7 @@ export function connect(onNotify: NotifyCallback) {
     ws.onclose = (event) => {
         console.log(`[notify-client] Disconnected. Code: ${event.code}, Reason: ${event.reason}`)
         ws = null
+        if (onStatusFn) onStatusFn(false)
 
         // Auth failure — don't reconnect
         if (event.code === 4401 || event.reason?.includes('Unauthorized')) {
@@ -151,7 +121,7 @@ export function connect(onNotify: NotifyCallback) {
     }
 }
 
-export function disconnect() {
+export function disconnectBrowserWs() {
     isManualClose = true
     if (reconnectTimer) {
         clearTimeout(reconnectTimer)
@@ -163,6 +133,13 @@ export function disconnect() {
     }
 }
 
-export function isConnected(): boolean {
-    return ws?.readyState === WebSocket.OPEN
+export function sendBrowserWs(data: any) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(data))
+    } else {
+        console.warn('[notify-client] Cannot send message, WebSocket is not open.')
+        // Optional: queue message or throw error
+        throw new Error('WebSocket is not connected')
+    }
 }
+

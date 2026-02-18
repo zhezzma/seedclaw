@@ -106,14 +106,6 @@ impl<R: Runtime> NotifyContext<R> {
                 };
                 self.trigger_notification(session_id, &title, &body);
             }
-            "task_error" => {
-                let title = format!("❌ {} Error", task_name);
-                let error = data
-                    .get("error")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("An error occurred.");
-                self.trigger_notification(session_id, &title, error);
-            }
             _ => {
                 // task_trigger, agent_start, etc. — informational, no notification
             }

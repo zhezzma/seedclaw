@@ -113,10 +113,30 @@ const sendMessage = async (message?: string, attachments?: ChatAttachment[], ses
     const sessionData = getSessionData(targetKey)
     const sessionId = targetKey
 
+    // Prepare optimistic content (text + images)
+    let optimisticContent: any = text
+    if (images.length > 0) {
+        const blocks: any[] = []
+        if (text) {
+            blocks.push({ type: 'text', text })
+        }
+        images.forEach(webUrl => {
+            const matches = webUrl.match(/^data:([^;]+);base64,(.+)$/)
+            if (matches) {
+                blocks.push({
+                    type: 'image',
+                    mimeType: matches[1],
+                    data: matches[2]
+                })
+            }
+        })
+        optimisticContent = blocks
+    }
+
     // Add user message to per-session data
     sessionData.chatMessages = [...sessionData.chatMessages, {
         role: 'user',
-        content: text,
+        content: optimisticContent,
         timestamp: Date.now(),
         id: generateUUID()
     }]

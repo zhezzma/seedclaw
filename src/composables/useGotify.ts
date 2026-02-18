@@ -28,7 +28,7 @@ export function useGotify() {
     }
 
     // Initialize
-    const init = () => {
+    const initGotify = () => {
         // Only run in Tauri environment
         // @ts-ignore
         if (!window.__TAURI_INTERNALS__) return
@@ -52,7 +52,7 @@ export function useGotify() {
     }
 
     return {
-        init,
+        initGotify,
         start,
         stop
     }
