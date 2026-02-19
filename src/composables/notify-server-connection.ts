@@ -44,11 +44,19 @@ export function connectServer() {
     }
 }
 
+let lastCheckTime = 0;
+
 export function checkConnection() {
-    if (!isConnected.value) {
-        console.log('[notify-server-connection] Connection lost, reconnecting...')
-        connectServer()
+    const now = Date.now();
+    // Throttle checks to once every 5 seconds to avoid spamming if focus events fire rapidly
+    if (now - lastCheckTime < 5000) {
+        return;
     }
+    lastCheckTime = now;
+
+    console.log('[notify-server-connection] Checking connection (force reconnect)...')
+    // Always call connectServer, which handles idempotency or restarts the connection task
+    connectServer()
 }
 
 export function disconnectServer() {
