@@ -57,8 +57,11 @@ const {
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
+const THINKING_LEVELS = ['off', 'low', 'medium', 'high', 'xhigh'] as const
+type ThinkingLevel = typeof THINKING_LEVELS[number]
+
 const reasoningState = ref('off')
-const thinkingLevel = ref('off')
+const thinkingLevel = ref<ThinkingLevel>('off')
 const thinkingDropdownOpen = ref(false)
 
 const currentModel = ref("")
@@ -85,7 +88,7 @@ watch(() => chatState.currentSession, (session) => {
     reasoningState.value = (val === 'on' || val === 'stream') ? val : 'off'
 
     const level = session.thinkingLevel || 'off'
-    thinkingLevel.value = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].includes(level) ? level : 'off'
+    thinkingLevel.value = (THINKING_LEVELS as readonly string[]).includes(level) ? (level as ThinkingLevel) : 'off'
 }, { immediate: true })
 
 const toggleReasoning = () => {
@@ -107,8 +110,7 @@ const toggleReasoning = () => {
     })
 }
 
-const selectThinkingLevel = (level: string) => {
-
+const selectThinkingLevel = (level: ThinkingLevel) => {
     thinkingDropdownOpen.value = false
     if (isBusy.value) {
         useToast().warning(t('chat.waitMessage'))
@@ -128,16 +130,7 @@ const selectThinkingLevel = (level: string) => {
     })
 }
 
-const getThinkingLabel = () => {
-    switch (thinkingLevel.value) {
-        case 'minimal': return t('chat.thinkingLevels.minimal')
-        case 'low': return t('chat.thinkingLevels.low')
-        case 'medium': return t('chat.thinkingLevels.medium')
-        case 'high': return t('chat.thinkingLevels.high')
-        case 'xhigh': return t('chat.thinkingLevels.xhigh')
-        default: return t('chat.thinkingLevels.off')
-    }
-}
+const getThinkingLabel = () => t(`chat.thinkingLevels.${thinkingLevel.value}`)
 
 const adjustHeight = () => {
     if (textareaRef.value) {
@@ -367,17 +360,10 @@ defineExpose({
                         <ul v-if="thinkingDropdownOpen"
                             class="dropdown-content menu p-2 shadow-xl bg-base-100 rounded-box w-56 border border-base-300 mb-2 z-[100]">
                             <li class="menu-title"><span>{{ $t('chat.thinkingLevel') }}</span></li>
-                            <li v-for="level in ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']" :key="level">
+                            <li v-for="level in THINKING_LEVELS" :key="level">
                                 <a @click="selectThinkingLevel(level)" class="rounded-lg"
                                     :class="{ 'active': thinkingLevel === level }">
-                                    {{
-                                        level === 'off' ? $t('chat.thinkingLevels.off') :
-                                            level === 'minimal' ? $t('chat.thinkingLevels.minimal') :
-                                                level === 'low' ? $t('chat.thinkingLevels.low') :
-                                                    level === 'medium' ? $t('chat.thinkingLevels.medium') :
-                                                        level === 'high' ? $t('chat.thinkingLevels.high') :
-                                                            $t('chat.thinkingLevels.xhigh')
-                                    }}
+                                    {{ $t(`chat.thinkingLevels.${level}`) }}
                                 </a>
                             </li>
                         </ul>
