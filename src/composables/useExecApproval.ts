@@ -4,9 +4,13 @@ import { onServerMessage, sendRequest, WsMessage } from './notify-server-connect
 
 export interface ExecApprovalRequest {
     id: string
-    command: string,
-    reason: string,
-    expiresAtMs: number
+    sessionId: string,
+    type: "select" | "confirm" | "input"
+    title: string,
+    options?: string[],
+    message?: string,
+    placeholder?: string,
+    timeout: number
 }
 
 export interface ExecApprovalState {
@@ -19,16 +23,20 @@ const state = reactive<ExecApprovalState>({
 
 
 function handleServerMessage(msg: WsMessage) {
-    if (msg.event === 'permission_request') {
-        const { id, command, expiresAtMs, reason } = msg.payload
-        if (id && command) {
+    if (msg.event === 'ui_request') {
+        const { id, sessionId, type, title, message, placeholder, options, timeout } = msg.payload
+        if (id && type) {
             // Avoid duplicates
             if (!state.execApprovalQueue.find(req => req.id === id)) {
                 state.execApprovalQueue.push({
                     id,
-                    command,
-                    reason,
-                    expiresAtMs: expiresAtMs || (Date.now() + 60000) // Default 1 min expiry
+                    sessionId: sessionId || '',
+                    type: type || 'confirm',
+                    title: title || '',
+                    message: message || '',
+                    placeholder: placeholder || '',
+                    options: options || undefined,
+                    timeout: timeout ? (Date.now() + timeout) : (Date.now() + 60000)
                 })
             }
         }
@@ -45,7 +53,7 @@ export function useExecApproval() {
     /**
      * Resolve an approval request with a decision
      */
-    const resolveRequest = async (id: string, decision: 'allow' | 'deny') => {
+    const resolveRequest = async (id: string, value: string | boolean) => {
         // Optimistically remove from queue
         // Note: state.client is injected by createStateProxy
         const idx = state.execApprovalQueue.findIndex(req => req.id === id)
@@ -53,7 +61,9 @@ export function useExecApproval() {
             state.execApprovalQueue.splice(idx, 1)
         }
 
-        return await sendRequest('permission_response', { id, approved: decision === 'allow' })
+
+        //value在input的时候是字符串..在select的时候是字符串..在confirm的时候是布尔值
+        return await sendRequest('ui_response', { id, value })
     }
 
     const methods = {

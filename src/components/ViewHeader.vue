@@ -5,10 +5,11 @@ import { ArrowLeftIcon } from '@heroicons/vue/24/outline'
 import { useUiSettingsStore } from '../stores/setting'
 
 const props = withDefaults(defineProps<{
-    title: string
+    title?: string
     isMainPage?: boolean
 }>(), {
-    isMainPage: false
+    isMainPage: false,
+    title: ''
 })
 
 const router = useRouter()
@@ -29,13 +30,19 @@ const goBack = () => {
 </script>
 
 <template>
-    <div class="shrink-0 navbar bg-base-100 border-b border-base-300 min-h-[4rem]">
+    <div class="shrink-0 navbar bg-base-100 border-b border-base-300 min-h-[3rem]">
         <div class="flex-1 flex items-center gap-2">
-            <button v-if="shouldShowBack" @click="goBack" class="btn btn-ghost btn-sm btn-circle"
-                :class="{ 'lg:hidden': isMainPage }">
-                <ArrowLeftIcon class="w-5 h-5" />
-            </button>
-            <span class="text-lg font-semibold px-2  truncate">{{ title }}</span>
+            <template v-if="!$slots.left">
+                <button v-if="shouldShowBack" @click="goBack" class="btn btn-ghost btn-sm btn-circle"
+                    :class="{ 'lg:hidden': isMainPage }">
+                    <ArrowLeftIcon class="w-5 h-5" />
+                </button>
+            </template>
+            <slot name="left"></slot>
+
+            <span v-if="title" class="text-lg font-semibold px-2 truncate">{{ title }}</span>
+            <slot v-else name="title"></slot>
+
             <slot name="center"></slot>
         </div>
         <div class="flex-none gap-2">

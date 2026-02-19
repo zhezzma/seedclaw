@@ -76,33 +76,30 @@ impl<R: Runtime> NotifyContext<R> {
         };
 
         match msg_event {
-            "task_complete" => {
+            "notification" => {
                 let payload = match msg.get("payload") {
                     Some(d) => d,
                     None => return,
                 };
-                let title = payload
-                    .get("sessionName")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let title = payload.get("title").and_then(|v| v.as_str()).unwrap_or("");
                 let session_id = payload
                     .get("sessionId")
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
-                let result_snippet = payload
-                    .get("resultSnippet")
+                let message = payload
+                    .get("message")
                     .and_then(|v| v.as_str())
                     .unwrap_or("Task finished successfully.");
                 // Truncate if too long (char-safe for multi-byte UTF-8)
-                let body = if result_snippet.chars().count() > 80 {
-                    let end = result_snippet
+                let body = if message.chars().count() > 80 {
+                    let end = message
                         .char_indices()
                         .nth(80)
                         .map(|(i, _)| i)
-                        .unwrap_or(result_snippet.len());
-                    format!("{}…", &result_snippet[..end])
+                        .unwrap_or(message.len());
+                    format!("{}…", &message[..end])
                 } else {
-                    result_snippet.to_string()
+                    message.to_string()
                 };
                 self.trigger_notification(session_id, &title, &body);
             }

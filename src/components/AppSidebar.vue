@@ -112,7 +112,7 @@ const handleNavClick = (item: any) => {
 <template>
     <div class="flex flex-col h-full bg-base-200/50 pt-[env(safe-area-inset-top)]">
         <!-- Header -->
-        <div class="shrink-0 px-5 py-4 flex items-center justify-between">
+        <div class="shrink-0 px-5 py-3 flex items-center justify-between">
             <div class="flex items-center gap-2">
                 <span class="text-2xl">🦀</span>
                 <span class="text-lg font-bold tracking-tight">SeedClaw</span>

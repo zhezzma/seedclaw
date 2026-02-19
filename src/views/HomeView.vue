@@ -112,6 +112,7 @@ const handleTypeSessionDelete = async (key: string) => {
 }
 
 const typeSelectedKey = ref("")
+const isCreatingSession = ref(false)
 
 // Auto-select first session
 watch(() => [route.query.type, currentSessions.value, route.params.sessionkey], (values) => {
@@ -133,12 +134,20 @@ const showMobileSessionList = computed(() => {
 
 
 // Send message handler
+// Send message handler
 const handleSend = async () => {
     let inputText = chatInputRef.value?.inputText?.trim() || ''
     // Check if there are any attachments
-    const hasAttachments = (chatInputRef.value?.attachments?.length ?? 0) > 0
+    const rawAttachments = chatInputRef.value?.attachments ?? []
+    const hasAttachments = rawAttachments.length > 0
 
     if (!inputText && !hasAttachments && !isBusy.value) return
+
+    // Optimistic UI update: Clear input immediately
+    if (chatInputRef.value) {
+        chatInputRef.value.inputText = ''
+        chatInputRef.value.attachments = []
+    }
 
     // Case 1: Busy + no text → abort
     if (isBusy.value && !inputText && !hasAttachments) {
@@ -148,9 +157,6 @@ const handleSend = async () => {
 
     // Case 2: Busy + has text → steer (inject prompt while agent is running)
     if (isBusy.value && inputText) {
-        if (chatInputRef.value) {
-            chatInputRef.value.inputText = ''
-        }
         await chatState.steerMessage(inputText)
         scrollToBottom()
         return
@@ -168,13 +174,20 @@ const handleSend = async () => {
             useToast().warning('请先创建一个智能体')
             return
         }
-        targetSessionKey = await sessionsState.commitNewSession(agentId, inputText)
+
+        isCreatingSession.value = true
+        try {
+            targetSessionKey = await sessionsState.commitNewSession(agentId, inputText)
+        } catch (e) {
+            isCreatingSession.value = false
+            console.error('Failed to create session', e)
+            return
+        }
     }
 
     // Process attachments:
     // - Images: Keep as attachments
     // - Files: Append content to inputText
-    const rawAttachments = chatInputRef.value?.attachments ?? []
     const imageAttachments: any[] = []
 
     // Process file content appending
@@ -192,25 +205,13 @@ const handleSend = async () => {
         inputText += appendedText
     }
 
-    if (chatInputRef.value) {
-        chatInputRef.value.inputText = ''
-        // Clear attachments in UI
-        if (chatInputRef.value.attachments) {
-            chatInputRef.value.attachments = []
-        }
-    }
-
     // Send message with explicit sessionKey
     await chatState.sendMessage(inputText, [...imageAttachments], targetSessionKey)
 
-    // Clear attachments in UI
-    if (chatInputRef.value && chatInputRef.value.attachments) {
-        chatInputRef.value.attachments = []
-    }
-
     // Navigate to the chat session immediately
     if (isNew) {
-        router.push({ name: 'chat', params: { sessionkey: targetSessionKey } })
+        await router.push({ name: 'chat', params: { sessionkey: targetSessionKey } })
+        isCreatingSession.value = false
     }
 
     scrollToBottom()
@@ -472,7 +473,8 @@ watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath
             console.log('[HomeView] Session key unchanged, skipping reload', sessionkey)
             return
         }
-        chatState.setSessionKey(sessionkey)
+        const type = route.query.type as string | undefined
+        chatState.setSessionKey(sessionkey, true, type)
         return
     }
 
@@ -498,7 +500,7 @@ async function applyDefaultSessionBehavior() {
         const targetKey = settingsStore.lastActiveSessionKey
         if (targetKey && sessionsState.hasSession(targetKey)) {
             console.log('Default: last active session', targetKey)
-            chatState.setSessionKey(targetKey)
+            chatState.setSessionKey(targetKey, true, route.query.type as string | undefined)
             router.replace({ name: 'chat', params: { sessionkey: targetKey } })
         } else {
             // If session doesn't exist, go to new session
@@ -554,8 +556,13 @@ async function applyDefaultSessionBehavior() {
                 </div>
 
                 <!-- Welcome message when no messages -->
-                <div v-else-if="isNewSession(route)" class="flex-1 flex flex-col items-center justify-center p-4">
-                    <div class="text-center">
+                <div v-else-if="isNewSession(route) || isCreatingSession"
+                    class="flex-1 flex flex-col items-center justify-center p-4">
+                    <div v-if="isCreatingSession" class="flex flex-col items-center gap-4 animate-pulse">
+                        <div class="loading loading-spinner loading-lg opacity-50"></div>
+                        <p class="text-base-content/60 text-sm font-medium">Creating session...</p>
+                    </div>
+                    <div v-else class="text-center">
                         <h1 class="text-3xl font-bold mb-2">{{ $t('home.welcomeTitle') }}</h1>
                         <p class="text-base-content/60">{{ $t('home.welcomeDesc') }}</p>
                     </div>

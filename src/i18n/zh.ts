@@ -59,6 +59,8 @@ export default {
         disabled: '已禁用',
         enabled: '已启用',
         system: '系统',
+        connected: '已连接',
+        disconnected: '未连接',
     },
     sidebar: {
         newChat: '新对话',
@@ -76,6 +78,7 @@ export default {
     agent: {
         agents: '智能体',
         title: '智能体',
+        assistant: '智能助手',
         noAgents: '暂无智能体',
         noAgentSelected: '未选择智能体',
         selectAgentPrompt: '选择一个智能体',

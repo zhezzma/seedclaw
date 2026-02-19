@@ -59,6 +59,8 @@ export default {
         disabled: 'Disabled',
         enabled: 'Enabled',
         system: 'System',
+        connected: 'Connected',
+        disconnected: 'Disconnected',
     },
     sidebar: {
         newChat: 'New Chat',
@@ -76,6 +78,7 @@ export default {
     agent: {
         agents: 'Agents',
         title: 'Agents',
+        assistant: 'Assistant',
         noAgents: 'No Agents',
         noAgentSelected: 'No Agent Selected',
         selectAgentPrompt: 'Select an agent from the sidebar',

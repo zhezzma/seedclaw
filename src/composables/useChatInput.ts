@@ -17,6 +17,7 @@ export interface ModelItem {
 }
 
 export const COMMANDS: CommandItem[] = [
+    { label: '/plan (计划模式)', value: '/plan', autoSend: false },
     { label: '/reset (会话重置)', value: '/reset' },
     { label: '/name (会话重命名)', value: '/name', autoSend: false },
     { label: '/compact (会话压缩)', value: '/compact' },

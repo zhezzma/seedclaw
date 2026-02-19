@@ -251,13 +251,22 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
     const isNearBottom = (): boolean => {
         const el = messagesContainerRef.value
         if (!el) return true
+        // If content fits in container (no scrollbar), we are effectively at bottom
+        if (el.scrollHeight <= el.clientHeight + 1) return true
+
         // Allow a small error margin (pixel rounding)
         return Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) <= SCROLL_THRESHOLD
     }
 
+    // Debounce scroll event to prevent state flickering
+    let scrollTimeout: any = null
     const handleScroll = () => {
         if (isAutoScrolling.value) return
-        userScrolledUp.value = !isNearBottom()
+
+        if (scrollTimeout) clearTimeout(scrollTimeout)
+        scrollTimeout = setTimeout(() => {
+            userScrolledUp.value = !isNearBottom()
+        }, 100)
     }
 
     const scrollToBottom = (force = false) => {

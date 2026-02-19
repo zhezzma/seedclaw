@@ -16,7 +16,7 @@ type MessageHandler = (msg: WsMessage) => void
 
 export const isTauri = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
 const listeners: MessageHandler[] = []
-let isConnected = ref(false)
+export const isConnected = ref(false)
 export const clientId = ref<string | null>(null)
 
 const pendingRequests = new Map<number | string, { resolve: (value: any) => void, reject: (reason?: any) => void, timeout: any }>()

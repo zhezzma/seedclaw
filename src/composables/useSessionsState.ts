@@ -200,7 +200,7 @@ export function useSessionsState() {
     const fetchSessionInfo = (id: string) =>
         apiGet<SessionRow>(`/api/sessions/${encodeURIComponent(id)}/info`)
 
-    const getSessionById = async (id: string): Promise<SessionRow | undefined> => {
+    const getSessionById = async (id: string, type?: string): Promise<SessionRow | undefined> => {
         // O(1) 从索引中查找
         const cached = sessionsIndex.get(id)
         if (cached) return cached
@@ -210,19 +210,36 @@ export function useSessionsState() {
             const session = await fetchSessionInfo(id)
             if (!session) return undefined
 
-            // 加入主列表缓存并更新索引
-            if (state.sessionsResult) {
-                // 去重
-                const existing = state.sessionsResult.sessions || []
-                if (!existing.some(s => s.id === id)) {
-                    state.sessionsResult = {
-                        ...state.sessionsResult,
-                        sessions: [session, ...existing],
+            // Determine where to store the session based on type
+            if (type === 'cron') {
+                if (state.cronSessionsResult) {
+                    // 去重
+                    const existing = state.cronSessionsResult.sessions || []
+                    if (!existing.some(s => s.id === id)) {
+                        state.cronSessionsResult = {
+                            ...state.cronSessionsResult,
+                            sessions: [session, ...existing],
+                        }
                     }
+                } else {
+                    state.cronSessionsResult = { sessions: [session] }
                 }
             } else {
-                state.sessionsResult = { sessions: [session] }
+                // Default to normal sessions
+                if (state.sessionsResult) {
+                    // 去重
+                    const existing = state.sessionsResult.sessions || []
+                    if (!existing.some(s => s.id === id)) {
+                        state.sessionsResult = {
+                            ...state.sessionsResult,
+                            sessions: [session, ...existing],
+                        }
+                    }
+                } else {
+                    state.sessionsResult = { sessions: [session] }
+                }
             }
+
             sessionsIndex.set(id, session)
             return session
         } catch (error) {

@@ -20,7 +20,7 @@ export interface WsTaskData {
 const showInAppNotification = (title: string, body: string, sessionKey: string) => {
     const { info } = useToast()
     console.log('Falling back to in-app notification');
-    info(`${title}: ${body}`, {
+    info(title ? `${title}: ${body}` : body, {
         duration: 10000,
         onClick: () => {
             router.push({
@@ -103,24 +103,11 @@ function handleServerMessage(msg: WsMessage) {
         return;
     }
 
-    if (msg.event === 'task_complete') {
-        const { taskName, sessionId, resultSnippet } = msg.payload
-        const title = `✅ ${taskName || 'Task'} Completed`
-        const body = resultSnippet
-            ? (resultSnippet.length > 80 ? resultSnippet.slice(0, 80) + '…' : resultSnippet)
-            : 'Task finished successfully.'
-        const sessionKey = sessionId || ''
-
-        triggerNotify(title, body, sessionKey)
-    } else if (msg.event === 'task_error') {
-        const { taskName, sessionId, error } = msg.payload
-        const title = `❌ ${taskName || 'Task'} Error`
-        const body = error || 'An error occurred.'
-        const sessionKey = sessionId || ''
-
-        triggerNotify(title, body, sessionKey)
+    if (msg.event === 'notification') {
+        const { title, sessionId, message, type } = msg.payload
+        triggerNotify(title ?? "", message, sessionId)
     }
-    // task_trigger, agent_start etc. are informational — no notification needed
+
 }
 
 export function useNotify() {
