@@ -90,11 +90,11 @@ defineExpose({
         <!-- Back Button or Hamburger -->
         <template #left>
             <button v-if="route.query && route.query.type" @click="handleBack"
-                class="btn btn-ghost btn-circle btn-sm -ml-2 lg:hidden">
+                class="btn btn-ghost btn-sm btn-circle  lg:hidden">
                 <ChevronLeftIcon class="h-5 w-5" />
             </button>
             <div v-else class="flex-none lg:hidden">
-                <label for="sidebar-drawer" class="btn btn-square btn-ghost drawer-button">
+                <label for="sidebar-drawer" class="btn btn-ghost btn-sm btn-circle drawer-button">
                     <Bars3Icon class="h-5 w-5" />
                 </label>
             </div>

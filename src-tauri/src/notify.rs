@@ -177,9 +177,17 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> NotifyState {
                                         app_clone.emit("notify://connection-state", "connected");
 
                                     let (mut write, mut read) = ws_stream.split();
+                                    let mut heartbeat_interval =
+                                        tokio::time::interval(Duration::from_secs(30));
 
                                     loop {
                                         tokio::select! {
+                                            _ = heartbeat_interval.tick() => {
+                                                if let Err(e) = write.send(tokio_tungstenite::tungstenite::Message::Ping(vec![])).await {
+                                                    eprintln!("[Rust Notify] Ping error: {}", e);
+                                                    break;
+                                                }
+                                            }
                                             // Write to WS
                                             Some(msg) = internal_rx.recv() => {
                                                 if let Err(e) = write.send(tokio_tungstenite::tungstenite::Message::Text(msg)).await {

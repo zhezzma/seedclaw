@@ -558,11 +558,11 @@ async function applyDefaultSessionBehavior() {
                 <!-- Welcome message when no messages -->
                 <div v-else-if="isNewSession(route) || isCreatingSession"
                     class="flex-1 flex flex-col items-center justify-center p-4">
-                    <div v-if="isCreatingSession" class="flex flex-col items-center gap-4 animate-pulse">
+                    <!-- <div v-if="isCreatingSession" class="flex flex-col items-center gap-4 animate-pulse">
                         <div class="loading loading-spinner loading-lg opacity-50"></div>
-                        <p class="text-base-content/60 text-sm font-medium">Creating session...</p>
-                    </div>
-                    <div v-else class="text-center">
+                        <p class="text-base-content/60 text-sm font-medium">创建会话...</p>
+                    </div> -->
+                    <div class="text-center">
                         <h1 class="text-3xl font-bold mb-2">{{ $t('home.welcomeTitle') }}</h1>
                         <p class="text-base-content/60">{{ $t('home.welcomeDesc') }}</p>
                     </div>
