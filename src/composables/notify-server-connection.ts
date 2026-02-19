@@ -20,6 +20,7 @@ export const isConnected = ref(false)
 export const clientId = ref<string | null>(null)
 
 const pendingRequests = new Map<number | string, { resolve: (value: any) => void, reject: (reason?: any) => void, timeout: any }>()
+let tauriUnlisteners: (() => void)[] = []
 
 
 // ==================== Public API ====================
@@ -40,6 +41,13 @@ export function connectServer() {
         initTauriConnection()
     } else {
         initBrowserConnection()
+    }
+}
+
+export function checkConnection() {
+    if (!isConnected.value) {
+        console.log('[notify-server-connection] Connection lost, reconnecting...')
+        connectServer()
     }
 }
 
@@ -103,6 +111,9 @@ async function initTauriConnection() {
         const { invoke } = await import('@tauri-apps/api/core')
         const { listen } = await import('@tauri-apps/api/event')
 
+        // Clean up any existing listeners before creating new ones
+        cleanupTauriListeners()
+
         const settings = useUiSettingsStore()
         const wsUrl = getWsUrl()
 
@@ -115,7 +126,7 @@ async function initTauriConnection() {
         const origin = settings.apiBaseUrl?.trim().replace(/\/+$/, '') || 'http://localhost'
 
         // Listen for messages from Rust
-        await listen<string>('notify://message', (event) => {
+        const unlistenMessage = await listen<string>('notify://message', (event) => {
             try {
                 const msg: WsMessage = JSON.parse(event.payload)
                 dispatchMessage(msg)
@@ -123,14 +134,16 @@ async function initTauriConnection() {
                 console.error('[server-connection] Failed to parse Tauri message:', err)
             }
         })
+        tauriUnlisteners.push(unlistenMessage)
 
         // Listen for connection state changes
-        await listen<string>('notify://connection-state', (event) => {
+        const unlistenState = await listen<string>('notify://connection-state', (event) => {
             if (event.payload !== 'connected') {
                 isConnected.value = false
                 clientId.value = null
             }
         })
+        tauriUnlisteners.push(unlistenState)
 
         // Start connection
         await invoke('notify_connect', { url: wsUrl, token, origin })
@@ -143,10 +156,18 @@ async function initTauriConnection() {
 
 async function disconnectTauriConnection() {
     try {
+        cleanupTauriListeners()
         const { invoke } = await import('@tauri-apps/api/core')
         await invoke('notify_disconnect')
     } catch (err) {
         console.error('[server-connection] Failed to disconnect Tauri connection:', err)
+    }
+}
+
+function cleanupTauriListeners() {
+    if (tauriUnlisteners.length > 0) {
+        tauriUnlisteners.forEach(unlisten => unlisten())
+        tauriUnlisteners = []
     }
 }
 

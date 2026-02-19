@@ -81,7 +81,10 @@ impl<R: Runtime> NotifyContext<R> {
                     Some(d) => d,
                     None => return,
                 };
-                let title = payload.get("title").and_then(|v| v.as_str()).unwrap_or("");
+                let title = payload
+                    .get("title")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("你有一条新的消息");
                 let session_id = payload
                     .get("sessionId")
                     .and_then(|v| v.as_str())
@@ -101,7 +104,7 @@ impl<R: Runtime> NotifyContext<R> {
                 } else {
                     message.to_string()
                 };
-                self.trigger_notification(session_id, &title, &body);
+                self.trigger_notification(session_id, title.trim(), body.trim());
             }
             _ => {
                 // task_trigger, agent_start, etc. — informational, no notification

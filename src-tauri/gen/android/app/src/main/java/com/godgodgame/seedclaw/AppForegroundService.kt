@@ -11,6 +11,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 
 import android.content.pm.ServiceInfo
+import android.os.PowerManager
 import com.godgodgame.seedclaw.R
 
 class AppForegroundService : Service() {
@@ -18,6 +19,8 @@ class AppForegroundService : Service() {
     override fun onBind(intent: Intent): IBinder? {
         return null
     }
+
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -30,6 +33,22 @@ class AppForegroundService : Service() {
              )
         } else {
              startForeground(NOTIFICATION_ID, createNotification())
+        }
+
+        // Acquire WakeLock
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SeedClaw::BackgroundService").apply {
+            acquire()
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Release WakeLock
+        wakeLock?.let {
+            if (it.isHeld) {
+                it.release()
+            }
         }
     }
 
@@ -64,7 +83,7 @@ class AppForegroundService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("SeedClaw服务")
-            .setContentText("正在监听通知...")
+            .setContentText("正在保持连接...")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
             .build()

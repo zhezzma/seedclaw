@@ -92,8 +92,8 @@ impl GotifyManager {
                                                     let _ = handle
                                                         .notification()
                                                         .builder()
-                                                        .title(&gotify_msg.title)
-                                                        .body(&gotify_msg.message)
+                                                        .title(gotify_msg.title.trim())
+                                                        .body(gotify_msg.message.trim())
                                                         .show();
                                                 }
                                             }

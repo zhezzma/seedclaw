@@ -13,7 +13,19 @@ const isRendering = ref(false)
 const renderContent = async (text: string) => {
     isRendering.value = true
     try {
-        renderedHtml.value = await md.render(text || '')
+        // First pass: synchronous render to avoid layout shift/flash
+        // This ensures content is visible immediately
+        const syncHtml = md.renderSync(text || '')
+        if (syncHtml) {
+            renderedHtml.value = syncHtml
+        }
+
+        // Second pass: async worker render (if needed for complex features or just to be safe)
+        // In many cases sync render is enough, but worker might have more features enabled
+        const workerHtml = await md.render(text || '')
+        if (workerHtml && workerHtml !== syncHtml) {
+            renderedHtml.value = workerHtml
+        }
     } catch (error) {
         console.error('Markdown render error:', error)
         // Fallback to basic text or sync render

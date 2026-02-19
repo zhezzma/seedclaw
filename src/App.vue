@@ -47,6 +47,14 @@ onMounted(async () => {
             }
         })
 
+         // Listen for app focus event (e.g. switching back from background)
+         await listen('tauri://focus', () => {
+             console.log('App focused, checking connection...')
+             import('./composables/notify-server-connection').then(({ checkConnection }) => {
+                 checkConnection()
+             })
+         })
+
         // 监听用户点击通知的动作
         // 作用：当用户点击系统通知时触发
         // 原理：操作系统只告诉我们 "用户点了 ID 为 123 的通知"，我们需要去 map 里查出它对应的会话 Key

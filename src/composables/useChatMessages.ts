@@ -275,13 +275,20 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
 
         const el = messagesContainerRef.value
         if (el) {
+            // Optimization: If already near bottom and not forced, might not need to do anything
+            // But usually we call this because content changed, so we want to scroll to new bottom
+
             isAutoScrolling.value = true
-            // If we are forcing scroll, we are resetting the user's scroll state
             if (force) userScrolledUp.value = false
 
             nextTick(() => {
                 if (el) {
-                    el.scrollTop = el.scrollHeight
+                    // Check if we actually need to scroll (avoid sub-pixel jitter)
+                    const targetScrollTop = el.scrollHeight - el.clientHeight
+                    if (Math.abs(el.scrollTop - targetScrollTop) > 2) {
+                        el.scrollTop = targetScrollTop
+                    }
+
                     // Reset lock after a short delay to allow scroll event to fire
                     setTimeout(() => {
                         isAutoScrolling.value = false
