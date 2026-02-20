@@ -49,7 +49,6 @@ export interface ChatState {
     // 当前会话信息（从 sessionsState 获取）
     currentSession: SessionRow | null
     // 当前选中的 Agent（新会话时通过 UI 下拉选择，已有会话时通过 session.agentId 推导）
-    currentAgent: AgentInfo | null
     // 选中的 Agent ID（新会话场景下由 UI 下拉菜单驱动）
     agentsSelectedId: string
 }
@@ -61,7 +60,6 @@ const state = reactive<ChatState>({
     sessionKey: '',
     sessionsMap: new Map<string, ChatSessionData>(),
     currentSession: null,
-    currentAgent: null,
     agentsSelectedId: '',
 })
 
@@ -91,13 +89,6 @@ function getSessionData(key: string): ChatSessionData {
     return data
 }
 
-/**
- * 根据 agentId 从 agentsList 中查找 Agent
- */
-function findAgent(agentId: string): AgentInfo | null {
-    const agentsState = useAgentsState()
-    return agentsState.agentsList?.find((a: any) => a.id === agentId) || null
-}
 
 // ==================== Actions ====================
 
@@ -506,7 +497,6 @@ const setSessionKey = async (key: string, loadHistory = true, type?: string) => 
     state.currentSession = session || null
     if (session?.agentId) {
         state.agentsSelectedId = session.agentId
-        state.currentAgent = findAgent(session.agentId)
     }
 
     if (needsLoad) {
@@ -526,10 +516,7 @@ const createNewSession = async () => {
     const settings = useUiSettingsStore()
     settings.setLastActiveSessionKey('')
 
-    // 新会话场景：currentAgent 由 agentsSelectedId 决定
-    if (state.currentAgent?.id != state.agentsSelectedId) {
-        state.currentAgent = findAgent(state.agentsSelectedId)
-    }
+    // 新会话场景：currentAgent 将通过 getter 自动根据 agentsSelectedId 推导
 }
 
 /**
@@ -538,7 +525,6 @@ const createNewSession = async () => {
  */
 const selectAgent = (agentId: string) => {
     state.agentsSelectedId = agentId
-    state.currentAgent = findAgent(agentId)
 }
 
 const steerMessage = async (message: string, sessionKey?: string) => {
@@ -713,6 +699,10 @@ export function useChatState() {
         get chatRunId() { return getSessionData(state.sessionKey).chatRunId },
         get chatStreamStartedAt() { return getSessionData(state.sessionKey).chatStreamStartedAt },
         get chatLoading() { return getSessionData(state.sessionKey).chatLoading },
+        get currentAgent() {
+            const agentsState = useAgentsState()
+            return agentsState.agentsList?.find(a => a.id === state.agentsSelectedId) || null
+        },
 
         sendMessage,
         steerMessage,

@@ -189,7 +189,7 @@ const closeFileViewer = () => {
         </div>
         <!-- Header -->
         <div class="chat-header opacity-70 text-xs mb-1">
-            {{ message.role === 'user' ? $t('chat.you') : assistantName || 'Assistant' }}
+            {{ message.role === 'user' ? $t('chat.you') : assistantName }}
             <time v-if="message.timestamp" class="ml-1">{{ formatTime(message.timestamp) }}</time>
         </div>
 

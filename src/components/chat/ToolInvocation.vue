@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import {
     WrenchScrewdriverIcon,
     CheckCircleIcon,
     ExclamationCircleIcon,
     ChevronDownIcon,
-    ChevronRightIcon
+    ChevronRightIcon,
+    EyeIcon
 } from '@heroicons/vue/24/outline'
 
 const props = defineProps<{
@@ -18,6 +20,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const router = useRouter()
 
 const isOpen = ref(false)
 
@@ -82,6 +85,65 @@ const textResultContent = computed(() => {
 
     return null
 })
+
+/**
+ * 从文本中提取合法的文件路径（支持 Unix 和 Windows 路径）
+ * Unix:    /home/user/file.txt
+ * Windows: D:\folder\file.ts  D:\\folder\\file.ts  D:/folder/file.ts
+ * 排除 URL（http:// https:// ftp:// ws:// wss://）
+ */
+function extractPaths(text: string): string[] {
+    if (!text) return []
+    // 先移除 URL，防止 URL 路径被误提取
+    const cleaned = text.replace(/(?:https?|ftp|wss?):\/\/[^\s"'`,;[\]{}()]+/gi, '')
+    const patterns = [
+        // Windows: D:\ or D:\\ or D:/ followed by path segments
+        /[A-Za-z]:[\\\/](?:[^\s"'`,;[\]{}()]+)/g,
+        // Unix absolute: /xxx/yyy (at least 2 segments to avoid matching lone /)
+        /\/(?:[\w.\-@]+[/\\])+[\w.\-@]*/g,
+    ]
+    const results = new Set<string>()
+    for (const regex of patterns) {
+        const matches = cleaned.match(regex) || []
+        for (const m of matches) {
+            // 清理尾部的标点符号
+            const trimmed = m.replace(/[.,;:!?)}\]]+$/, '')
+            if (trimmed.length > 2) results.add(trimmed)
+        }
+    }
+    return [...results]
+}
+
+/** 获取路径的文件名（basename） */
+function basename(path: string): string {
+    const parts = path.replace(/\\/g, '/').split('/')
+    return parts[parts.length - 1] || path
+}
+
+/** Args 中提取到的路径 */
+const argsPaths = computed(() => {
+    return extractPaths(formatJson(props.args))
+})
+
+/** Result 中提取到的路径 */
+const resultPaths = computed(() => {
+    const text = textResultContent.value ?? formatJson(props.result)
+    return extractPaths(text)
+})
+
+/** 点击路径按钮 — 跳转 file-viewer */
+function openFilePath(path: string) {
+    router.push({ name: 'file-viewer', query: { path } })
+}
+
+/** 预览内容 — 通过 router state 传递 */
+function previewContent(content: string) {
+    router.push({
+        name: 'file-viewer',
+        query: { preview: 'true' },
+        state: { previewContent: content }
+    } as any)
+}
 </script>
 
 <template>
@@ -114,16 +176,43 @@ const textResultContent = computed(() => {
             <div class="p-3 space-y-3">
                 <!-- Arguments -->
                 <div>
-                    <div class="text-xs font-semibold text-base-content/50 mb-1 uppercase tracking-wider">{{
-                        $t('tool.args') }}</div>
+                    <div class="flex items-center gap-2 mb-1 flex-wrap">
+                        <div class="text-xs font-semibold text-base-content/50 uppercase tracking-wider">{{
+                            $t('tool.args') }}</div>
+                        <!-- Preview button -->
+                        <button class="btn btn-ghost btn-xs gap-0.5 text-base-content/50 hover:text-primary"
+                            @click="previewContent(formatJson(args))" :title="$t('tool.preview')">
+                            <EyeIcon class="w-3.5 h-3.5" />
+                        </button>
+                        <!-- Path buttons -->
+                        <button v-for="p in argsPaths" :key="p"
+                            class="btn btn-ghost btn-xs font-mono text-primary/80 hover:text-primary hover:bg-primary/10"
+                            :title="p" @click="openFilePath(p)">
+                            {{ basename(p) }}
+                        </button>
+                    </div>
                     <pre
                         class="bg-base-300/50 p-2 rounded text-xs font-mono overflow-x-auto">{{ formatJson(args) }}</pre>
                 </div>
 
                 <!-- Result -->
                 <div v-if="result">
-                    <div class="text-xs font-semibold text-base-content/50 mb-1 uppercase tracking-wider">{{
-                        $t('tool.result') }}</div>
+                    <div class="flex items-center gap-2 mb-1 flex-wrap">
+                        <div class="text-xs font-semibold text-base-content/50 uppercase tracking-wider">{{
+                            $t('tool.result') }}</div>
+                        <!-- Preview button -->
+                        <button class="btn btn-ghost btn-xs gap-0.5 text-base-content/50 hover:text-primary"
+                            @click="previewContent(textResultContent ?? formatJson(result))"
+                            :title="$t('tool.preview')">
+                            <EyeIcon class="w-3.5 h-3.5" />
+                        </button>
+                        <!-- Path buttons -->
+                        <button v-for="p in resultPaths" :key="p"
+                            class="btn btn-ghost btn-xs font-mono text-primary/80 hover:text-primary hover:bg-primary/10"
+                            :title="p" @click="openFilePath(p)">
+                            {{ basename(p) }}
+                        </button>
+                    </div>
 
                     <!-- 优化：如果包含纯文本结果，直接展示 -->
                     <div v-if="textResultContent !== null"
