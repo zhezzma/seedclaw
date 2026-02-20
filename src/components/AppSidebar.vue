@@ -19,6 +19,7 @@ import { useChatState } from '../composables/useChatState'
 import { useAgentsState } from '../composables/useAgentsState'
 import { useNavActive } from '../composables/useNavActive'
 import { useI18n } from 'vue-i18n'
+import { truncateText } from '../utils/format'
 
 const router = useRouter()
 const { confirm } = useConfirm()
@@ -48,7 +49,7 @@ const displaySessions = computed(() => {
     return sessionsState.sessionsResult?.sessions
         .map((s: SessionRow) => ({
             key: s.id,
-            label: s?.name || s?.id
+            label: s?.name || truncateText(s.firstMessage, 9)
         }))
 })
 
@@ -165,7 +166,7 @@ const handleNavClick = (item: any) => {
         <!-- Conversations Header -->
         <div class="shrink-0 px-4 pt-2 pb-2 flex items-center justify-between">
             <span class="text-sm font-medium text-base-content/70 uppercase tracking-wider">{{ $t('sidebar.recentChats')
-            }}</span>
+                }}</span>
             <div class="flex gap-1">
                 <button v-if="displaySessions && displaySessions.length > 0"
                     class="btn btn-ghost btn-circle btn-xs hover:bg-error/20 hover:text-error"

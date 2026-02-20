@@ -21,6 +21,7 @@ import { useChatState } from '../composables/useChatState'
 import { SessionRow, useSessionsState, type SessionsResult } from '../composables/useSessionsState'
 import { useAgentsState } from '../composables/useAgentsState'
 import { useToast } from '../composables/useToast'
+import { truncateText } from '../utils/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -67,13 +68,15 @@ const currentSessionName = computed(() => {
     const sessions = sessionsState.sessionsResult?.sessions
     if (sessions) {
         const found = sessions.find((s: SessionRow) => s.id === sessionKey)
-        if (found?.name) return found.name
+        if (found) {
+            return found.name || truncateText(found.firstMessage, 9)
+        }
     }
 
     // Fallback 到 chatState.currentSession
     const session = chatState.currentSession
     if (!session) return ''
-    return session.name || session.id || ''
+    return session.name || truncateText(session.firstMessage, 9)
 })
 
 // Messages / Cron Mode Logic

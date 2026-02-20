@@ -161,7 +161,8 @@ export function useSessionsState() {
     }
 
     const commitNewSession = async (agentId: string, inputText?: string): Promise<string> => {
-        const session = await apiPost<SessionRow>(`/api/sessions/${agentId}`)
+        const body = inputText ? { firstMessage: inputText } : undefined
+        const session = await apiPost<SessionRow>(`/api/sessions/${agentId}`, body)
         if (state.sessionsResult) {
             // 去重：防止并发导致同一 session 被添加两次
             const existing = state.sessionsResult.sessions || []
