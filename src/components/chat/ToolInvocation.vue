@@ -90,17 +90,19 @@ const textResultContent = computed(() => {
  * 从文本中提取合法的文件路径（支持 Unix 和 Windows 路径）
  * Unix:    /home/user/file.txt
  * Windows: D:\folder\file.ts  D:\\folder\\file.ts  D:/folder/file.ts
- * 排除 URL（http:// https:// ftp:// ws:// wss://）
+ * 排除 URL 和 JSON 转义序列（\n \t \r 等）
  */
 function extractPaths(text: string): string[] {
     if (!text) return []
-    // 先移除 URL，防止 URL 路径被误提取
-    const cleaned = text.replace(/(?:https?|ftp|wss?):\/\/[^\s"'`,;[\]{}()]+/gi, '')
+    // 1. 移除 URL，防止 URL 路径被误提取
+    let cleaned = text.replace(/(?:https?|ftp|wss?):\/\/[^\s"'`,;[\]{}()]+/gi, '')
+    // 2. 移除 JSON 转义序列（\n \t \r \0 等），防止 \n 被视为路径
+    cleaned = cleaned.replace(/\\[nrtbf0v]/g, ' ')
     const patterns = [
         // Windows: D:\ or D:\\ or D:/ followed by path segments
         /[A-Za-z]:[\\\/](?:[^\s"'`,;[\]{}()]+)/g,
-        // Unix absolute: /xxx/yyy (at least 2 segments to avoid matching lone /)
-        /\/(?:[\w.\-@]+[/\\])+[\w.\-@]*/g,
+        // Unix absolute: /xxx/yyy (仅 / 作为分隔符，至少 2 段)
+        /\/(?:[\w.\-@]+\/)+[\w.\-@]*/g,
     ]
     const results = new Set<string>()
     for (const regex of patterns) {
