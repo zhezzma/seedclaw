@@ -69,15 +69,15 @@ const createNewSession = () => {
     closeSidebarDrawer()
 }
 
-const handleDeleteSession = async (key: string, event: Event) => {
+const handleDeleteSession = async (session: { key: string, label: string }, event: Event) => {
     event.stopPropagation() // Prevent selecting the session
 
-    if (!await confirm(t('sidebar.deleteChatConfirm', { key }))) {
+    if (!await confirm(t('sidebar.deleteChatConfirm', { key: session.label }))) {
         return
     }
 
-    const result = await sessionsState.deleteSession(key)
-    if (result?.deleted && chatState.sessionKey === key) {
+    const result = await sessionsState.deleteSession(session.key)
+    if (result?.deleted && chatState.sessionKey === session.key) {
         router.push({ name: 'home' })
     }
 }
@@ -197,7 +197,7 @@ const handleNavClick = (item: any) => {
                     <ChatBubbleLeftRightIcon class="h-5 w-5 opacity-50 shrink-0" />
                     <span class="text-sm truncate flex-1">{{ session.label }}</span>
                     <!-- Delete button - visible on hover -->
-                    <button @click="handleDeleteSession(session.key, $event)"
+                    <button @click="handleDeleteSession(session, $event)"
                         class="btn btn-ghost btn-circle btn-xs opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity hover:bg-error/20 hover:text-error">
                         <TrashIcon class="h-4 w-4" />
                     </button>

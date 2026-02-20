@@ -15,7 +15,7 @@ ctx.addEventListener('message', (event) => {
 
     try {
         // Render the markdown
-        const renderedHtml = md.render(text || "");
+        const renderedHtml = md.render(text || "", { source: text });
 
         // Send the result back to the main thread
         ctx.postMessage({

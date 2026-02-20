@@ -16,6 +16,8 @@ const renderContent = async (text: string) => {
         // First pass: synchronous render to avoid layout shift/flash
         // This ensures content is visible immediately
         const syncHtml = md.renderSync(text || '')
+
+        // Use sync render immediately to feel responsive
         if (syncHtml) {
             renderedHtml.value = syncHtml
         }

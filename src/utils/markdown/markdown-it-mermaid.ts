@@ -1,4 +1,14 @@
 import MarkdownIt from 'markdown-it'
+import { mermaidCache, mermaidState } from './mermaid-cache'
+
+/** Simple string hash function for deterministic IDs */
+function hashCode(str: string): string {
+  let hash = 0;
+  for (let i = 0, len = str.length; i < len; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash).toString(36);
+}
 
 /**
  * Markdown-it的Mermaid插件，用于在Vue环境中处理mermaid代码块
@@ -17,8 +27,28 @@ export default function markdownItMermaid(md: MarkdownIt): void {
 
     // 检查是否为mermaid代码块
     if (info === 'mermaid') {
-      // 生成唯一ID
-      const diagramId = `mermaid-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+      // 检查代码块是否正常闭合 (判断原始Markdown以避免在流式输出过程中提前渲染并闪烁)
+      if (env && typeof env.source === 'string' && token.map) {
+        const lines = env.source.split('\n');
+        const endLineIdx = token.map[1] - 1;
+        if (endLineIdx >= 0 && endLineIdx < lines.length) {
+          const lastLine = lines[endLineIdx].trim();
+          // 如果代码块的最后一行不是对应的闭合标记 (如 ```) => 尚未闭合，此时降级为普通代码块渲染
+          if (!lastLine.startsWith(token.markup)) {
+            return originalFence(tokens, idx, options, env, self);
+          }
+        }
+      }
+
+      // 生成确定性的唯一ID（避免流式输出或worker重复渲染时ID随机导致Vue DOM刷新闪烁）
+      const diagramId = `mermaid-${idx}-${hashCode(code)}`
+
+      // 尝试从缓存中获取已经渲染好的SVG，避免最后阶段出现 placeholder 闪烁
+      const cacheKey = `${mermaidState.isDark ? 'dark' : 'light'}:${code}`;
+      let cachedSvg = `<div class="mermaid-loading">图表加载中...</div>`;
+      if (mermaidCache.has(cacheKey)) {
+        cachedSvg = mermaidCache.get(cacheKey) || cachedSvg;
+      }
 
       // 创建特殊元素，包含所需的数据属性和交互控件
       return `<div class="mermaid-diagram-wrapper">
@@ -38,10 +68,16 @@ export default function markdownItMermaid(md: MarkdownIt): void {
           <button type="button" class="mermaid-copy" title="复制图表代码">
             <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
           </button>
+          <button type="button" class="mermaid-toggle-code" title="查看代码">
+            <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+          </button>
         </div>
         <div class="mermaid-diagram-container" data-scale="1">
           <div class="mermaid-diagram" id="${diagramId}" data-mermaid="${encodeURIComponent(code)}" data-original-code="${encodeURIComponent(code)}">
-            <div class="mermaid-loading">图表加载中...</div></div>
+            ${cachedSvg}</div>
+        </div>
+        <div class="mermaid-code-container" style="display: none;">
+          <pre><code class="language-mermaid">${md.utils.escapeHtml(code)}</code></pre>
         </div>
       </div>`
     }

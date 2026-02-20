@@ -251,7 +251,7 @@ export default {
             title: '执行日志',
             noLogs: '暂无执行记录',
         },
-        confirmRun: '立即运行可能会导致今天的定时任务被跳过，确定要继续吗？',
+        confirmRun: '确定要立即运行继续吗？',
         confirmDelete: '确定要删除此任务吗？',
         errorMainSession: '主会话任务需要 "系统事件" 负载。',
         errorIsolatedSession: '独立会话任务需要 "Agent 对话" 负载。',

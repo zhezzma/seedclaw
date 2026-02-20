@@ -2,6 +2,7 @@ import mermaid, { MermaidConfig } from 'mermaid'
 import { nextTick, watch } from 'vue'  // 添加watch以监视变化
 import { useUiSettingsStore } from '../../stores/setting'
 import { useToast } from '../../composables/useToast'
+import { mermaidCache, mermaidState } from './mermaid-cache'
 
 //该文件不放在./markdown-it-mermaid中因为使用document..不能被works引用
 
@@ -133,6 +134,20 @@ function setupGlobalMermaidEventHandlers() {
             currentY = 0;
             if (container) {
                 updateContainerTransform(container, scale, currentX, currentY);
+            }
+        }
+        else if (button.classList.contains('mermaid-toggle-code')) {
+            const codeContainer = wrapper.querySelector('.mermaid-code-container') as HTMLElement;
+            if (codeContainer && container) {
+                if (codeContainer.style.display === 'none') {
+                    codeContainer.style.display = 'block';
+                    container.style.display = 'none';
+                    button.classList.add('active');
+                } else {
+                    codeContainer.style.display = 'none';
+                    container.style.display = 'block';
+                    button.classList.remove('active');
+                }
             }
         }
         else if (button.classList.contains('mermaid-download')) {
@@ -411,6 +426,7 @@ export function initializeMermaid() {
         // 监视模式变化并重新初始化mermaid
         watch(() => store.isDark, (newMode) => {
             console.log('显示模式改变:', newMode);
+            mermaidState.isDark = newMode;
             // 重新初始化mermaid配置
             mermaid.initialize(getMermaidConfig(newMode));
         }, { immediate: true });
@@ -513,6 +529,24 @@ export async function renderMermaidDiagrams(html: string): Promise<string> {
         cursor: pointer;
         z-index: 10;
       }
+      .mermaid-code-container {
+        padding: 16px;
+        background: var(--td-bg-color-secondarycontainer, rgba(0,0,0,0.05));
+        border-radius: 8px;
+        overflow-x: auto;
+        font-family: monospace;
+        font-size: 14px;
+        line-height: 1.5;
+        margin: 0;
+      }
+      .mermaid-code-container pre {
+        margin: 0;
+        background: transparent;
+      }
+      .mermaid-controls button.active {
+        background: var(--td-brand-color, #0052d9);
+        color: white;
+      }
 
     `
         document.head.appendChild(styleEl)
@@ -538,9 +572,17 @@ export async function renderMermaidDiagrams(html: string): Promise<string> {
         if (!code) return
 
         try {
+            const cacheKey = `${mermaidState.isDark ? 'dark' : 'light'}:${code}`;
+            if (mermaidCache.has(cacheKey)) {
+                element.innerHTML = mermaidCache.get(cacheKey)!;
+                return;
+            }
+
             // 使用mermaid.render异步渲染图表
             const renderResult = await mermaid.render(`svg-${diagramId}`, code)
             const { svg, bindFunctions } = renderResult
+
+            mermaidCache.set(cacheKey, svg);
 
             // 渲染SVG内容
             element.innerHTML = svg

@@ -251,7 +251,7 @@ export default {
             title: 'Execution Logs',
             noLogs: 'No execution logs',
         },
-        confirmRun: 'Running immediately may cause today\'s scheduled task to be skipped. Continue?',
+        confirmRun: 'Are you sure you want to run it immediately?',
         confirmDelete: 'Are you sure you want to delete this job?',
         errorMainSession: 'Main session jobs require "System Event" payload.',
         errorIsolatedSession: 'Isolated session jobs require "Agent Turn" payload.',

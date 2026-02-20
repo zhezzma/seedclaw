@@ -27,7 +27,7 @@ const md = {
         } catch (error) {
             console.error('Worker渲染失败，回退到同步渲染:', error)
             // 回退到同步渲染
-            let renderedHtml = syncRenderer.render(text || "")
+            let renderedHtml = syncRenderer.render(text || "", { source: text })
 
             // 处理其中的mermaid图表
             renderedHtml = await renderMermaidDiagrams(renderedHtml)
@@ -38,7 +38,7 @@ const md = {
 
     // 同步渲染方法（不处理mermaid图表）
     renderSync: (text: string): string => {
-        return syncRenderer.render(text || "")
+        return syncRenderer.render(text || "", { source: text })
     }
 }
 
