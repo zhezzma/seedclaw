@@ -253,22 +253,20 @@ const handleInstall = async (skill: any, agentId?: string) => {
                     class="card bg-base-100 border border-base-200 shadow-sm hover:shadow-md transition-shadow">
                     <div class="card-body p-4">
                         <div class="flex justify-between items-start mb-2">
-                            <div class="flex items-center gap-3">
+                            <div class="flex items-center gap-3 min-w-0 overflow-hidden">
                                 <div
                                     class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
                                     <CpuChipIcon class="w-6 h-6" />
                                 </div>
                                 <div class="overflow-hidden flex-1 min-w-0">
-                                    <h3 class="font-bold text-base truncate block w-full"
-                                        :title="skill.skill.displayName">{{
-                                            skill.skill.displayName }}
-                                    </h3>
+                                    <h3 class="font-bold text-base truncate block" :title="skill.skill.displayName">{{
+                                        skill.skill.displayName }}</h3>
                                     <p class="text-xs text-base-content/60 font-mono truncate"
                                         :title="skill.skill.slug">{{
                                             skill.skill.slug }}</p>
                                 </div>
                             </div>
-                            <div class="badge badge-sm badge-ghost shrink-0">{{ skill.skill?.latestVersionId }}</div>
+                            <!-- <div class="badge badge-sm badge-ghost shrink-0">{{ skill.skill?.latestVersionId }}</div> -->
                         </div>
 
                         <p class="text-sm text-base-content/70 line-clamp-2 min-h-[2.5em] mb-4"
@@ -303,9 +301,10 @@ const handleInstall = async (skill: any, agentId?: string) => {
             <div class="modal-box w-11/12 max-w-5xl h-[90vh] md:h-[80vh] flex flex-col p-0 overflow-hidden">
                 <!-- Header -->
                 <div class="flex justify-between items-center p-3 md:p-4 border-b border-base-200 bg-base-100 shrink-0">
-                    <h3 class="font-bold text-base md:text-lg flex items-center gap-2 truncate pr-8">
+                    <h3 class="font-bold text-base md:text-lg flex items-center gap-2 pr-8 max-w-[80%] min-w-0">
                         <CpuChipIcon class="w-5 h-5 md:w-6 md:h-6 text-primary shrink-0" />
-                        {{ $t('skills.installTitle', { name: selectedSkill?.skill?.displayName }) }}
+                        <span class="truncate">{{ $t('skills.installTitle', { name: selectedSkill?.skill?.displayName })
+                            }}</span>
                     </h3>
                     <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 z-10"
                         @click="closeInstallModal">✕</button>
@@ -369,7 +368,7 @@ const handleInstall = async (skill: any, agentId?: string) => {
                                     </div>
                                     <div class="mt-0.5 flex items-center  gap-2">
                                         <span class="text-xs text-base-content/60">{{ $t('skills.installGlobalDesc')
-                                        }}</span>
+                                            }}</span>
                                         <span v-if="isGlobalInstalled" class="badge badge-xs badge-success">
                                             <CheckIcon class="w-3 h-3 mr-1" />
                                             {{ $t('skills.installed') }}
@@ -380,7 +379,7 @@ const handleInstall = async (skill: any, agentId?: string) => {
 
                             <div v-if="agents.length > 0" class="divider text-xs my-2 font-mono opacity-50">{{
                                 $t('common.or')
-                            }}</div>
+                                }}</div>
 
                             <!-- Agent Options -->
                             <div class="grid grid-cols-1 gap-1">
