@@ -228,7 +228,7 @@ const logout = async () => {
                             </li>
 
 
-
+                            <!--
                             <li class="flex items-center justify-between p-4 lg:hidden">
                                 <div class="flex items-center gap-3">
                                     <ViewColumnsIcon class="h-5 w-5 text-base-content/60" />
@@ -239,6 +239,7 @@ const logout = async () => {
                                         v-model="configStore.showBottomNav" @change="configStore.persist()" />
                                 </div>
                             </li>
+                            -->
                         </ul>
                     </div>
                 </div>
@@ -394,7 +395,7 @@ const logout = async () => {
                         <span class="label-text-alt opacity-50">{{ $t('settings.silenceDurationDesc') }}</span>
                     </label>
                 </div>
-                <div>
+                <!--<div>
                     <label class="label">
                         <span class="label-text">{{ $t('settings.homePageBehavior') }}</span>
                     </label>
@@ -403,6 +404,7 @@ const logout = async () => {
                         <option value="new_session">{{ $t('settings.createNewSession') }}</option>
                     </select>
                 </div>
+                -->
             </div>
             <div class="modal-action">
                 <form method="dialog">

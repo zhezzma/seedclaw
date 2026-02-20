@@ -11,6 +11,7 @@ interface Options {
   headerStyle?: string
   onCopySuccess?: (text: string, element: HTMLElement) => void
   onCopyError?: (error: Error, element: HTMLElement) => void
+  onFullscreen?: (text: string, element: HTMLElement) => void
 }
 
 type RulesArgs = [Array<{
@@ -92,6 +93,9 @@ const renderCode = (
       <button class="code-preview-button${isSvg ? ' active' : ''}" title="Preview" onclick="toggleCodePreview(this)">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
       </button>` : ''}
+      <button data-clipboard-text="${content}" class="code-fullscreen-button" title="Fullscreen" onclick="fullscreenCodeContent(this)">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+      </button>
       <button data-clipboard-text="${content}" class="code-copy-button ${options.buttonClass}" style="${options.buttonStyle}" title="Copy code" onclick="copyCodeToClipboard(this)">
         ${options.svg}
       </button>
@@ -151,6 +155,13 @@ export default (md: any, options: Options) => {
           codeContent.classList.remove('hidden');
           button.classList.remove('active');
         }
+      };
+    }
+
+    if (!(window as any).fullscreenCodeContent) {
+      (window as any).fullscreenCodeContent = (button: HTMLElement) => {
+        const code = button.dataset.clipboardText || ''
+        options.onFullscreen && options.onFullscreen(code, button)
       };
     }
 
@@ -370,6 +381,22 @@ export default (md: any, options: Options) => {
 .markdown-it-code-title .code-scroll-top-button.hidden {
   opacity: 0;
   visibility: hidden;
+}
+
+.markdown-it-code-title .code-fullscreen-button {
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+.markdown-it-code-title .code-fullscreen-button:hover {
+  opacity: 1;
 }
 `;
     // 创建一个style元素

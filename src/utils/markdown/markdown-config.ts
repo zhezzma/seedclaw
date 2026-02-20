@@ -10,6 +10,7 @@ import markdownItMermaid from "./markdown-it-mermaid.ts"
 
 export interface MarkdownConfigOptions {
     onCopySuccess?: (text: string, element: HTMLElement) => void
+    onFullscreen?: (text: string, element: HTMLElement) => void
 }
 
 export function createMarkdownItInstance(options: MarkdownConfigOptions = {}): MarkdownIt {
@@ -22,7 +23,8 @@ export function createMarkdownItInstance(options: MarkdownConfigOptions = {}): M
         headerClass: "code-header-bg",
         svg: `<svg fill="none" viewBox="0 0 24 24" width="1em" height="1em" class="t-icon t-icon-copy" slot="icon"><path fill="currentColor" d="M2 2h13v5.5h-2V4H4v9h3.5v2H2V2zm7 7h13v13H9V9zm2 2v9h9v-9h-9z"></path></svg>`,
         onCopySuccess: options.onCopySuccess || (() => { }),
-        onCopyError: () => { }
+        onCopyError: () => { },
+        onFullscreen: options.onFullscreen || (() => { })
     })
     md.use(mdhljs, { hljs })
     md.use(mila, { attrs: { target: '_blank', rel: 'noopener' } })

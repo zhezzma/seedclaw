@@ -2,12 +2,20 @@ import markdownWorker from './markdown-worker-wrapper'
 import { renderMermaidDiagrams } from "./mermaid-render.ts"
 import { createMarkdownItInstance } from './markdown-config'
 import { useToast } from '../../composables/useToast'
+import router from '../../router'
 
 
 
 // 创建同步渲染器作为回退选项
 const syncRenderer = createMarkdownItInstance({
-    onCopySuccess: (_text, _element) => { useToast().success("复制成功!") }
+    onCopySuccess: (_text, _element) => { useToast().success("复制成功!") },
+    onFullscreen: (code: string, _element: HTMLElement) => {
+        router.push({
+            name: 'file-viewer',
+            query: { preview: 'true' },
+            state: { previewContent: code }
+        } as any)
+    }
 })
 
 
