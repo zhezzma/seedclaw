@@ -20,6 +20,7 @@ import {
 import MarkdownRenderer from '../components/chat/MarkdownRenderer.vue'
 
 import { useAgentsState } from '../composables/useAgentsState'
+import { ConvexSkill } from '../composables/clawhub-client'
 
 
 
@@ -85,11 +86,10 @@ const installTarget = ref<'global' | string>('global')
 const agents = computed(() => agentsState.agentsList)
 
 const readmeContent = computed(() => {
-    if (!selectedSkill.value?.latestVersion) return ''
-    return skillsState.skillMessages[selectedSkill.value.latestVersion._id] || ''
+    return skillsState.skillMessages[selectedSkill.value?.skill?.latestVersionId] || ''
 })
 const loadingReadme = computed(() => {
-    return skillsState.skillsBusyKey === selectedSkill.value?.latestVersion?._id
+    return skillsState.skillsBusyKey === selectedSkill.value?.skill?.latestVersionId
 })
 
 const parsedReadme = computed(() => {
@@ -119,7 +119,7 @@ const parsedReadme = computed(() => {
     return { frontmatter: null, content: raw }
 })
 
-const openInstallModal = async (skill: any) => {
+const openInstallModal = async (skill: ConvexSkill) => {
     selectedSkill.value = skill
     installTarget.value = 'global'
     showInstallModal.value = true
@@ -128,9 +128,7 @@ const openInstallModal = async (skill: any) => {
     fetchAgentSkillsStatus()
 
     // Fetch Readme
-    if (skill.latestVersion?._id) {
-        skillsState.getSkillReadme(skill.latestVersion._id)
-    }
+    skillsState.getSkillReadme(skill.skill.latestVersionId)
 }
 
 const closeInstallModal = () => {
@@ -189,7 +187,7 @@ const isAgentInstalled = (agentId: string) => {
 const installingSkills = ref<Record<string, boolean>>({})
 
 const handleInstall = async (skill: any, agentId?: string) => {
-    if (!skill?.latestVersion) return
+
 
     const skillId = skill.skill._id
     installingSkills.value[skillId] = true
@@ -270,7 +268,7 @@ const handleInstall = async (skill: any, agentId?: string) => {
                                             skill.skill.slug }}</p>
                                 </div>
                             </div>
-                            <div class="badge badge-sm badge-ghost shrink-0">{{ skill.latestVersion?.version }}</div>
+                            <div class="badge badge-sm badge-ghost shrink-0">{{ skill.skill?.latestVersionId }}</div>
                         </div>
 
                         <p class="text-sm text-base-content/70 line-clamp-2 min-h-[2.5em] mb-4"

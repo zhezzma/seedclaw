@@ -1,5 +1,13 @@
 export interface ConvexSkill {
-    latestVersion: {
+    latestVersion?: {
+        _id: string
+        _creationTime: number
+        changelog: string
+        changelogSource: string
+        createdAt: number
+        version: string
+    },
+    version?: {
         _id: string
         _creationTime: number
         changelog: string
