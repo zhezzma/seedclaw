@@ -212,8 +212,14 @@ const handleCommandDelta = (data: any, targetKey: string) => {
 }
 
 // 处理 SSE 事件，更新会话状态
+// 【重要】服务器协议说明：
+// - 每次对话开始时，服务器会先通过 message_start/message_end 回显用户发送的消息（role: user）
+// - 然后才开始推送 assistant 的响应（message_start + text_delta/thinking_delta + message_end）
+// - Gemini 等模型可能在一个 turn 内发生多次 message_start/message_end（分别对应 thinking、工具调用、回复等）
 const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
     const sessionData = getSessionData(targetKey)
+    // chatStream 为 null 时（如 message_end 后等待下一条消息），懒初始化为空数组
+    // 这样后续的 delta 事件可以直接 push，无需额外判断
     if (!sessionData.chatStream) {
         sessionData.chatStream = []
     }
@@ -221,20 +227,24 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
 
     switch (eventType) {
         case 'message_start':
-            // 消息开始，无需特殊处理，stream 已初始化
+            // 消息开始：服务器可能推送 user 消息回显或 assistant 消息开始
+            // chatStream 已在函数顶部懒初始化为 []，此处无需额外处理
             break
         case 'text_delta':
         case 'thinking_delta': {
-            // 合并文本或思考过程增量
-            // 使用通用逻辑处理 delta
+            // 合并文本增量（text_delta）或思考过程增量（thinking_delta）
+            // 策略：若 stream 的最后一个 block 类型相同，则追加内容；否则插入新 block
+            // 这样可以将连续的同类型 delta 合并为一个 block，减少渲染次数
             const type = eventType === 'text_delta' ? 'text' : 'thinking'
             const contentKey = type // 'text' or 'thinking'
 
             if (data?.delta) {
                 const lastBlock = stream.length > 0 ? stream[stream.length - 1] : null
                 if (lastBlock?.type === type) {
+                    // 同类型：追加到末尾 block
                     lastBlock[contentKey] = (lastBlock[contentKey] || '') + data.delta
                 } else {
+                    // 不同类型（如从 thinking 切换到 text）：插入新 block
                     stream.push({ type, [contentKey]: data.delta })
                 }
             }
@@ -322,19 +332,29 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
 
             break
         case 'message_end':
-            // 消息结束，将流内容转为正式消息
+            // 【关键逻辑】仅当 stream 有实际内容时，才将其固化为正式消息并重置 chatStream
+            //
+            // 背景：服务器在每次对话开始时会先发一对 message_start/message_end 来回显用户消息
+            // （此时 stream 为空），随后才会开始推送 assistant 的内容
+            //
+            // 如果对空 stream 也执行 chatStream = null，会触发如下无意义的状态跳变：
+            //   [] （发消息后初始状态）→ null（user 回显结束）→ []（assistant 开始，函数顶部重置）
+            // 这个 [] → null → [] 的瞬间会让 Vue 重新计算 processedMessages，
+            // 破坏 loading 动画的连续性，产生可见的闪烁
             if (stream.length > 0) {
+                // 有内容：将 stream 内容固化为一条正式的 assistant 消息
                 sessionData.chatMessages = [...sessionData.chatMessages, {
                     role: 'assistant',
-                    content: JSON.parse(JSON.stringify(stream)), // 深拷贝流内容
+                    content: JSON.parse(JSON.stringify(stream)), // 深拷贝，防止引用被后续操作修改
                     timestamp: Date.now(),
                     id: generateUUID()
                 }]
+                sessionData.chatStream = null
+                // 有新消息加入 → tree 结构可能变化，刷新分支控件
+                fetchSessionTree(targetKey)
             }
-            sessionData.chatStream = null
-            // Stream finished -> Tree structure might have changed (new message added)
-            // Fetch updated tree to show branching controls
-            fetchSessionTree(targetKey)
+            // stream 为空（user 消息回显）：直接跳过，保持 chatStream 为 [] 不变
+            // loading 动画得以保持连续，不产生闪烁
             break
         case 'command_delta':
             stream.push({ type: 'text', text: data.delta })

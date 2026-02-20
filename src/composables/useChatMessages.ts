@@ -198,19 +198,29 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
             }
         }
 
-        // 2. 处理流式输出 (Streaming)
-        if (state.chatStream && Array.isArray(state.chatStream)) {
+        // 2. 处理流式输出（Streaming）
+        // 【条件说明】只有当 chatStream 非空且有实际内容时，才进入流式渲染分支。
+        //
+        // 为什么不用 "chatStream != null" 作为条件？
+        //   - sendMessage 时 chatStream 被初始化为 []（空数组）
+        //   - 服务器会先回显用户消息（发一对 message_start/message_end），此期间 stream 保持 []
+        //   - 空数组虽然是 truthy，但没有内容可渲染，这时应该显示 loading 动画而非空 bubble
+        //   - 如果条件是 "chatStream != null"，空数组会进入此分支，跳过 loading placeholder 的 else if，
+        //     导致 loading 动画消失，用户无法感知系统正在工作
+        if (state.chatStream && Array.isArray(state.chatStream) && state.chatStream.length > 0) {
             const streamBlocks: DisplayBlock[] = convertToBlocks(state.chatStream)
 
             if (streamBlocks.length > 0) {
                 const lastMsg = displayMessages.length > 0 ? displayMessages[displayMessages.length - 1] : null
 
-                // 判断流式内容是否应合并到上一条 Assistant 消息
+                // 根据设置决定是否合并到上一条 assistant 消息（多轮工具调用场景）
                 const shouldMergeStream = settings.assistantMsgMerge && lastMsg && lastMsg.role === 'assistant'
 
                 if (shouldMergeStream && lastMsg) {
+                    // 合并模式：追加到前一条 assistant 消息的 blocks 中
                     lastMsg.blocks.push(...streamBlocks)
                 } else {
+                    // 独立模式：作为新的 streaming bubble 插入
                     displayMessages.push({
                         id: 'streaming-pending',
                         role: 'assistant',
@@ -220,19 +230,24 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
                 }
             }
         } else if (state.chatSending || Boolean(state.chatRunId)) {
-            // 3. 等待中状态 (Loading/Thinking placeholder)
-            // 仅当最后一条不是 assistant 消息时显示空 bubble，或者始终显示一个 loading indicator
-            // 旧逻辑：如果不合并或最后一条不是 assistant，显示纯空文本框占位
+            // 3. 等待中状态（Loading placeholder）
+            // 触发条件：chatStream 为 null 或空数组，但仍在发送中（chatSending 或 chatRunId 未清除）
+            // 场景：
+            //   a. 刚发送消息，等待服务器第一个响应
+            //   b. user 消息回显的 message_end 后，等待 assistant 开始答复
+            //   c. 两条 assistant 消息之间（多轮工具调用）
             const lastMsg = displayMessages.length > 0 ? displayMessages[displayMessages.length - 1] : null
             if (!lastMsg || lastMsg.role !== 'assistant') {
+                // 仅当最后一条不是 assistant 时插入占位符，避免重复
                 displayMessages.push({
                     id: 'streaming-pending',
                     role: 'assistant',
-                    blocks: [{ type: 'text', text: '' }], // 空文本 Block 用于 UI 显示 Loading 状态
+                    blocks: [{ type: 'text', text: '' }], // 空 block，由 MessageBubble 渲染为 loading 动画
                     timestamp: Date.now()
                 })
             }
         }
+
 
         return displayMessages
     })
