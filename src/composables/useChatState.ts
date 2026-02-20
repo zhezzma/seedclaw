@@ -608,7 +608,13 @@ const retryMessage = async (entryId: string, sessionKey?: string) => {
     const entryIndex = sessionData.chatMessages.findIndex(m => m.entryId === entryId)
     if (entryIndex >= 0) {
         // Remove from the assistant entry onwards (it and any subsequent messages on this branch)
-        sessionData.chatMessages = sessionData.chatMessages.slice(0, entryIndex)
+        // If the entry being retried is a user message, retain it.
+        const isUserMsg = sessionData.chatMessages[entryIndex].role === 'user'
+        if (isUserMsg) {
+            sessionData.chatMessages = sessionData.chatMessages.slice(0, entryIndex + 1)
+        } else {
+            sessionData.chatMessages = sessionData.chatMessages.slice(0, entryIndex)
+        }
     }
 
     const runId = generateUUID()

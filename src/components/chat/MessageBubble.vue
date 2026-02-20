@@ -254,6 +254,11 @@ const closeFileViewer = () => {
                 :title="$t('common.delete')">
                 <TrashIcon class="h-4 w-4" />
             </button>
+            <button v-if="!isBusy && message.entryId" @click="emit('retry', message)"
+                class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-warning hover:bg-warning/10"
+                :title="$t('chat.retry') || 'Retry'">
+                <ArrowPathIcon class="h-4 w-4" />
+            </button>
         </div>
 
         <!-- Assistant Message Bubble -->
