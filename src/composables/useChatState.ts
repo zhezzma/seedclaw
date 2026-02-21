@@ -350,8 +350,6 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
                     id: generateUUID()
                 }]
                 sessionData.chatStream = null
-                // 有新消息加入 → tree 结构可能变化，刷新分支控件
-                fetchSessionTree(targetKey)
             }
             // stream 为空（user 消息回显）：直接跳过，保持 chatStream 为 [] 不变
             // loading 动画得以保持连续，不产生闪烁
@@ -365,6 +363,11 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
             break
         case 'agent_end':
         case 'done':
+            // 避免 agent_end 和 done 两者同时触发导致重复拉取
+            if (!sessionData.chatSending) {
+                break
+            }
+
             // 会话彻底结束
             sessionData.chatRunId = null
             sessionData.chatStreamStartedAt = null
