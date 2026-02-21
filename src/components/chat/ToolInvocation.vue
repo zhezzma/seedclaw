@@ -99,18 +99,19 @@ function extractPaths(text: string): string[] {
     // 2. 移除 JSON 转义序列（\n \t \r \0 等），防止 \n 被视为路径
     cleaned = cleaned.replace(/\\[nrtbf0v]/g, ' ')
     const patterns = [
-        // Windows: D:\ or D:\\ or D:/ followed by path segments
-        /[A-Za-z]:[\\\/](?:[^\s"'`,;[\]{}()]+)/g,
-        // Unix absolute: /xxx/yyy (仅 / 作为分隔符，至少 2 段)
-        /\/(?:[\w.\-@]+\/)+[\w.\-@]*/g,
+        // Windows: D:\ or D:\\ or D:/ 后跟路径段，最终以 .ext 结尾（文件名）
+        /[A-Za-z]:[\\\/](?:[^\s"'`,;\[\]{}()]*[\\\/])*[^\s"'`,;\[\]{}()\\\/]+\.[A-Za-z0-9_]{1,20}/g,
+        // Unix absolute: /xxx/yyy/file.ext（至少 2 段且以 .ext 结尾）
+        /\/(?:[\w.\-@]+\/)+[\w\-@]+\.[\w]{1,20}/g,
     ]
     const results = new Set<string>()
     for (const regex of patterns) {
         const matches = cleaned.match(regex) || []
         for (const m of matches) {
-            // 清理尾部的标点符号
-            const trimmed = m.replace(/[.,;:!?)}\]]+$/, '')
-            if (trimmed.length > 2) results.add(trimmed)
+            // 清理尾部的标点符号（但保留 .ext）
+            const trimmed = m.replace(/[,;:!?)\]]+$/, '')
+            // 确保仍然有扩展名
+            if (trimmed.length > 2 && /\.\w+$/.test(trimmed)) results.add(trimmed)
         }
     }
     return [...results]
