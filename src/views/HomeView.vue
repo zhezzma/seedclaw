@@ -11,6 +11,7 @@ import { useTTS } from '../composables/useTTS'
 import { useVoiceChat } from '../composables/useVoiceChat'
 import ChatHeader from '../components/chat/ChatHeader.vue'
 import MessageBubble from '../components/chat/MessageBubble.vue'
+import VirtualMessageList from '../components/chat/VirtualMessageList.vue'
 import ChatInput from '../components/chat/ChatInput.vue'
 import VoiceChatOverlay from '../components/chat/VoiceChatOverlay.vue'
 import SessionSidebar from '../components/chat/SessionSidebar.vue'
@@ -573,14 +574,11 @@ async function applyDefaultSessionBehavior() {
 
                 <!-- Chat messages - only this area scrolls -->
                 <div v-else ref="messagesContainerRef" class="flex-1 overflow-y-auto p-2 md:p-4 relative">
-                    <div class="space-y-4 mx-auto w-full" :class="{ 'max-w-3xl': !settingsStore.isWideMode }">
-                        <MessageBubble v-for="(msg, index) in processedMessages" :key="msg.entryId || index"
-                            :message="msg" @copy="copyMessage" @read-aloud="readAloud" @delete="deleteMessage"
-                            @retry="retryMessage" @navigate-branch="navigateBranch"
-                            :is-loading="isBusy && (index === processedMessages.length - 1)" :is-busy="isBusy"
-                            :branch-info="getBranchInfo(msg)" />
-
-
+                    <div class="mx-auto w-full" :class="{ 'max-w-3xl': !settingsStore.isWideMode }">
+                        <VirtualMessageList :messages="processedMessages" :is-busy="isBusy"
+                            :scroll-container="messagesContainerRef" :is-wide-mode="settingsStore.isWideMode"
+                            :get-branch-info="getBranchInfo" @copy="copyMessage" @read-aloud="readAloud"
+                            @delete="deleteMessage" @retry="retryMessage" @navigate-branch="navigateBranch" />
                     </div>
 
                     <!-- Scroll to bottom FAB -->
