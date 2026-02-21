@@ -185,10 +185,28 @@ watch(
     }
 )
 
-// Re-compute when list grows (new messages arrive)
+// Re-compute whenever message list changes: length OR any key change
+// (streaming end causes the last message's key to flip from idx-N → real entryId)
+// Also migrate measured heights from old key → new key to keep positions accurate.
+let prevKeys: string[] = []
 watch(
-    () => props.messages.length,
-    () => nextTick(updateVisibleRange)
+    () => enrichedItems.value.map(i => i.key),
+    (newKeys) => {
+        // If same length, check for key changes at the same index (key migration)
+        if (prevKeys.length === newKeys.length) {
+            for (let i = 0; i < newKeys.length; i++) {
+                if (prevKeys[i] !== newKeys[i]) {
+                    const oldH = heights.value[prevKeys[i]]
+                    if (oldH !== undefined) {
+                        heights.value[newKeys[i]] = oldH
+                        delete heights.value[prevKeys[i]]
+                    }
+                }
+            }
+        }
+        prevKeys = newKeys
+        nextTick(updateVisibleRange)
+    }
 )
 
 // ──────────────────────────────────────────────────────────────────────────
