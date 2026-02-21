@@ -389,16 +389,31 @@ const abortChat = async (sessionKey?: string) => {
         sseConnections.delete(targetKey)
     }
     if (targetKey) {
+        const sd = getSessionData(targetKey)
         try {
-            await apiPost(`/api/chat/${targetKey}/abort`)
+            const result = await apiPost<{ messages?: ChatMessage[], isStreaming?: boolean }>(`/api/chat/${targetKey}/abort`)
+            if (result) {
+                if (result.messages) {
+                    sd.chatMessages = result.messages
+                }
+                if (typeof result.isStreaming === 'boolean') {
+                    sd.chatSending = result.isStreaming
+                } else {
+                    sd.chatSending = false
+                }
+            } else {
+                sd.chatSending = false
+            }
         } catch {
             // Ignore abort errors
+            sd.chatSending = false
         }
-        const sd = getSessionData(targetKey)
         sd.chatStream = null
         sd.chatRunId = null
         sd.chatStreamStartedAt = null
-        sd.chatSending = false
+
+        // Refresh tree structure just in case the aborted message was saved
+        fetchSessionTree(targetKey)
     }
 }
 
