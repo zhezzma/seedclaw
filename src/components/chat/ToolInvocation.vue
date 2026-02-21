@@ -10,6 +10,7 @@ import {
     ChevronRightIcon,
     EyeIcon
 } from '@heroicons/vue/24/outline'
+import FileView from '../../views/FileView.vue'
 
 const props = defineProps<{
     toolName: string
@@ -97,7 +98,8 @@ function extractPaths(text: string): string[] {
     // 1. 移除 URL，防止 URL 路径被误提取
     let cleaned = text.replace(/(?:https?|ftp|wss?):\/\/[^\s"'`,;[\]{}()]+/gi, '')
     // 2. 移除 JSON 转义序列（\n \t \r \0 等），防止 \n 被视为路径
-    cleaned = cleaned.replace(/\\[nrtbf0v]/g, ' ')
+    //    使用负向后瞻 (?<!\\) 确保不会破坏路径中的 \\t (如 \\test_xxx.txt)
+    cleaned = cleaned.replace(/(?<!\\)\\[nrtbf0v]/g, ' ')
     const patterns = [
         // Windows: D:\ or D:\\ or D:/ 后跟路径段，最终以 .ext 结尾（文件名）
         /[A-Za-z]:[\\\/](?:[^\s"'`,;\[\]{}()]*[\\\/])*[^\s"'`,;\[\]{}()\\\/]+\.[A-Za-z0-9_]{1,20}/g,
@@ -134,18 +136,29 @@ const resultPaths = computed(() => {
     return extractPaths(text)
 })
 
-/** 点击路径按钮 — 跳转 file-viewer */
+const showModal = ref(false)
+const modalPath = ref('')
+const modalPreview = ref(false)
+const modalPreviewContent = ref('')
+
+/** 点击路径按钮 — 弹出 file-viewer */
 function openFilePath(path: string) {
-    router.push({ name: 'file-viewer', query: { path } })
+    modalPath.value = path
+    modalPreview.value = false
+    modalPreviewContent.value = ''
+    showModal.value = true
 }
 
-/** 预览内容 — 通过 router state 传递 */
+/** 预览内容 — 弹出 file-viewer */
 function previewContent(content: string) {
-    router.push({
-        name: 'file-viewer',
-        query: { preview: 'true' },
-        state: { previewContent: content }
-    } as any)
+    modalPath.value = ''
+    modalPreview.value = true
+    modalPreviewContent.value = content
+    showModal.value = true
+}
+
+function closeModal() {
+    showModal.value = false
 }
 </script>
 
@@ -237,5 +250,19 @@ function previewContent(content: string) {
                 </div>
             </div>
         </div>
+
+        <!-- File Viewer Modal -->
+        <Teleport to="body" v-if="showModal">
+            <dialog class="modal modal-open">
+                <div
+                    class="modal-box w-full max-w-full h-full max-h-full rounded-none sm:w-11/12 sm:max-w-5xl sm:h-[85vh] sm:max-h-[85vh] sm:rounded-lg p-0 overflow-hidden flex flex-col bg-base-100 shadow-xl sm:border sm:border-base-300">
+                    <FileView is-modal :path="modalPath" :preview="modalPreview" :preview-content="modalPreviewContent"
+                        @close="closeModal" />
+                </div>
+                <div class="modal-backdrop bg-base-300/50 backdrop-blur-sm" @click="closeModal">
+                    <button class="sr-only">close</button>
+                </div>
+            </dialog>
+        </Teleport>
     </div>
 </template>

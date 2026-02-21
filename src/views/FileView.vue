@@ -14,6 +14,15 @@ import {
     EyeIcon,
 } from '@heroicons/vue/24/outline'
 
+const props = defineProps<{
+    path?: string
+    preview?: boolean
+    previewContent?: string
+    isModal?: boolean
+}>()
+
+const emit = defineEmits(['close'])
+
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
@@ -26,12 +35,13 @@ const saveStatus = ref<'idle' | 'saved' | 'failed'>('idle')
 const copied = ref(false)
 const isEditing = ref(false)
 
-/** File path from query string */
-const filePath = computed(() => (route.query.path as string) || '')
+/** File path from props or query string */
+const filePath = computed(() => props.path || (route.query.path as string) || '')
 
-/** Preview mode: content passed via router state */
-const isPreview = computed(() => route.query.preview === 'true')
-const previewContent = computed(() => {
+/** Preview mode: from props or router state */
+const isPreview = computed(() => props.preview || route.query.preview === 'true')
+const resolvedPreviewContent = computed(() => {
+    if (props.preview && props.previewContent !== undefined) return props.previewContent
     const state = history.state as any
     return state?.previewContent ?? ''
 })
@@ -220,6 +230,10 @@ function toggleEdit() {
 }
 
 function goBack() {
+    if (props.isModal) {
+        emit('close')
+        return
+    }
     if (window.history.length > 1) {
         router.back()
     } else {
@@ -229,7 +243,7 @@ function goBack() {
 
 onMounted(() => {
     if (isPreview.value) {
-        content.value = previewContent.value
+        content.value = resolvedPreviewContent.value
     } else if (filePath.value) {
         loadFile()
     }
