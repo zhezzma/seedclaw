@@ -29,6 +29,7 @@ futures-util = "0.3"
 url = "2.5"
 tauri-plugin-notification = "2"
 tauri-plugin-log = "2"
+tauri-plugin-single-instance = "2"
 
 
 
