@@ -262,6 +262,7 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
     const userScrolledUp = ref(false)
     const isAutoScrolling = ref(false) // Lock to prevent scroll event from setting userScrolledUp
     const SCROLL_THRESHOLD = 50 // px from bottom to consider "at bottom"
+    let lastScrollTop = 0 // Track scroll direction to distinguish user scrolls from DOM changes
 
     const isNearBottom = (): boolean => {
         const el = messagesContainerRef.value
@@ -278,9 +279,30 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
     const handleScroll = () => {
         if (isAutoScrolling.value) return
 
+        const el = messagesContainerRef.value
+        if (!el) return
+
+        const currentScrollTop = el.scrollTop
+        const scrolledUpward = currentScrollTop < lastScrollTop - 2 // user actively scrolled up (2px tolerance)
+        lastScrollTop = currentScrollTop
+
         if (scrollTimeout) clearTimeout(scrollTimeout)
         scrollTimeout = setTimeout(() => {
-            userScrolledUp.value = !isNearBottom()
+            const nearBottom = isNearBottom()
+            if (nearBottom) {
+                // At bottom → always clear the flag
+                userScrolledUp.value = false
+            } else if (isBusy.value) {
+                // During busy (sending/streaming): only show button if user actively scrolled UP.
+                // DOM changes (new content appended) also fire scroll events but typically
+                // keep scrollTop the same or push it down; we should not treat those as "user scrolled up".
+                if (scrolledUpward) {
+                    userScrolledUp.value = true
+                }
+            } else {
+                // Not busy → normal behavior
+                userScrolledUp.value = true
+            }
         }, 100)
     }
 
@@ -303,15 +325,18 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
                     if (Math.abs(el.scrollTop - targetScrollTop) > 2) {
                         el.scrollTop = targetScrollTop
                     }
+                    // Sync lastScrollTop so handleScroll won't misdetect direction
+                    lastScrollTop = el.scrollTop
 
-                    // Reset lock after a short delay to allow scroll event to fire
+                    // Reset lock after a delay long enough for DOM to settle
+                    // (150ms covers most layout recalculations from new messages)
                     setTimeout(() => {
                         isAutoScrolling.value = false
                         // Double check state after scroll settles
                         if (isNearBottom()) {
                             userScrolledUp.value = false
                         }
-                    }, 50)
+                    }, 150)
                 } else {
                     isAutoScrolling.value = false
                 }
