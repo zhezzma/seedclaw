@@ -145,6 +145,36 @@ const userParsedBlocks = computed(() => {
     return result
 })
 
+const userImages = computed(() => {
+    return userParsedBlocks.value.filter(b => b.type === 'image')
+})
+
+const userFiles = computed(() => {
+    return userParsedBlocks.value.filter(b => b.type === 'file')
+})
+
+// Parse assistant message blocks to group consecutive images
+const assistantParsedBlocks = computed(() => {
+    if (props.message.role === 'user') return []
+    const blocks = props.message.blocks || []
+    const result = []
+    let currentGallery: any = null
+
+    for (const block of blocks) {
+        if (block.type === 'image') {
+            if (!currentGallery) {
+                currentGallery = { type: 'image_gallery', images: [] }
+                result.push(currentGallery)
+            }
+            currentGallery.images.push(block)
+        } else {
+            currentGallery = null
+            result.push(block)
+        }
+    }
+    return result
+})
+
 // Image lightbox state
 const lightboxOpen = ref(false)
 const lightboxSrc = ref('')
@@ -207,28 +237,10 @@ const closeFileViewer = () => {
                     <MarkdownRenderer v-if="block.type === 'text'" :content="block.text || ''" :asUser="true" />
                 </template>
 
-                <!-- Attachments section (images and files) -->
-                <div v-if="userParsedBlocks.some(b => b.type === 'image' || b.type === 'file')"
-                    class="flex flex-wrap gap-2 mt-1">
-                    <template v-for="(block, bIndex) in userParsedBlocks" :key="'att-' + bIndex">
-                        <!-- Image attachment card -->
-                        <div v-if="block.type === 'image'" @click="openLightbox(block.src)"
-                            class="attachment-card group/att relative w-16 h-16 rounded-lg overflow-hidden border border-white/20 bg-black/20 cursor-pointer hover:border-white/40 hover:scale-105 transition-all duration-200">
-                            <img :src="block.src" class="w-full h-full object-cover" />
-                            <div
-                                class="absolute inset-0 bg-black/0 group-hover/att:bg-black/20 transition-all duration-200 flex items-center justify-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
-                                    stroke="currentColor"
-                                    class="w-5 h-5 text-white opacity-0 group-hover/att:opacity-100 transition-opacity duration-200">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
-                                </svg>
-                            </div>
-                        </div>
-
-                        <!-- File attachment card -->
-                        <div v-else-if="block.type === 'file'"
-                            @click="openFileViewer(block.fileName, block.fileContent)"
+                <!-- File attachments section -->
+                <div v-if="userFiles.length > 0" class="flex flex-wrap gap-2 mt-1">
+                    <template v-for="(block, bIndex) in userFiles" :key="'file-' + bIndex">
+                        <div @click="openFileViewer(block.fileName, block.fileContent)"
                             class="attachment-card group/att flex items-center gap-2 px-3 py-2 rounded-lg border border-white/20 bg-white/10 cursor-pointer hover:border-white/40 hover:bg-white/20 transition-all duration-200">
                             <div class="w-8 h-8 rounded bg-white/20 flex items-center justify-center flex-shrink-0">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
@@ -244,6 +256,31 @@ const closeFileViewer = () => {
                             </div>
                         </div>
                     </template>
+                </div>
+
+                <!-- Image attachments section -->
+                <div v-if="userImages.length > 0" class="grid gap-2 mt-1 w-fit" :class="{
+                    'grid-cols-1': userImages.length === 1,
+                    'grid-cols-2 max-w-[240px] sm:max-w-[320px]': userImages.length === 2 || userImages.length === 4,
+                    'grid-cols-3 max-w-[360px] sm:max-w-[480px]': userImages.length === 3 || userImages.length > 4
+                }">
+                    <div v-for="(imgBlock, bIndex) in userImages" :key="'img-' + bIndex"
+                        @click="openLightbox(imgBlock.src)"
+                        class="attachment-card group/att relative rounded-lg overflow-hidden border border-white/20 bg-black/20 cursor-pointer hover:border-white/40 transition-all duration-200"
+                        :class="userImages.length > 1 ? 'aspect-square' : ''">
+                        <img :src="imgBlock.src" class="w-full h-full"
+                            :class="userImages.length === 1 ? 'max-w-full max-h-[300px] object-contain bg-white/10 flex-none' : 'object-cover'" />
+                        <!-- Hover overlay -->
+                        <div
+                            class="absolute inset-0 bg-black/0 group-hover/att:bg-black/20 transition-all duration-200 flex items-center justify-center pointer-events-none">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                                stroke="currentColor"
+                                class="w-6 h-6 text-white opacity-0 group-hover/att:opacity-100 transition-opacity duration-200">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
+                            </svg>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -273,15 +310,26 @@ const closeFileViewer = () => {
                 <!-- Loading indicator if empty or just waiting -->
                 <div v-if="isLoading && (!message.blocks.length || (message.blocks.length === 1 && message.blocks[0].type === 'text' && !message.blocks[0].text))"
                     class="loading loading-dots loading-sm opacity-50 "></div>
-                <template v-else v-for="(block, bIndex) in message.blocks" :key="bIndex">
+                <template v-else v-for="(block, bIndex) in assistantParsedBlocks" :key="bIndex">
                     <MarkdownRenderer v-if="block.type === 'text'" :content="block.text || ``" />
                     <ToolInvocation v-else-if="block.type === 'tool'" :toolName="block.toolName || 'Unknown Tool'"
                         :args="block.toolArgs || {}" :result="block.toolResult" :state="block.toolState"
                         :errorMessage="block.toolError" />
-                    <div v-else-if="block.type === 'image'"
-                        class="rounded-lg overflow-hidden border border-base-300 my-1 cursor-pointer"
-                        @click="openLightbox(getImageSrc(block.source))">
-                        <img :src="getImageSrc(block.source)" class="max-w-full max-h-[300px] object-contain" />
+                    <div v-else-if="block.type === 'image_gallery'" class="grid gap-2 my-1 w-fit" :class="{
+                        'grid-cols-1': block.images.length === 1,
+                        'grid-cols-2 max-w-[240px] sm:max-w-[320px]': block.images.length === 2 || block.images.length === 4,
+                        'grid-cols-3 max-w-[360px] sm:max-w-[480px]': block.images.length === 3 || block.images.length > 4
+                    }">
+                        <div v-for="(imgBlock, i) in block.images" :key="i"
+                            class="rounded-lg overflow-hidden border border-base-300 cursor-pointer relative group/att"
+                            :class="block.images.length > 1 ? 'aspect-square' : ''"
+                            @click="openLightbox(getImageSrc(imgBlock.source))">
+                            <img :src="getImageSrc(imgBlock.source)" class="w-full h-full"
+                                :class="block.images.length === 1 ? 'max-w-full max-h-[300px] object-contain flex-none' : 'object-cover'" />
+                            <div
+                                class="absolute inset-0 bg-base-content/0 group-hover/att:bg-base-content/10 transition-all duration-200 flex items-center justify-center pointer-events-none">
+                            </div>
+                        </div>
                     </div>
                     <div v-else-if="block.type === 'thinking'" class="my-2">
                         <div class="collapse collapse-arrow border border-base-300 bg-base-100 rounded-box">
