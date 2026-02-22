@@ -317,7 +317,7 @@ onMounted(() => {
                     <div v-for="n in lineCount" :key="n" class="fv-line-number">{{ n }}</div>
                 </div>
                 <pre
-                    class="fv-code flex-1 p-2 m-0 text-sm font-mono leading-[1.625rem] overflow-x-auto"><code class="hljs" v-html="highlightedHtml"></code></pre>
+                    class="fv-code flex-1 p-2 m-0 text-sm font-mono leading-[1.625rem]"><code class="hljs" v-html="highlightedHtml"></code></pre>
             </div>
 
             <!-- No content fallback -->
