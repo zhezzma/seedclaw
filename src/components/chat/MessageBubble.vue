@@ -63,6 +63,16 @@ const isAvatarUrl = (avatar: string | null | undefined): boolean => {
     return avatar.startsWith('http') || avatar.startsWith('data:') || avatar.startsWith('/')
 }
 
+const getImageSrc = (source: any): string => {
+    if (!source) return ''
+    if (source.url) return source.url
+    if (source.type === 'url' && source.data) return source.data
+    const data = source.data || ''
+    if (data.startsWith('data:') || data.startsWith('http')) return data
+    if (data) return `data:${source.media_type || 'image/png'};base64,${data}`
+    return ''
+}
+
 // 当前 Agent 信息直接从 chatState 获取，无需额外 watch 和查询
 const currentAgent = computed(() => chatState.currentAgent)
 const assistantName = computed(() => currentAgent.value?.identity?.name || currentAgent.value?.name || 'Assistant')
@@ -120,15 +130,11 @@ const userParsedBlocks = computed(() => {
                 result.push(block)
             }
         }
-        // Handle image blocks - source.data is raw base64, build full data URL
+        // Handle image blocks - build full URL or data URI
         else if (block.type === 'image') {
-            const sourceData = block.source?.data || ''
-            const mediaType = block.source?.media_type || 'image/png'
-            const src = sourceData.startsWith('data:') ? sourceData : (sourceData ? `data:${mediaType};base64,${sourceData}` : '')
-
             result.push({
                 type: 'image',
-                src
+                src: getImageSrc(block.source)
             })
         }
         else {
@@ -273,8 +279,9 @@ const closeFileViewer = () => {
                         :args="block.toolArgs || {}" :result="block.toolResult" :state="block.toolState"
                         :errorMessage="block.toolError" />
                     <div v-else-if="block.type === 'image'"
-                        class="rounded-lg overflow-hidden border border-base-300 my-1">
-                        <img :src="block.source?.data || ''" class="max-w-full max-h-[300px] object-contain" />
+                        class="rounded-lg overflow-hidden border border-base-300 my-1 cursor-pointer"
+                        @click="openLightbox(getImageSrc(block.source))">
+                        <img :src="getImageSrc(block.source)" class="max-w-full max-h-[300px] object-contain" />
                     </div>
                     <div v-else-if="block.type === 'thinking'" class="my-2">
                         <div class="collapse collapse-arrow border border-base-300 bg-base-100 rounded-box">

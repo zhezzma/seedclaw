@@ -211,6 +211,7 @@ const handleCommandDelta = (data: any, targetKey: string) => {
     }
 }
 
+const allowCustomType = ["generated_image"]
 // 处理 SSE 事件，更新会话状态
 // 【重要】服务器协议说明：
 // - 每次对话开始时，服务器会先通过 message_start/message_end 回显用户发送的消息（role: user）
@@ -228,7 +229,14 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
     switch (eventType) {
         case 'message_start':
             // 消息开始：服务器可能推送 user 消息回显或 assistant 消息开始
-            // chatStream 已在函数顶部懒初始化为 []，此处无需额外处理
+            // 特殊处理带有完整 content 的初始消息（如 custom 角色消息等）
+            if (data?.message?.role == "custom" && allowCustomType.includes(data?.message?.customType)) {
+                if (Array.isArray(data.message.content)) {
+                    stream.push(...data.message.content)
+                } else if (typeof data.message.content === 'string') {
+                    stream.push({ type: 'text', text: data.message.content })
+                }
+            }
             break
         case 'text_delta':
         case 'thinking_delta': {

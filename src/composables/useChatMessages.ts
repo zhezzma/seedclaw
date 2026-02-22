@@ -17,6 +17,7 @@ export interface DisplayBlock {
         type: 'base64' | 'url'
         media_type?: string
         data?: string
+        url?: string
         name?: string
     }
 }
@@ -79,9 +80,10 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
                         blocks.push({
                             type: 'image',
                             source: {
-                                type: 'base64',
+                                type: item.url ? 'url' : 'base64',
                                 media_type: item.mimeType,
-                                data: item.data
+                                data: item.data || item.url,
+                                url: item.url
                             }
                         })
                     } else if (item.type === 'thinking') {
