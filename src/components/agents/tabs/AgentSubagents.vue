@@ -262,7 +262,7 @@ const toggleAllSkills = () => {
     }
 }
 
- </script>
+</script>
 
 <template>
     <div class="h-full flex flex-col p-4">
@@ -301,8 +301,8 @@ const toggleAllSkills = () => {
                                 :title="$t('common.edit')">
                                 <PencilIcon class="w-4 h-4" />
                             </button>
-                            <button class="btn btn-square btn-ghost btn-xs text-error"
-                                @click="confirmDelete(agent.id)" :title="$t('common.delete')">
+                            <button class="btn btn-square btn-ghost btn-xs text-error" @click="confirmDelete(agent.id)"
+                                :title="$t('common.delete')">
                                 <TrashIcon class="w-4 h-4" />
                             </button>
                         </div>
@@ -351,7 +351,8 @@ const toggleAllSkills = () => {
                             :disabled="isEditing"
                             :placeholder="$t('agent.subagents.idPlaceholder') || 'e.g. researcher1'" />
                         <label class="label">
-                            <span v-if="isEditing" class="label-text-alt text-base-content/50">{{ $t('agent.subagents.idEditWarning')
+                            <span v-if="isEditing" class="label-text-alt text-base-content/50">{{
+                                $t('agent.subagents.idEditWarning')
                                 || 'ID cannot be changed when editing.' }}</span>
                             <span v-else class="label-text-alt text-base-content/50">{{ $t('agent.subagents.idHint')
                                 || 'Only letters and numbers allowed, used as unique identifier' }}</span>
@@ -406,9 +407,17 @@ const toggleAllSkills = () => {
 
                     <!-- Tools Selection -->
                     <div class="form-control w-full" v-if="formData.tools">
-                        <label class="label"><span class="label-text font-medium">{{ $t('agent.tab.tools') || 'Tools' }}
-                                <span class="text-base-content/50 font-normal">({{ $t('common.optional')
-                                }})</span></span></label>
+                        <div class="flex items-center justify-between">
+                            <label class="label"><span class="label-text font-medium">{{ $t('agent.tab.tools') ||
+                                    'Tools' }}
+                                    <span class="text-base-content/50 font-normal">({{ $t('common.optional')
+                                        }})</span></span></label>
+                            <button v-if="formData.tools.type === 'custom' && availableTools.length > 0" type="button"
+                                class="btn btn-ghost btn-xs text-xs" @click="toggleAllTools">
+                                {{ isAllToolsSelected ? ($t('common.deselectAll') || 'Deselect All') :
+                                    ($t('common.selectAll') || 'Select All') }}
+                            </button>
+                        </div>
 
                         <!-- Toggle Mode -->
                         <div class="flex gap-4 mb-2">
@@ -416,51 +425,52 @@ const toggleAllSkills = () => {
                                 <input type="radio" class="radio radio-primary radio-sm" value="inherit"
                                     v-model="formData.tools.type" />
                                 <span class="label-text">{{ $t('agent.tools.inheritParent') || 'Inherit Parent'
-                                }}</span>
+                                    }}</span>
                             </label>
                             <label class="label cursor-pointer gap-2 justify-start">
                                 <input type="radio" class="radio radio-primary radio-sm" value="custom"
                                     v-model="formData.tools.type" />
                                 <span class="label-text">{{ $t('agent.tools.customSelection') || 'Custom Selection'
-                                }}</span>
+                                    }}</span>
                             </label>
                         </div>
 
                         <!-- Checkboxes when custom -->
                         <div v-if="formData.tools.type === 'custom'"
                             class="bg-base-200/50 rounded-xl border border-base-200">
-                            <div v-if="availableTools.length > 0"
-                                class="flex justify-end px-4 pt-2">
-                                <button type="button" class="btn btn-ghost btn-xs text-xs"
-                                    @click="toggleAllTools">
-                                    {{ isAllToolsSelected ? ($t('common.deselectAll') || 'Deselect All') : ($t('common.selectAll') || 'Select All') }}
-                                </button>
-                            </div>
                             <div class="p-4 max-h-48 overflow-y-auto custom-scrollbar">
-                            <div v-if="availableTools.length === 0"
-                                class="text-center text-sm text-base-content/50 py-2">
-                                {{ $t('agent.noTools') || 'No tools available in parent agent' }}
-                            </div>
-                            <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                <label v-for="tool in availableTools" :key="tool.name"
-                                    class="label cursor-pointer justify-start gap-3 bg-base-100 p-2 rounded-lg border border-base-200 hover:border-primary/30 transition-colors">
-                                    <input type="checkbox" class="checkbox checkbox-sm checkbox-primary"
-                                        :checked="selectedTools.includes(tool.name)"
-                                        @change="toggleToolSelection(tool.name)" />
-                                    <span class="label-text text-sm font-medium truncate" :title="tool.name">{{
-                                        tool.name }}</span>
-                                </label>
-                            </div>
+                                <div v-if="availableTools.length === 0"
+                                    class="text-center text-sm text-base-content/50 py-2">
+                                    {{ $t('agent.noTools') || 'No tools available in parent agent' }}
+                                </div>
+                                <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <label v-for="tool in availableTools" :key="tool.name"
+                                        class="label cursor-pointer justify-start gap-3 bg-base-100 p-2 rounded-lg border border-base-200 hover:border-primary/30 transition-colors">
+                                        <input type="checkbox" class="checkbox checkbox-sm checkbox-primary"
+                                            :checked="selectedTools.includes(tool.name)"
+                                            @change="toggleToolSelection(tool.name)" />
+                                        <span class="label-text text-sm font-medium truncate" :title="tool.name">{{
+                                            tool.name }}</span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Skills Selection -->
                     <div class="form-control w-full" v-if="formData.skills">
-                        <label class="label"><span class="label-text font-medium">{{ $t('agent.tab.skills') || 'Skills'
-                                }}
-                                <span class="text-base-content/50 font-normal">({{ $t('common.optional')
-                                }})</span></span></label>
+                        <div class="flex items-center justify-between">
+                            <label class="label"><span class="label-text font-medium">{{ $t('agent.tab.skills') ||
+                                'Skills'
+                                    }}
+                                    <span class="text-base-content/50 font-normal">({{ $t('common.optional')
+                                        }})</span></span></label>
+                            <button v-if="formData.skills.type === 'custom' && availableSkills.length > 0" type="button"
+                                class="btn btn-ghost btn-xs text-xs" @click="toggleAllSkills">
+                                {{ isAllSkillsSelected ? ($t('common.deselectAll') || 'Deselect All') :
+                                    ($t('common.selectAll') || 'Select All') }}
+                            </button>
+                        </div>
 
                         <!-- Toggle Mode -->
                         <div class="flex gap-4 mb-2">
@@ -473,41 +483,34 @@ const toggleAllSkills = () => {
                                 <input type="radio" class="radio radio-primary radio-sm" value="inherit"
                                     v-model="formData.skills.type" />
                                 <span class="label-text">{{ $t('agent.skills.inheritParent') || 'Inherit Parent'
-                                    }}</span>
+                                }}</span>
                             </label>
                             <label class="label cursor-pointer gap-2 justify-start">
                                 <input type="radio" class="radio radio-primary radio-sm" value="custom"
                                     v-model="formData.skills.type" />
                                 <span class="label-text">{{ $t('agent.skills.customSelection') || 'Custom Selection'
-                                    }}</span>
+                                }}</span>
                             </label>
                         </div>
 
                         <!-- Checkboxes when custom -->
                         <div v-if="formData.skills.type === 'custom'"
                             class="bg-base-200/50 rounded-xl border border-base-200">
-                            <div v-if="availableSkills.length > 0"
-                                class="flex justify-end px-4 pt-2">
-                                <button type="button" class="btn btn-ghost btn-xs text-xs"
-                                    @click="toggleAllSkills">
-                                    {{ isAllSkillsSelected ? ($t('common.deselectAll') || 'Deselect All') : ($t('common.selectAll') || 'Select All') }}
-                                </button>
-                            </div>
                             <div class="p-4 max-h-48 overflow-y-auto custom-scrollbar">
-                            <div v-if="availableSkills.length === 0"
-                                class="text-center text-sm text-base-content/50 py-2">
-                                {{ $t('agent.skills.noSkills') || 'No skills available in parent agent' }}
-                            </div>
-                            <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                <label v-for="skill in availableSkills" :key="skill.id"
-                                    class="label cursor-pointer justify-start gap-3 bg-base-100 p-2 rounded-lg border border-base-200 hover:border-primary/30 transition-colors">
-                                    <input type="checkbox" class="checkbox checkbox-sm checkbox-primary"
-                                        :checked="selectedSkills.includes(skill.id)"
-                                        @change="toggleSkillSelection(skill.id)" />
-                                    <span class="label-text text-sm font-medium truncate" :title="skill.id">{{
-                                        skill.id }}</span>
-                                </label>
-                            </div>
+                                <div v-if="availableSkills.length === 0"
+                                    class="text-center text-sm text-base-content/50 py-2">
+                                    {{ $t('agent.skills.noSkills') || 'No skills available in parent agent' }}
+                                </div>
+                                <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <label v-for="skill in availableSkills" :key="skill.id"
+                                        class="label cursor-pointer justify-start gap-3 bg-base-100 p-2 rounded-lg border border-base-200 hover:border-primary/30 transition-colors">
+                                        <input type="checkbox" class="checkbox checkbox-sm checkbox-primary"
+                                            :checked="selectedSkills.includes(skill.id)"
+                                            @change="toggleSkillSelection(skill.id)" />
+                                        <span class="label-text text-sm font-medium truncate" :title="skill.id">{{
+                                            skill.id }}</span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -515,7 +518,7 @@ const toggleAllSkills = () => {
 
                 <div class="modal-action mt-6">
                     <button class="btn btn-ghost" @click="closeModal" :disabled="isSubmitting">{{ $t('common.cancel')
-                    }}</button>
+                        }}</button>
                     <button class="btn btn-primary" @click="saveSubagent" :disabled="isSubmitting">
                         <span v-if="isSubmitting" class="loading loading-spinner loading-xs"></span>
                         {{ $t('common.save') }}
