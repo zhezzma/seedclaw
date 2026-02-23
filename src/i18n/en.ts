@@ -122,6 +122,8 @@ export default {
         missing: 'Missing',
         empty: 'Empty',
         dangerZone: 'Danger Zone',
+        allowPeerAccess: 'Allow Peer Access',
+        allowPeerAccessDesc: 'When enabled, other agents can call this agent via the delegation tool',
         deleteAgent: 'Delete Agent',
         deleteAgentDesc: 'This will delete the agent configuration and its workspace files, and cannot be undone.',
         deleting: 'Deleting...',

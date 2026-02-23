@@ -64,6 +64,19 @@ const isCurrentModelAvailable = computed(() => {
 })
 
 
+const allowPeerAccess = computed({
+    get: () => props.agent?.allowPeerAccess ?? false,
+    set: async (val: boolean) => {
+        try {
+            await agentsState.updateAgent({
+                agentId: props.agent.id,
+                allowPeerAccess: val
+            })
+        } catch (err: any) {
+            toast.error(err.message || String(err))
+        }
+    }
+})
 
 // Delete Agent Logic
 import { useRouter } from 'vue-router'
@@ -146,6 +159,15 @@ const handleDeleteAgent = async () => {
                                     </optgroup>
                                 </select>
                             </div>
+                        </li>
+                        <li class="flex items-center justify-between p-4 bg-base-100">
+                            <div>
+                                <h5 class="font-medium text-base-content/90">{{ $t('agent.allowPeerAccess') }}</h5>
+                                <p class="text-xs text-base-content/60 mt-1 max-w-[200px] md:max-w-md">
+                                    {{ $t('agent.allowPeerAccessDesc') }}
+                                </p>
+                            </div>
+                            <input type="checkbox" v-model="allowPeerAccess" class="toggle toggle-primary toggle-sm" />
                         </li>
                     </ul>
                 </div>

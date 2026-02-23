@@ -122,6 +122,8 @@ export default {
         missing: '缺失',
         empty: '空',
         dangerZone: '危险区域',
+        allowPeerAccess: '允许其他智能体调用',
+        allowPeerAccessDesc: '开启后，其他智能体可以通过委托(delegation)工具调用此智能体',
         deleteAgent: '删除智能体',
         deleteAgentDesc: '此操作将删除智能体的所有配置及其工作区文件，且无法撤销。',
         deleting: '删除中...',

@@ -9,6 +9,7 @@ import AgentOverview from './tabs/AgentOverview.vue'
 import AgentSettings from './tabs/AgentSettings.vue'
 import AgentTools from './tabs/AgentTools.vue'
 import AgentSkills from './tabs/AgentSkills.vue'
+import AgentSubagents from './tabs/AgentSubagents.vue'
 import AgentFormModal from './AgentFormModal.vue'
 import AgentAvatar from './AgentAvatar.vue'
 
@@ -56,6 +57,7 @@ const tabs = computed(() => [
     { id: 'settings', label: t('agent.tab.settings'), component: AgentSettings },
     { id: 'tools', label: t('agent.tab.tools'), component: AgentTools },
     { id: 'skills', label: t('agent.tab.skills'), component: AgentSkills },
+    { id: 'subagents', label: t('agent.tab.subagents'), component: AgentSubagents },
 ])
 
 // Edit modal state
@@ -92,14 +94,14 @@ const handleAgentSaved = async () => {
                     <div class="flex-1 text-center space-y-1.5 min-w-0">
                         <div class="flex flex-row items-center gap-2 justify-center">
                             <h1 class="text-xl lg:text-2xl font-bold tracking-tight truncate max-w-full">{{ agent.name
-                                }}
+                            }}
                             </h1>
                             <!-- Compact ID & Default Badge -->
                             <div class="flex items-center gap-2">
                                 <div class="badge badge-ghost badge-sm font-mono opacity-60 text-xs">{{ agent.id }}
                                 </div>
                                 <div v-if="agent.isDefault" class="badge badge-primary badge-xs">{{ $t('agent.default')
-                                }}</div>
+                                    }}</div>
                             </div>
                         </div>
 
