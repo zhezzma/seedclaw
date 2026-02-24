@@ -10,6 +10,7 @@ import AgentSettings from './tabs/AgentSettings.vue'
 import AgentTools from './tabs/AgentTools.vue'
 import AgentSkills from './tabs/AgentSkills.vue'
 import AgentSubagents from './tabs/AgentSubagents.vue'
+import AgentPrompts from './tabs/AgentPrompts.vue'
 import AgentFormModal from './AgentFormModal.vue'
 import AgentAvatar from './AgentAvatar.vue'
 
@@ -58,6 +59,7 @@ const tabs = computed(() => [
     { id: 'tools', label: t('agent.tab.tools'), component: AgentTools },
     { id: 'skills', label: t('agent.tab.skills'), component: AgentSkills },
     { id: 'subagents', label: t('agent.tab.subagents'), component: AgentSubagents },
+    { id: 'prompts', label: t('agent.tab.prompts'), component: AgentPrompts },
 ])
 
 // Edit modal state
@@ -77,7 +79,7 @@ const handleAgentSaved = async () => {
     <div class="h-full w-full relative overflow-y-auto">
         <div v-if="agent" class="min-h-full flex flex-col bg-base-100">
             <!-- Detail Header -->
-            <div class="px-6 py-6 border-b border-base-200 sticky top-0 z-50 bg-base-100/95 backdrop-blur-sm">
+            <div class="px-2 lg:px-6 py-6 border-b border-base-200 sticky top-0 z-50 bg-base-100/95 backdrop-blur-sm">
                 <div class="flex flex-col items-center gap-4">
                     <!-- Avatar with Edit Button -->
                     <div class="relative shrink-0 group">
@@ -94,14 +96,14 @@ const handleAgentSaved = async () => {
                     <div class="flex-1 text-center space-y-1.5 min-w-0">
                         <div class="flex flex-row items-center gap-2 justify-center">
                             <h1 class="text-xl lg:text-2xl font-bold tracking-tight truncate max-w-full">{{ agent.name
-                            }}
+                                }}
                             </h1>
                             <!-- Compact ID & Default Badge -->
                             <div class="flex items-center gap-2">
                                 <div class="badge badge-ghost badge-sm font-mono opacity-60 text-xs">{{ agent.id }}
                                 </div>
                                 <div v-if="agent.isDefault" class="badge badge-primary badge-xs">{{ $t('agent.default')
-                                    }}</div>
+                                }}</div>
                             </div>
                         </div>
 
@@ -112,9 +114,10 @@ const handleAgentSaved = async () => {
 
                 <!-- Tabs -->
                 <div class="mt-6 flex justify-center w-full">
-                    <div role="tablist" class="bg-base-200/50 p-1 rounded-full inline-flex relative shadow-inner">
+                    <div role="tablist"
+                        class="bg-base-200/50 p-1 rounded-full inline-flex relative shadow-inner max-w-full overflow-x-auto scrollbar-hidden">
                         <a role="tab" v-for="tab in tabs" :key="tab.id" @click="activeTab = tab.id"
-                            class="px-2 lg:px-10 py-2 rounded-full text-sm font-semibold transition-all duration-300 ease-out cursor-pointer select-none text-center min-w-[4rem]"
+                            class="px-0 lg:px-10 py-2 rounded-full text-sm font-semibold transition-all duration-300 ease-out cursor-pointer select-none text-center min-w-[3.5rem] whitespace-nowrap shrink-0"
                             :class="activeTab === tab.id ? 'bg-base-100 text-primary shadow-sm scale-100' : 'text-base-content/60 hover:text-base-content/80 hover:bg-base-200/30'">
                             {{ tab.label }}
                         </a>

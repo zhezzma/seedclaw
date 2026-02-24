@@ -6,7 +6,8 @@ import {
     HomeIcon,
     Cog6ToothIcon,
     CubeIcon,
-    ChatBubbleLeftRightIcon
+    ChatBubbleLeftRightIcon,
+    DocumentTextIcon
 } from '@heroicons/vue/24/outline'
 
 import {
@@ -17,7 +18,8 @@ import {
     SparklesIcon as SparklesIconSolid,
     DocumentIcon as DocumentIconSolid,
     CubeIcon as CubeIconSolid,
-    ChatBubbleLeftRightIcon as ChatBubbleLeftRightIconSolid
+    ChatBubbleLeftRightIcon as ChatBubbleLeftRightIconSolid,
+    DocumentTextIcon as DocumentTextIconSolid
 } from '@heroicons/vue/24/solid'
 
 export interface NavItem {
@@ -60,6 +62,14 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         icon: SparklesIcon,
         activeIcon: SparklesIconSolid,
         route: 'skills',
+        showInSidebar: true,
+        showInBottomNav: true
+    },
+    {
+        label: 'prompt.title',
+        icon: DocumentTextIcon,
+        activeIcon: DocumentTextIconSolid,
+        route: 'prompts',
         showInSidebar: true,
         showInBottomNav: true
     },

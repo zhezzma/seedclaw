@@ -14,6 +14,7 @@ import ModelsView from '../views/ModelsView.vue'
 import SkillsView from '../views/SkillsView.vue'
 import CronView from '../views/CronView.vue'
 import LogView from '../views/LogView.vue'
+import PromptsView from '../views/PromptsView.vue'
 
 
 
@@ -79,6 +80,11 @@ const router = createRouter({
                     path: 'file-viewer',
                     name: 'file-viewer',
                     component: () => import('../views/FileView.vue')
+                },
+                {
+                    path: 'prompts',
+                    name: 'prompts',
+                    component: PromptsView
                 }
             ]
         }

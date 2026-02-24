@@ -5,6 +5,15 @@
     themes: light --default, dark --prefersdark;
 }
 
+/* Utility: hide scrollbar but keep scroll behavior */
+.scrollbar-hidden {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+}
+
 /* Vue transition: fade-up (for scroll-to-bottom button) */
 .fade-up-enter-active,
 .fade-up-leave-active {
