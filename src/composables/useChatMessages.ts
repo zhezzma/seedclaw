@@ -259,91 +259,61 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
     const streamingText = computed(() => state.chatStream)
 
     // ==================== Smart Auto-Scroll ====================
-    // Track whether the user has manually scrolled up.
-    // If so, we pause auto-scroll until they return to the bottom.
+    // Simple rule: track whether the user is scrolled away from the bottom.
+    // - `userScrolledUp = true`  → FAB visible, auto-scroll paused
+    // - `userScrolledUp = false` → FAB hidden, auto-scroll active
     const userScrolledUp = ref(false)
-    const isAutoScrolling = ref(false) // Lock to prevent scroll event from setting userScrolledUp
+    const isAutoScrolling = ref(false) // Lock: ignore scroll events fired by programmatic scrolls
     const SCROLL_THRESHOLD = 50 // px from bottom to consider "at bottom"
-    let lastScrollTop = 0 // Track scroll direction to distinguish user scrolls from DOM changes
 
     const isNearBottom = (): boolean => {
         const el = messagesContainerRef.value
         if (!el) return true
         // If content fits in container (no scrollbar), we are effectively at bottom
         if (el.scrollHeight <= el.clientHeight + 1) return true
-
-        // Allow a small error margin (pixel rounding)
         return Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) <= SCROLL_THRESHOLD
     }
 
-    // Debounce scroll event to prevent state flickering
-    let scrollTimeout: any = null
+    // Simple scroll handler: just check distance from bottom.
+    // No direction tracking, no debounce — the isAutoScrolling lock is sufficient
+    // to filter out programmatic scroll events.
     const handleScroll = () => {
         if (isAutoScrolling.value) return
+        userScrolledUp.value = !isNearBottom()
+    }
+
+    const scrollToBottom = (force = false) => {
+        // If not forcing and user has scrolled up, respect their position
+        if (!force && userScrolledUp.value) return
 
         const el = messagesContainerRef.value
         if (!el) return
 
-        const currentScrollTop = el.scrollTop
-        const scrolledUpward = currentScrollTop < lastScrollTop - 2 // user actively scrolled up (2px tolerance)
-        lastScrollTop = currentScrollTop
+        // Activate lock so handleScroll ignores the resulting scroll event
+        isAutoScrolling.value = true
+        if (force) userScrolledUp.value = false
 
-        if (scrollTimeout) clearTimeout(scrollTimeout)
-        scrollTimeout = setTimeout(() => {
-            const nearBottom = isNearBottom()
-            if (nearBottom) {
-                // At bottom → always clear the flag
-                userScrolledUp.value = false
-            } else if (isBusy.value) {
-                // During busy (sending/streaming): only show button if user actively scrolled UP.
-                // DOM changes (new content appended) also fire scroll events but typically
-                // keep scrollTop the same or push it down; we should not treat those as "user scrolled up".
-                if (scrolledUpward) {
-                    userScrolledUp.value = true
-                }
-            } else {
-                // Not busy → normal behavior
-                userScrolledUp.value = true
+        nextTick(() => {
+            if (!el) {
+                isAutoScrolling.value = false
+                return
             }
-        }, 100)
-    }
 
-    const scrollToBottom = (force = false) => {
-        // If not forcing and user is scrolled up, do nothing
-        if (!force && userScrolledUp.value) return
+            const targetScrollTop = el.scrollHeight - el.clientHeight
+            if (Math.abs(el.scrollTop - targetScrollTop) > 2) {
+                el.scrollTop = targetScrollTop
+            }
 
-        const el = messagesContainerRef.value
-        if (el) {
-            // Optimization: If already near bottom and not forced, might not need to do anything
-            // But usually we call this because content changed, so we want to scroll to new bottom
-
-            isAutoScrolling.value = true
-            if (force) userScrolledUp.value = false
-
-            nextTick(() => {
-                if (el) {
-                    // Check if we actually need to scroll (avoid sub-pixel jitter)
-                    const targetScrollTop = el.scrollHeight - el.clientHeight
-                    if (Math.abs(el.scrollTop - targetScrollTop) > 2) {
-                        el.scrollTop = targetScrollTop
-                    }
-                    // Sync lastScrollTop so handleScroll won't misdetect direction
-                    lastScrollTop = el.scrollTop
-
-                    // Reset lock after a delay long enough for DOM to settle
-                    // (150ms covers most layout recalculations from new messages)
-                    setTimeout(() => {
-                        isAutoScrolling.value = false
-                        // Double check state after scroll settles
-                        if (isNearBottom()) {
-                            userScrolledUp.value = false
-                        }
-                    }, 150)
-                } else {
-                    isAutoScrolling.value = false
+            // Keep lock active long enough for the browser to finish layout + fire scroll event.
+            // 200ms covers most layout recalculations from new messages / images.
+            setTimeout(() => {
+                isAutoScrolling.value = false
+                // Final consistency check after DOM settles
+                if (isNearBottom()) {
+                    userScrolledUp.value = false
                 }
-            })
-        }
+            }, 200)
+        })
     }
 
     const setupScrollWatchers = () => {
@@ -363,9 +333,9 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
         watch(processedMessages, () => scrollToBottom(), { deep: true })
         watch(() => streamingText.value, () => scrollToBottom())
 
+        // Loading finished → force scroll to bottom (e.g. initial history load)
         watch(isLoading, (newVal, oldVal) => {
             if (!newVal && oldVal) {
-                // Loading finished → force scroll to bottom
                 nextTick(() => {
                     scrollToBottom(true)
                     setTimeout(() => scrollToBottom(true), 500)
@@ -373,12 +343,23 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
             }
         })
 
-        // When session goes from busy→idle, scroll only if user is at bottom
+        // busy→idle: scroll to bottom only if user is already at bottom
         watch(isBusy, (newVal, oldVal) => {
             if (!newVal && oldVal) {
                 nextTick(() => {
                     scrollToBottom()
                     setTimeout(() => scrollToBottom(), 300)
+                })
+            }
+        })
+
+        // Session switch: force scroll to bottom + reset userScrolledUp
+        watch(() => state.sessionKey, (newKey, oldKey) => {
+            if (newKey && newKey !== oldKey) {
+                userScrolledUp.value = false
+                nextTick(() => {
+                    scrollToBottom(true)
+                    setTimeout(() => scrollToBottom(true), 300)
                 })
             }
         })

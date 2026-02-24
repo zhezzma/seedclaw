@@ -60,55 +60,33 @@ const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const THINKING_LEVELS = ['off', 'low', 'medium', 'high', 'xhigh'] as const
 type ThinkingLevel = typeof THINKING_LEVELS[number]
 
-const reasoningState = ref('off')
-const thinkingLevel = ref<ThinkingLevel>('off')
+
 const thinkingDropdownOpen = ref(false)
 
-const currentModel = ref("")
-
 // 当前模型：优先从 session 获取，否则从 agent 默认值获取
-watch(() => [chatState.currentSession, chatState.currentAgent], () => {
+// 使用 computed 而非 ref + watch，确保 session 属性变更时能正确响应
+const currentModel = computed(() => {
     const session = chatState.currentSession
     if (session && session.modelProvider && session.model) {
-        currentModel.value = `${session.modelProvider}/${session.model}`
-        return
+        return `${session.modelProvider}/${session.model}`
     }
-
     const agent = chatState.currentAgent
     if (agent) {
-        currentModel.value = `${agent.defaultProvider}/${agent.defaultModel}`
+        return `${agent.defaultProvider}/${agent.defaultModel}`
     }
-}, { immediate: true })
+    return ''
+})
 
 // 推理状态和思考级别：从 currentSession 获取
-watch(() => chatState.currentSession, (session) => {
-    if (!session) return
-
-    const val = session.reasoningLevel
-    reasoningState.value = (val === 'on' || val === 'stream') ? val : 'off'
-
-    const level = session.thinkingLevel || 'off'
-    thinkingLevel.value = (THINKING_LEVELS as readonly string[]).includes(level) ? (level as ThinkingLevel) : 'off'
-}, { immediate: true })
-
-const toggleReasoning = () => {
-    if (isBusy.value) return
-    let next = 'on'
-    if (reasoningState.value === 'on') next = 'stream'
-    else if (reasoningState.value === 'stream') next = 'off'
-
-    reasoningState.value = next
-    // 更新本地 session 缓存
+// 使用 computed 确保 /thinking 命令修改 session.thinkingLevel 后能正确响应
+const thinkingLevel = computed<ThinkingLevel>(() => {
     const session = chatState.currentSession
-    if (session) {
-        session.reasoningLevel = next
-    }
+    if (!session) return 'off'
+    const level = session.thinkingLevel || 'off'
+    return (THINKING_LEVELS as readonly string[]).includes(level) ? (level as ThinkingLevel) : 'off'
+})
 
-    inputText.value = `/reasoning ${next}`
-    nextTick(() => {
-        onSend()
-    })
-}
+
 
 const selectThinkingLevel = (level: ThinkingLevel) => {
     thinkingDropdownOpen.value = false
@@ -116,7 +94,6 @@ const selectThinkingLevel = (level: ThinkingLevel) => {
         useToast().warning(t('chat.waitMessage'))
         return
     }
-    thinkingLevel.value = level
     inputText.value = `/thinking ${level}`
 
     // 更新本地 session 缓存
@@ -179,15 +156,16 @@ const handleModelSelect = (modelId: string) => {
         useToast().warning(t('chat.waitMessage'))
         return
     }
-    currentModel.value = modelId
     inputText.value = `/model ${modelId}`
 
     // 更新本地 session 缓存
     const session = chatState.currentSession
     if (session) {
-        const [modelProvider, model] = modelId.split('/');
-        session.modelProvider = modelProvider
-        session.model = model
+        const firstSlash = modelId.indexOf('/')
+        if (firstSlash !== -1) {
+            session.modelProvider = modelId.substring(0, firstSlash)
+            session.model = modelId.substring(firstSlash + 1)
+        }
     }
 
     nextTick(() => {
@@ -246,7 +224,7 @@ defineExpose({
                                 d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                         </svg>
                         <span class="text-[9px] w-full truncate text-center opacity-70 leading-tight mt-0.5">{{ att.name
-                        }}</span>
+                            }}</span>
                     </div>
 
                     <!-- Delete Button: Always visible on mobile (using forced opacity or just remove opacity class). 
@@ -306,7 +284,7 @@ defineExpose({
                         </ul>
                     </div>
 
-                    <!-- Model -->
+
                     <!-- Model -->
                     <div class="dropdown dropdown-top" :class="{ 'dropdown-open': modelDropdownOpen }">
                         <button
@@ -369,17 +347,6 @@ defineExpose({
                         </ul>
                     </div>
 
-                    <!-- Reasoning -->
-                    <!-- <button @click="toggleReasoning"
-                        class="btn btn-sm gap-1 font-normal rounded-full transition-all duration-300 border-primary/20"
-                        :class="reasoningState !== 'off' ? 'bg-primary/10 text-primary hover:bg-primary/20 ' : 'btn-ghost hover:bg-base-300'"
-                        :title="$t('model.mode.reasoning')">
-                        <SparklesIcon class="h-4 w-4 hidden sm:inline" />
-                        <span class=" sm:inline">{{ reasoningState === 'stream' ? $t('chat.reasoningStatus.stream') :
-                            (reasoningState === 'on' ?
-                                $t('chat.reasoningStatus.on') : $t('chat.reasoningStatus.off'))
-                        }}</span>
-                    </button> -->
                 </div>
 
                 <!-- Right Actions -->

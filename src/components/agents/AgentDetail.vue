@@ -114,7 +114,7 @@ const handleAgentSaved = async () => {
                 <div class="mt-6 flex justify-center w-full">
                     <div role="tablist" class="bg-base-200/50 p-1 rounded-full inline-flex relative shadow-inner">
                         <a role="tab" v-for="tab in tabs" :key="tab.id" @click="activeTab = tab.id"
-                            class="px-5 lg:px-10 py-2 rounded-full text-sm font-semibold transition-all duration-300 ease-out cursor-pointer select-none text-center min-w-[4rem]"
+                            class="px-2 lg:px-10 py-2 rounded-full text-sm font-semibold transition-all duration-300 ease-out cursor-pointer select-none text-center min-w-[4rem]"
                             :class="activeTab === tab.id ? 'bg-base-100 text-primary shadow-sm scale-100' : 'text-base-content/60 hover:text-base-content/80 hover:bg-base-200/30'">
                             {{ tab.label }}
                         </a>

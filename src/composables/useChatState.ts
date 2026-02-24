@@ -189,6 +189,23 @@ const handleCommandDelta = (data: any, targetKey: string) => {
     if (!command) return
 
     switch (command) {
+        case 'model': {
+            // /model 命令：更新当前会话的模型
+            const model = data.data?.model
+            if (model && state.currentSession) {
+                state.currentSession.model = model
+                state.currentSession.modelProvider = data.data?.provider
+            }
+            break
+        }
+        case 'thinking': {
+            // /thinking 命令：更新当前会话的思考状态
+            const thinking = data.data?.thinkingLevel
+            if (thinking && state.currentSession) {
+                state.currentSession.thinkingLevel = thinking
+            }
+            break
+        }
         case 'reset':
             // /reset 命令：清空当前会话的所有消息
             sessionData.chatMessages = []

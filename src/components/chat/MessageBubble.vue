@@ -179,7 +179,28 @@ const assistantParsedBlocks = computed(() => {
 const lightboxOpen = ref(false)
 const lightboxSrc = ref('')
 
+const imgScale = ref(1)
+const imgTranslateX = ref(0)
+const imgTranslateY = ref(0)
+const isDragging = ref(false)
+
+// Zoom & Pan state variables
+let lastDistance = 0
+let lastX = 0
+let lastY = 0
+let lastTap = 0
+let isMouseDragging = ref(false)
+let lastMouseX = 0
+let lastMouseY = 0
+
+const resetZoomState = () => {
+    imgScale.value = 1
+    imgTranslateX.value = 0
+    imgTranslateY.value = 0
+}
+
 const openLightbox = (src: string) => {
+    resetZoomState()
     lightboxSrc.value = src
     lightboxOpen.value = true
 }
@@ -187,6 +208,135 @@ const openLightbox = (src: string) => {
 const closeLightbox = () => {
     lightboxOpen.value = false
     lightboxSrc.value = ''
+    resetZoomState()
+}
+
+const getDistance = (touches: TouchList) => {
+    const dx = touches[0].clientX - touches[1].clientX
+    const dy = touches[0].clientY - touches[1].clientY
+    return Math.sqrt(dx * dx + dy * dy)
+}
+
+const handleTouchStart = (e: TouchEvent) => {
+    if (e.touches.length === 2) {
+        lastDistance = getDistance(e.touches)
+    } else if (e.touches.length === 1) {
+        isDragging.value = true
+        lastX = e.touches[0].clientX
+        lastY = e.touches[0].clientY
+    }
+}
+
+const handleTouchMove = (e: TouchEvent) => {
+    if (e.touches.length === 2) {
+        const currentDistance = getDistance(e.touches)
+        const scaleChange = currentDistance / lastDistance
+        imgScale.value = Math.min(Math.max(1, imgScale.value * scaleChange), 5)
+        lastDistance = currentDistance
+    } else if (e.touches.length === 1 && isDragging.value && imgScale.value > 1) {
+        const currentX = e.touches[0].clientX
+        const currentY = e.touches[0].clientY
+        imgTranslateX.value += currentX - lastX
+        imgTranslateY.value += currentY - lastY
+        lastX = currentX
+        lastY = currentY
+    }
+}
+
+const handleTouchEnd = (e: TouchEvent) => {
+    if (e.touches.length < 2) {
+        lastDistance = 0
+    }
+    if (e.touches.length === 0) {
+        isDragging.value = false
+        if (imgScale.value <= 1) {
+            resetZoomState()
+        }
+
+        // Handle double tap
+        const currentTime = new Date().getTime()
+        const tapLength = currentTime - lastTap
+        if (tapLength < 300 && tapLength > 0) {
+            if (imgScale.value > 1) {
+                resetZoomState()
+            } else {
+                imgScale.value = 2.5
+            }
+        }
+        lastTap = currentTime
+    }
+}
+
+const handleWheel = (e: WheelEvent) => {
+    e.preventDefault()
+    const zoomIntensity = 0.1
+    let newScale = imgScale.value + (e.deltaY < 0 ? -zoomIntensity : zoomIntensity)
+    imgScale.value = Math.min(Math.max(1, newScale), 5)
+    if (imgScale.value <= 1) {
+        resetZoomState()
+    }
+}
+
+const handleImageDblClick = (e: Event) => {
+    e.stopPropagation()
+    if (imgScale.value > 1) {
+        resetZoomState()
+    } else {
+        imgScale.value = 2.5
+    }
+}
+
+const handleMouseDown = (e: MouseEvent) => {
+    e.stopPropagation()
+    if (imgScale.value > 1) {
+        isMouseDragging.value = true
+        lastMouseX = e.clientX
+        lastMouseY = e.clientY
+    }
+}
+
+const handleMouseMove = (e: MouseEvent) => {
+    if (isMouseDragging.value && imgScale.value > 1) {
+        e.preventDefault()
+        const currentX = e.clientX
+        const currentY = e.clientY
+        imgTranslateX.value += currentX - lastMouseX
+        imgTranslateY.value += currentY - lastMouseY
+        lastMouseX = currentX
+        lastMouseY = currentY
+    }
+}
+
+const handleMouseUp = (e: MouseEvent) => {
+    if (isMouseDragging.value) {
+        isMouseDragging.value = false
+    }
+}
+
+
+const downloadImage = async (src: string, defaultName?: string) => {
+    try {
+        const response = await fetch(src);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = defaultName || `image-${Date.now()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    } catch (error) {
+        console.error('Download failed:', error);
+        // Fallback
+        const a = document.createElement('a');
+        a.href = src;
+        a.download = defaultName || `image-${Date.now()}.png`;
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
 }
 
 // File content viewer state
@@ -280,6 +430,16 @@ const closeFileViewer = () => {
                                     d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
                             </svg>
                         </div>
+                        <!-- Download Button -->
+                        <button @click.stop="downloadImage(imgBlock.src)"
+                            class="absolute top-2 right-2 p-1.5 rounded-full bg-black/40 text-white backdrop-blur-sm border border-white/20 hover:bg-black/60 md:opacity-0 group-hover/att:opacity-100 transition-opacity z-10"
+                            title="下载图片">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                                stroke="currentColor" class="w-4 h-4">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -329,6 +489,16 @@ const closeFileViewer = () => {
                             <div
                                 class="absolute inset-0 bg-base-content/0 group-hover/att:bg-base-content/10 transition-all duration-200 flex items-center justify-center pointer-events-none">
                             </div>
+                            <!-- Download Button -->
+                            <button @click.stop="downloadImage(getImageSrc(imgBlock.source))"
+                                class="absolute top-2 right-2 p-1.5 rounded-full bg-black/40 text-white backdrop-blur-sm border border-white/20 hover:bg-black/60 md:opacity-0 group-hover/att:opacity-100 transition-opacity z-10"
+                                title="下载图片">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                                    stroke="currentColor" class="w-4 h-4">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                </svg>
+                            </button>
                         </div>
                     </div>
                     <div v-else-if="block.type === 'thinking'" class="my-2">
@@ -422,17 +592,49 @@ const closeFileViewer = () => {
     <!-- Image Lightbox Modal -->
     <Teleport to="body">
         <Transition name="fade">
-            <div v-if="lightboxOpen" @click="closeLightbox"
-                class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm cursor-zoom-out">
-                <img :src="lightboxSrc" @click.stop
-                    class="max-w-[90vw] max-h-[90vh] object-contain cursor-default rounded-lg shadow-2xl" />
-                <button @click="closeLightbox"
-                    class="absolute top-4 right-4 btn btn-ghost btn-circle text-white hover:bg-white/20">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
-                        stroke="currentColor" class="w-6 h-6">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
+            <div v-if="lightboxOpen" @click.self="closeLightbox"
+                class="fixed inset-0 z-50 bg-black/95 backdrop-blur-md overflow-hidden flex items-center justify-center touch-none"
+                @mousemove="handleMouseMove" @mouseup="handleMouseUp" @mouseleave="handleMouseUp">
+
+                <div class="relative w-full h-full flex items-center justify-center p-2 sm:p-4"
+                    @click.self="closeLightbox">
+                    <img :src="lightboxSrc" @touchstart="handleTouchStart" @touchmove.prevent="handleTouchMove"
+                        @touchend="handleTouchEnd" @touchcancel="handleTouchEnd" @mousedown="handleMouseDown"
+                        @wheel="handleWheel" @dblclick="handleImageDblClick" @click.stop :style="{
+                            transform: `translate(${imgTranslateX}px, ${imgTranslateY}px) scale(${imgScale})`,
+                            transition: isDragging || isMouseDragging ? 'none' : 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)'
+                        }" class="max-w-[100vw] max-h-[100vh] object-contain shadow-2xl select-none"
+                        :class="imgScale > 1 ? 'cursor-move' : 'cursor-zoom-in'" draggable="false" />
+                </div>
+
+                <!-- Tools -->
+                <div class="fixed top-4 right-4 flex items-center gap-2 z-[60]">
+                    <!-- Download -->
+                    <button @click.stop="downloadImage(lightboxSrc)"
+                        class="btn btn-ghost btn-circle bg-white/10 text-white hover:bg-white/20 backdrop-blur-md"
+                        title="下载图片">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                        </svg>
+                    </button>
+                    <!-- Close -->
+                    <button @click.stop="closeLightbox"
+                        class="btn btn-ghost btn-circle bg-white/10 text-white hover:bg-white/20 backdrop-blur-md"
+                        title="关闭">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Hint string at bottom -->
+                <div v-if="imgScale === 1"
+                    class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-black/60 text-white/90 px-4 py-1.5 rounded-full text-xs backdrop-blur-md pointer-events-none z-[60]">
+                    双击放大 | 双指缩放
+                </div>
             </div>
         </Transition>
     </Teleport>

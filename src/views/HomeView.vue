@@ -162,7 +162,7 @@ const handleSend = async () => {
     // Case 2: Busy + has text → steer (inject prompt while agent is running)
     if (isBusy.value && inputText) {
         await chatState.steerMessage(inputText)
-        scrollToBottom()
+        scrollToBottom(true)
         return
     }
 
@@ -218,7 +218,7 @@ const handleSend = async () => {
         isCreatingSession.value = false
     }
 
-    scrollToBottom()
+    scrollToBottom(true)
 }
 
 

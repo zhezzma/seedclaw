@@ -17,7 +17,6 @@ export interface SessionRow {
     modified?: string
     path?: string
     thinkingLevel?: string
-    reasoningLevel?: string
 }
 
 export interface SessionsResult {
