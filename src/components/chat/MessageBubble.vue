@@ -410,14 +410,12 @@ const closeFileViewer = () => {
         <!-- User Message Bubble -->
         <div v-if="message.role === 'user'" class="max-w-full    chat-bubble chat-bubble-primary relative">
             <div class="whitespace-normal flex flex-col gap-2">
-                <!-- Edit mode -->
-                <template v-if="isEditing">
-                    <textarea v-model="editText" rows="4"
-                        class="textarea textarea-bordered w-full bg-base-100 text-base-content text-sm resize-y min-h-[80px]"
-                        @keydown.ctrl.enter="submitEdit" />
-                </template>
-                <!-- Normal display mode -->
-                <template v-else>
+                <!-- Edit mode: textarea shown above invisible original content -->
+                <textarea v-if="isEditing" v-model="editText" rows="4"
+                    class="textarea textarea-bordered w-full bg-base-100 text-base-content text-sm resize-y min-h-[80px]"
+                    @keydown.ctrl.enter="submitEdit" />
+                <!-- Original content: visible normally, invisible (but still in layout) when editing to preserve width -->
+                <div :class="{ 'invisible h-0 overflow-hidden': isEditing }">
                     <!-- Text blocks first -->
                     <template v-for="(block, bIndex) in userParsedBlocks" :key="'text-' + bIndex">
                         <MarkdownRenderer v-if="block.type === 'text'" :content="block.text || ''" :asUser="true" />
@@ -437,7 +435,7 @@ const closeFileViewer = () => {
                                 </div>
                                 <div class="flex-1 min-w-0 max-w-[120px]">
                                     <div class="text-xs font-medium truncate" :title="block.fileName">{{ block.fileName
-                                    }}
+                                        }}
                                     </div>
                                     <div class="text-xs opacity-60">{{ $t('common.clickToView') }}</div>
                                 </div>
@@ -479,7 +477,7 @@ const closeFileViewer = () => {
                             </button>
                         </div>
                     </div>
-                </template>
+                </div>
             </div>
         </div>
         <!-- User Actions (Hover) -->
