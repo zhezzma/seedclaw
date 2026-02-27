@@ -137,6 +137,41 @@ export function startRetrySSE(
     }
 }
 
+/**
+ * Start edit SSE stream — POSTs to /edit with { entryId, newText }, streams new response
+ */
+export function startEditSSE(
+    sessionId: string,
+    body: { entryId: string; newText: string },
+    onEvent: SSEEventHandler,
+    onError?: (error: Error) => void
+): SSEConnection {
+    const controller = new AbortController()
+
+    const url = getApiUrl(`/api/chat/${sessionId}/edit`)
+    const token = getAuthToken()
+
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+    }
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+    }
+
+    const done = fetchSSE(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: controller.signal,
+    }, onEvent, onError)
+
+    return {
+        abort: () => controller.abort(),
+        done,
+    }
+}
+
 // ==================== Internal SSE Parser ====================
 
 async function fetchSSE(

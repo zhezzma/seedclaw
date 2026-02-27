@@ -27,6 +27,7 @@ const emit = defineEmits<{
     (e: 'read-aloud', msg: DisplayMessage): void
     (e: 'delete', msg: DisplayMessage): void
     (e: 'retry', msg: DisplayMessage): void
+    (e: 'edit', msg: DisplayMessage, newText: string): void
     (e: 'navigate-branch', msg: DisplayMessage, dir: 'prev' | 'next'): void
 }>()
 
@@ -240,7 +241,7 @@ onBeforeUnmount(() => {
                 <MessageBubble :message="item.msg" :is-loading="isBusy && item.isLast" :is-busy="isBusy"
                     :branch-info="getBranchInfo(item.msg)" @copy="emit('copy', item.msg)"
                     @read-aloud="emit('read-aloud', item.msg)" @delete="emit('delete', item.msg)"
-                    @retry="emit('retry', item.msg)"
+                    @retry="emit('retry', item.msg)" @edit="(msg, text) => emit('edit', msg, text)"
                     @navigate-branch="(msg, dir) => emit('navigate-branch', msg, dir)" />
             </div>
 

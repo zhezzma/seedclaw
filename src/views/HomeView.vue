@@ -343,6 +343,11 @@ const retryMessage = async (msg: DisplayMessage) => {
     // retry 逻辑同上，chatState 会接管
 }
 
+const editMessage = async (msg: DisplayMessage, newText: string) => {
+    if (!msg.entryId) return
+    await chatState.editMessage(msg.entryId, newText)
+}
+
 const navigateBranch = async (msg: DisplayMessage, direction: 'prev' | 'next') => {
     const info = getBranchInfo(msg)
     if (!info) return
@@ -578,7 +583,8 @@ async function applyDefaultSessionBehavior() {
                         <VirtualMessageList :messages="processedMessages" :is-busy="isBusy"
                             :scroll-container="messagesContainerRef" :is-wide-mode="settingsStore.isWideMode"
                             :get-branch-info="getBranchInfo" @copy="copyMessage" @read-aloud="readAloud"
-                            @delete="deleteMessage" @retry="retryMessage" @navigate-branch="navigateBranch" />
+                            @delete="deleteMessage" @retry="retryMessage" @edit="editMessage"
+                            @navigate-branch="navigateBranch" />
                     </div>
 
                     <!-- Scroll to bottom FAB -->

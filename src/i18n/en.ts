@@ -387,6 +387,7 @@ export default {
         reasoning: 'Reasoning Process',
         readAloud: 'Read Aloud',
         retry: 'Retry',
+        editUpdate: 'Update',
         waitMessage: 'Please wait for the current message to finish sending',
         inputPlaceholder: "Type a message or '/' to select a skill",
         uploadAttachment: 'Upload Attachment',

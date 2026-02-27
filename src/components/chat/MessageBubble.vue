@@ -6,7 +6,8 @@ import {
     TrashIcon,
     ArrowPathIcon,
     ChevronLeftIcon,
-    ChevronRightIcon
+    ChevronRightIcon,
+    PencilSquareIcon
 } from '@heroicons/vue/24/outline'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -34,12 +35,39 @@ const emit = defineEmits<{
     (e: 'read-aloud', msg: DisplayMessage): void
     (e: 'delete', msg: DisplayMessage): void
     (e: 'retry', msg: DisplayMessage): void
+    (e: 'edit', msg: DisplayMessage, newText: string): void
     (e: 'navigate-branch', msg: DisplayMessage, direction: 'prev' | 'next'): void
 }>()
 const { t } = useI18n()
 const chatState = useChatState()
 const { currentReadingMsgId } = useTTS()
 const { confirm } = useConfirm()
+
+// Edit state
+const isEditing = ref(false)
+const editText = ref('')
+
+const startEdit = () => {
+    // Extract text from user message blocks
+    const text = (props.message.blocks || [])
+        .filter(b => b.type === 'text')
+        .map(b => b.text || '')
+        .join('\n')
+    editText.value = text
+    isEditing.value = true
+}
+
+const cancelEdit = () => {
+    isEditing.value = false
+    editText.value = ''
+}
+
+const submitEdit = () => {
+    const newText = editText.value.trim()
+    if (!newText) return
+    isEditing.value = false
+    emit('edit', props.message, newText)
+}
 
 const handleDelete = async () => {
     const result = await confirm(
@@ -382,86 +410,113 @@ const closeFileViewer = () => {
         <!-- User Message Bubble -->
         <div v-if="message.role === 'user'" class="max-w-full    chat-bubble chat-bubble-primary relative">
             <div class="whitespace-normal flex flex-col gap-2">
-                <!-- Text blocks first -->
-                <template v-for="(block, bIndex) in userParsedBlocks" :key="'text-' + bIndex">
-                    <MarkdownRenderer v-if="block.type === 'text'" :content="block.text || ''" :asUser="true" />
+                <!-- Edit mode -->
+                <template v-if="isEditing">
+                    <textarea v-model="editText" rows="4"
+                        class="textarea textarea-bordered w-full bg-base-100 text-base-content text-sm resize-y min-h-[80px]"
+                        @keydown.ctrl.enter="submitEdit" />
                 </template>
+                <!-- Normal display mode -->
+                <template v-else>
+                    <!-- Text blocks first -->
+                    <template v-for="(block, bIndex) in userParsedBlocks" :key="'text-' + bIndex">
+                        <MarkdownRenderer v-if="block.type === 'text'" :content="block.text || ''" :asUser="true" />
+                    </template>
 
-                <!-- File attachments section -->
-                <div v-if="userFiles.length > 0" class="flex flex-wrap gap-2 mt-1">
-                    <template v-for="(block, bIndex) in userFiles" :key="'file-' + bIndex">
-                        <div @click="openFileViewer(block.fileName, block.fileContent)"
-                            class="attachment-card group/att flex items-center gap-2 px-3 py-2 rounded-lg border border-white/20 bg-white/10 cursor-pointer hover:border-white/40 hover:bg-white/20 transition-all duration-200">
-                            <div class="w-8 h-8 rounded bg-white/20 flex items-center justify-center flex-shrink-0">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                    stroke-width="1.5" stroke="currentColor" class="w-5 h-5 opacity-80">
+                    <!-- File attachments section -->
+                    <div v-if="userFiles.length > 0" class="flex flex-wrap gap-2 mt-1">
+                        <template v-for="(block, bIndex) in userFiles" :key="'file-' + bIndex">
+                            <div @click="openFileViewer(block.fileName, block.fileContent)"
+                                class="attachment-card group/att flex items-center gap-2 px-3 py-2 rounded-lg border border-white/20 bg-white/10 cursor-pointer hover:border-white/40 hover:bg-white/20 transition-all duration-200">
+                                <div class="w-8 h-8 rounded bg-white/20 flex items-center justify-center flex-shrink-0">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                        stroke-width="1.5" stroke="currentColor" class="w-5 h-5 opacity-80">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                    </svg>
+                                </div>
+                                <div class="flex-1 min-w-0 max-w-[120px]">
+                                    <div class="text-xs font-medium truncate" :title="block.fileName">{{ block.fileName
+                                    }}
+                                    </div>
+                                    <div class="text-xs opacity-60">{{ $t('common.clickToView') }}</div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Image attachments section -->
+                    <div v-if="userImages.length > 0" class="grid gap-2 mt-1 w-fit" :class="{
+                        'grid-cols-1': userImages.length === 1,
+                        'grid-cols-2 max-w-[240px] sm:max-w-[320px]': userImages.length === 2 || userImages.length === 4,
+                        'grid-cols-3 max-w-[360px] sm:max-w-[480px]': userImages.length === 3 || userImages.length > 4
+                    }">
+                        <div v-for="(imgBlock, bIndex) in userImages" :key="'img-' + bIndex"
+                            @click="openLightbox(imgBlock.src)"
+                            class="attachment-card group/att relative rounded-lg overflow-hidden border border-white/20 bg-black/20 cursor-pointer hover:border-white/40 transition-all duration-200"
+                            :class="userImages.length > 1 ? 'aspect-square' : ''">
+                            <img :src="imgBlock.src" class="w-full h-full"
+                                :class="userImages.length === 1 ? 'max-w-full max-h-[300px] object-contain bg-white/10 flex-none' : 'object-cover'" />
+                            <!-- Hover overlay -->
+                            <div
+                                class="absolute inset-0 bg-black/0 group-hover/att:bg-black/20 transition-all duration-200 flex items-center justify-center pointer-events-none">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                                    stroke="currentColor"
+                                    class="w-6 h-6 text-white opacity-0 group-hover/att:opacity-100 transition-opacity duration-200">
                                     <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                        d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
                                 </svg>
                             </div>
-                            <div class="flex-1 min-w-0 max-w-[120px]">
-                                <div class="text-xs font-medium truncate" :title="block.fileName">{{ block.fileName }}
-                                </div>
-                                <div class="text-xs opacity-60">{{ $t('common.clickToView') }}</div>
-                            </div>
+                            <!-- Download Button -->
+                            <button @click.stop="downloadImage(imgBlock.src)"
+                                class="absolute top-2 right-2 p-1.5 rounded-full bg-black/40 text-white backdrop-blur-sm border border-white/20 hover:bg-black/60 md:opacity-0 group-hover/att:opacity-100 transition-opacity z-10"
+                                title="下载图片">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                                    stroke="currentColor" class="w-4 h-4">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                </svg>
+                            </button>
                         </div>
-                    </template>
-                </div>
-
-                <!-- Image attachments section -->
-                <div v-if="userImages.length > 0" class="grid gap-2 mt-1 w-fit" :class="{
-                    'grid-cols-1': userImages.length === 1,
-                    'grid-cols-2 max-w-[240px] sm:max-w-[320px]': userImages.length === 2 || userImages.length === 4,
-                    'grid-cols-3 max-w-[360px] sm:max-w-[480px]': userImages.length === 3 || userImages.length > 4
-                }">
-                    <div v-for="(imgBlock, bIndex) in userImages" :key="'img-' + bIndex"
-                        @click="openLightbox(imgBlock.src)"
-                        class="attachment-card group/att relative rounded-lg overflow-hidden border border-white/20 bg-black/20 cursor-pointer hover:border-white/40 transition-all duration-200"
-                        :class="userImages.length > 1 ? 'aspect-square' : ''">
-                        <img :src="imgBlock.src" class="w-full h-full"
-                            :class="userImages.length === 1 ? 'max-w-full max-h-[300px] object-contain bg-white/10 flex-none' : 'object-cover'" />
-                        <!-- Hover overlay -->
-                        <div
-                            class="absolute inset-0 bg-black/0 group-hover/att:bg-black/20 transition-all duration-200 flex items-center justify-center pointer-events-none">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
-                                stroke="currentColor"
-                                class="w-6 h-6 text-white opacity-0 group-hover/att:opacity-100 transition-opacity duration-200">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
-                            </svg>
-                        </div>
-                        <!-- Download Button -->
-                        <button @click.stop="downloadImage(imgBlock.src)"
-                            class="absolute top-2 right-2 p-1.5 rounded-full bg-black/40 text-white backdrop-blur-sm border border-white/20 hover:bg-black/60 md:opacity-0 group-hover/att:opacity-100 transition-opacity z-10"
-                            title="下载图片">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
-                                stroke="currentColor" class="w-4 h-4">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                            </svg>
-                        </button>
                     </div>
-                </div>
+                </template>
             </div>
         </div>
         <!-- User Actions (Hover) -->
         <div v-if="message.role === 'user'"
-            class="chat-footer opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all duration-200 mt-1 flex items-center gap-1">
-            <button @click="emit('copy', message)"
-                class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-primary hover:bg-base-200"
-                :title="$t('common.copy')">
-                <ClipboardIcon class="h-4 w-4" />
-            </button>
-            <button v-if="!isBusy && message.entryId" @click="handleDelete"
-                class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-error hover:bg-error/10"
-                :title="$t('common.delete')">
-                <TrashIcon class="h-4 w-4" />
-            </button>
-            <button v-if="!isBusy && message.entryId" @click="emit('retry', message)"
-                class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-warning hover:bg-warning/10"
-                :title="$t('chat.retry') || 'Retry'">
-                <ArrowPathIcon class="h-4 w-4" />
-            </button>
+            class="chat-footer  transition-all duration-200 mt-1 flex items-center gap-1">
+            <!-- Edit mode: show cancel & update -->
+            <template v-if="isEditing">
+                <button @click="cancelEdit" class="btn btn-ghost btn-sm text-base-content/60">
+                    {{ $t('common.cancel') }}
+                </button>
+                <button @click="submitEdit" :disabled="!editText.trim()" class="btn btn-sm btn-primary">
+                    {{ $t('chat.editUpdate') }}
+                </button>
+            </template>
+            <!-- Normal mode: show action buttons -->
+            <template v-else>
+                <button @click="emit('copy', message)"
+                    class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-primary hover:bg-base-200"
+                    :title="$t('common.copy')">
+                    <ClipboardIcon class="h-4 w-4" />
+                </button>
+                <button v-if="!isBusy && message.entryId" @click="startEdit"
+                    class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-info hover:bg-info/10"
+                    :title="$t('common.edit')">
+                    <PencilSquareIcon class="h-4 w-4" />
+                </button>
+                <button v-if="!isBusy && message.entryId" @click="handleDelete"
+                    class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-error hover:bg-error/10"
+                    :title="$t('common.delete')">
+                    <TrashIcon class="h-4 w-4" />
+                </button>
+                <button v-if="!isBusy && message.entryId" @click="emit('retry', message)"
+                    class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-warning hover:bg-warning/10"
+                    :title="$t('chat.retry') || 'Retry'">
+                    <ArrowPathIcon class="h-4 w-4" />
+                </button>
+            </template>
         </div>
 
         <!-- Assistant Message Bubble -->

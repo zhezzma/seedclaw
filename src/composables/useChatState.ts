@@ -3,7 +3,7 @@ import { createStateProxy } from './utils/stateProxy'
 import { SessionRow, useSessionsState } from './useSessionsState'
 import { useUiSettingsStore } from '../stores/setting'
 import { apiGet, apiPost } from './api-client'
-import { startChatSSE, connectSessionSSE, startRetrySSE, type SSEConnection } from './sse-client'
+import { startChatSSE, connectSessionSSE, startRetrySSE, startEditSSE, type SSEConnection } from './sse-client'
 import { AgentInfo, useAgentsState } from './useAgentsState'
 
 // ==================== Types ====================
@@ -705,6 +705,63 @@ const retryMessage = async (entryId: string, sessionKey?: string) => {
     })
 }
 
+const editMessage = async (entryId: string, newText: string, sessionKey?: string) => {
+    const targetKey = sessionKey || state.sessionKey
+    if (!targetKey) {
+        console.error('[useChatState] editMessage called without sessionKey')
+        return
+    }
+
+    const sessionData = getSessionData(targetKey)
+
+    // Keep the user message but update its text, remove everything after it
+    const entryIndex = sessionData.chatMessages.findIndex(m => m.entryId === entryId)
+    if (entryIndex >= 0) {
+        // Update the user message content in-place
+        sessionData.chatMessages[entryIndex].content = newText
+        // Remove all messages after the user message (assistant responses on this branch)
+        sessionData.chatMessages = sessionData.chatMessages.slice(0, entryIndex + 1)
+    }
+
+    const runId = generateUUID()
+    sessionData.chatSending = true
+    sessionData.chatRunId = runId
+    sessionData.chatStreamStartedAt = Date.now()
+    sessionData.chatStream = []
+
+    // Abort any existing SSE for this session
+    const existingSSE = sseConnections.get(targetKey)
+    if (existingSSE) {
+        existingSSE.abort()
+    }
+
+    const sse = startEditSSE(
+        targetKey,
+        { entryId, newText },
+        (event) => {
+            handleSSEEvent(event.event, event.data, targetKey)
+        },
+        (error) => {
+            const sd = getSessionData(targetKey)
+            sd.chatSending = false
+            sd.chatRunId = null
+            sd.chatStreamStartedAt = null
+            sd.chatStream = null
+        }
+    )
+
+    sseConnections.set(targetKey, sse)
+
+    sse.done.then(() => {
+        const sd = getSessionData(targetKey)
+        sd.chatSending = false
+        sseConnections.delete(targetKey)
+    }).catch(() => {
+        getSessionData(targetKey).chatSending = false
+        sseConnections.delete(targetKey)
+    })
+}
+
 export interface SessionTreeEntry {
     id: string
     parentId: string | null
@@ -777,6 +834,7 @@ export function useChatState() {
         getSessionData,
         deleteMessage,
         retryMessage,
+        editMessage,
         fetchSessionTree,
         navigateBranch,
     }

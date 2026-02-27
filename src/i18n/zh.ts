@@ -387,6 +387,7 @@ export default {
         reasoning: '思考过程 (Reasoning)',
         readAloud: '朗读',
         retry: '重试',
+        editUpdate: '更新',
         waitMessage: '请等待当前消息发送完成',
         inputPlaceholder: "发消息或输入'/'选择技能",
         uploadAttachment: '上传附件',
