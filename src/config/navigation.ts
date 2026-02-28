@@ -66,14 +66,6 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         showInBottomNav: true
     },
     {
-        label: 'prompt.title',
-        icon: DocumentTextIcon,
-        activeIcon: DocumentTextIconSolid,
-        route: 'prompts',
-        showInSidebar: true,
-        showInBottomNav: true
-    },
-    {
         label: 'sidebar.chat',
         icon: ChatBubbleLeftRightIcon,
         activeIcon: ChatBubbleLeftRightIconSolid,
@@ -87,6 +79,14 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         icon: DocumentIcon,
         activeIcon: DocumentIconSolid,
         route: 'cron',
+        showInSidebar: true,
+        showInBottomNav: true
+    },
+    {
+        label: 'prompt.title',
+        icon: DocumentTextIcon,
+        activeIcon: DocumentTextIconSolid,
+        route: 'prompts',
         showInSidebar: true,
         showInBottomNav: true
     },

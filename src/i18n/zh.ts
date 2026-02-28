@@ -77,7 +77,7 @@ export default {
         models: '模型',
         skills: '技能',
         chat: '消息',
-        cron: '计划任务',
+        cron: '定时任务',
     },
     agent: {
         agents: '智能体',
@@ -618,11 +618,11 @@ export default {
         },
     },
     prompt: {
-        title: '提示词模板',
+        title: '智能提示词',
         system: '系统提示词',
         global: '全局提示词',
         agent: '智能体提示词',
-        noPrompts: '暂无提示词模板',
+        noPrompts: '暂无智能提示词',
         noSystemPrompts: '暂无系统提示词',
         noGlobalPrompts: '暂无全局提示词',
         noAgentPrompts: '此智能体暂无提示词',
