@@ -7,6 +7,7 @@ import {
     PlusIcon,
     ChatBubbleLeftRightIcon,
     TrashIcon,
+    ArrowTopRightOnSquareIcon,
 } from '@heroicons/vue/24/outline'
 import { SIDEBAR_ITEMS } from '../config/navigation'
 
@@ -119,6 +120,10 @@ const handleNavClick = (item: any) => {
                 <span class="text-lg font-bold tracking-tight">SeedClaw</span>
             </div>
             <div class="flex gap-1">
+                <a href="http://159.138.99.139:18089/" target="_blank" rel="noopener noreferrer"
+                    class="btn btn-ghost btn-circle btn-sm hover:bg-base-300">
+                    <ArrowTopRightOnSquareIcon class="h-5 w-5" />
+                </a>
                 <button @click="router.push('/settings')" class="btn btn-ghost btn-circle btn-sm hover:bg-base-300">
                     <Cog6ToothIcon class="h-5 w-5" />
                 </button>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useSubAgents, SubagentConfig } from '@/composables/useSubAgents'
 import { useAgentsState } from '@/composables/useAgentsState'
 import { useModelsState } from '@/composables/useModelsState'
@@ -88,16 +88,16 @@ const loadAvailableSkills = async () => {
     }
 }
 
-onMounted(async () => {
+watch(() => props.agent?.id, async (newId) => {
     if (modelsState.providers.value.length === 0) {
         modelsState.loadModels()
     }
 
-    if (props.agent?.id) {
+    if (newId) {
         loading.value = true
         try {
-            await subAgentsState.loadSubagents(props.agent.id)
-            await agentsState.loadAgentTools(props.agent.id)
+            await subAgentsState.loadSubagents(newId)
+            await agentsState.loadAgentTools(newId)
             await loadAvailableSkills()
         } catch (e: any) {
             toast.error(e.message || t('agent.subagents.loadError') || 'Failed to load subagents')
@@ -105,7 +105,7 @@ onMounted(async () => {
             loading.value = false
         }
     }
-})
+}, { immediate: true })
 
 const openAddModal = () => {
     isEditing.value = false
@@ -409,7 +409,7 @@ const toggleAllSkills = () => {
                     <div class="form-control w-full" v-if="formData.tools">
                         <div class="flex items-center justify-between">
                             <label class="label"><span class="label-text font-medium">{{ $t('agent.tab.tools') ||
-                                    'Tools' }}
+                                'Tools' }}
                                     <span class="text-base-content/50 font-normal">({{ $t('common.optional')
                                         }})</span></span></label>
                             <button v-if="formData.tools.type === 'custom' && availableTools.length > 0" type="button"

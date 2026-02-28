@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, computed, ref } from 'vue'
+import { watch, computed, ref } from 'vue'
 import { useAgentsState } from '@/composables/useAgentsState'
 import { CommandLineIcon, ShieldCheckIcon, ShieldExclamationIcon } from '@heroicons/vue/24/outline'
 
@@ -10,11 +10,11 @@ const props = defineProps<{
 
 const agentsState = useAgentsState()
 
-onMounted(() => {
-    if (props.agent?.id) {
-        agentsState.loadAgentTools(props.agent.id)
+watch(() => props.agent?.id, (newId) => {
+    if (newId) {
+        agentsState.loadAgentTools(newId)
     }
-})
+}, { immediate: true })
 
 const tools = computed(() => {
     if (!props.agent?.id) return []
