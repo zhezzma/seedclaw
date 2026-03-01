@@ -362,7 +362,7 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
             }]
 
             break
-        case 'message_end':
+        case 'message_end': {
             // 【关键逻辑】仅当 stream 有实际内容时，才将其固化为正式消息并重置 chatStream
             //
             // 背景：服务器在每次对话开始时会先发一对 message_start/message_end 来回显用户消息
@@ -372,34 +372,47 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
             //   [] （发消息后初始状态）→ null（user 回显结束）→ []（assistant 开始，函数顶部重置）
             // 这个 [] → null → [] 的瞬间会让 Vue 重新计算 processedMessages，
             // 破坏 loading 动画的连续性，产生可见的闪烁
-            if (stream.length > 0) {
-                // 有内容：将 stream 内容固化为一条正式的 assistant 消息
-                sessionData.chatMessages = [...sessionData.chatMessages, {
+            const endMsg = data?.message
+            const hasError = endMsg?.role === 'assistant' && endMsg?.errorMessage
+
+            if (stream.length > 0 || hasError) {
+                // 有内容或有错误信息：固化为一条正式的 assistant 消息
+                const msg: ChatMessage = {
                     role: 'assistant',
-                    content: JSON.parse(JSON.stringify(stream)), // 深拷贝，防止引用被后续操作修改
-                    timestamp: Date.now(),
-                    id: generateUUID()
-                }]
+                    content: stream.length > 0 ? JSON.parse(JSON.stringify(stream)) : [], // 深拷贝，防止引用被后续操作修改
+                    timestamp: endMsg?.timestamp || Date.now(),
+                    id: generateUUID(),
+                    model: endMsg?.model,
+                    provider: endMsg?.provider,
+                    api: endMsg?.api,
+                }
+                if (hasError) {
+                    msg.errorMessage = endMsg.errorMessage
+                }
+                sessionData.chatMessages = [...sessionData.chatMessages, msg]
                 sessionData.chatStream = null
             }
-            // stream 为空（user 消息回显）：直接跳过，保持 chatStream 为 [] 不变
+            // stream 为空且无错误（user 消息回显）：直接跳过，保持 chatStream 为 [] 不变
             // loading 动画得以保持连续，不产生闪烁
             break
+        }
         case 'command_delta':
             stream.push({ type: 'text', text: data.delta })
             // 命令事件：由后端显式推送，触发前端副作用（如 /reset 清空消息、/name 更新标题等）
             handleCommandDelta(data, targetKey)
             break
         case 'turn_end':
-            break
         case 'agent_end':
+            // agent_end 在重试场景中每轮都会触发（auto_retry），不应在此终止会话
+            // 最终清理统一由 done 事件负责
+            break
+        case 'auto_retry_start':
+            // 服务器开始自动重试，确保 chatSending 保持为 true
+            // （stream 在上一轮 message_end 已重置为 null，此处重新初始化）
+            sessionData.chatStream = []
+            break
         case 'done':
-            // 避免 agent_end 和 done 两者同时触发导致重复拉取
-            if (!sessionData.chatSending) {
-                break
-            }
-
-            // 会话彻底结束
+            // 会话彻底结束（包括所有重试完成后）
             sessionData.chatRunId = null
             sessionData.chatStreamStartedAt = null
             sessionData.chatSending = false
