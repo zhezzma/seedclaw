@@ -141,8 +141,8 @@ defineExpose({
 
                 <!-- Mobile buttons -->
                 <div class="flex gap-1 lg:hidden">
-                    <button @click="startVoiceChat" class="btn btn-ghost btn-circle btn-sm"
-                        :title="$t('chat.voiceChat')">
+                    <button v-if="settingsStore.hasAsrToken && settingsStore.hasTtsToken" @click="startVoiceChat"
+                        class="btn btn-ghost btn-circle btn-sm" :title="$t('chat.voiceChat')">
                         <PhoneIcon class="h-5 w-5" />
                     </button>
                     <button @click="refreshPage" class="btn btn-ghost btn-circle btn-sm" :title="$t('common.refresh')">

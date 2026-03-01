@@ -86,7 +86,9 @@ export const useUiSettingsStore = defineStore('ui-settings', {
     getters: {
         isConfigured: (state) => state.apiBaseUrl.trim() !== '' && state.token.trim() !== '',
         authToken: (state) => state.token,
-        isDark: (state) => state.theme === 'dark'
+        isDark: (state) => state.theme === 'dark',
+        hasAsrToken: (state) => state.asrToken.trim() !== '',
+        hasTtsToken: (state) => state.ttsEngine === 'edge' || state.ttsToken.trim() !== ''
     },
 
     actions: {

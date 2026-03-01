@@ -224,7 +224,7 @@ defineExpose({
                                 d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                         </svg>
                         <span class="text-[9px] w-full truncate text-center opacity-70 leading-tight mt-0.5">{{ att.name
-                            }}</span>
+                        }}</span>
                     </div>
 
                     <!-- Delete Button: Always visible on mobile (using forced opacity or just remove opacity class). 
@@ -352,7 +352,7 @@ defineExpose({
                 <!-- Right Actions -->
                 <div class="flex items-center gap-2">
                     <!-- Mic -->
-                    <button @click="handleMicClick"
+                    <button v-if="settingsStore.hasAsrToken" @click="handleMicClick"
                         class="btn btn-circle btn-sm transition-all duration-300 relative overflow-hidden"
                         :class="isRecording ? 'btn-success text-success-content scale-110 shadow-[0_0_15px_rgba(var(--sc),0.5)] border-success' : 'btn-ghost bg-base-300/50 hover:bg-base-300'"
                         :title="$t('chat.voiceInput')">
