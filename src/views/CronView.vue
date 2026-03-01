@@ -19,8 +19,8 @@ const settingsStore = useUiSettingsStore()
 const toastStore = useToast()
 const { confirm } = useConfirm()
 const { t } = useI18n()
+const cronState = useCronState()
 const {
-    cronJobs,
     loadCron,
     addCronJob,
     updateCronJob,
@@ -28,10 +28,7 @@ const {
     toggleCronJob,
     runCronJob,
     loadCronRuns,
-    cronLoading,
-    cronBusy,
-    cronError
-} = useCronState()
+} = cronState
 
 const agentsState = useAgentsState()
 
@@ -61,9 +58,6 @@ const logsJob = ref<TaskJob | null>(null)
 const logsLoading = ref(false)
 const cronRunLogs = ref<CronRunLogEntry[]>([])
 
-const isLoading = computed(() => cronLoading.value)
-// const isBusy = computed(() => cronBusy.value) // Not strictly needed if used directly
-const jobs = computed(() => cronJobs.value)
 const agents = computed(() => agentsState.agentsList || [])
 
 const modalTitle = computed(() => editingId.value ? t('cron.editJob') : t('cron.newJobModal'))
@@ -205,9 +199,11 @@ onMounted(() => {
             <div class="mx-auto space-y-6 w-full" :class="{ 'max-w-4xl': !settingsStore.isWideMode }">
                 <!-- Jobs List -->
                 <div>
-                    <p v-if="cronLoading && jobs.length === 0" class="text-center py-8 opacity-50">{{
-                        $t('common.loading') }}</p>
-                    <div v-if="!cronLoading && jobs.length === 0" class="text-center py-12 opacity-50">
+                    <p v-if="cronState.cronLoading && cronState.cronJobs.length === 0"
+                        class="text-center py-8 opacity-50">{{
+                            $t('common.loading') }}</p>
+                    <div v-if="!cronState.cronLoading && cronState.cronJobs.length === 0"
+                        class="text-center py-12 opacity-50">
                         <div class="text-6xl mb-4">💤</div>
                         <p>{{ $t('cron.noJobs') }}</p>
                         <button @click="handleOpenAdd" class="btn btn-link">{{ $t('cron.createOne') }}</button>
@@ -215,7 +211,7 @@ onMounted(() => {
 
                     <div v-else class="grid gap-4"
                         :class="settingsStore.isWideMode ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3' : 'grid-cols-1 md:grid-cols-2'">
-                        <div v-for="job in jobs" :key="job.id"
+                        <div v-for="job in cronState.cronJobs" :key="job.id"
                             class="card bg-base-100 shadow-sm border border-base-200 cursor-pointer hover:border-primary transition-colors hover:shadow-md group h-full"
                             @click="handleViewLogs(job)">
                             <div class="card-body p-3 sm:p-4">
@@ -246,7 +242,7 @@ onMounted(() => {
 
                                     <div class="flex items-center justify-between pt-2 border-t border-base-200">
                                         <span class="opacity-50">{{ job.createdAt ? formatDate(job.createdAt) : ''
-                                            }}</span>
+                                        }}</span>
                                         <div class="flex items-center gap-1">
                                             <button @click="handleRun(job, $event)"
                                                 class="btn btn-xs btn-ghost border-base-content/20"
@@ -347,7 +343,7 @@ onMounted(() => {
                         <input v-model="form.cronExpr" type="text" class="input input-bordered w-full font-mono"
                             placeholder="* * * * *" />
                         <label class="label"><span class="label-text-alt opacity-50">{{ $t('cron.form.cronHint')
-                                }}</span></label>
+                        }}</span></label>
                     </div>
 
                     <div v-if="form.scheduleKind === 'at'" class="form-control w-full">
@@ -378,8 +374,8 @@ onMounted(() => {
 
                 <div class="modal-action">
                     <button class="btn" @click="closeModal">{{ $t('common.cancel') }}</button>
-                    <button class="btn btn-primary" @click="handleSave" :disabled="cronBusy">
-                        <span v-if="cronBusy" class="loading loading-spinner"></span>
+                    <button class="btn btn-primary" @click="handleSave" :disabled="cronState.cronBusy">
+                        <span v-if="cronState.cronBusy" class="loading loading-spinner"></span>
                         {{ editingId ? $t('common.save') : $t('cron.createJob') }}
                     </button>
                 </div>
@@ -397,10 +393,10 @@ onMounted(() => {
                 </h3>
                 <div v-if="logsLoading" class="flex justify-center py-8"><span
                         class="loading loading-spinner loading-lg"></span></div>
-                <div v-else-if="cronError" class="alert alert-error my-4"><span>{{ cronError
-                        }}</span></div>
+                <div v-else-if="cronState.cronError" class="alert alert-error my-4"><span>{{ cronState.cronError
+                }}</span></div>
                 <div v-else-if="cronRunLogs.length === 0" class="text-center py-8 opacity-50">{{ $t('cron.logs.noLogs')
-                    }}</div>
+                }}</div>
                 <div v-else class="overflow-x-auto max-h-[60vh]">
                     <table class="table table-zebra table-xs sm:table-sm w-full font-mono">
                         <thead>
