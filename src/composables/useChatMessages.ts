@@ -12,6 +12,7 @@ export interface DisplayBlock {
     toolResult?: any
     toolState?: 'calling' | 'success' | 'error'
     toolError?: string
+    toolDetails?: any  // subagent/delegate 工具的进度详情
     error?: string // For top-level message errors
     source?: {
         type: 'base64' | 'url'
@@ -73,7 +74,8 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
                             toolArgs: item.arguments,
                             toolState: item.toolState || 'calling',
                             toolResult: item.toolResult,
-                            toolError: item.toolError
+                            toolError: item.toolError,
+                            toolDetails: item.toolDetails,
                         }
                         blocks.push(block)
                     } else if (item.type === 'image') {

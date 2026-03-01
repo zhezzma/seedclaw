@@ -321,6 +321,10 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
                     // Update partial result (e.g. streaming output)
                     if (data.partialResult) {
                         toolCallItem.toolResult = data.partialResult.content
+                        // 存储 details（subagent/delegate 工具的进度数据）
+                        if (data.partialResult.details) {
+                            toolCallItem.toolDetails = data.partialResult.details
+                        }
                     }
                 }
             }
@@ -350,6 +354,10 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
                 toolCallItem.toolResult = data.result.content
                 toolCallItem.toolError = data.isError ? (typeof data.result === 'string' ? data.result : JSON.stringify(data.result)) : undefined
                 toolCallItem.toolState = data.isError ? 'error' : 'success'
+                // 保存 details（subagent/delegate 最终结果详情）
+                if (data.result.details) {
+                    toolCallItem.toolDetails = data.result.details
+                }
             }
 
             // 2. Add independent ToolResult message for history integrity

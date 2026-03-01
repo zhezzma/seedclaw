@@ -18,6 +18,7 @@ const props = defineProps<{
     result?: any
     state?: 'calling' | 'success' | 'error'
     errorMessage?: string
+    details?: any  // subagent/delegate 进度详情
 }>()
 
 const { t } = useI18n()
@@ -29,7 +30,99 @@ const toggleOpen = () => {
     isOpen.value = !isOpen.value
 }
 
+// ─── Subagent/Delegate 相关 ─────────────────────────
+const isSubagentTool = computed(() => {
+    return props.toolName === 'subagent' || props.toolName === 'delegate'
+})
+
+/** 子代理结果列表 */
+const subagentResults = computed(() => {
+    return props.details?.results || []
+})
+
+/** 子代理整体状态文字 */
+const subagentStatusText = computed(() => {
+    return props.details?.statusText || ''
+})
+
+/** 子代理模式 */
+const subagentMode = computed(() => {
+    return props.details?.mode || 'single'
+})
+
+/** 获取子代理状态对应的图标 */
+function getStatusIcon(status?: string) {
+    switch (status) {
+        case 'pending': return '⏳'
+        case 'initializing': return '⏳'
+        case 'thinking': return '🧠'
+        case 'tool_running': return '🔧'
+        case 'completed': return '✅'
+        case 'error': return '❌'
+        case 'aborted': return '⛔'
+        default: return '⏳'
+    }
+}
+
+/** 获取状态对应的 CSS 颜色类 */
+function getStatusColorClass(status?: string) {
+    switch (status) {
+        case 'thinking': return 'text-info'
+        case 'tool_running': return 'text-warning'
+        case 'completed': return 'text-success'
+        case 'error': return 'text-error'
+        case 'aborted': return 'text-error'
+        default: return 'text-base-content/60'
+    }
+}
+
+/** 格式化状态文字 */
+function getStatusLabel(status?: string) {
+    switch (status) {
+        case 'pending': return '等待中'
+        case 'initializing': return '初始化中'
+        case 'thinking': return '思考中'
+        case 'tool_running': return '执行工具'
+        case 'completed': return '已完成'
+        case 'error': return '出错'
+        case 'aborted': return '已中止'
+        default: return '运行中'
+    }
+}
+
+/** 格式化耗时 */
+function formatElapsed(startedAt?: number) {
+    if (!startedAt) return ''
+    const elapsed = Math.round((Date.now() - startedAt) / 1000)
+    if (elapsed < 60) return `${elapsed}s`
+    const min = Math.floor(elapsed / 60)
+    const sec = elapsed % 60
+    return `${min}m ${sec}s`
+}
+
+/** 格式化 token 数量 */
+function formatTokens(count: number) {
+    if (count < 1000) return count.toString()
+    if (count < 10000) return `${(count / 1000).toFixed(1)}k`
+    return `${Math.round(count / 1000)}k`
+}
+
 const statusText = computed(() => {
+    // 对 subagent/delegate 工具显示更丰富的状态
+    if (isSubagentTool.value && props.state === 'calling') {
+        const results = subagentResults.value
+        if (results.length === 0) return t('tool.calling', { toolName: props.toolName })
+
+        if (subagentMode.value === 'parallel') {
+            const done = results.filter((r: any) => r.exitCode !== -1 && r.status === 'completed').length
+            return `${props.toolName} — 并行执行中 ${done}/${results.length}`
+        }
+
+        const r = results[results.length - 1]
+        const icon = getStatusIcon(r?.status)
+        const label = getStatusLabel(r?.status)
+        return `${icon} ${props.toolName}: ${r?.agent || ''} ${label}`
+    }
     switch (props.state) {
         case 'calling':
             return t('tool.calling', { toolName: props.toolName })
@@ -184,6 +277,31 @@ function closeModal() {
             <div class="flex-none text-base-content/50">
                 <ChevronDownIcon v-if="isOpen" class="w-4 h-4" />
                 <ChevronRightIcon v-else class="w-4 h-4" />
+            </div>
+        </div>
+
+        <!-- Subagent Progress (visible even when collapsed) -->
+        <div v-if="isSubagentTool && state === 'calling' && subagentResults.length > 0"
+            class="border-t border-base-300 bg-base-100/30 px-3 py-2">
+            <div v-for="(r, idx) in subagentResults" :key="idx"
+                class="flex items-center gap-2 py-1" :class="{ 'border-t border-base-200 mt-1 pt-1': Number(idx) > 0 }">
+                <!-- Status icon -->
+                <span class="text-sm flex-none">{{ getStatusIcon(r.status) }}</span>
+                <!-- Agent name -->
+                <span class="font-mono text-xs font-semibold" :class="getStatusColorClass(r.status)">{{ r.agent }}</span>
+                <!-- Status label -->
+                <span class="text-xs" :class="getStatusColorClass(r.status)">{{ getStatusLabel(r.status) }}</span>
+                <!-- Current tool (if running) -->
+                <span v-if="r.status === 'tool_running' && r.currentTool" class="text-xs text-warning/80 font-mono">→ {{ r.currentTool }}</span>
+                <!-- Turn info -->
+                <span v-if="Number(r.usage?.turns) > 0" class="text-xs text-base-content/40">Turn {{ r.usage.turns }}</span>
+                <!-- Elapsed -->
+                <span v-if="r.startedAt" class="text-xs text-base-content/40 ml-auto">{{ formatElapsed(r.startedAt) }}</span>
+            </div>
+            <!-- Streaming text preview -->
+            <div v-if="subagentResults.length === 1 && subagentResults[0].streamingText && subagentResults[0].status === 'thinking'"
+                class="mt-1 text-xs text-base-content/50 font-mono truncate max-w-full">
+                <span class="opacity-60">▸ </span>{{ subagentResults[0].streamingText.slice(-150) }}
             </div>
         </div>
 

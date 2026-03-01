@@ -527,7 +527,7 @@ const closeFileViewer = () => {
                     <MarkdownRenderer v-if="block.type === 'text'" :content="block.text || ``" />
                     <ToolInvocation v-else-if="block.type === 'tool'" :toolName="block.toolName || 'Unknown Tool'"
                         :args="block.toolArgs || {}" :result="block.toolResult" :state="block.toolState"
-                        :errorMessage="block.toolError" />
+                        :errorMessage="block.toolError" :details="block.toolDetails" />
                     <div v-else-if="block.type === 'image_gallery'" class="grid gap-2 my-1 w-fit" :class="{
                         'grid-cols-1': block.images.length === 1,
                         'grid-cols-2 max-w-[240px] sm:max-w-[320px]': block.images.length === 2 || block.images.length === 4,
