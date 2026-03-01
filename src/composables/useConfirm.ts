@@ -1,4 +1,4 @@
-import { reactive, toRefs } from 'vue'
+import { reactive } from 'vue'
 
 interface ConfirmState {
     show: boolean
@@ -56,12 +56,11 @@ const reset = () => {
 }
 
 
-const _confirmState = {
-    ...toRefs(state),
+const _confirmState = Object.assign(state, {
     confirm,
     cancel,
     ok
-}
+})
 
 export const useConfirm = () => _confirmState
 
