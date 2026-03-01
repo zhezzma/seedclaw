@@ -1,4 +1,5 @@
-import { reactive, toRefs } from 'vue'
+import { reactive } from 'vue'
+import { createStateProxy } from './utils/stateProxy'
 import { apiGet, apiPost, apiDelete } from './api-client'
 
 // ==================== Types ====================
@@ -127,5 +128,5 @@ export function usePromptState() {
         deleteAgentPrompt,
     }
 
-    return { ...toRefs(state), ...methods }
+    return createStateProxy(state, methods)
 }

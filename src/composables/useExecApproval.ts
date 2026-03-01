@@ -1,4 +1,5 @@
-import { reactive, toRefs } from 'vue'
+import { reactive } from 'vue'
+import { createStateProxy } from './utils/stateProxy'
 import { onServerMessage, sendRequest, WsMessage } from './notify-server-connection'
 
 export interface ExecApprovalRequest {
@@ -65,5 +66,9 @@ export function useExecApproval() {
         return await sendRequest('ui_response', { id, value })
     }
 
-    return { ...toRefs(state), resolveRequest }
+    const methods = {
+        resolveRequest
+    }
+
+    return createStateProxy(state, methods)
 }

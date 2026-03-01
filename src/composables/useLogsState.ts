@@ -1,4 +1,5 @@
-import { reactive, toRefs } from 'vue'
+import { reactive } from 'vue'
+import { createStateProxy } from './utils/stateProxy'
 import { apiGet } from './api-client'
 
 // ==================== Types ====================
@@ -155,5 +156,5 @@ export function useLogsState() {
         setPage
     }
 
-    return { ...toRefs(state), ...methods }
+    return createStateProxy(state, methods)
 }

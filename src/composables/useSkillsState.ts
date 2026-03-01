@@ -1,4 +1,5 @@
-import { reactive, toRefs } from 'vue'
+import { reactive } from 'vue'
+import { createStateProxy } from './utils/stateProxy'
 import { apiGet, apiPost, apiPatch, apiDelete } from './api-client'
 import { clawHubClient, type ConvexSkill, type ConnectionStatus } from './clawhub-client'
 
@@ -148,6 +149,6 @@ export function useSkillsState() {
         uninstallAgentSkill
     }
 
-    return { ...toRefs(state), ...methods }
+    return createStateProxy(state, methods)
 }
 

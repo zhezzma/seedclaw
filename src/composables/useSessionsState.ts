@@ -1,4 +1,5 @@
-import { reactive, computed, watch, toRefs } from 'vue'
+import { reactive, computed, watch } from 'vue'
+import { createStateProxy } from './utils/stateProxy'
 import { apiGet, apiPost, apiDelete, apiPatch } from './api-client'
 
 // ==================== Types ====================
@@ -268,5 +269,5 @@ export function useSessionsState() {
         getSessionById,
     }
 
-    return { ...toRefs(state), ...methods }
+    return createStateProxy(state, methods)
 }
