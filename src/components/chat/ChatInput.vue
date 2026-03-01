@@ -51,7 +51,12 @@ const {
     handleKeydown,
     closeDropdowns,
     addAttachment,
-    removeAttachment
+    removeAttachment,
+    commandSuggestionsVisible,
+    commandSuggestions,
+    commandSuggestionIndex,
+    confirmCommandSuggestion,
+    closeSuggestions,
 } = useChatInput()
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -189,6 +194,10 @@ const handleToolbarClickOutside = (event: MouseEvent) => {
         closeDropdowns()
         thinkingDropdownOpen.value = false
     }
+    // 点击外部时关闭命令补全浮层
+    if (!target.closest('.command-suggestions-panel') && !target.closest('textarea')) {
+        closeSuggestions()
+    }
 }
 
 defineExpose({
@@ -224,7 +233,7 @@ defineExpose({
                                 d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                         </svg>
                         <span class="text-[9px] w-full truncate text-center opacity-70 leading-tight mt-0.5">{{ att.name
-                        }}</span>
+                            }}</span>
                     </div>
 
                     <!-- Delete Button: Always visible on mobile (using forced opacity or just remove opacity class). 
@@ -237,6 +246,34 @@ defineExpose({
             </div>
 
             <!-- Input Top -->
+            <!-- 命令补全浮层 -->
+            <div v-if="commandSuggestionsVisible"
+                class="absolute left-3 bottom-full mb-2 w-96 bg-base-100 border border-base-300 rounded-xl shadow-xl z-[200] overflow-hidden">
+                <div
+                    class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-base-content/40 border-b border-base-200">
+                    命令建议
+                </div>
+                <div class="p-1 flex flex-col">
+                    <button v-for="(cmd, idx) in commandSuggestions" :key="cmd.name"
+                        @mousedown.prevent="confirmCommandSuggestion(cmd)" @mouseenter="commandSuggestionIndex = idx"
+                        :title="cmd.description"
+                        class="flex items-center gap-2 w-full overflow-hidden rounded-lg py-2 px-3 text-left transition-colors"
+                        :class="idx === commandSuggestionIndex ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'">
+                        <span
+                            class="font-mono font-semibold text-sm whitespace-nowrap shrink-0 max-w-[9rem] overflow-hidden text-ellipsis">/{{
+                                cmd.name }}</span>
+                        <span v-if="cmd.description"
+                            class="text-xs opacity-60 whitespace-nowrap overflow-hidden text-ellipsis flex-1 min-w-0">{{
+                                cmd.description }}</span>
+                        <span v-if="cmd.source" class="ml-auto badge badge-xs shrink-0"
+                            :class="cmd.source === 'builtin' ? 'badge-ghost' : 'badge-primary badge-outline'">
+                            {{ cmd.source === 'builtin' ? '内置' : '扩展' }}
+                        </span>
+                    </button>
+                </div>
+            </div>
+
+
             <textarea ref="textareaRef" v-model="inputText" rows="1" :placeholder="$t('chat.inputPlaceholder')"
                 class="textarea textarea-ghost w-full resize-none focus:outline-none focus:bg-transparent text-base min-h-[44px] max-h-[200px] px-3 py-3 leading-6 placeholder:text-base-content/40 hide-scrollbar"
                 @keydown="handleInputKeydown" @focus="handleInputFocus" @input="adjustHeight"

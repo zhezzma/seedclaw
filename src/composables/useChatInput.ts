@@ -1,9 +1,10 @@
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { SpeechRecognitionService } from '../utils/asr/speechRecognition'
 import { takeAudioControl, releaseAudioControl } from '../utils/audioManager'
 import { useUiSettingsStore } from '../stores/setting'
 import { useToast } from './useToast'
 import { readFile } from '../utils/fileReader'
+import { useCommandState, type CommandInfo } from './useCommandState'
 
 export interface CommandItem {
     label: string
@@ -33,19 +34,54 @@ export const COMMANDS: CommandItem[] = [
 const inputText = ref('')
 const attachments = ref<{ id: string; name: string; dataUrl: string; mimeType: string; content?: string }[]>([])
 
+// ——— 命令补全 ———
+const commandSuggestionsVisible = ref(false)
+const commandSuggestions = ref<CommandInfo[]>([])
+const commandSuggestionIndex = ref(0)
+
 export function useChatInput() {
     const isRecording = ref(false)
+    const { filterCommands } = useCommandState()
 
     const selectedModel = ref('glm')
     const commandDropdownOpen = ref(false)
     const modelDropdownOpen = ref(false)
 
+    // 监听输入，当以 / 开头时显示命令补全
+    watch(inputText, (val) => {
+        // 只在输入以 / 开头、没有换行、且没有空格（即还在输入命令名）时激活
+        if (/^\/[^\s]*$/.test(val)) {
+            const prefix = val.slice(1) // 去掉开头的 /
+            commandSuggestions.value = filterCommands.value(prefix) //.slice(0, 5)
+            commandSuggestionsVisible.value = commandSuggestions.value.length > 0
+            commandSuggestionIndex.value = 0
+        } else {
+            commandSuggestions.value = []
+            commandSuggestionsVisible.value = false
+        }
+    })
+
     const selectCommand = (cmd: string) => {
         inputText.value = cmd + ' '
         commandDropdownOpen.value = false
+        commandSuggestionsVisible.value = false
         // Focus input
         const el = document.querySelector('textarea') as HTMLTextAreaElement
         if (el) el.focus()
+    }
+
+    /** 从命令补全列表中选择某条命令 */
+    const confirmCommandSuggestion = (cmd: CommandInfo) => {
+        inputText.value = `/${cmd.name} `
+        commandSuggestionsVisible.value = false
+        commandSuggestions.value = []
+        const el = document.querySelector('textarea') as HTMLTextAreaElement
+        if (el) el.focus()
+    }
+
+    /** 关闭命令补全浮层 */
+    const closeSuggestions = () => {
+        commandSuggestionsVisible.value = false
     }
 
     const selectModel = (model: string) => {
@@ -134,6 +170,32 @@ export function useChatInput() {
     }
 
     const handleKeydown = (e: KeyboardEvent, onSend: () => void) => {
+        // 命令补全键盘导航
+        if (commandSuggestionsVisible.value) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                commandSuggestionIndex.value = (commandSuggestionIndex.value + 1) % commandSuggestions.value.length
+                return
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                commandSuggestionIndex.value =
+                    (commandSuggestionIndex.value - 1 + commandSuggestions.value.length) % commandSuggestions.value.length
+                return
+            }
+            if (e.key === 'Enter' && !e.ctrlKey) {
+                e.preventDefault()
+                const selected = commandSuggestions.value[commandSuggestionIndex.value]
+                if (selected) confirmCommandSuggestion(selected)
+                return
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault()
+                closeSuggestions()
+                return
+            }
+        }
+
         // Ctrl+Enter (PC) 发送消息，Enter 换行
         // 移动端只能通过按钮发送
         if (e.key === 'Enter' && e.ctrlKey) {
@@ -201,5 +263,11 @@ export function useChatInput() {
         addAttachment,
         removeAttachment,
         commands: COMMANDS,
+        // 命令补全
+        commandSuggestionsVisible,
+        commandSuggestions,
+        commandSuggestionIndex,
+        confirmCommandSuggestion,
+        closeSuggestions,
     }
 }

@@ -389,7 +389,7 @@ export default {
         retry: 'Retry',
         editUpdate: 'Update',
         waitMessage: 'Please wait for the current message to finish sending',
-        inputPlaceholder: "Type a message or '/' to select a skill",
+        inputPlaceholder: "Type a message or '/' to select a command",
         uploadAttachment: 'Upload Attachment',
         connected: 'Connected',
         disconnected: 'Disconnected',

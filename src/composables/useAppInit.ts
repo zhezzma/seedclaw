@@ -9,6 +9,7 @@ import { useModelsState } from './useModelsState'
 import { useSkillsState } from './useSkillsState'
 import { connectServer } from './notify-server-connection'
 import { useExecApproval } from './useExecApproval'
+import { useCommandState } from './useCommandState'
 
 /**
  * Initializes all domain-specific state composables.
@@ -22,6 +23,7 @@ export function useAppInit() {
     const { initConvexConnection } = useSkillsState()
     const { initGotify } = useGotify()
     const chatState = useChatState()
+    const { loadCommands } = useCommandState()
     useCronState()
     useNotify()
     useExecApproval()
@@ -31,7 +33,8 @@ export function useAppInit() {
         await Promise.all([
             agentsState.loadAgents(),
             sessionsState.loadSessions(),
-            loadModels()
+            loadModels(),
+            loadCommands(),
         ])
 
         initConvexConnection()

@@ -389,7 +389,7 @@ export default {
         retry: '重试',
         editUpdate: '更新',
         waitMessage: '请等待当前消息发送完成',
-        inputPlaceholder: "发消息或输入'/'选择技能",
+        inputPlaceholder: "发消息或输入'/'选择命令",
         uploadAttachment: '上传附件',
         connected: '已连接',
         disconnected: '未连接',
