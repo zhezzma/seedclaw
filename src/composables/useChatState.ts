@@ -5,6 +5,7 @@ import { useUiSettingsStore } from '../stores/setting'
 import { apiGet, apiPost } from './api-client'
 import { startChatSSE, connectSessionSSE, startRetrySSE, startEditSSE, type SSEConnection } from './sse-client'
 import { AgentInfo, useAgentsState } from './useAgentsState'
+import router from '../router'
 
 // ==================== Types ====================
 export interface ChatMessage {
@@ -225,6 +226,19 @@ const handleCommandDelta = (data: any, targetKey: string) => {
                 }
                 const sessionsState = useSessionsState()
                 sessionsState.updateSessionLocal(state.sessionKey, { name: newName })
+            }
+            break
+        }
+        case 'new': {
+            // /new 命令：服务端已创建新会话，前端切换过去
+            const newSessionId = data.data?.sessionId
+            if (newSessionId) {
+                const sessionsState = useSessionsState()
+                // 刷新会话列表（让新会话出现在侧边栏）
+                sessionsState.loadSessions()
+                // 切换到新会话并导航
+                setSessionKey(newSessionId, true)
+                router.push({ name: 'chat', params: { sessionkey: newSessionId } })
             }
             break
         }
