@@ -110,12 +110,15 @@ function handleServerMessage(msg: WsMessage) {
 
 }
 
-export function useNotify() {
-    // Subscribe to server messages
-    onServerMessage(handleServerMessage)
 
-    return {
-    }
+// 模块级注册，只执行一次（防止多次调用 useNotify() 重复注册 handler 导致通知重复触发）
+onServerMessage(handleServerMessage)
+
+const _notifyState = {}
+
+export function useNotify() {
+    return _notifyState
 }
+
 
 

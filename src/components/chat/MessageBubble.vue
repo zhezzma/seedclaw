@@ -101,8 +101,8 @@ const getImageSrc = (source: any): string => {
     return ''
 }
 
-// 当前 Agent 信息直接从 chatState 获取（已是 ComputedRef，无需额外包裹）
-const currentAgent = chatState.currentAgent
+// 当前 Agent 信息直接从 chatState 获取，无需额外 watch 和查询
+const currentAgent = computed(() => chatState.currentAgent)
 const assistantName = computed(() => currentAgent.value?.identity?.name || currentAgent.value?.name || 'Assistant')
 const assistantAvatar = computed(() => {
     const avatar = currentAgent.value?.avatar

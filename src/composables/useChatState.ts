@@ -1,4 +1,4 @@
-import { reactive, computed } from 'vue'
+import { reactive, computed, type ComputedRef } from 'vue'
 
 import { SessionRow, useSessionsState } from './useSessionsState'
 import { useUiSettingsStore } from '../stores/setting'
@@ -848,46 +848,40 @@ const navigateBranch = async (targetEntryId: string, sessionKey?: string) => {
     }
 }
 
-export function useChatState() {
-    // Derived computeds（reactive 自动解包 ComputedRef，外部访问无需 .value）
-    const chatMessages = computed(() => getSessionData(state.sessionKey).chatMessages)
-    const chatToolMessages = computed(() => getSessionData(state.sessionKey).chatToolMessages)
-    const sessionTree = computed(() => getSessionData(state.sessionKey).sessionTree)
-    const chatStream = computed(() => getSessionData(state.sessionKey).chatStream)
-    const chatSending = computed(() => getSessionData(state.sessionKey).chatSending)
-    const chatRunId = computed(() => getSessionData(state.sessionKey).chatRunId)
-    const chatStreamStartedAt = computed(() => getSessionData(state.sessionKey).chatStreamStartedAt)
-    const chatLoading = computed(() => getSessionData(state.sessionKey).chatLoading)
-    const currentAgent = computed(() => {
-        const agentsState = useAgentsState()
-        return agentsState.agentsList?.find(a => a.id === state.agentsSelectedId) || null
-    })
+// ==================== Derived Computeds（模块级，仅初始化一次）====================
+const chatMessages = computed(() => getSessionData(state.sessionKey).chatMessages)
+const chatToolMessages = computed(() => getSessionData(state.sessionKey).chatToolMessages)
+const sessionTree = computed(() => getSessionData(state.sessionKey).sessionTree)
+const chatStream = computed(() => getSessionData(state.sessionKey).chatStream)
+const chatSending = computed(() => getSessionData(state.sessionKey).chatSending)
+const chatRunId = computed(() => getSessionData(state.sessionKey).chatRunId)
+const chatStreamStartedAt = computed(() => getSessionData(state.sessionKey).chatStreamStartedAt)
+const chatLoading = computed(() => getSessionData(state.sessionKey).chatLoading)
+const currentAgent = computed(() => {
+    const agentsState = useAgentsState()
+    return agentsState.agentsList?.find(a => a.id === state.agentsSelectedId) || null
+})
 
-    const methods = {
-        chatMessages,
-        chatToolMessages,
-        sessionTree,
-        chatStream,
-        chatSending,
-        chatRunId,
-        chatStreamStartedAt,
-        chatLoading,
-        currentAgent,
-
-        sendMessage,
-        steerMessage,
-        abortChat,
-        loadChatHistory,
-        setSessionKey,
-        createNewSession,
-        selectAgent,
-        getSessionData,
-        deleteMessage,
-        retryMessage,
-        editMessage,
-        fetchSessionTree,
-        navigateBranch,
-    }
-
-    return Object.assign(state, methods)
+// 将 ComputedRef<T> 解包为 T，使 TypeScript 类型与 Vue reactive 自动解包行为一致
+// Vue 运行时会自动解包 reactive 对象中的 ComputedRef，
+// 但 TypeScript 静态分析感知不到这个行为，需要手动告知类型系统。
+// 参见：https://vuejs.org/guide/essentials/reactivity-fundamentals.html#reactive-proxy-vs-original
+type UnwrapComputed<T extends object> = {
+    [K in keyof T]: T[K] extends ComputedRef<infer V> ? V : T[K]
 }
+
+
+// 预组装单例（模块加载时执行一次，避免每次调用 useChatState 重复创建 computed）
+const _methods = {
+    chatMessages, chatToolMessages, sessionTree, chatStream,
+    chatSending, chatRunId, chatStreamStartedAt, chatLoading, currentAgent,
+    sendMessage, steerMessage, abortChat, loadChatHistory,
+    setSessionKey, createNewSession, selectAgent, getSessionData,
+    deleteMessage, retryMessage, editMessage, fetchSessionTree, navigateBranch,
+}
+const _chatState = Object.assign(state, _methods) as unknown as typeof state & UnwrapComputed<typeof _methods>
+
+export function useChatState() {
+    return _chatState
+}
+

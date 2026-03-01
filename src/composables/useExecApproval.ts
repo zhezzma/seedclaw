@@ -45,30 +45,24 @@ function handleServerMessage(msg: WsMessage) {
 
 
 
+
+// Global listener for execution approval requests（模块级，只注册一次）
+onServerMessage(handleServerMessage)
+
+/**
+ * Resolve an approval request with a decision
+ */
+const resolveRequest = async (id: string, value: string | boolean) => {
+    const idx = state.execApprovalQueue.findIndex(req => req.id === id)
+    if (idx > -1) {
+        state.execApprovalQueue.splice(idx, 1)
+    }
+    //value在input的时候是字符串..在select的时候是字符串..在confirm的时候是布尔值
+    return await sendRequest('ui_response', { id, value })
+}
+
+const _execApprovalState = Object.assign(state, { resolveRequest })
+
 export function useExecApproval() {
-
-    // Global listener for execution approval requests
-    onServerMessage(handleServerMessage)
-
-    /**
-     * Resolve an approval request with a decision
-     */
-    const resolveRequest = async (id: string, value: string | boolean) => {
-        // Optimistically remove from queue
-
-        const idx = state.execApprovalQueue.findIndex(req => req.id === id)
-        if (idx > -1) {
-            state.execApprovalQueue.splice(idx, 1)
-        }
-
-
-        //value在input的时候是字符串..在select的时候是字符串..在confirm的时候是布尔值
-        return await sendRequest('ui_response', { id, value })
-    }
-
-    const methods = {
-        resolveRequest
-    }
-
-    return Object.assign(state, methods)
+    return _execApprovalState
 }

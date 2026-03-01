@@ -32,39 +32,42 @@ const state = reactive<{
     loading: false,
 })
 
-// ==================== Composable ====================
+// ==================== Derived Computeds & Actions（模块级，仅初始化一次）====================
 
-export function useCommandState() {
-    const loadCommands = async (agentId?: string) => {
-        if (state.loading) return
-        state.loading = true
-        try {
-            const query = agentId ? `?agentId=${encodeURIComponent(agentId)}` : ''
-            const result = await apiGet<CommandsResponse>(`/api/commands${query}`)
-            state.commands = result?.commands ?? []
-            state.loaded = true
-        } catch (err) {
-            console.error('[useCommandState] 获取命令列表失败:', err)
-        } finally {
-            state.loading = false
-        }
-    }
-
-    /** 根据输入前缀过滤命令（输入 `/foo` 则匹配所有以 `foo` 开头的命令） */
-    const filterCommands = computed(() => (prefix: string) => {
-        const lc = prefix.toLowerCase()
-        return state.commands.filter(cmd =>
-            cmd.name.toLowerCase().startsWith(lc)
-        )
-    })
-
-    const allCommands = computed(() => state.commands)
-    const isLoaded = computed(() => state.loaded)
-
-    return {
-        allCommands,
-        isLoaded,
-        loadCommands,
-        filterCommands,
+const loadCommands = async (agentId?: string) => {
+    if (state.loading) return
+    state.loading = true
+    try {
+        const query = agentId ? `?agentId=${encodeURIComponent(agentId)}` : ''
+        const result = await apiGet<CommandsResponse>(`/api/commands${query}`)
+        state.commands = result?.commands ?? []
+        state.loaded = true
+    } catch (err) {
+        console.error('[useCommandState] 获取命令列表失败:', err)
+    } finally {
+        state.loading = false
     }
 }
+
+/** 根据输入前缀过滤命令（输入 `/foo` 则匹配所有以 `foo` 开头的命令） */
+const filterCommands = computed(() => (prefix: string) => {
+    const lc = prefix.toLowerCase()
+    return state.commands.filter(cmd =>
+        cmd.name.toLowerCase().startsWith(lc)
+    )
+})
+
+const allCommands = computed(() => state.commands)
+const isLoaded = computed(() => state.loaded)
+
+const _commandState = {
+    allCommands,
+    isLoaded,
+    loadCommands,
+    filterCommands,
+}
+
+export function useCommandState() {
+    return _commandState
+}
+

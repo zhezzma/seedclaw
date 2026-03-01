@@ -55,11 +55,13 @@ const reset = () => {
     state.reject = null
 }
 
-export const useConfirm = () => {
-    return {
-        ...toRefs(state),
-        confirm,
-        cancel,
-        ok
-    }
+
+const _confirmState = {
+    ...toRefs(state),
+    confirm,
+    cancel,
+    ok
 }
+
+export const useConfirm = () => _confirmState
+

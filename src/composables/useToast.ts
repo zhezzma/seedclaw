@@ -56,21 +56,17 @@ export interface ToastOptions {
     onClick?: () => void
 }
 
-export const useToast = () => {
-    return {
-        // Return computed for readonly access to array, or just reference to reactive array?
-        // To match storeToRefs reference, we might want to expose it as `toasts`.
-        // If we conform to previous API: `const { toasts } = storeToRefs(store)`
-        // New API: `const { toasts } = useToast()` where toasts is the reactive array.
-        // Or should it be a computed?
-        // Let's return the reactive array directly.
-        toasts: computed(() => toasts), // Readonly view safer? MessagePlugin creates v-for on it.
-        add,
-        remove,
-        success: (message: string, options?: number | ToastOptions) => add(message, 'success', options),
-        error: (message: string, options?: number | ToastOptions) => add(message, 'error', options),
-        info: (message: string, options?: number | ToastOptions) => add(message, 'info', options),
-        warning: (message: string, options?: number | ToastOptions) => add(message, 'warning', options),
-        clear
-    }
+
+const _toastState = {
+    toasts: computed(() => toasts),
+    add,
+    remove,
+    success: (message: string, options?: number | ToastOptions) => add(message, 'success', options),
+    error: (message: string, options?: number | ToastOptions) => add(message, 'error', options),
+    info: (message: string, options?: number | ToastOptions) => add(message, 'info', options),
+    warning: (message: string, options?: number | ToastOptions) => add(message, 'warning', options),
+    clear
 }
+
+export const useToast = () => _toastState
+

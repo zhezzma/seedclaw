@@ -57,8 +57,8 @@ const {
 // TTS
 const { currentReadingMsgId, readAloud: ttsReadAloud } = useTTS()
 
-// 当前选中的 Agent（直接从 chatState 获取，已是 ComputedRef）
-const selectedAgent = chatState.currentAgent
+// 当前选中的 Agent（直接从 chatState 获取，无需额外 watch）
+const selectedAgent = computed(() => chatState.currentAgent)
 
 // 当前会话名称（优先从 sessionsState 获取最新值，因为 patchSession 会更新它）
 const currentSessionName = computed(() => {

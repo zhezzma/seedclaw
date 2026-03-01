@@ -31,7 +31,7 @@ const chatState = useChatState()
 const settingsStore = useUiSettingsStore()
 const { availableModels } = useModelsState()
 const { t } = useI18n()
-const isBusy = computed(() => chatState.chatSending.value || Boolean(chatState.chatRunId.value))
+const isBusy = computed(() => chatState.chatSending || Boolean(chatState.chatRunId))
 const emit = defineEmits<{
     (e: 'send'): void
 }>()
@@ -75,7 +75,7 @@ const currentModel = computed(() => {
     if (session && session.modelProvider && session.model) {
         return `${session.modelProvider}/${session.model}`
     }
-    const agent = chatState.currentAgent.value
+    const agent = chatState.currentAgent
     if (agent) {
         return `${agent.defaultProvider}/${agent.defaultModel}`
     }
