@@ -25,6 +25,7 @@ export interface UiSettings {
     assistantMsgMerge: boolean
     language: 'zh' | 'en'
     showAllProviders: boolean  // 是否显示没有 apiKey 的提供商
+    externalUrl: string  // 外部链接地址（侧边栏跳转按钮）
 }
 
 // ==================== Constants ====================
@@ -53,7 +54,8 @@ const getDefaultSettings = (): UiSettings => ({
     gotifyToken: '',
     assistantMsgMerge: true,
     language: 'zh',
-    showAllProviders: true
+    showAllProviders: true,
+    externalUrl: ''
 })
 
 const loadConfig = (): UiSettings => {

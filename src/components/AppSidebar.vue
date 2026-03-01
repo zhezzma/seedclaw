@@ -19,6 +19,7 @@ import { SessionRow, useSessionsState } from '../composables/useSessionsState'
 import { useChatState } from '../composables/useChatState'
 import { useAgentsState } from '../composables/useAgentsState'
 import { useNavActive } from '../composables/useNavActive'
+import { useUiSettingsStore } from '../stores/setting'
 import { useI18n } from 'vue-i18n'
 import { truncateText } from '../utils/format'
 
@@ -29,6 +30,7 @@ const sessionsState = useSessionsState()
 const chatState = useChatState()
 const agentsState = useAgentsState()
 const { t } = useI18n()
+const configStore = useUiSettingsStore()
 
 // No props needed now
 // const props = defineProps<{...}>()
@@ -120,8 +122,8 @@ const handleNavClick = (item: any) => {
                 <span class="text-lg font-bold tracking-tight">SeedClaw</span>
             </div>
             <div class="flex gap-1">
-                <a href="http://159.138.99.139:18089/" target="_blank" rel="noopener noreferrer"
-                    class="btn btn-ghost btn-circle btn-sm hover:bg-base-300">
+                <a v-if="configStore.externalUrl" :href="configStore.externalUrl" target="_blank"
+                    rel="noopener noreferrer" class="btn btn-ghost btn-circle btn-sm hover:bg-base-300">
                     <ArrowTopRightOnSquareIcon class="h-5 w-5" />
                 </a>
                 <button @click="router.push('/settings')" class="btn btn-ghost btn-circle btn-sm hover:bg-base-300">
@@ -171,7 +173,7 @@ const handleNavClick = (item: any) => {
         <!-- Conversations Header -->
         <div class="shrink-0 px-4 pt-2 pb-2 flex items-center justify-between">
             <span class="text-sm font-medium text-base-content/70 uppercase tracking-wider">{{ $t('sidebar.recentChats')
-                }}</span>
+            }}</span>
             <div class="flex gap-1">
                 <button v-if="displaySessions && displaySessions.length > 0"
                     class="btn btn-ghost btn-circle btn-xs hover:bg-error/20 hover:text-error"

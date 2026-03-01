@@ -45,6 +45,8 @@ const editForm = ref({
     ttsToken: '',
     ttsModel: '',
     homePageBehavior: 'new_session' as 'last_active_session' | 'new_session',
+    // External URL
+    externalUrl: '',
     // Gotify
     gotifyUrl: '',
     gotifyToken: ''
@@ -86,7 +88,8 @@ const openConnectionModal = () => {
         token: configStore.token,
         sessionsActiveDays: configStore.sessionsActiveDays,
         silenceDuration: configStore.silenceDuration,
-        homePageBehavior: configStore.homePageBehavior || 'last_active_session'
+        homePageBehavior: configStore.homePageBehavior || 'last_active_session',
+        externalUrl: configStore.externalUrl || ''
     }
     const modal = document.getElementById('basic_settings_modal') as HTMLDialogElement
     if (modal) modal.showModal()
@@ -120,7 +123,8 @@ const saveConnection = () => {
         token: editForm.value.token,
         sessionsActiveDays: Number(editForm.value.sessionsActiveDays),
         silenceDuration: Number(editForm.value.silenceDuration),
-        homePageBehavior: editForm.value.homePageBehavior
+        homePageBehavior: editForm.value.homePageBehavior,
+        externalUrl: editForm.value.externalUrl
     })
     if (window.location.protocol !== 'file:') {
         window.location.reload()
@@ -188,7 +192,7 @@ const logout = async () => {
                                         <span class="font-medium">{{ $t('settings.basic') }}</span>
                                         <p class="text-xs text-base-content/50 truncate max-w-48">{{
                                             configStore.apiBaseUrl
-                                            }}</p>
+                                        }}</p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
@@ -207,7 +211,7 @@ const logout = async () => {
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm text-base-content/60">{{ configStore.isDark ?
                                         $t('settings.dark') : $t('settings.light')
-                                    }}</span>
+                                        }}</span>
                                     <input type="checkbox" class="toggle toggle-primary" :checked="configStore.isDark"
                                         @change="configStore.toggleTheme()" />
                                 </div>
@@ -257,7 +261,7 @@ const logout = async () => {
                                         <span class="font-medium">{{ $t('settings.gotify') }}</span>
                                         <p class="text-xs text-base-content/50">{{ configStore.gotifyUrl ||
                                             $t('settings.notConfigured')
-                                        }}</p>
+                                            }}</p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
@@ -405,6 +409,16 @@ const logout = async () => {
                     </select>
                 </div>
                 -->
+                <div>
+                    <label class="label">
+                        <span class="label-text">{{ $t('settings.externalUrl') }}</span>
+                    </label>
+                    <input type="text" v-model="editForm.externalUrl"
+                        :placeholder="$t('settings.externalUrlPlaceholder')" class="input input-bordered w-full" />
+                    <label class="label">
+                        <span class="label-text-alt opacity-50">{{ $t('settings.externalUrlDesc') }}</span>
+                    </label>
+                </div>
             </div>
             <div class="modal-action">
                 <form method="dialog">

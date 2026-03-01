@@ -519,6 +519,9 @@ export default {
         gotifyUrlPlaceholder: 'e.g. https://push.example.com',
         ttsEngineQwen: 'Qwen TTS (Realtime PCM/Low Latency)',
         ttsEngineEdge: 'Edge TTS (Streaming MSE/Free)',
+        externalUrl: 'External URL',
+        externalUrlPlaceholder: 'e.g. http://example.com',
+        externalUrlDesc: 'External link in sidebar, leave empty to hide the button',
     },
     setup: {
         enterGatewayUrl: 'Please enter Gateway URL',

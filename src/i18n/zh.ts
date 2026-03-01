@@ -519,6 +519,9 @@ export default {
         gotifyUrlPlaceholder: '例如: https://push.example.com',
         ttsEngineQwen: 'Qwen TTS (实时PCM/低延迟)',
         ttsEngineEdge: 'Edge TTS (流式MSE/免费)',
+        externalUrl: '外部链接',
+        externalUrlPlaceholder: '例如: http://example.com',
+        externalUrlDesc: '侧边栏的外部跳转链接，留空则不显示按钮',
     },
     setup: {
         enterGatewayUrl: '请输入网关地址',
