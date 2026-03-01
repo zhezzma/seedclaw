@@ -214,11 +214,17 @@ const handleCommandDelta = (data: any, targetKey: string) => {
             break
         case 'name': {
             // /name 命令：更新会话名称（后端已持久化，此处仅同步前端状态）
-            // currentSession 和 sessionsResult.sessions 中的对象是同一个 reactive 引用
-            // 直接修改属性即可同时更新 ChatHeader 和侧边栏
+            // 需要同时更新两处：
+            // 1. state.currentSession —— ChatHeader fallback 路径使用
+            // 2. sessionsState 中的 sessions 列表 —— displaySessions / currentSessionName 的主路径使用
+            // 两者可能不是同一个对象（reactive proxy 链路不同），必须分别更新
             const newName = data.data?.name
-            if (newName && state.currentSession) {
-                state.currentSession.name = newName
+            if (newName) {
+                if (state.currentSession) {
+                    state.currentSession.name = newName
+                }
+                const sessionsState = useSessionsState()
+                sessionsState.updateSessionLocal(state.sessionKey, { name: newName })
             }
             break
         }

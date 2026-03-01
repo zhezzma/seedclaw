@@ -63,19 +63,28 @@ export function useSessionsState() {
             // Call rename API
             await apiPost(`/api/sessions/${encodeURIComponent(key)}/name`, { name: patch.label })
 
-            // Update local state
-            if (state.sessionsResult?.sessions) {
-                const sessions = state.sessionsResult.sessions.map((s: SessionRow) => {
-                    if (s.id === key) {
-                        return { ...s, name: patch.label || undefined }
-                    }
-                    return s
-                })
-                state.sessionsResult = { ...state.sessionsResult, sessions }
+            // 原地修改，保持引用一致性（避免与 currentSession 分裂）
+            const found = state.sessionsResult?.sessions?.find((s: SessionRow) => s.id === key)
+                || state.cronSessionsResult?.sessions?.find((s: SessionRow) => s.id === key)
+            if (found) {
+                found.name = patch.label || undefined
             }
         } catch (error) {
             console.error('Failed to rename session', error)
             throw error
+        }
+    }
+
+    /**
+     * 仅更新本地 session 数据，不发送 API 请求。
+     * 用于后端已持久化的场景（如 /name 命令回调），只需同步前端响应式状态。
+     * 原地修改，保持引用一致性。
+     */
+    const updateSessionLocal = (key: string, patch: Partial<SessionRow>) => {
+        const found = state.sessionsResult?.sessions?.find((s: SessionRow) => s.id === key)
+            || state.cronSessionsResult?.sessions?.find((s: SessionRow) => s.id === key)
+        if (found) {
+            Object.assign(found, patch)
         }
     }
 
@@ -89,12 +98,12 @@ export function useSessionsState() {
             )
 
             const name = result?.name
-            if (name && state.sessionsResult?.sessions) {
-                state.sessionsResult = {
-                    ...state.sessionsResult,
-                    sessions: state.sessionsResult.sessions.map((s: SessionRow) =>
-                        s.id === targetKey ? { ...s, name } : s
-                    )
+            if (name) {
+                // 原地修改，保持引用一致性
+                const found = state.sessionsResult?.sessions?.find((s: SessionRow) => s.id === targetKey)
+                    || state.cronSessionsResult?.sessions?.find((s: SessionRow) => s.id === targetKey)
+                if (found) {
+                    found.name = name
                 }
             }
         } catch (e) {
@@ -252,6 +261,7 @@ export function useSessionsState() {
         loadSessions,
         loadCronSessions,
         patchSession,
+        updateSessionLocal,
         deleteSession,
         deleteSessions,
         hasSession,
