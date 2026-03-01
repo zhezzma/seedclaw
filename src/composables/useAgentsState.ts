@@ -1,5 +1,4 @@
-import { reactive } from 'vue'
-import { createStateProxy } from './utils/stateProxy'
+import { reactive, toRefs } from 'vue'
 import { apiGet, apiPost, apiPatch, apiDelete, apiPut, apiUpload, apiPatchMultipart } from './api-client'
 
 // ==================== Types ====================
@@ -255,7 +254,8 @@ export function useAgentsState() {
         }
     }
 
-    return createStateProxy(state, {
+    return {
+        ...toRefs(state),
         loadAgents,
         loadAgentFiles,
         loadAgentFileContent,
@@ -265,5 +265,5 @@ export function useAgentsState() {
         deleteAgent,
         loadAgentTools,
         toggleAgentTool,
-    })
+    }
 }

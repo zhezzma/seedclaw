@@ -1,5 +1,4 @@
 import { reactive } from 'vue'
-import { createStateProxy } from './utils/stateProxy'
 import { SessionRow, useSessionsState } from './useSessionsState'
 import { useUiSettingsStore } from '../stores/setting'
 import { apiGet, apiPost } from './api-client'
@@ -862,8 +861,16 @@ export function useChatState() {
         get chatLoading() { return getSessionData(state.sessionKey).chatLoading },
         get currentAgent() {
             const agentsState = useAgentsState()
-            return agentsState.agentsList?.find(a => a.id === state.agentsSelectedId) || null
+            return agentsState.agentsList.value?.find((a: AgentInfo) => a.id === state.agentsSelectedId) || null
         },
+
+        // 直接暴露 state 属性（保持与原 Proxy 行为一致，消费方不需要 .value）
+        get currentSession() { return state.currentSession },
+        set currentSession(v) { state.currentSession = v },
+        get agentsSelectedId() { return state.agentsSelectedId },
+        set agentsSelectedId(v) { state.agentsSelectedId = v },
+        get sessionKey() { return state.sessionKey },
+        get sessionsMap() { return state.sessionsMap },
 
         sendMessage,
         steerMessage,
@@ -880,5 +887,5 @@ export function useChatState() {
         navigateBranch,
     }
 
-    return createStateProxy(state, methods)
+    return methods
 }

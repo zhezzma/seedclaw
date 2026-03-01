@@ -1,6 +1,5 @@
-import { reactive } from 'vue'
+import { reactive, toRefs } from 'vue'
 import { apiGet, apiPost, apiPut, apiDelete } from './api-client'
-import { createStateProxy } from './utils/stateProxy'
 
 export interface SubagentToolsConfig {
     type: "inherit" | "custom"
@@ -95,11 +94,12 @@ export function useSubAgents() {
         }
     }
 
-    return createStateProxy(state, {
+    return {
+        ...toRefs(state),
         loadSubagents,
         getSubagent,
         createSubagent,
         updateSubagent,
         deleteSubagent
-    })
+    }
 }

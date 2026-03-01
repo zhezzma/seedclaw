@@ -1,5 +1,4 @@
 import { reactive, ref, computed, toRefs } from 'vue'
-import { createStateProxy } from './utils/stateProxy'
 import { apiGet, apiPost, apiPatch, apiDelete } from './api-client'
 
 // ==================== Types ====================
