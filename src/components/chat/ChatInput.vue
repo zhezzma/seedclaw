@@ -31,7 +31,7 @@ const chatState = useChatState()
 const settingsStore = useUiSettingsStore()
 const { availableModels } = useModelsState()
 const { t } = useI18n()
-const isBusy = computed(() => chatState.chatSending || Boolean(chatState.chatRunId))
+const isBusy = computed(() => chatState.chatSending.value || Boolean(chatState.chatRunId.value))
 const emit = defineEmits<{
     (e: 'send'): void
 }>()
@@ -75,7 +75,7 @@ const currentModel = computed(() => {
     if (session && session.modelProvider && session.model) {
         return `${session.modelProvider}/${session.model}`
     }
-    const agent = chatState.currentAgent
+    const agent = chatState.currentAgent.value
     if (agent) {
         return `${agent.defaultProvider}/${agent.defaultModel}`
     }
@@ -233,7 +233,7 @@ defineExpose({
                                 d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                         </svg>
                         <span class="text-[9px] w-full truncate text-center opacity-70 leading-tight mt-0.5">{{ att.name
-                            }}</span>
+                        }}</span>
                     </div>
 
                     <!-- Delete Button: Always visible on mobile (using forced opacity or just remove opacity class). 

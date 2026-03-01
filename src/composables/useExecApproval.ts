@@ -1,5 +1,5 @@
 import { reactive } from 'vue'
-import { createStateProxy } from './utils/stateProxy'
+
 import { onServerMessage, sendRequest, WsMessage } from './notify-server-connection'
 
 export interface ExecApprovalRequest {
@@ -55,7 +55,7 @@ export function useExecApproval() {
      */
     const resolveRequest = async (id: string, value: string | boolean) => {
         // Optimistically remove from queue
-        // Note: state.client is injected by createStateProxy
+
         const idx = state.execApprovalQueue.findIndex(req => req.id === id)
         if (idx > -1) {
             state.execApprovalQueue.splice(idx, 1)
@@ -70,5 +70,5 @@ export function useExecApproval() {
         resolveRequest
     }
 
-    return createStateProxy(state, methods)
+    return Object.assign(state, methods)
 }

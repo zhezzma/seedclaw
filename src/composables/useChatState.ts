@@ -1,5 +1,5 @@
-import { reactive } from 'vue'
-import { createStateProxy } from './utils/stateProxy'
+import { reactive, computed } from 'vue'
+
 import { SessionRow, useSessionsState } from './useSessionsState'
 import { useUiSettingsStore } from '../stores/setting'
 import { apiGet, apiPost } from './api-client'
@@ -849,21 +849,30 @@ const navigateBranch = async (targetEntryId: string, sessionKey?: string) => {
 }
 
 export function useChatState() {
+    // Derived computeds（reactive 自动解包 ComputedRef，外部访问无需 .value）
+    const chatMessages = computed(() => getSessionData(state.sessionKey).chatMessages)
+    const chatToolMessages = computed(() => getSessionData(state.sessionKey).chatToolMessages)
+    const sessionTree = computed(() => getSessionData(state.sessionKey).sessionTree)
+    const chatStream = computed(() => getSessionData(state.sessionKey).chatStream)
+    const chatSending = computed(() => getSessionData(state.sessionKey).chatSending)
+    const chatRunId = computed(() => getSessionData(state.sessionKey).chatRunId)
+    const chatStreamStartedAt = computed(() => getSessionData(state.sessionKey).chatStreamStartedAt)
+    const chatLoading = computed(() => getSessionData(state.sessionKey).chatLoading)
+    const currentAgent = computed(() => {
+        const agentsState = useAgentsState()
+        return agentsState.agentsList?.find(a => a.id === state.agentsSelectedId) || null
+    })
+
     const methods = {
-        // Derived getters from sessionsMap (for backward compat with useChatMessages)
-        get chatMessages() { return getSessionData(state.sessionKey).chatMessages },
-        get chatToolMessages() { return getSessionData(state.sessionKey).chatToolMessages },
-        // Expose sessionTree
-        get sessionTree() { return getSessionData(state.sessionKey).sessionTree },
-        get chatStream() { return getSessionData(state.sessionKey).chatStream },
-        get chatSending() { return getSessionData(state.sessionKey).chatSending },
-        get chatRunId() { return getSessionData(state.sessionKey).chatRunId },
-        get chatStreamStartedAt() { return getSessionData(state.sessionKey).chatStreamStartedAt },
-        get chatLoading() { return getSessionData(state.sessionKey).chatLoading },
-        get currentAgent() {
-            const agentsState = useAgentsState()
-            return agentsState.agentsList?.find(a => a.id === state.agentsSelectedId) || null
-        },
+        chatMessages,
+        chatToolMessages,
+        sessionTree,
+        chatStream,
+        chatSending,
+        chatRunId,
+        chatStreamStartedAt,
+        chatLoading,
+        currentAgent,
 
         sendMessage,
         steerMessage,
@@ -880,5 +889,5 @@ export function useChatState() {
         navigateBranch,
     }
 
-    return createStateProxy(state, methods)
+    return Object.assign(state, methods)
 }

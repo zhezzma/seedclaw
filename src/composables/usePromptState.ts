@@ -1,5 +1,5 @@
 import { reactive } from 'vue'
-import { createStateProxy } from './utils/stateProxy'
+
 import { apiGet, apiPost, apiDelete } from './api-client'
 
 // ==================== Types ====================
@@ -128,5 +128,5 @@ export function usePromptState() {
         deleteAgentPrompt,
     }
 
-    return createStateProxy(state, methods)
+    return Object.assign(state, methods)
 }
