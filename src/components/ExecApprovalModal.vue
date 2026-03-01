@@ -70,7 +70,7 @@ const handleResolve = async (value: string | boolean) => {
 
             <!-- Message / Command Display -->
             <div v-if="currentRequest.message"
-                class="bg-base-200/50 p-4 rounded-md font-mono text-sm break-all mb-6 border border-base-200 whitespace-pre-wrap">
+                class="bg-base-200/50 p-4 rounded-md font-mono text-sm break-all mb-6 border border-base-200 whitespace-pre-wrap max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-base-300 scrollbar-track-transparent">
                 {{ currentRequest.message }}
             </div>
 
