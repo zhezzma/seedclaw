@@ -51,7 +51,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
         let errorMessage = `HTTP ${response.status}`
         try {
             const body = await response.json()
-            if (body?.message) errorMessage = body.message
+            if (body?.error) errorMessage = body.error
         } catch {
             // ignore parse errors
         }
@@ -59,10 +59,8 @@ async function handleResponse<T>(response: Response): Promise<T> {
     }
     const body = await response.json()
     if (body.status === 'error' || body.ok === false) {
-        throw new ApiError(body.message || 'Unknown error', body.code || 500)
+        throw new ApiError(body.error || 'Unknown error', body.code || 500)
     }
-    // Support both { data: ... } and { payload: ... } response formats
-    if (body.data !== undefined) return body.data
     if (body.payload !== undefined) return body.payload
     return body
 }

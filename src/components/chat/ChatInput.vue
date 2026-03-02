@@ -248,16 +248,17 @@ defineExpose({
             <!-- Input Top -->
             <!-- 命令补全浮层 -->
             <div v-if="commandSuggestionsVisible"
-                class="absolute left-3 bottom-full mb-2 w-96 bg-base-100 border border-base-300 rounded-xl shadow-xl z-[200] overflow-hidden">
+                class="absolute left-3 bottom-full mb-2 w-96 max-h-64 bg-base-100 border border-base-300 rounded-xl shadow-xl z-[200] overflow-hidden flex flex-col">
                 <div
-                    class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-base-content/40 border-b border-base-200">
+                    class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-base-content/40 border-b border-base-200 shrink-0">
                     命令建议
                 </div>
-                <div class="p-1 flex flex-col">
+                <div
+                    class="p-1 flex flex-col overflow-y-auto hover:scrollbar-thin scrollbar-thumb-base-300 scrollbar-track-transparent">
                     <button v-for="(cmd, idx) in commandSuggestions" :key="cmd.name"
                         @mousedown.prevent="confirmCommandSuggestion(cmd)" @mouseenter="commandSuggestionIndex = idx"
                         :title="cmd.description"
-                        class="flex items-center gap-2 w-full overflow-hidden rounded-lg py-2 px-3 text-left transition-colors"
+                        class="flex items-center gap-2 w-full overflow-hidden rounded-lg py-2 px-3 text-left transition-colors shrink-0"
                         :class="idx === commandSuggestionIndex ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'">
                         <span
                             class="font-mono font-semibold text-sm whitespace-nowrap shrink-0 max-w-[9rem] overflow-hidden text-ellipsis">/{{

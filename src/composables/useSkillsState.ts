@@ -136,6 +136,36 @@ const fetchSystemSkills = async (agentId?: string) => {
     }
 }
 
+const getSystemSkillContent = async (skillId: string) => {
+    try {
+        const res = await apiGet<{ content: string }>(`/api/skills/system/${skillId}`)
+        return res?.content || null
+    } catch (err) {
+        console.error(`Failed to fetch system skill content (${skillId}):`, err)
+        return null
+    }
+}
+
+const getGlobalSkillContent = async (skillId: string) => {
+    try {
+        const res = await apiGet<{ content: string }>(`/api/skills/global/${skillId}`)
+        return res?.content || null
+    } catch (err) {
+        console.error(`Failed to fetch global skill content (${skillId}):`, err)
+        return null
+    }
+}
+
+const getAgentSkillContent = async (agentId: string, skillId: string) => {
+    try {
+        const res = await apiGet<{ content: string }>(`/api/skills/${agentId}/${skillId}`)
+        return res?.content || null
+    } catch (err) {
+        console.error(`Failed to fetch agent skill content (${agentId}, ${skillId}):`, err)
+        return null
+    }
+}
+
 const _skillsState = Object.assign(state, {
     initConvexConnection,
     fetchPublicSkills,
@@ -147,7 +177,10 @@ const _skillsState = Object.assign(state, {
     uninstallGlobalSkill,
     loadAgentSkills,
     toggleAgentSkill,
-    uninstallAgentSkill
+    uninstallAgentSkill,
+    getSystemSkillContent,
+    getGlobalSkillContent,
+    getAgentSkillContent
 })
 
 export function useSkillsState() {

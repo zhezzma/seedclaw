@@ -4,7 +4,7 @@ import { ref, watch } from 'vue'
 import { useSkillsState } from '../../../composables/useSkillsState'
 import { useToast } from '../../../composables/useToast'
 import { useI18n } from 'vue-i18n'
-import { TrashIcon, CubeTransparentIcon } from '@heroicons/vue/24/outline'
+import { TrashIcon, CubeTransparentIcon, DocumentTextIcon } from '@heroicons/vue/24/outline'
 
 // Props
 const props = defineProps<{
@@ -106,6 +106,38 @@ const toggleGlobalOrSystemSkill = async (skill: any) => {
         processing.value[skillId] = false
     }
 }
+
+// View Skill Doc Logic
+const currentSkillDocTitle = ref('')
+const currentSkillDocContent = ref('')
+const loadingDoc = ref(false)
+
+const openSkillDoc = async (skill: any, type: 'agent' | 'system' | 'global') => {
+    const skillNameOrId = type === 'agent' ? skill.name : skill.id
+    currentSkillDocTitle.value = getSkillDisplayName(skillNameOrId)
+    currentSkillDocContent.value = ''
+    loadingDoc.value = true
+
+    const modal = document.getElementById('skill_doc_modal') as HTMLDialogElement
+    if (modal) modal.showModal()
+
+    try {
+        let content = null
+        if (type === 'agent') {
+            content = await skillsState.getAgentSkillContent(props.agent.id, skill.id)
+        } else if (type === 'system') {
+            content = await skillsState.getSystemSkillContent(skill.id)
+        } else if (type === 'global') {
+            content = await skillsState.getGlobalSkillContent(skill.id)
+        }
+        currentSkillDocContent.value = content || t('skills.noContent', 'No documentation available.')
+    } catch (e: any) {
+        currentSkillDocContent.value = t('skills.loadError', 'Failed to load documentation.')
+        console.error(e)
+    } finally {
+        loadingDoc.value = false
+    }
+}
 </script>
 
 <template>
@@ -149,6 +181,12 @@ const toggleGlobalOrSystemSkill = async (skill: any) => {
                         </div>
 
                         <div class="flex items-center gap-2 shrink-0">
+                            <!-- Document button -->
+                            <button class="btn btn-ghost btn-square btn-sm text-base-content/60 hover:text-primary"
+                                :title="$t('common.viewDoc') || 'View Document'" @click="openSkillDoc(skill, 'agent')">
+                                <DocumentTextIcon class="w-4 h-4" />
+                            </button>
+
                             <!-- Helper to toggle -->
                             <input type="checkbox" class="toggle toggle-sm toggle-primary" :checked="skill.enabled"
                                 :disabled="processing[skill.id]" @change="toggleSkill(skill)" />
@@ -195,6 +233,12 @@ const toggleGlobalOrSystemSkill = async (skill: any) => {
                         </div>
 
                         <div class="flex items-center gap-2 shrink-0">
+                            <!-- Document button -->
+                            <button class="btn btn-ghost btn-square btn-sm text-base-content/60 hover:text-primary"
+                                :title="$t('common.viewDoc') || 'View Document'" @click="openSkillDoc(skill, 'system')">
+                                <DocumentTextIcon class="w-4 h-4" />
+                            </button>
+
                             <input type="checkbox" class="toggle toggle-sm toggle-info" :checked="skill.enabled"
                                 :disabled="processing[skill.id]" @change="toggleGlobalOrSystemSkill(skill)" />
                             <div class="badge badge-ghost badge-sm border-info/20 text-info">{{ $t('common.system') }}
@@ -235,6 +279,12 @@ const toggleGlobalOrSystemSkill = async (skill: any) => {
                         </div>
 
                         <div class="flex items-center gap-2 shrink-0">
+                            <!-- Document button -->
+                            <button class="btn btn-ghost btn-square btn-sm text-base-content/60 hover:text-primary"
+                                :title="$t('common.viewDoc') || 'View Document'" @click="openSkillDoc(skill, 'global')">
+                                <DocumentTextIcon class="w-4 h-4" />
+                            </button>
+
                             <!-- Toggle for Global Skill -->
                             <input type="checkbox" class="toggle toggle-sm toggle-secondary" :checked="skill.enabled"
                                 :disabled="processing[skill.id]" @change="toggleGlobalOrSystemSkill(skill)" />
@@ -252,5 +302,32 @@ const toggleGlobalOrSystemSkill = async (skill: any) => {
                 </div>
             </div>
         </div>
+
+        <!-- Skill Doc Modal -->
+        <dialog id="skill_doc_modal" class="modal">
+            <div class="modal-box w-11/12 max-w-4xl bg-base-100 p-0 overflow-hidden flex flex-col h-[80vh]">
+                <div class="p-4 border-b border-base-200 flex justify-between items-center bg-base-200/50">
+                    <h3 class="font-bold text-lg flex items-center gap-2">
+                        <DocumentTextIcon class="w-5 h-5 text-primary" />
+                        {{ currentSkillDocTitle }}
+                    </h3>
+                    <form method="dialog">
+                        <button class="btn btn-sm btn-circle btn-ghost">✕</button>
+                    </form>
+                </div>
+                <div class="p-4 overflow-y-auto flex-1 bg-base-100">
+                    <div v-if="loadingDoc" class="flex justify-center items-center h-full">
+                        <span class="loading loading-spinner loading-lg text-primary"></span>
+                    </div>
+                    <div v-else class="prose prose-sm max-w-none">
+                        <pre
+                            class="whitespace-pre-wrap font-mono text-sm bg-base-200/30 p-4 rounded-lg border border-base-200">{{ currentSkillDocContent }}</pre>
+                    </div>
+                </div>
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
     </div>
 </template>
