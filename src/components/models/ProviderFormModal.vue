@@ -11,6 +11,7 @@ const props = defineProps<{
     initialData?: {
         id: string
         baseUrl: string
+        type?: 'api_key' | 'oauth'
         api: string
         apiKey?: string
         headers?: Record<string, string>
@@ -31,6 +32,7 @@ const { saveProvider } = useModelsState()
 const formData = reactive({
     id: '',
     baseUrl: '',
+    type: 'api_key' as 'api_key' | 'oauth',
     apiKey: '',
     api: 'openai-completions',
     headers: '',
@@ -45,6 +47,7 @@ watch(() => props.show, (newVal) => {
         if (props.mode === 'edit' && props.initialData) {
             formData.id = props.initialData.id
             formData.baseUrl = props.initialData.baseUrl
+            formData.type = props.initialData.type || 'api_key'
             formData.api = props.initialData.api
             formData.apiKey = props.initialData.apiKey || ''
             formData.headers = props.initialData.headers ? JSON.stringify(props.initialData.headers, null, 2) : ''
@@ -53,6 +56,7 @@ watch(() => props.show, (newVal) => {
             // Reset for add
             formData.id = ''
             formData.baseUrl = ''
+            formData.type = 'api_key'
             formData.apiKey = ''
             formData.api = 'openai-completions'
             formData.headers = ''
@@ -101,6 +105,7 @@ const handleSubmit = async () => {
         await saveProvider({
             id: formData.id,
             baseUrl: formData.baseUrl,
+            type: formData.type,
             apiKey: formData.apiKey,
             api: formData.api,
             headers: parsedHeaders,
@@ -130,11 +135,29 @@ const handleSubmit = async () => {
                         class="input input-bordered w-full font-mono" />
                 </div>
 
-                <div class="form-control md:col-span-2">
+                <div class="form-control ">
                     <label class="label"><span class="label-text">{{ $t('provider.baseUrl') }} <span
                                 class="text-error">*</span></span></label>
                     <input v-model="formData.baseUrl" type="text" placeholder="https://...com/v1"
                         class="input input-bordered w-full" :disabled="isReadonly" />
+                </div>
+
+                <div class="form-control">
+                    <label class="label"><span class="label-text">{{ $t('provider.apiType') }}</span></label>
+                    <select v-model="formData.api" class="select select-bordered w-full" :disabled="isReadonly">
+                        <option value="openai-completions">OpenAI Completions</option>
+                        <option value="anthropic">Anthropic</option>
+                    </select>
+                </div>
+
+
+                <div class="form-control">
+                    <label class="label"><span class="label-text">{{ $t('provider.authType', 'Auth Type')
+                            }}</span></label>
+                    <select v-model="formData.type" class="select select-bordered w-full">
+                        <option value="api_key">API Key</option>
+                        <option value="oauth">OAuth</option>
+                    </select>
                 </div>
 
                 <div class="form-control">
@@ -150,13 +173,6 @@ const handleSubmit = async () => {
                     </div>
                 </div>
 
-                <div class="form-control">
-                    <label class="label"><span class="label-text">{{ $t('provider.apiType') }}</span></label>
-                    <select v-model="formData.api" class="select select-bordered w-full" :disabled="isReadonly">
-                        <option value="openai-completions">OpenAI Completions</option>
-                        <option value="anthropic">Anthropic</option>
-                    </select>
-                </div>
 
                 <!-- <div v-if="custom" class="form-control md:col-span-2">
                     <label class="label cursor-pointer justify-start gap-4">
@@ -182,7 +198,7 @@ const handleSubmit = async () => {
                 <button @click="handleClose" class="btn">{{ $t('common.cancel') }}</button>
                 <button @click="handleSubmit" class="btn btn-primary" :disabled="!isFormValid || isSubmitting">{{
                     submitLabel
-                }}</button>
+                    }}</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop">

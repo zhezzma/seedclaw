@@ -24,6 +24,7 @@ export interface AvailableModel {
 /** Provider configuration in models.json */
 export interface ProviderConfig {
     baseUrl: string
+    type?: 'api_key' | 'oauth'
     apiKey?: string
     api: string
     headers?: Record<string, string>
@@ -117,11 +118,12 @@ const loadModels = async () => {
     }
 }
 
-const saveProvider = async (providerData: { id: string, baseUrl: string, apiKey?: string, api: string, headers?: Record<string, string>, toolCallBridge?: boolean }) => {
+const saveProvider = async (providerData: { id: string, baseUrl: string, type?: 'api_key' | 'oauth', apiKey?: string, api: string, headers?: Record<string, string>, toolCallBridge?: boolean }) => {
     const existing = state.providers[providerData.id]
     if (existing) {
         await apiPatch(`/api/models/providers/${providerData.id}`, {
             baseUrl: providerData.baseUrl,
+            type: providerData.type,
             apiKey: providerData.apiKey,
             api: providerData.api,
             headers: providerData.headers,
@@ -130,6 +132,7 @@ const saveProvider = async (providerData: { id: string, baseUrl: string, apiKey?
         state.providers[providerData.id] = {
             ...existing,
             baseUrl: providerData.baseUrl,
+            type: providerData.type,
             apiKey: providerData.apiKey,
             api: providerData.api,
             headers: providerData.headers,
@@ -138,6 +141,7 @@ const saveProvider = async (providerData: { id: string, baseUrl: string, apiKey?
     } else {
         const newProvider: ProviderConfig = {
             baseUrl: providerData.baseUrl,
+            type: providerData.type,
             apiKey: providerData.apiKey,
             api: providerData.api,
             headers: providerData.headers,

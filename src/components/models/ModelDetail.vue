@@ -211,6 +211,7 @@ const handleDeleteModel = async (modelId: string) => {
             id: provider.id,
             baseUrl: provider.baseUrl,
             api: provider.api,
+            type: provider.type,
             apiKey: provider.apiKey,
             headers: provider.headers,
             toolCallBridge: provider.toolCallBridge

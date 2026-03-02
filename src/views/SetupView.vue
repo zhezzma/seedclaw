@@ -189,6 +189,7 @@ const handleModelSubmit = async () => {
         await modelsState.saveProvider({
             id: finalProviderId,
             baseUrl: modelBaseUrl.value,
+            type: 'api_key',
             apiKey: modelApiKey.value,
             api: modelApiType.value
         })
