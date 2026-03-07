@@ -5,6 +5,7 @@ import { useUiSettingsStore } from '../stores/setting'
 import { apiGet, apiPost } from './api-client'
 import { startChatSSE, connectSessionSSE, startRetrySSE, startEditSSE, type SSEConnection } from './sse-client'
 import { AgentInfo, useAgentsState } from './useAgentsState'
+import { useToast } from './useToast'
 import router from '../router'
 
 // ==================== Types ====================
@@ -433,6 +434,22 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
             // （stream 在上一轮 message_end 已重置为 null，此处重新初始化）
             sessionData.chatStream = []
             break
+        case 'error': {
+            // 服务端错误：回滚乐观插入的用户消息并清理状态
+            sessionData.chatStream = null
+            // 移除最后一条未被服务端确认的 user 消息（没有 entryId 说明从未被持久化）
+            const msgs = sessionData.chatMessages
+            if (msgs.length > 0) {
+                const lastMsg = msgs[msgs.length - 1]
+                if (lastMsg.role === 'user' && !lastMsg.entryId) {
+                    sessionData.chatMessages = msgs.slice(0, -1)
+                }
+            }
+            // 显示错误提示
+            const errorMsg = data?.error || 'Unknown error'
+            useToast().error(errorMsg, 5000)
+            break
+        }
         case 'done':
             // 会话彻底结束（包括所有重试完成后）
             sessionData.chatRunId = null

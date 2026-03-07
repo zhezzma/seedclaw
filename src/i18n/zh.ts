@@ -328,6 +328,7 @@ export default {
         idExists: '提供商 ID 已存在，请使用其他 ID',
         id: '提供商 ID',
         apiType: 'API 类型',
+        authType: '认证方式',
         customHeaders: '自定义请求头 (JSON)',
         deleteConfirm: '确定要删除提供商 "{id}" 吗？这将同时删除其所有模型配置。',
         deleteFailed: '删除提供商失败',

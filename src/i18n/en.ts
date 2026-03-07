@@ -328,6 +328,7 @@ export default {
         idExists: 'Provider ID already exists, please use another ID',
         id: 'Provider ID',
         apiType: 'API Type',
+        authType: 'Auth Type',
         customHeaders: 'Custom Headers (JSON)',
         deleteConfirm: 'Are you sure you want to delete provider "{id}"? This will also delete all its model configurations.',
         deleteFailed: 'Failed to delete provider',

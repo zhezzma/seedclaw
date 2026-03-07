@@ -180,52 +180,20 @@ const deleteModel = async (providerId: string, modelId: string) => {
 }
 
 /**
- * Fetch models from the provider's API (e.g. OpenAI /models) and sync relevant ones.
- * This runs client-side to leverage the user's browser context.
+ * Trigger sync models from the server.
  */
 const syncModels = async (providerId: string) => {
     const provider = state.providers[providerId]
-    if (!provider || !provider.baseUrl) throw new Error('Provider config invalid')
-
-    const url = `${provider.baseUrl}/models`.replace('//models', '/models')
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (provider.apiKey) {
-        headers['Authorization'] = `Bearer ${provider.apiKey}`
-    }
-    if (provider.headers) {
-        Object.assign(headers, provider.headers)
-    }
+    if (!provider) throw new Error('Provider not found')
 
     try {
-        const res = await fetch(url, { headers })
-        if (!res.ok) {
-            const text = await res.text()
-            throw new Error(`Failed to fetch models: ${res.status} ${text}`)
-        }
-        const data = await res.json()
-        const remoteModels = (data.data || []) as any[]
+        const res = await apiPost<any>(`/api/models/providers/${providerId}/models/sync`, {})
 
-        const currentModels = provider.models || []
-        const currentMap = new Map(currentModels.map(m => [m.id, m]))
-
-        let created = 0
-        let updated = 0
-
-        for (const remote of remoteModels) {
-            if (!remote.id) continue
-            if (!currentMap.has(remote.id)) {
-                const newModel: AvailableModel = {
-                    id: remote.id,
-                    name: remote.id,
-                    contextWindow: remote.context_window || 128000,
-                }
-                await apiPost(`/api/models/providers/${providerId}/models`, newModel)
-                provider.models.push(newModel)
-                created++
-            }
+        if (res && res.models) {
+            provider.models = res.models
         }
 
-        return { created, updated }
+        return { created: res?.models?.length || provider.models?.length || 0, updated: 0 }
     } catch (err: any) {
         console.error('Sync failed:', err)
         throw err
