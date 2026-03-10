@@ -5,6 +5,7 @@
  * Reads apiBaseUrl and token from the settings store.
  */
 import { useUiSettingsStore } from '../stores/setting'
+import { useToast } from './useToast'
 
 // ==================== Types ====================
 
@@ -46,7 +47,10 @@ function getHeaders(contentType?: string): Record<string, string> {
     return headers
 }
 
-async function handleResponse<T>(response: Response): Promise<T> {
+// 需要静默处理的错误码（调用方自己处理）
+const SILENT_CODES = new Set([409, 404])
+
+async function handleResponse<T>(response: Response, silent = false): Promise<T> {
     if (!response.ok) {
         let errorMessage = `HTTP ${response.status}`
         try {
@@ -55,11 +59,19 @@ async function handleResponse<T>(response: Response): Promise<T> {
         } catch {
             // ignore parse errors
         }
-        throw new ApiError(errorMessage, response.status)
+        const err = new ApiError(errorMessage, response.status)
+        if (!silent && !SILENT_CODES.has(response.status)) {
+            useToast().error(errorMessage, 5000)
+        }
+        throw err
     }
     const body = await response.json()
     if (body.status === 'error' || body.ok === false) {
-        throw new ApiError(body.error || 'Unknown error', body.code || 500)
+        const err = new ApiError(body.error || 'Unknown error', body.code || 500)
+        if (!silent) {
+            useToast().error(body.error || 'Unknown error', 5000)
+        }
+        throw err
     }
     if (body.payload !== undefined) return body.payload
     return body

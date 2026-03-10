@@ -51,6 +51,7 @@ export default {
         saved: '已保存',
         settings: '设置',
         time: '时间',
+        duration: '时长',
         message: '消息',
         prev: '上一页',
         next: '下一页',

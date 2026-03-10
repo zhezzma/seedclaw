@@ -51,6 +51,7 @@ export default {
         saved: 'Saved',
         settings: 'Settings',
         time: 'Time',
+        duration: 'Duration',
         message: 'Message',
         prev: 'Prev',
         next: 'Next',
