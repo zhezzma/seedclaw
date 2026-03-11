@@ -71,6 +71,24 @@ function generateUUID(): string {
     return crypto.randomUUID()
 }
 
+/** 重置会话的流状态（chatSending / chatRunId / chatStreamStartedAt / chatStream） */
+function resetStreamState(sd: ChatSessionData) {
+    sd.chatSending = false
+    sd.chatRunId = null
+    sd.chatStreamStartedAt = null
+    sd.chatStream = null
+}
+
+/** 绑定 SSE 连接的生命周期清理：done / catch 时统一重置状态并移除连接 */
+function bindSSELifecycle(sse: SSEConnection, targetKey: string) {
+    sseConnections.set(targetKey, sse)
+    const cleanup = () => {
+        resetStreamState(getSessionData(targetKey))
+        sseConnections.delete(targetKey)
+    }
+    sse.done.then(cleanup).catch(cleanup)
+}
+
 
 
 function getSessionData(key: string): ChatSessionData {
@@ -161,26 +179,10 @@ const sendMessage = async (message?: string, attachments?: ChatAttachment[], ses
         (event) => {
             handleSSEEvent(event.event, event.data, targetKey)
         },
-        (error) => {
-            const sd = getSessionData(targetKey)
-            sd.chatSending = false
-            sd.chatRunId = null
-            sd.chatStreamStartedAt = null
-            sd.chatStream = null
-        }
+        () => resetStreamState(sessionData)
     )
 
-    sseConnections.set(targetKey, sse)
-
-    // Wait for SSE to complete
-    sse.done.then(() => {
-        const sd = getSessionData(targetKey)
-        sd.chatSending = false
-        sseConnections.delete(targetKey)
-    }).catch(() => {
-        getSessionData(targetKey).chatSending = false
-        sseConnections.delete(targetKey)
-    })
+    bindSSELifecycle(sse, targetKey)
 }
 
 // 处理 command_delta 事件的副作用
@@ -436,7 +438,7 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
             break
         case 'error': {
             // 服务端错误：回滚乐观插入的用户消息并清理状态
-            sessionData.chatStream = null
+            resetStreamState(sessionData)
             // 移除最后一条未被服务端确认的 user 消息（没有 entryId 说明从未被持久化）
             const msgs = sessionData.chatMessages
             if (msgs.length > 0) {
@@ -452,9 +454,7 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
         }
         case 'done':
             // 会话彻底结束（包括所有重试完成后）
-            sessionData.chatRunId = null
-            sessionData.chatStreamStartedAt = null
-            sessionData.chatSending = false
+            resetStreamState(sessionData)
             // 静默刷新消息，补上 entryId/parentEntryId（不设置 chatLoading，避免页面闪烁）
             apiGet<{ messages: ChatMessage[] }>(`/api/chat/${targetKey}/messages`).then(result => {
                 if (result?.messages) {
@@ -494,9 +494,7 @@ const abortChat = async (sessionKey?: string) => {
             // Ignore abort errors
             sd.chatSending = false
         }
-        sd.chatStream = null
-        sd.chatRunId = null
-        sd.chatStreamStartedAt = null
+        resetStreamState(sd)
 
         // Refresh tree structure just in case the aborted message was saved
         fetchSessionTree(targetKey)
@@ -563,24 +561,10 @@ const loadChatHistory = async (sessionKey?: string) => {
 
                     handleSSEEvent(event.event, event.data, targetKey)
                 },
-                (error) => {
-                    const sd = getSessionData(targetKey)
-                    sd.chatSending = false
-                    sd.chatRunId = null
-                    sd.chatStreamStartedAt = null
-                    sd.chatStream = null
-                }
+                () => resetStreamState(sd)
             )
 
-            sseConnections.set(targetKey, sse)
-
-            sse.done.then(() => {
-                getSessionData(targetKey).chatSending = false
-                sseConnections.delete(targetKey)
-            }).catch(() => {
-                getSessionData(targetKey).chatSending = false
-                sseConnections.delete(targetKey)
-            })
+            bindSSELifecycle(sse, targetKey)
         }
     } catch (err: any) {
         console.error('Failed to load chat history:', err)
@@ -667,7 +651,7 @@ const steerMessage = async (message: string, sessionKey?: string) => {
     }]
 
     try {
-        await apiPost(`/api/chat/${sessionId}/steer`, { prompt: message })
+        await apiPost(`/api/chat/${sessionId}/steer`, { text: message })
     } catch (err: any) {
         console.error('Failed to steer:', err)
     }
@@ -742,25 +726,10 @@ const retryMessage = async (entryId: string, sessionKey?: string) => {
         (event) => {
             handleSSEEvent(event.event, event.data, targetKey)
         },
-        (error) => {
-            const sd = getSessionData(targetKey)
-            sd.chatSending = false
-            sd.chatRunId = null
-            sd.chatStreamStartedAt = null
-            sd.chatStream = null
-        }
+        () => resetStreamState(sessionData)
     )
 
-    sseConnections.set(targetKey, sse)
-
-    sse.done.then(() => {
-        const sd = getSessionData(targetKey)
-        sd.chatSending = false
-        sseConnections.delete(targetKey)
-    }).catch(() => {
-        getSessionData(targetKey).chatSending = false
-        sseConnections.delete(targetKey)
-    })
+    bindSSELifecycle(sse, targetKey)
 }
 
 const editMessage = async (entryId: string, newText: string, sessionKey?: string) => {
@@ -799,25 +768,10 @@ const editMessage = async (entryId: string, newText: string, sessionKey?: string
         (event) => {
             handleSSEEvent(event.event, event.data, targetKey)
         },
-        (error) => {
-            const sd = getSessionData(targetKey)
-            sd.chatSending = false
-            sd.chatRunId = null
-            sd.chatStreamStartedAt = null
-            sd.chatStream = null
-        }
+        () => resetStreamState(sessionData)
     )
 
-    sseConnections.set(targetKey, sse)
-
-    sse.done.then(() => {
-        const sd = getSessionData(targetKey)
-        sd.chatSending = false
-        sseConnections.delete(targetKey)
-    }).catch(() => {
-        getSessionData(targetKey).chatSending = false
-        sseConnections.delete(targetKey)
-    })
+    bindSSELifecycle(sse, targetKey)
 }
 
 export interface SessionTreeEntry {
