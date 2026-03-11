@@ -159,8 +159,25 @@ const handleSend = async () => {
         return
     }
 
-    // Case 2: Busy + has text → steer (inject prompt while agent is running)
+    // Case 2: Busy + has text
     if (isBusy.value && inputText) {
+        // 检查是否为 / 开头的命令
+        if (inputText.startsWith('/')) {
+            // /steer 和 /follow-up 作为普通消息发送，不走 steerMessage
+            if (/^\/(steer|follow-up)\b/.test(inputText)) {
+                await chatState.sendMessage(inputText)
+                scrollToBottom(true)
+                return
+            }
+            // 其他命令在 busy 状态下不可用
+            useToast().warning(t('home.commandNotAvailableWhileBusy'))
+            // 恢复输入框内容
+            if (chatInputRef.value) {
+                chatInputRef.value.inputText = inputText
+            }
+            return
+        }
+        // 非命令文本 → steer（inject prompt while agent is running）
         await chatState.steerMessage(inputText)
         scrollToBottom(true)
         return

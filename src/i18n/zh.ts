@@ -470,6 +470,7 @@ export default {
         welcomeTitle: 'Hi, 欢迎使用 SeedClaw',
         welcomeDesc: '我是 SeedClaw，聊天、写作、搜索都在行，助你灵感无限',
         noAgentDesc: '还未设定哟',
+        commandNotAvailableWhileBusy: '智能体运行中，无法使用命令',
     },
     settings: {
         title: '设置',

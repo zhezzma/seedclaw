@@ -470,6 +470,7 @@ export default {
         welcomeTitle: 'Hi, Welcome to SeedClaw',
         welcomeDesc: 'I am SeedClaw, good at chatting, writing, and searching, helping you with infinite inspiration',
         noAgentDesc: 'Not set yet',
+        commandNotAvailableWhileBusy: 'Commands are not available while the agent is busy',
     },
     settings: {
         title: 'Settings',
