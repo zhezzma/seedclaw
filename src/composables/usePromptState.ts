@@ -1,6 +1,7 @@
 import { reactive } from 'vue'
 
 import { apiGet, apiPost, apiDelete } from './api-client'
+import { useCommandState } from './useCommandState'
 
 // ==================== Types ====================
 
@@ -76,11 +77,18 @@ const getGlobalPrompt = async (promptId: string) => {
 const saveGlobalPrompt = async (data: { id: string; name: string; description?: string; content: string }) => {
     await apiPost('/api/prompts/global', data)
     await loadGlobalPrompts()
+    useCommandState().addOrUpdateCommand({
+        name: data.id,
+        description: data.description || '',
+        source: 'prompt',
+        extensionPath: undefined,
+    })
 }
 
 const deleteGlobalPrompt = async (promptId: string) => {
     await apiDelete(`/api/prompts/global/${promptId}`)
     await loadGlobalPrompts()
+    useCommandState().removeCommand(promptId)
 }
 
 // ── Agent Prompts (CRUD) ──
@@ -110,11 +118,18 @@ const getAgentPrompt = async (agentId: string, promptId: string) => {
 const saveAgentPrompt = async (agentId: string, data: { id: string; name: string; description?: string; content: string }) => {
     await apiPost(`/api/prompts/${agentId}`, data)
     await loadAgentPrompts(agentId)
+    useCommandState().addOrUpdateCommand({
+        name: data.id,
+        description: data.description || '',
+        source: 'prompt',
+        extensionPath: undefined,
+    })
 }
 
 const deleteAgentPrompt = async (agentId: string, promptId: string) => {
     await apiDelete(`/api/prompts/${agentId}/${promptId}`)
     await loadAgentPrompts(agentId)
+    useCommandState().removeCommand(promptId)
 }
 
 const _promptState = Object.assign(state, {
