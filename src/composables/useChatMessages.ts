@@ -78,7 +78,7 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
             // 预处理2：流式场景——代码块尚未闭合时，去掉包裹 <a2ui> 开标签的围栏前缀。
             // 同时覆盖 <a2ui> 尚未完整输出的情况（如流式推送了 <a、<a2、<a2u 等前缀片段），
             // 避免在标签到达完整前被渲染为 Markdown 代码块（闪烁根本原因）。
-            text = text.replace(/```[^\n]*\n(\s*(?:<a2ui>|<a2u|<a2|<a))/g, '$1')
+            text = text.replace(/```[^\n]*\n(\s*(?:<a2ui>|<a2ui|<a2u|<a2|<a))/g, '$1')
 
             const a2uiRegex = /<a2ui>([\s\S]*?)<\/a2ui>/g
             const blocks: DisplayBlock[] = []
@@ -100,7 +100,7 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
 
                     const messages: any[] = []
                     let parseErrorMsg = ''
-                    
+
                     // 尝试将内容包装为数组整体解析（兼容大模型可能输出的带换行的多行格式）
                     try {
                         let arrayRaw = a2uiContent.trim()
@@ -111,8 +111,8 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
                         // 兜底：原始的 NDJSON 逐行解析
                         const lines = a2uiContent.split('\n').filter(l => l.trim())
                         for (const line of lines) {
-                            try { 
-                                messages.push(JSON.parse(line.trim())) 
+                            try {
+                                messages.push(JSON.parse(line.trim()))
                             } catch (err: any) {
                                 parseErrorMsg = err.message || String(err)
                             }
