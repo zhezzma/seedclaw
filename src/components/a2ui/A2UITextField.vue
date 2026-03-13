@@ -4,12 +4,13 @@
  * 支持 shortText/longText/number/obscured 变体
  */
 import { computed, inject, ref, watch } from 'vue'
-import type { A2UIComponent, DynamicString } from './types'
+import type { A2UIComponent, DynamicString, DynamicBoolean } from './types'
 import { getWritePath } from '../../composables/useA2UIState'
 
 const props = defineProps<{ comp: A2UIComponent }>()
 
 const resolveString = inject<(v: DynamicString) => string>('a2ui-resolve-string')!
+const resolveBoolean = inject<(v: DynamicBoolean) => boolean>('a2ui-resolve-boolean')!
 const handleDataUpdate = inject<(path: string, value: any) => void>('a2ui-handle-data-update')!
 
 const label = computed(() => resolveString(props.comp.label))
@@ -42,6 +43,14 @@ const inputType = computed(() => {
 })
 
 const validationPattern = computed(() => props.comp.validationRegexp || undefined)
+
+const errorMessage = computed(() => {
+  if (!props.comp.checks || props.comp.checks.length === 0) return ''
+  for (const check of props.comp.checks) {
+    if (!resolveBoolean(check.condition)) return check.message
+  }
+  return ''
+})
 </script>
 
 <template>
@@ -54,7 +63,7 @@ const validationPattern = computed(() => props.comp.validationRegexp || undefine
       :value="localValue"
       @input="onInput"
       class="textarea textarea-bordered w-full text-sm min-h-[80px] resize-y"
-      :placeholder="label"
+      :class="{ 'textarea-error': errorMessage }"
       rows="3"
     ></textarea>
     <input
@@ -63,8 +72,11 @@ const validationPattern = computed(() => props.comp.validationRegexp || undefine
       :value="localValue"
       @input="onInput"
       class="input input-bordered w-full input-sm text-sm"
-      :placeholder="label"
+      :class="{ 'input-error': errorMessage }"
       :pattern="validationPattern"
     />
+    <label v-if="errorMessage" class="label">
+      <span class="label-text-alt text-error font-medium">{{ errorMessage }}</span>
+    </label>
   </div>
 </template>

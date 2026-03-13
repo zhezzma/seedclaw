@@ -54,8 +54,8 @@ export type Action =
 
 /** 验证规则 */
 export interface CheckRule {
+  condition: DynamicBoolean
   message: string
-  [key: string]: any // 包含逻辑表达式字段
 }
 
 /** 无障碍属性 */

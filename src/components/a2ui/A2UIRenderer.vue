@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
- * A2UI 入口渲染器
+ * A2UI 入口渲染器（通用基础设施）
  * 接收组件列表和数据模型，递归渲染组件树
+ * 不包含任何业务逻辑，Action 事件向上冒泡由使用方处理
  */
 import { computed, provide, type Component as VueComponent } from 'vue'
 import type { A2UIComponent, Action } from './types'
@@ -38,14 +39,14 @@ import A2UIModal from './A2UIModal.vue'
 const props = defineProps<{
   /** 所有组件列表 */
   components: A2UIComponent[]
-  /** 数据模型 */
+  /** 数据模型（来自 Surface 注册表的 reactive 对象） */
   dataModel?: Record<string, any>
-  /** 要渲染的组件 ID 列表（可选,不传则自动计算根组件） */
+  /** 要渲染的组件 ID 列表（可选） */
   rootIds?: string[]
 }>()
 
 const emit = defineEmits<{
-  (e: 'action', action: Action, dataModel: Record<string, any>): void
+  (e: 'action', action: Action, dataModel: Record<string, any>, sourceComponentId: string): void
   (e: 'update-data', path: string, value: any): void
 }>()
 
@@ -71,7 +72,6 @@ const componentRegistry: Record<string, VueComponent> = {
   Modal: A2UIModal,
 }
 
-/** 通过 ID 查找组件定义的组件 Map */
 const componentMap = computed(() => {
   const map = new Map<string, A2UIComponent>()
   for (const comp of props.components) {
@@ -80,68 +80,62 @@ const componentMap = computed(() => {
   return map
 })
 
-/** 计算根组件 ID 列表 */
 const resolvedRootIds = computed(() => {
   if (props.rootIds?.length) return props.rootIds
-  // 自动计算：收集所有被引用为子组件的 ID
   const childIds = new Set<string>()
   for (const comp of props.components) {
-    if (comp.children) {
-      if (Array.isArray(comp.children)) {
-        comp.children.forEach((id: string) => childIds.add(id))
-      }
+    if (comp.children && Array.isArray(comp.children)) {
+      comp.children.forEach((id: string) => childIds.add(id))
     }
     if (comp.child && typeof comp.child === 'string') childIds.add(comp.child)
     if (comp.trigger && typeof comp.trigger === 'string') childIds.add(comp.trigger)
     if (comp.content && typeof comp.content === 'string') childIds.add(comp.content)
     if (comp.tabs && Array.isArray(comp.tabs)) {
-      comp.tabs.forEach((tab: any) => {
-        if (tab.child) childIds.add(tab.child)
-      })
+      comp.tabs.forEach((tab: any) => { if (tab.child) childIds.add(tab.child) })
     }
   }
-  return props.components
-    .filter(c => c.id && !childIds.has(c.id))
-    .map(c => c.id!)
+  return props.components.filter(c => c.id && !childIds.has(c.id)).map(c => c.id!)
 })
 
-/** 数据模型 */
-const dataModel = computed(() => props.dataModel || {})
+/**
+ * 数据模型
+ * 直接引用 props.dataModel（来自 Surface 注册表的 reactive 对象）
+ * Vue 原生追踪 reactive 对象的深层变化，无需额外版本号
+ */
+const dataModelRef = computed(() => props.dataModel || {})
 
-/** 获取组件的 Vue 组件类型 */
 function getVueComponent(name: string): VueComponent | null {
   return componentRegistry[name] || null
 }
 
-/** 通过 ID 获取组件定义 */
 function getComponentById(id: string): A2UIComponent | undefined {
   return componentMap.value.get(id)
 }
 
-/** 处理 Action */
-function handleAction(action: Action) {
-  emit('action', action, dataModel.value)
-}
-
-/** 处理数据更新 */
-function handleDataUpdate(path: string, value: any) {
-  setByPath(dataModel.value, path, value)
+/** 更新数据模型 */
+function updateData(path: string, value: any) {
+  setByPath(dataModelRef.value, path, value)
   emit('update-data', path, value)
 }
 
-// 通过 provide/inject 向子组件提供上下文
+/** Action 冒泡，补充来源组件 ID */
+function handleAction(action: Action, sourceComponentId: string = '') {
+  emit('action', action, dataModelRef.value, sourceComponentId)
+}
+
+// provide/inject 上下文
 provide('a2ui-components', componentMap)
-provide('a2ui-data-model', dataModel)
+provide('a2ui-data-model', dataModelRef)
 provide('a2ui-get-component', getComponentById)
 provide('a2ui-get-vue-component', getVueComponent)
 provide('a2ui-handle-action', handleAction)
-provide('a2ui-handle-data-update', handleDataUpdate)
-provide('a2ui-resolve-string', (v: any) => resolveDynamicString(v, dataModel.value))
-provide('a2ui-resolve-number', (v: any) => resolveDynamicNumber(v, dataModel.value))
-provide('a2ui-resolve-boolean', (v: any) => resolveDynamicBoolean(v, dataModel.value))
-provide('a2ui-resolve-value', (v: any) => resolveDynamicValue(v, dataModel.value))
-provide('a2ui-resolve-string-list', (v: any) => resolveDynamicStringList(v, dataModel.value))
-provide('a2ui-resolve-children', (v: any) => resolveChildList(v, dataModel.value, componentMap.value))
+provide('a2ui-handle-data-update', updateData)
+provide('a2ui-resolve-string', (v: any) => resolveDynamicString(v, dataModelRef.value))
+provide('a2ui-resolve-number', (v: any) => resolveDynamicNumber(v, dataModelRef.value))
+provide('a2ui-resolve-boolean', (v: any) => resolveDynamicBoolean(v, dataModelRef.value))
+provide('a2ui-resolve-value', (v: any) => resolveDynamicValue(v, dataModelRef.value))
+provide('a2ui-resolve-string-list', (v: any) => resolveDynamicStringList(v, dataModelRef.value))
+provide('a2ui-resolve-children', (v: any) => resolveChildList(v, dataModelRef.value, componentMap.value))
 provide('a2ui-get-write-path', getWritePath)
 </script>
 

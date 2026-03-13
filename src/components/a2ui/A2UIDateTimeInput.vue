@@ -4,12 +4,13 @@
  * 根据 enableDate 和 enableTime 选择不同的 input type
  */
 import { computed, inject, ref, watch } from 'vue'
-import type { A2UIComponent, DynamicString } from './types'
+import type { A2UIComponent, DynamicString, DynamicBoolean } from './types'
 import { getWritePath } from '../../composables/useA2UIState'
 
 const props = defineProps<{ comp: A2UIComponent }>()
 
 const resolveString = inject<(v: DynamicString) => string>('a2ui-resolve-string')!
+const resolveBoolean = inject<(v: DynamicBoolean) => boolean>('a2ui-resolve-boolean')!
 const handleDataUpdate = inject<(path: string, value: any) => void>('a2ui-handle-data-update')!
 
 const label = computed(() => resolveString(props.comp.label))
@@ -40,6 +41,14 @@ function onInput(e: Event) {
     handleDataUpdate(path, target.value)
   }
 }
+
+const errorMessage = computed(() => {
+  if (!props.comp.checks || props.comp.checks.length === 0) return ''
+  for (const check of props.comp.checks) {
+    if (!resolveBoolean(check.condition)) return check.message
+  }
+  return ''
+})
 </script>
 
 <template>
@@ -54,6 +63,10 @@ function onInput(e: Event) {
       :min="resolvedMin || undefined"
       :max="resolvedMax || undefined"
       class="input input-bordered input-sm w-full text-sm"
+      :class="{ 'input-error': errorMessage }"
     />
+    <label v-if="errorMessage" class="label pb-0">
+      <span class="label-text-alt text-error font-medium">{{ errorMessage }}</span>
+    </label>
   </div>
 </template>

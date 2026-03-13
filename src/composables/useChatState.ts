@@ -6,6 +6,7 @@ import { apiGet, apiPost } from './api-client'
 import { startChatSSE, connectSessionSSE, startRetrySSE, startEditSSE, type SSEConnection } from './sse-client'
 import { AgentInfo, useAgentsState } from './useAgentsState'
 import { useToast } from './useToast'
+import { clearAllSurfaces } from './useA2UISurfaces'
 import router from '../router'
 
 // ==================== Types ====================
@@ -590,6 +591,9 @@ const setSessionKey = async (key: string, loadHistory = true, type?: string) => 
     // 在设置 sessionKey 之前先判断是否需要加载历史
     // 因为设置 sessionKey 后，UI 会通过 getter 读取数据，自动创建 sessionsMap entry
     const needsLoad = loadHistory && !state.sessionsMap.has(key)
+
+    // 切换会话时清空 A2UI Surface 注册表（防止跨会话数据泄漏）
+    clearAllSurfaces()
 
     state.sessionKey = key
 

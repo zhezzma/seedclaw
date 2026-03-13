@@ -419,6 +419,8 @@ export default {
             off: '推理(关)',
         },
         voiceInput: '语音输入',
+        a2ui_loading: '正在加载应用界面...',
+        a2uiAction: '交互事件',
     },
     voice: {
         listening: '我在听...',

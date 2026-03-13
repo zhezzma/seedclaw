@@ -13,6 +13,9 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ToolInvocation from './ToolInvocation.vue'
+import { A2UIRenderer } from '../a2ui'
+import { handleA2UIAction } from '../../composables/useA2UIActions'
+import { getSurface } from '../../composables/useA2UISurfaces'
 import { useChatState } from '../../composables/useChatState'
 import { useTTS } from '../../composables/useTTS'
 import { useConfirm } from '../../composables/useConfirm'
@@ -42,6 +45,11 @@ const { t } = useI18n()
 const chatState = useChatState()
 const { currentReadingMsgId } = useTTS()
 const { confirm } = useConfirm()
+
+// A2UI action handling
+function onA2UIAction(action: any, dataModel: Record<string, any>, surfaceId: string, sourceComponentId: string) {
+    handleA2UIAction(action, dataModel, surfaceId, sourceComponentId)
+}
 
 // Edit state
 const isEditing = ref(false)
@@ -119,6 +127,7 @@ const userParsedBlocks = computed(() => {
     for (const block of props.message.blocks) {
         // Handle text blocks - extract file content markers
         if (block.type === 'text' && block.text) {
+            
             // Pattern: === File Content: filename === content ==============================
             const fileRegex = /=== File Content: (.*?) ===([\s\S]*?)==============================/g
             let lastIndex = 0
@@ -419,6 +428,23 @@ const closeFileViewer = () => {
                     <!-- Text blocks first -->
                     <template v-for="(block, bIndex) in userParsedBlocks" :key="'text-' + bIndex">
                         <MarkdownRenderer v-if="block.type === 'text'" :content="block.text || ''" />
+                        
+                        <!-- NEW: A2UI Action Block -->
+                        <div v-else-if="block.type === 'a2ui-action'" class="my-1 min-w-[240px] max-w-sm">
+                            <div class="collapse collapse-arrow border border-base-content/10 bg-base-100/50 backdrop-blur-sm shadow-sm rounded-lg">
+                                <input type="checkbox" />
+                                <div class="collapse-title p-2 min-h-0 flex items-center gap-2">
+                                    <span class="text-lg opacity-80">⚡</span>
+                                    <div class="flex flex-col flex-1 min-w-0 pr-2">
+                                        <span class="text-[10px] font-semibold text-base-content/50 uppercase tracking-wider">{{ $t('chat.a2uiAction') || 'Interactive Event' }}</span>
+                                        <span class="text-sm font-medium text-base-content/90 truncate">{{ block.a2uiEventName }}</span>
+                                    </div>
+                                </div>
+                                <div class="collapse-content p-0 pb-2 px-3 cursor-text">
+                                    <pre class="text-[11px] leading-tight bg-base-200/50 p-2 rounded overflow-x-auto text-base-content/70 whitespace-pre-wrap max-h-60 overflow-y-auto">{{ JSON.stringify(block.a2uiPayload, null, 2) }}</pre>
+                                </div>
+                            </div>
+                        </div>
                     </template>
 
                     <!-- File attachments section -->
@@ -528,6 +554,28 @@ const closeFileViewer = () => {
                     <ToolInvocation v-else-if="block.type === 'tool'" :toolName="block.toolName || 'Unknown Tool'"
                         :args="block.toolArgs || {}" :result="block.toolResult" :state="block.toolState"
                         :errorMessage="block.toolError" :details="block.toolDetails" />
+                    <!-- A2UI 组件渲染 -->
+                    <A2UIRenderer
+                        v-else-if="block.type === 'a2ui' && block.a2uiComponents && block.a2uiSurfaceId"
+                        :components="block.a2uiComponents"
+                        :data-model="getSurface(block.a2uiSurfaceId)?.dataModel || {}"
+                        :root-ids="block.a2uiRootIds"
+                        class="my-2"
+                        @action="(action: any, dm: any, sourceId: string) => onA2UIAction(action, dm, block.a2uiSurfaceId, sourceId)"
+                    />
+                    <!-- A2UI 加载中（流式接收，标签未闭合） -->
+                    <div v-else-if="block.type === 'a2ui_loading'" class="my-2">
+                        <div class="collapse collapse-arrow border border-base-300 bg-base-100 rounded-box">
+                            <input type="checkbox" />
+                            <div class="collapse-title text-sm font-medium opacity-70 flex items-center gap-2">
+                                <span class="loading loading-spinner loading-xs"></span>
+                                {{ $t('chat.a2ui_loading', '正在生成交互界面...') }}
+                            </div>
+                            <div class="collapse-content">
+                                <div class="opacity-50 text-xs font-mono border-t border-base-300 pt-2 mt-2 whitespace-pre-wrap break-all max-h-40 overflow-auto">{{ block.text }}</div>
+                            </div>
+                        </div>
+                    </div>
                     <div v-else-if="block.type === 'image_gallery'" class="grid gap-2 my-1 w-fit" :class="{
                         'grid-cols-1': block.images.length === 1,
                         'grid-cols-2 max-w-[240px] sm:max-w-[320px]': block.images.length === 2 || block.images.length === 4,

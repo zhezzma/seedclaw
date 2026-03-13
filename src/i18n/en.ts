@@ -419,6 +419,8 @@ export default {
             off: 'Reasoning (Off)',
         },
         voiceInput: 'Voice Input',
+        a2ui_loading: 'Loading App Interface...',
+        a2uiAction: 'Interactive Event',
     },
     voice: {
         listening: 'Listening...',

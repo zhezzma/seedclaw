@@ -4,13 +4,14 @@
  * 支持 mutuallyExclusive/multipleSelection，displayStyle: checkbox/chips
  */
 import { computed, inject, ref, watch } from 'vue'
-import type { A2UIComponent, DynamicString, DynamicStringList } from './types'
+import type { A2UIComponent, DynamicString, DynamicStringList, DynamicBoolean } from './types'
 import { getWritePath } from '../../composables/useA2UIState'
 
 const props = defineProps<{ comp: A2UIComponent }>()
 
 const resolveString = inject<(v: DynamicString) => string>('a2ui-resolve-string')!
 const resolveStringList = inject<(v: DynamicStringList) => string[]>('a2ui-resolve-string-list')!
+const resolveBoolean = inject<(v: DynamicBoolean) => boolean>('a2ui-resolve-boolean')!
 const handleDataUpdate = inject<(path: string, value: any) => void>('a2ui-handle-data-update')!
 
 const label = computed(() => resolveString(props.comp.label))
@@ -63,6 +64,14 @@ function syncValue() {
     handleDataUpdate(path, [...localSelected.value])
   }
 }
+
+const errorMessage = computed(() => {
+  if (!props.comp.checks || props.comp.checks.length === 0) return ''
+  for (const check of props.comp.checks) {
+    if (!resolveBoolean(check.condition)) return check.message
+  }
+  return ''
+})
 </script>
 
 <template>
@@ -119,5 +128,10 @@ function syncValue() {
         <span class="label-text text-sm">{{ opt.label }}</span>
       </label>
     </div>
+
+    <!-- 错误信息 -->
+    <label v-if="errorMessage" class="label pb-0">
+      <span class="label-text-alt text-error font-medium">{{ errorMessage }}</span>
+    </label>
   </div>
 </template>

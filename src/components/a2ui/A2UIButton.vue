@@ -4,13 +4,14 @@
  * 支持 default/primary/borderless 变体和 Action 触发
  */
 import { computed, inject, type Component as VueComponent } from 'vue'
-import type { A2UIComponent, Action } from './types'
+import type { A2UIComponent, Action, DynamicBoolean } from './types'
 
 const props = defineProps<{ comp: A2UIComponent }>()
 
 const getComponentById = inject<(id: string) => A2UIComponent | undefined>('a2ui-get-component')!
 const getVueComponent = inject<(name: string) => VueComponent | null>('a2ui-get-vue-component')!
-const handleAction = inject<(action: Action) => void>('a2ui-handle-action')!
+const handleAction = inject<(action: Action, sourceComponentId: string) => void>('a2ui-handle-action')!
+const resolveBoolean = inject<(v: DynamicBoolean) => boolean>('a2ui-resolve-boolean')!
 
 const variant = computed(() => props.comp.variant || 'default')
 
@@ -33,9 +34,18 @@ const childVueComp = computed(() => {
   return getVueComponent(childComp.value.component)
 })
 
+const hasError = computed(() => {
+  if (!props.comp.checks || props.comp.checks.length === 0) return false
+  for (const check of props.comp.checks) {
+    if (!resolveBoolean(check.condition)) return true
+  }
+  return false
+})
+
 function onClick() {
+  if (hasError.value) return
   if (props.comp.action) {
-    handleAction(props.comp.action)
+    handleAction(props.comp.action, props.comp.id || '')
   }
 }
 </script>
@@ -45,6 +55,7 @@ function onClick() {
     :class="btnClass"
     class="a2ui-button btn-sm gap-1"
     :style="comp.weight != null ? { flex: comp.weight } : undefined"
+    :disabled="hasError"
     @click="onClick"
   >
     <component

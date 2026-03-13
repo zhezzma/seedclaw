@@ -91,7 +91,7 @@ export function resolveDynamicString(value: DynamicString | undefined, dataModel
   if (value === undefined || value === null) return ''
   if (typeof value === 'string') return value
   if (isDataBinding(value)) return String(getByPath(dataModel, value.path) ?? '')
-  if (isFunctionCall(value)) return '' // 函数调用暂不实现
+  if (isFunctionCall(value)) return String(executeFunctionCall(value, dataModel) ?? '')
   return String(value)
 }
 
@@ -100,7 +100,7 @@ export function resolveDynamicNumber(value: DynamicNumber | undefined, dataModel
   if (value === undefined || value === null) return 0
   if (typeof value === 'number') return value
   if (isDataBinding(value)) return Number(getByPath(dataModel, value.path) ?? 0)
-  if (isFunctionCall(value)) return 0
+  if (isFunctionCall(value)) return Number(executeFunctionCall(value, dataModel)) || 0
   return Number(value) || 0
 }
 
@@ -109,6 +109,7 @@ export function resolveDynamicBoolean(value: DynamicBoolean | undefined, dataMod
   if (value === undefined || value === null) return false
   if (typeof value === 'boolean') return value
   if (isDataBinding(value)) return Boolean(getByPath(dataModel, value.path))
+  if (isFunctionCall(value)) return Boolean(executeFunctionCall(value, dataModel))
   return false
 }
 
@@ -118,7 +119,7 @@ export function resolveDynamicValue(value: DynamicValue | undefined, dataModel: 
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value
   if (Array.isArray(value)) return value
   if (isDataBinding(value)) return getByPath(dataModel, value.path)
-  if (isFunctionCall(value)) return undefined
+  if (isFunctionCall(value)) return executeFunctionCall(value, dataModel)
   return value
 }
 
@@ -130,8 +131,133 @@ export function resolveDynamicStringList(value: DynamicStringList | undefined, d
     const resolved = getByPath(dataModel, value.path)
     return Array.isArray(resolved) ? resolved : []
   }
-  if (isFunctionCall(value)) return []
+  if (isFunctionCall(value)) {
+    const resolved = executeFunctionCall(value, dataModel)
+    return Array.isArray(resolved) ? resolved : []
+  }
   return []
+}
+
+/** 执行函数调用 */
+export function executeFunctionCall(fn: FunctionCall, dataModel: Record<string, any>): any {
+  const args = fn.args || {}
+  const resolveArg = (val: any) => resolveDynamicValue(val, dataModel)
+
+  switch (fn.call) {
+    case 'required': {
+      const val = resolveArg(args.value)
+      if (val == null) return false
+      if (typeof val === 'string' && val.trim() === '') return false
+      if (Array.isArray(val) && val.length === 0) return false
+      return true
+    }
+    case 'regex': {
+      const val = String(resolveArg(args.value) ?? '')
+      const pattern = String(args.pattern)
+      try {
+        return new RegExp(pattern).test(val)
+      } catch (e) {
+        return false
+      }
+    }
+    case 'length': {
+      const val = String(resolveArg(args.value) ?? '')
+      const len = val.length
+      if (args.min != null && len < Number(resolveArg(args.min))) return false
+      if (args.max != null && len > Number(resolveArg(args.max))) return false
+      return true
+    }
+    case 'numeric': {
+      const val = Number(resolveArg(args.value))
+      if (isNaN(val)) return false
+      if (args.min != null && val < Number(resolveArg(args.min))) return false
+      if (args.max != null && val > Number(resolveArg(args.max))) return false
+      return true
+    }
+    case 'email': {
+      const val = String(resolveArg(args.value) ?? '')
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)
+    }
+    case 'and': {
+      const values = args.values as any[]
+      if (!Array.isArray(values)) return false
+      return values.every(v => resolveDynamicBoolean(v, dataModel))
+    }
+    case 'or': {
+      const values = args.values as any[]
+      if (!Array.isArray(values)) return false
+      return values.some(v => resolveDynamicBoolean(v, dataModel))
+    }
+    case 'not': {
+      return !resolveDynamicBoolean(args.value, dataModel)
+    }
+    case 'formatString': {
+      const template = String(resolveArg(args.value) || '')
+      return template.replace(/\$\{([^}]+)\}/g, (match, expr) => {
+        if (expr.startsWith('/')) return String(getByPath(dataModel, expr) ?? '')
+        return match // Function interpolation requires full parser, skipping for now
+      })
+    }
+    case 'formatNumber': {
+      const val = Number(resolveArg(args.value))
+      if (isNaN(val)) return ''
+      const decimals = resolveArg(args.decimals)
+      const grouping = resolveArg(args.grouping) !== false
+      return new Intl.NumberFormat(undefined, {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+        useGrouping: grouping
+      }).format(val)
+    }
+    case 'formatCurrency': {
+      const val = Number(resolveArg(args.value))
+      if (isNaN(val)) return ''
+      const currency = String(resolveArg(args.currency) || 'USD')
+      const decimals = resolveArg(args.decimals)
+      const grouping = resolveArg(args.grouping) !== false
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency,
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+        useGrouping: grouping
+      }).format(val)
+    }
+    case 'formatDate': {
+      const val = resolveArg(args.value)
+      if (!val) return ''
+      const date = new Date(val)
+      if (isNaN(date.getTime())) return ''
+      const formatStr = String(resolveArg(args.format) || 'yyyy-MM-dd')
+      const yyyy = date.getFullYear().toString()
+      const MM = (date.getMonth() + 1).toString().padStart(2, '0')
+      const dd = date.getDate().toString().padStart(2, '0')
+      const HH = date.getHours().toString().padStart(2, '0')
+      const mm = date.getMinutes().toString().padStart(2, '0')
+      const ss = date.getSeconds().toString().padStart(2, '0')
+      return formatStr
+        .replace(/yyyy/g, yyyy)
+        .replace(/MM/g, MM)
+        .replace(/dd/g, dd)
+        .replace(/HH/g, HH)
+        .replace(/mm/g, mm)
+        .replace(/ss/g, ss)
+    }
+    case 'pluralize': {
+      const val = Number(resolveArg(args.value))
+      if (isNaN(val)) return ''
+      const category = new Intl.PluralRules().select(val)
+      return resolveArg(args[category]) || resolveArg(args.other) || ''
+    }
+    case 'openUrl': {
+      const url = String(resolveArg(args.url) || '')
+      if (url) window.open(url, '_blank')
+      return undefined
+    }
+    default:
+      console.warn('[A2UI] Unknown function call:', fn.call)
+      return undefined
+  }
 }
 
 /** 获取 DataBinding 的写入路径（如果值是 DataBinding） */
