@@ -174,8 +174,8 @@ const openSkillDoc = async (skill: any, type: 'agent' | 'system' | 'global') => 
                                 </h3>
                                 <div class="flex items-center gap-2">
                                     <p class="text-xs text-base-content/60 font-mono truncate">{{ skill.name }}</p>
-                                    <span v-if="!skill.enabled" class="badge badge-xs badge-warning">{{
-                                        $t('common.disabled') }}</span>
+                                    <!-- <span v-if="!skill.enabled" class="badge badge-xs badge-warning">{{
+                                        $t('common.disabled') }}</span> -->
                                 </div>
                             </div>
                         </div>
