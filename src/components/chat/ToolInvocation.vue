@@ -196,8 +196,8 @@ function extractPaths(text: string): string[] {
     const patterns = [
         // Windows: D:\ or D:\\ or D:/ 后跟路径段，最终以 .ext 结尾（文件名）
         /[A-Za-z]:[\\\/](?:[^\s"'`,;\[\]{}()]*[\\\/])*[^\s"'`,;\[\]{}()\\\/]+\.[A-Za-z0-9_]{1,20}/g,
-        // Unix absolute: /xxx/yyy/file.ext（至少 2 段且以 .ext 结尾）
-        /\/(?:[\w.\-@]+\/)+[\w\-@]+\.[\w]{1,20}/g,
+        // Unix absolute: /xxx/... 至少 1 段目录，文件名可以有扩展名或者是 .dotfile
+        /\/(?:[\w.\-@]+\/)+\.?[\w\-@]+(?:\.[\w]{1,20})?/g,
     ]
     const results = new Set<string>()
     for (const regex of patterns) {
@@ -205,8 +205,8 @@ function extractPaths(text: string): string[] {
         for (const m of matches) {
             // 清理尾部的标点符号（但保留 .ext）
             const trimmed = m.replace(/[,;:!?)\]]+$/, '')
-            // 确保仍然有扩展名
-            if (trimmed.length > 2 && /\.\w+$/.test(trimmed)) results.add(trimmed)
+            // 确保仍然有扩展名，或者是 .dotfile（以点开头的文件名，如 .env .todos.json）
+            if (trimmed.length > 2 && (/\.\w+$/.test(trimmed) || /\/\.\w/.test(trimmed))) results.add(trimmed)
         }
     }
     return [...results]
