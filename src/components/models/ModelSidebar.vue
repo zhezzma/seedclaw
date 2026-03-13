@@ -72,21 +72,20 @@ const handleProviderSaved = (providerId: string) => {
 
                 <ul v-else>
                     <li v-for="provider in filteredProviders" :key="provider.id" @click="$emit('select', provider.id)"
-                        class="group flex items-stretch pl-4 cursor-pointer hover:bg-base-200/50 transition-colors"
-                        :class="selectedId === provider.id ? 'bg-primary/5' : ''">
+                        class="group flex items-stretch pl-4 cursor-pointer hover:bg-base-300 transition-colors"
+                        :class="selectedId === provider.id ? 'hover:bg-primary/20 bg-primary/20' : ''">
 
                         <!-- Icon -->
                         <div
-                            class="self-center shrink-0 w-10 h-10 rounded-lg bg-base-200 flex items-center justify-center my-3 mr-3">
+                            class="self-center shrink-0 w-10 h-10 rounded-lg bg-base-200 flex items-center justify-center  mr-3">
                             <span class="text-xl select-none">🔌</span>
                         </div>
 
                         <!-- Content -->
-                        <div
-                            class="flex-1 flex items-center py-3 pr-4 border-b border-base-200 min-w-0 group-last:border-none">
+                        <div class="flex-1 flex items-center py-3 pr-4 border-b min-w-0 group-last:border-none "
+                            :class="selectedId === provider.id ? 'border-base-300/0 ' : 'border-base-300 '">
                             <div class="flex-1 min-w-0">
-                                <div class="font-bold text-[15px] text-base-content truncate"
-                                    :class="selectedId === provider.id ? 'text-primary' : ''">
+                                <div class="font-bold text-[15px] text-base-content truncate">
                                     {{ provider.id }}
                                 </div>
                                 <div class="text-xs text-base-content/50 truncate">

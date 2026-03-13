@@ -40,8 +40,8 @@ const { t } = useI18n()
 
             <ul v-else>
                 <li v-for="agent in agents" :key="agent.id" @click="emit('select', agent.id)"
-                    class="group flex items-stretch pl-4 cursor-pointer hover:bg-base-200/50 transition-colors"
-                    :class="selectedId === agent.id ? 'bg-primary/5' : ''">
+                    class="group flex items-stretch pl-4 cursor-pointer hover:bg-base-300 transition-colors"
+                    :class="selectedId === agent.id ? 'hover:bg-primary/20 bg-primary/20' : ''">
 
                     <!-- Avatar -->
                     <div class="self-center shrink-0 my-3 mr-3">
@@ -50,11 +50,10 @@ const { t } = useI18n()
                     </div>
 
                     <!-- Content -->
-                    <div
-                        class="flex-1 flex items-center py-3 pr-4 border-b border-base-200 min-w-0 group-last:border-none">
+                    <div class="flex-1 flex items-center py-3 pr-4 border-b min-w-0 group-last:border-none"
+                        :class="selectedId === agent.id ? 'border-base-300/0 ' : 'border-base-300 '">
                         <div class="flex-1 min-w-0">
-                            <div class="font-bold text-[15px] text-base-content truncate"
-                                :class="selectedId === agent.id ? 'text-primary' : ''">
+                            <div class="font-bold text-[15px] text-base-content truncate">
                                 {{ agent.name || agent.id }}
                             </div>
                             <div class="text-xs text-base-content/50 truncate">

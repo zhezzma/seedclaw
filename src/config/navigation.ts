@@ -50,6 +50,15 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         showInBottomNav: true
     },
     {
+        label: 'sidebar.chat',
+        icon: ChatBubbleLeftRightIcon,
+        activeIcon: ChatBubbleLeftRightIconSolid,
+        route: 'chat',
+        query: { type: 'cron' },
+        showInSidebar: true,
+        showInBottomNav: true
+    },
+    {
         label: 'sidebar.models',
         icon: CubeIcon,
         activeIcon: CubeIconSolid,
@@ -65,15 +74,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         showInSidebar: true,
         showInBottomNav: true
     },
-    {
-        label: 'sidebar.chat',
-        icon: ChatBubbleLeftRightIcon,
-        activeIcon: ChatBubbleLeftRightIconSolid,
-        route: 'chat',
-        query: { type: 'cron' },
-        showInSidebar: true,
-        showInBottomNav: true
-    },
+
     {
         label: 'sidebar.cron',
         icon: DocumentIcon,

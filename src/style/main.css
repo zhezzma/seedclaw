@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import "./github-markdown.css";
 @import "../../node_modules/katex/dist/katex.css";
+
+/* 同步 Tailwind 的 dark 修饰符与 DaisyUI 的 data-theme 属性 */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 @plugin "daisyui" {
     themes: light --default, dark --prefersdark;
 }

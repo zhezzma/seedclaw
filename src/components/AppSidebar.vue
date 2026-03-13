@@ -17,7 +17,6 @@ import { NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
 
 import { SessionRow, useSessionsState } from '../composables/useSessionsState'
 import { useChatState } from '../composables/useChatState'
-import { useAgentsState } from '../composables/useAgentsState'
 import { useNavActive } from '../composables/useNavActive'
 import { useUiSettingsStore } from '../stores/setting'
 import { useI18n } from 'vue-i18n'
@@ -28,22 +27,8 @@ const { confirm } = useConfirm()
 
 const sessionsState = useSessionsState()
 const chatState = useChatState()
-const agentsState = useAgentsState()
 const { t } = useI18n()
 const configStore = useUiSettingsStore()
-
-// No props needed now
-// const props = defineProps<{...}>()
-
-// No emits needed now
-// const emit = defineEmits<{...}>()
-
-// Agents expand/collapse state
-const isAgentsExpanded = ref(false)
-const MAX_VISIBLE_AGENTS = 4
-
-// Computed properties for state
-
 
 
 
@@ -150,8 +135,8 @@ const handleNavClick = (item: any) => {
         <!-- Nav -->
         <div class="shrink-0 px-3 flex flex-col gap-1.5">
             <button v-for="item in navItems" :key="item.label" @click="handleNavClick(item)"
-                class="group flex items-center gap-3  p-1 w-full rounded-2xl text-left transition-all duration-200 hover:bg-base-100 hover:shadow-sm border border-transparent hover:border-base-200/50 active:scale-[0.98] cursor-pointer"
-                :class="{ 'bg-base-100 shadow-sm border-base-200/50': isItemActive(item) }">
+                class="group flex items-center gap-3  p-1 w-full rounded-2xl text-left transition-all duration-200 hover:bg-base-300/90 hover:border-base-300 hover:shadow-sm border border-transparent  active:scale-[0.98] cursor-pointer"
+                :class="{ 'bg-base-300 dark:bg-primary/20  shadow-sm': isItemActive(item) }">
                 <div class="p-1 rounded-xl transition-colors duration-200 group-hover:bg-primary/10 group-hover:text-primary text-base-content/60"
                     :class="{ 'bg-primary/10 text-primary': isItemActive(item) }">
                     <component :is="item.icon" class="h-5 w-5" />
@@ -173,7 +158,7 @@ const handleNavClick = (item: any) => {
         <!-- Conversations Header -->
         <div class="shrink-0 px-4 pt-2 pb-2 flex items-center justify-between">
             <span class="text-sm font-medium text-base-content/70 uppercase tracking-wider">{{ $t('sidebar.recentChats')
-            }}</span>
+                }}</span>
             <div class="flex gap-1">
                 <button v-if="displaySessions && displaySessions.length > 0"
                     class="btn btn-ghost btn-circle btn-xs hover:bg-error/20 hover:text-error"

@@ -98,13 +98,13 @@ const filteredSessions = computed(() => {
         </div>
 
         <!-- List -->
-        <div class="flex-1 overflow-y-auto p-2 space-y-1">
+        <div class="flex-1 overflow-y-auto space-y-1">
             <div v-if="filteredSessions.length === 0" class="text-center p-4 text-base-content/50 text-sm">
                 {{ $t('chat.noSessions') }}
             </div>
             <div v-for="(s, index) in filteredSessions" :key="s._id" @click="$emit('select', s._id)"
-                class="group flex items-center gap-2 p-3 rounded-lg lg:rounded-lg cursor-pointer hover:bg-base-200 transition-colors border-b border-base-300 last:border-b-0 lg:border-b-0"
-                :class="{ 'bg-primary/10 text-primary': selectedKey === s._id }">
+                class="group flex items-center gap-2 p-3  cursor-pointer hover:bg-base-300 transition-colors border-b border-base-300 last:border-b-0 lg:border-b-0"
+                :class="{ 'bg-primary/20 hover:bg-primary/20': selectedKey === s._id }">
                 <div class="flex-1 min-w-0">
                     <div class="font-medium truncate">{{ s._label }}</div>
                     <div v-if="s._date" class="text-xs opacity-60 mt-1">

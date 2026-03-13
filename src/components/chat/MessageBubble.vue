@@ -408,7 +408,7 @@ const closeFileViewer = () => {
         </div>
 
         <!-- User Message Bubble -->
-        <div v-if="message.role === 'user'" class="max-w-full    chat-bubble chat-bubble-primary relative">
+        <div v-if="message.role === 'user'" class="max-w-full chat-bubble bg-primary/10 text-base-content relative">
             <div class="whitespace-normal flex flex-col gap-2">
                 <!-- Edit mode: textarea shown above invisible original content -->
                 <textarea v-if="isEditing" v-model="editText" rows="4"
@@ -418,14 +418,14 @@ const closeFileViewer = () => {
                 <div :class="{ 'invisible h-0 overflow-hidden': isEditing }">
                     <!-- Text blocks first -->
                     <template v-for="(block, bIndex) in userParsedBlocks" :key="'text-' + bIndex">
-                        <MarkdownRenderer v-if="block.type === 'text'" :content="block.text || ''" :asUser="true" />
+                        <MarkdownRenderer v-if="block.type === 'text'" :content="block.text || ''" />
                     </template>
 
                     <!-- File attachments section -->
                     <div v-if="userFiles.length > 0" class="flex flex-wrap gap-2 mt-1">
                         <template v-for="(block, bIndex) in userFiles" :key="'file-' + bIndex">
                             <div @click="openFileViewer(block.fileName, block.fileContent)"
-                                class="attachment-card group/att flex items-center gap-2 px-3 py-2 rounded-lg border border-white/20 bg-white/10 cursor-pointer hover:border-white/40 hover:bg-white/20 transition-all duration-200">
+                                class="attachment-card group/att flex items-center gap-2 px-3 py-2 rounded-lg border border-base-content/30 bg-white/10 cursor-pointer hover:border-base-content/50 hover:bg-white/20 transition-all duration-200">
                                 <div class="w-8 h-8 rounded bg-white/20 flex items-center justify-center flex-shrink-0">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
                                         stroke-width="1.5" stroke="currentColor" class="w-5 h-5 opacity-80">
@@ -435,7 +435,7 @@ const closeFileViewer = () => {
                                 </div>
                                 <div class="flex-1 min-w-0 max-w-[120px]">
                                     <div class="text-xs font-medium truncate" :title="block.fileName">{{ block.fileName
-                                    }}
+                                        }}
                                     </div>
                                     <div class="text-xs opacity-60">{{ $t('common.clickToView') }}</div>
                                 </div>
