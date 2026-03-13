@@ -4,7 +4,7 @@
  * 接收组件列表和数据模型，递归渲染组件树
  * 不包含任何业务逻辑，Action 事件向上冒泡由使用方处理
  */
-import { computed, provide, type Component as VueComponent } from 'vue'
+import { computed, provide, toRef, type Component as VueComponent } from 'vue'
 import type { A2UIComponent, Action } from './types'
 import {
   resolveDynamicString,
@@ -43,6 +43,8 @@ const props = defineProps<{
   dataModel?: Record<string, any>
   /** 要渲染的组件 ID 列表（可选） */
   rootIds?: string[]
+  /** 禁用所有交互（action 触发后锁住 surface） */
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -130,6 +132,7 @@ provide('a2ui-get-component', getComponentById)
 provide('a2ui-get-vue-component', getVueComponent)
 provide('a2ui-handle-action', handleAction)
 provide('a2ui-handle-data-update', updateData)
+provide('a2ui-disabled', toRef(props, 'disabled'))
 provide('a2ui-resolve-string', (v: any) => resolveDynamicString(v, dataModelRef.value))
 provide('a2ui-resolve-number', (v: any) => resolveDynamicNumber(v, dataModelRef.value))
 provide('a2ui-resolve-boolean', (v: any) => resolveDynamicBoolean(v, dataModelRef.value))
@@ -140,7 +143,7 @@ provide('a2ui-get-write-path', getWritePath)
 </script>
 
 <template>
-  <div class="a2ui-surface flex flex-col gap-2">
+  <div class="a2ui-surface flex flex-col gap-2 relative">
     <template v-for="rootId in resolvedRootIds" :key="rootId">
       <component
         v-if="getComponentById(rootId) && getVueComponent(getComponentById(rootId)!.component)"
@@ -151,5 +154,11 @@ provide('a2ui-get-write-path', getWritePath)
         ⚠ 未知组件类型: {{ getComponentById(rootId)?.component }}
       </div>
     </template>
+    <!-- Action 触发后的交互锁定遮罩 -->
+    <div
+      v-if="disabled"
+      class="absolute inset-0 z-10 cursor-not-allowed rounded"
+      style="pointer-events: all;"
+    />
   </div>
 </template>

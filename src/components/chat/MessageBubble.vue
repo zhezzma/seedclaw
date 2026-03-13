@@ -31,6 +31,8 @@ const props = defineProps<{
     isLoading?: boolean
     isBusy?: boolean
     branchInfo?: BranchInfo | null
+    /** 是否是最后一条消息，只有最后一条消息的 A2UI Surface 才允许交互 */
+    isLastMessage?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -560,6 +562,7 @@ const closeFileViewer = () => {
                         :components="block.a2uiComponents"
                         :data-model="getSurface(block.a2uiSurfaceId)?.dataModel || {}"
                         :root-ids="block.a2uiRootIds"
+                        :disabled="!isLastMessage"
                         class="my-2"
                         @action="(action: any, dm: any, sourceId: string) => onA2UIAction(action, dm, block.a2uiSurfaceId, sourceId)"
                     />

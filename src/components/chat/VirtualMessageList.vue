@@ -239,6 +239,7 @@ onBeforeUnmount(() => {
             <!-- Mounted row -->
             <div v-if="visibleKeys.has(item.key)" :ref="setRowRef(item.key) as any" class="virtual-row">
                 <MessageBubble :message="item.msg" :is-loading="isBusy && item.isLast" :is-busy="isBusy"
+                    :is-last-message="item.isLast"
                     :branch-info="getBranchInfo(item.msg)" @copy="emit('copy', item.msg)"
                     @read-aloud="emit('read-aloud', item.msg)" @delete="emit('delete', item.msg)"
                     @retry="emit('retry', item.msg)" @edit="(msg, text) => emit('edit', msg, text)"
