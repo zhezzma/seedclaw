@@ -85,6 +85,11 @@ const router = createRouter({
                     path: 'prompts',
                     name: 'prompts',
                     component: PromptsView
+                },
+                {
+                    path: 'a2ui-demo',
+                    name: 'a2ui-demo',
+                    component: () => import('../views/A2UIDemoView.vue')
                 }
             ]
         }
