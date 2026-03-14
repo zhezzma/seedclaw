@@ -11,6 +11,7 @@ export default {
         loading: '加载中...',
         ok: '确定',
         clickToView: '点击查看',
+        viewDoc: '查看文档',
         justNow: '刚刚',
         minutesAgo: '{n}分钟前',
         hoursAgo: '{n}小时前',

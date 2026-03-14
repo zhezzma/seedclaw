@@ -11,6 +11,7 @@ export default {
         loading: 'Loading...',
         ok: 'OK',
         clickToView: 'Click to view',
+        viewDoc: 'View Doc',
         justNow: 'Just now',
         minutesAgo: '{n}m ago',
         hoursAgo: '{n}h ago',
