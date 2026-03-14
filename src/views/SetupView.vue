@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
 import { apiGet } from '../composables/api-client'
-import { useModelsState } from '../composables/useModelsState'
+import { useModelsState, type KnownApi } from '../composables/useModelsState'
 import { useAgentsState } from '../composables/useAgentsState'
 
 import {
@@ -51,10 +51,10 @@ const modelProviderId = ref('openai')
 const customProviderId = ref('')
 const modelBaseUrl = ref('https://api.openai.com/v1')
 const modelApiKey = ref('')
-const modelApiType = ref('openai-completions')
+const modelApiType = ref<KnownApi>('openai-completions')
 const modelIsSubmitting = ref(false)
 
-const providerOptions = [
+const providerOptions: Array<{ id: string, name: string, baseUrl: string, api: KnownApi }> = [
     { id: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', api: 'openai-completions' },
     { id: 'anthropic', name: 'Anthropic', baseUrl: 'https://api.anthropic.com/v1', api: 'anthropic-messages' },
     { id: 'google', name: 'Google Gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', api: 'google-generative-ai' },

@@ -5,6 +5,7 @@ import { useUiSettingsStore } from '../stores/setting'
 import { apiGet, apiPost } from './api-client'
 import { startChatSSE, connectSessionSSE, startRetrySSE, startEditSSE, type SSEConnection } from './sse-client'
 import { AgentInfo, useAgentsState } from './useAgentsState'
+import { type KnownApi } from './useModelsState'
 import { useToast } from './useToast'
 import { clearAllSurfaces } from './useA2UISurfaces'
 import router from '../router'
@@ -17,7 +18,7 @@ export interface ChatMessage {
     timestamp?: number
     model?: string
     provider?: string
-    api?: string
+    api?: KnownApi | (string & {})
     errorMessage?: string
     toolCallId?: string
     isError?: boolean

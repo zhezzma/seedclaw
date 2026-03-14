@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue'
-import { useModelsState } from '../../composables/useModelsState'
+import { KnownApi, useModelsState } from '../../composables/useModelsState'
 import { useI18n } from 'vue-i18n'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline'
 
@@ -12,7 +12,7 @@ const props = defineProps<{
         id: string
         baseUrl: string
         type?: 'api_key' | 'oauth'
-        api: string
+        api: KnownApi
         apiKey?: string
         headers?: Record<string, string>
         toolCallBridge?: boolean
@@ -34,7 +34,7 @@ const formData = reactive({
     baseUrl: '',
     type: 'api_key' as 'api_key' | 'oauth',
     apiKey: '',
-    api: 'openai-completions',
+    api: 'openai-completions' as KnownApi,
     headers: '',
     toolCallBridge: false
 })
@@ -48,7 +48,7 @@ watch(() => props.show, (newVal) => {
             formData.id = props.initialData.id
             formData.baseUrl = props.initialData.baseUrl
             formData.type = props.initialData.type || 'api_key'
-            formData.api = props.initialData.api
+            formData.api = props.initialData.api as KnownApi
             formData.apiKey = props.initialData.apiKey || ''
             formData.headers = props.initialData.headers ? JSON.stringify(props.initialData.headers, null, 2) : ''
             formData.toolCallBridge = props.initialData.toolCallBridge || false

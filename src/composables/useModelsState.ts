@@ -21,12 +21,16 @@ export interface AvailableModel {
     input?: string[]
 }
 
+//https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/models.md
+export type KnownApi = "openai-completions" | "openai-responses" | "anthropic-messages" | "google-generative-ai";
+
+
 /** Provider configuration in models.json */
 export interface ProviderConfig {
     baseUrl: string
     type?: 'api_key' | 'oauth'
     apiKey?: string
-    api: string
+    api: KnownApi
     headers?: Record<string, string>
     models: AvailableModel[]
     custom: boolean
@@ -59,10 +63,7 @@ export interface OpenAICompletionsCompat {
     thinkingFormat?: "openai" | "zai" | "qwen";
     supportsStrictMode?: boolean;
 }
-export interface OpenAIResponsesCompat {
-}
-export type KnownApi = "openai-completions" | "openai-responses" | "azure-openai-responses" | "openai-codex-responses" | "anthropic-messages" | "bedrock-converse-stream" | "google-generative-ai" | "google-gemini-cli" | "google-vertex";
-export type Api = KnownApi | (string & {});
+
 
 /** A provider derived from grouping available models */
 export interface ProviderInfo extends ProviderConfig {
@@ -118,7 +119,7 @@ const loadModels = async () => {
     }
 }
 
-const saveProvider = async (providerData: { id: string, baseUrl: string, type?: 'api_key' | 'oauth', apiKey?: string, api: string, headers?: Record<string, string>, toolCallBridge?: boolean }) => {
+const saveProvider = async (providerData: { id: string, baseUrl: string, type?: 'api_key' | 'oauth', apiKey?: string, api: KnownApi, headers?: Record<string, string>, toolCallBridge?: boolean }) => {
     const existing = state.providers[providerData.id]
     if (existing) {
         await apiPatch(`/api/models/providers/${providerData.id}`, {
