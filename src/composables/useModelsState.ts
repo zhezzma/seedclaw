@@ -24,6 +24,8 @@ export interface AvailableModel {
 //https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/models.md
 export type KnownApi = "openai-completions" | "openai-responses" | "anthropic-messages" | "google-generative-ai";
 
+export const OAuthProviders = ['anthropic', 'github-copilot', 'openai-codex', 'google-antigravity', 'google-gemini-cli'];
+
 
 /** Provider configuration in models.json */
 export interface ProviderConfig {
@@ -201,8 +203,36 @@ const syncModels = async (providerId: string) => {
     }
 }
 
-const syncAgentsDefaultModels = async (agentIds?: string[]) => {
-    // No-op for now — models are managed via the config state
+
+/** 
+ * OAuth 认证相关动作 
+ */
+
+// 启动 OAuth 流程，返回会话 ID 和 授权 URL
+const startOAuth = async (provider: string) => {
+    return await apiPost<{ sessionId: string, url: string, instructions?: string, status: string }>(`/api/auth/oauth/${provider}`)
+}
+
+// 轮询 OAuth 状态
+const pollOAuthStatus = async (sessionId: string) => {
+    return await apiGet<{
+        id: string,
+        status: "pending" | "waiting_for_input" | "completed" | "failed",
+        url?: string,
+        instructions?: string,
+        prompt?: { message: string, placeholder?: string },
+        error?: string
+    }>(`/api/auth/oauth/${sessionId}`)
+}
+
+// 提交用户手动输入（验证码、手动粘贴的回调 URL 等）
+const submitOAuthInput = async (sessionId: string, input: string) => {
+    return await apiPost(`/api/auth/oauth/${sessionId}/input`, { input })
+}
+
+// 终止 OAuth 流程并释放资源
+const abortOAuthSession = async (sessionId: string) => {
+    return await apiDelete(`/api/auth/oauth/${sessionId}`)
 }
 
 // ==================== Export ====================
@@ -216,7 +246,10 @@ const _modelsState = {
     saveModel,
     deleteModel,
     syncModels,
-    syncAgentsDefaultModels,
+    startOAuth,
+    pollOAuthStatus,
+    submitOAuthInput,
+    abortOAuthSession
 }
 
 export function useModelsState() {

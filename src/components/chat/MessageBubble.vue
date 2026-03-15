@@ -81,8 +81,8 @@ const submitEdit = () => {
 
 const handleDelete = async () => {
     const result = await confirm(
-        '⚠️ 删除用户消息会同时删除其后的所有消息,确定要删除吗？',
-        '删除确认'
+        t('chat.deleteMessageConfirm'),
+        t('chat.deleteMessageConfirmTitle')
     )
     if (result) {
         emit('delete', props.message)
@@ -438,7 +438,7 @@ const closeFileViewer = () => {
                                 <div class="collapse-title p-2 min-h-0 flex items-center gap-2">
                                     <span class="text-lg opacity-80">⚡</span>
                                     <div class="flex flex-col flex-1 min-w-0 pr-2">
-                                        <span class="text-[10px] font-semibold text-base-content/50 uppercase tracking-wider">{{ $t('chat.a2uiAction') || 'Interactive Event' }}</span>
+                                        <span class="text-[10px] font-semibold text-base-content/50 uppercase tracking-wider">{{ $t('chat.a2uiAction') }}</span>
                                         <span class="text-sm font-medium text-base-content/90 truncate">{{ block.a2uiEventName }}</span>
                                     </div>
                                 </div>
@@ -496,7 +496,7 @@ const closeFileViewer = () => {
                             <!-- Download Button -->
                             <button @click.stop="downloadImage(imgBlock.src)"
                                 class="absolute top-2 right-2 p-1.5 rounded-full bg-black/40 text-white backdrop-blur-sm border border-white/20 hover:bg-black/60 md:opacity-0 group-hover/att:opacity-100 transition-opacity z-10"
-                                title="下载图片">
+                                :title="$t('chat.downloadImage')">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
                                     stroke="currentColor" class="w-4 h-4">
                                     <path stroke-linecap="round" stroke-linejoin="round"
@@ -539,7 +539,7 @@ const closeFileViewer = () => {
                 </button>
                 <button v-if="!isBusy && message.entryId" @click="emit('retry', message)"
                     class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-warning hover:bg-warning/10"
-                    :title="$t('chat.retry') || 'Retry'">
+                    :title="$t('chat.retry')">
                     <ArrowPathIcon class="h-4 w-4" />
                 </button>
             </template>
@@ -572,7 +572,7 @@ const closeFileViewer = () => {
                             <input type="checkbox" />
                             <div class="collapse-title text-sm font-medium opacity-70 flex items-center gap-2">
                                 <span class="loading loading-spinner loading-xs"></span>
-                                {{ $t('chat.a2ui_loading', '正在生成交互界面...') }}
+                                {{ $t('chat.a2ui_loading') }}
                             </div>
                             <div class="collapse-content">
                                 <div class="opacity-50 text-xs font-mono border-t border-base-300 pt-2 mt-2 whitespace-pre-wrap break-all max-h-40 overflow-auto">{{ block.text }}</div>
@@ -596,7 +596,7 @@ const closeFileViewer = () => {
                             <!-- Download Button -->
                             <button @click.stop="downloadImage(getImageSrc(imgBlock.source))"
                                 class="absolute top-2 right-2 p-1.5 rounded-full bg-black/40 text-white backdrop-blur-sm border border-white/20 hover:bg-black/60 md:opacity-0 group-hover/att:opacity-100 transition-opacity z-10"
-                                title="下载图片">
+                                :title="$t('chat.downloadImage')">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
                                     stroke="currentColor" class="w-4 h-4">
                                     <path stroke-linecap="round" stroke-linejoin="round"
@@ -639,7 +639,7 @@ const closeFileViewer = () => {
                                 d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         <div class="flex-1">
-                            <div class="font-bold">Error</div>
+                            <div class="font-bold">{{ $t('common.error') }}</div>
                             <div class="whitespace-pre-wrap">{{ block.error }}</div>
                         </div>
                     </div>
@@ -671,7 +671,7 @@ const closeFileViewer = () => {
             </button>
             <button v-if="!isBusy && message.entryId" @click="emit('retry', message)"
                 class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-warning hover:bg-warning/10"
-                :title="$t('chat.retry') || 'Retry'">
+                :title="$t('chat.retry')">
                 <ArrowPathIcon class="h-4 w-4" />
             </button>
 
@@ -716,7 +716,7 @@ const closeFileViewer = () => {
                     <!-- Download -->
                     <button @click.stop="downloadImage(lightboxSrc)"
                         class="btn btn-ghost btn-circle bg-white/10 text-white hover:bg-white/20 backdrop-blur-md"
-                        title="下载图片">
+                        :title="$t('chat.downloadImage')">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
                             stroke="currentColor" class="w-6 h-6">
                             <path stroke-linecap="round" stroke-linejoin="round"
@@ -726,7 +726,7 @@ const closeFileViewer = () => {
                     <!-- Close -->
                     <button @click.stop="closeLightbox"
                         class="btn btn-ghost btn-circle bg-white/10 text-white hover:bg-white/20 backdrop-blur-md"
-                        title="关闭">
+                        :title="$t('common.close')">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
                             stroke="currentColor" class="w-6 h-6">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -737,7 +737,7 @@ const closeFileViewer = () => {
                 <!-- Hint string at bottom -->
                 <div v-if="imgScale === 1"
                     class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-black/60 text-white/90 px-4 py-1.5 rounded-full text-xs backdrop-blur-md pointer-events-none z-[60]">
-                    双击放大 | 双指缩放
+                    {{ $t('chat.zoomHint') }}
                 </div>
             </div>
         </Transition>

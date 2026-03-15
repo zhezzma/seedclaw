@@ -138,7 +138,7 @@ const handleSubmit = () => {
             </div>
         </div>
         <form method="dialog" class="modal-backdrop">
-            <button @click="handleClose">close</button>
+            <button @click="handleClose">{{ $t('common.close') }}</button>
         </form>
     </dialog>
 </template>

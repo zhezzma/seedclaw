@@ -18,7 +18,7 @@ const { cancel, ok } = confirmState
                 </div>
             </div>
             <div class="modal-backdrop" @click="cancel">
-                <button class="sr-only">close</button>
+                <button class="sr-only">{{ $t('common.close') }}</button>
             </div>
         </dialog>
     </Teleport>

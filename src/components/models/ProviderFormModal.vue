@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue'
-import { KnownApi, useModelsState } from '../../composables/useModelsState'
+import { KnownApi, useModelsState, OAuthProviders } from '../../composables/useModelsState'
 import { useI18n } from 'vue-i18n'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline'
 
@@ -47,7 +47,7 @@ watch(() => props.show, (newVal) => {
         if (props.mode === 'edit' && props.initialData) {
             formData.id = props.initialData.id
             formData.baseUrl = props.initialData.baseUrl
-            formData.type = props.initialData.type || 'api_key'
+            formData.type = props.initialData.type || (OAuthProviders.includes(props.initialData.id) ? 'oauth' : 'api_key')
             formData.api = props.initialData.api as KnownApi
             formData.apiKey = props.initialData.apiKey || ''
             formData.headers = props.initialData.headers ? JSON.stringify(props.initialData.headers, null, 2) : ''
@@ -145,18 +145,17 @@ const handleSubmit = async () => {
                 <div class="form-control">
                     <label class="label"><span class="label-text">{{ $t('provider.apiType') }}</span></label>
                     <select v-model="formData.api" class="select select-bordered w-full" :disabled="isReadonly">
-                        <option value="openai-completions">OpenAI Completions</option>
-                        <option value="anthropic-messages">Anthropic</option>
+                        <option value="openai-completions">{{ $t('provider.apiOpenAI') }}</option>
+                        <option value="anthropic-messages">{{ $t('provider.apiAnthropic') }}</option>
                     </select>
                 </div>
 
 
                 <div class="form-control">
-                    <label class="label"><span class="label-text">{{ $t('provider.authType', 'Auth Type')
-                            }}</span></label>
+                    <label class="label"><span class="label-text">{{ $t('provider.authType') }}</span></label>
                     <select v-model="formData.type" class="select select-bordered w-full">
-                        <option value="api_key">API Key</option>
-                        <option value="oauth">OAuth</option>
+                        <option value="api_key">{{ $t('provider.authTypeApiKey') }}</option>
+                        <option value="oauth">{{ $t('provider.authTypeOAuth') }}</option>
                     </select>
                 </div>
 
@@ -202,7 +201,7 @@ const handleSubmit = async () => {
             </div>
         </div>
         <form method="dialog" class="modal-backdrop">
-            <button @click="handleClose">close</button>
+            <button @click="handleClose">{{ $t('common.close') }}</button>
         </form>
     </dialog>
 </template>

@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useModelsState, AvailableModel } from '../../composables/useModelsState'
+import { useModelsState, AvailableModel, OAuthProviders } from '../../composables/useModelsState'
 import { useI18n } from 'vue-i18n'
-import { ArrowPathIcon, PencilIcon, TrashIcon, PlusIcon } from '@heroicons/vue/24/outline' // Explicit import just in case
+import { ArrowPathIcon, PencilIcon, TrashIcon, PlusIcon, ArrowTopRightOnSquareIcon } from '@heroicons/vue/24/outline' // Explicit import just in case
 import ProviderFormModal from './ProviderFormModal.vue'
 import ModelFormModal from './ModelFormModal.vue'
+import OAuthModal from './OAuthModal.vue'
 
 const props = defineProps<{
     providerId: string
@@ -56,12 +57,16 @@ const syncModels = async () => {
 
 // Edit Provider Modal
 const showEditProviderModal = ref(false)
+const showOAuthModal = ref(false)
 const openEditProvider = () => {
     showEditProviderModal.value = true
 }
 
-const handleProviderSaved = async (id: string) => {
-    // Refresh handled by composable usually
+const handleProviderSaved = async (_id: string) => {
+    // saveProvider 已在本地更新了 state.providers，无需重新加载
+}
+const handleOAuthCompleted = () => {
+    loadModels()
 }
 
 // Delete Provider
@@ -125,6 +130,11 @@ const handleDeleteModel = async (modelId: string) => {
                     <button @click="syncModels" class="btn btn-ghost btn-sm" :disabled="syncing" v-if="provider.custom">
                         <ArrowPathIcon class="w-4 h-4" :class="syncing ? 'animate-spin' : ''" />
                         {{ $t('common.sync') }}
+                    </button>
+                    <button @click="showOAuthModal = true" class="btn btn-ghost btn-outline btn-sm"
+                        v-if="provider.type === 'oauth' || OAuthProviders.includes(props.providerId)">
+                        <ArrowTopRightOnSquareIcon class="w-4 h-4" />
+                        {{ $t('provider.login', 'Login') }}
                     </button>
                     <button @click="openEditProvider" class="btn btn-ghost btn-sm">
                         <PencilIcon class="w-4 h-4" />
@@ -217,9 +227,11 @@ const handleDeleteModel = async (modelId: string) => {
             toolCallBridge: provider.toolCallBridge
         } : undefined" @close="showEditProviderModal = false" @saved="handleProviderSaved" />
 
-        <!-- Model Form Modal -->
         <ModelFormModal :show="showModelModal" :mode="modelModalMode" :provider-id="providerId"
             :initial-data="selectedModel" :custom="provider?.custom" @close="showModelModal = false"
             @save="handleModelSaved" />
+
+        <OAuthModal :show="showOAuthModal" :provider-id="providerId" @close="showOAuthModal = false"
+            @completed="handleOAuthCompleted" />
     </div>
 </template>
