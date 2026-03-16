@@ -149,7 +149,7 @@ export default {
         retryMaxRetries: '最大重试次数 (maxRetries)',
         retryBaseDelayMs: '基础延迟毫秒 (baseDelayMs)',
         retryMaxDelayMs: '最大延迟毫秒 (maxDelayMs)',
-        steeringMode: '调度模式 (Steering)',
+        steeringMode: '干预模式 (Steering)',
         followUpMode: '追问模式 (Follow Up)',
         hideThinkingBlock: '隐藏思考过程 (UI)',
         modeAll: '并行执行 (all)',
