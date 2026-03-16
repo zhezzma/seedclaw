@@ -3,6 +3,24 @@ import { reactive } from 'vue'
 import { apiGet, apiPost, apiPatch, apiDelete, apiPut, apiUpload, apiPatchMultipart } from './api-client'
 
 // ==================== Types ====================
+export interface CompactionSettings {
+    enabled?: boolean;
+    reserveTokens?: number;
+    keepRecentTokens?: number;
+}
+
+export interface BranchSummarySettings {
+    reserveTokens?: number;
+    skipPrompt?: boolean;
+}
+
+export interface RetrySettings {
+    enabled?: boolean;
+    maxRetries?: number;
+    baseDelayMs?: number;
+    maxDelayMs?: number;
+}
+
 export interface AgentInfo {
     id: string
     name?: string
@@ -12,11 +30,12 @@ export interface AgentInfo {
     avatar?: string
     defaultProvider?: string
     defaultModel?: string
-    steeringMode?: string
-    followUpMode?: string
-    compaction?: boolean
-    branchSummary?: boolean
-    retry?: number
+    defaultThinkingLevel?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh"
+    steeringMode?: "all" | "one-at-a-time" | string
+    followUpMode?: "all" | "one-at-a-time" | string
+    compaction?: boolean | CompactionSettings
+    branchSummary?: boolean | BranchSummarySettings
+    retry?: number | RetrySettings
     hideThinkingBlock?: boolean
     sessionId?: string
     createdAt?: string

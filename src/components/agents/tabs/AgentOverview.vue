@@ -78,6 +78,187 @@ const allowPeerAccess = computed({
     }
 })
 
+const defaultThinkingLevel = computed({
+    get: () => props.agent?.defaultThinkingLevel || 'off',
+    set: async (val: string) => {
+        try {
+            await agentsState.updateAgent({
+                agentId: props.agent.id,
+                defaultThinkingLevel: val
+            })
+        } catch (err: any) {
+            toast.error(err.message || String(err))
+        }
+    }
+})
+
+const steeringMode = computed({
+    get: () => props.agent?.steeringMode || 'all',
+    set: async (val: string) => {
+        try {
+            await agentsState.updateAgent({
+                agentId: props.agent.id,
+                steeringMode: val
+            })
+        } catch (err: any) {
+            toast.error(err.message || String(err))
+        }
+    }
+})
+
+const followUpMode = computed({
+    get: () => props.agent?.followUpMode || 'all',
+    set: async (val: string) => {
+        try {
+            await agentsState.updateAgent({
+                agentId: props.agent.id,
+                followUpMode: val
+            })
+        } catch (err: any) {
+            toast.error(err.message || String(err))
+        }
+    }
+})
+
+const hideThinkingBlock = computed({
+    get: () => props.agent?.hideThinkingBlock ?? false,
+    set: async (val: boolean) => {
+        try {
+            await agentsState.updateAgent({
+                agentId: props.agent.id,
+                hideThinkingBlock: val
+            })
+        } catch (err: any) {
+            toast.error(err.message || String(err))
+        }
+    }
+})
+
+const compactionModal = ref<HTMLDialogElement | null>(null)
+const compactionSettings = ref<{
+    enabled: boolean;
+    reserveTokens: number;
+    keepRecentTokens: number;
+}>({
+    enabled: false,
+    reserveTokens: 16384,
+    keepRecentTokens: 20000
+})
+
+const openCompactionModal = () => {
+    const c = props.agent?.compaction;
+    let enabled = false;
+    let reserveTokens = 16384;
+    let keepRecentTokens = 20000;
+
+    if (typeof c === 'boolean') {
+        enabled = c;
+    } else if (c && typeof c === 'object') {
+        enabled = c.enabled ?? false;
+        reserveTokens = c.reserveTokens ?? 16384;
+        keepRecentTokens = c.keepRecentTokens ?? 20000;
+    }
+
+    compactionSettings.value = { enabled, reserveTokens, keepRecentTokens }
+    compactionModal.value?.showModal()
+}
+
+const saveCompaction = async () => {
+    try {
+        await agentsState.updateAgent({
+            agentId: props.agent.id,
+            compaction: { ...compactionSettings.value }
+        })
+        toast.success(t('common.savedSuccess'))
+        compactionModal.value?.close()
+    } catch (err: any) {
+        toast.error(err.message || String(err))
+    }
+}
+
+const branchSummaryModal = ref<HTMLDialogElement | null>(null)
+const branchSummarySettings = ref<{
+    reserveTokens: number;
+    skipPrompt: boolean;
+}>({
+    reserveTokens: 2000,
+    skipPrompt: false
+})
+
+const openBranchSummaryModal = () => {
+    const b = props.agent?.branchSummary;
+    let reserveTokens = 2000;
+    let skipPrompt = false;
+
+    if (b && typeof b === 'object') {
+        reserveTokens = b.reserveTokens ?? 2000;
+        skipPrompt = b.skipPrompt ?? false;
+    }
+
+    branchSummarySettings.value = { reserveTokens, skipPrompt }
+    branchSummaryModal.value?.showModal()
+}
+
+const saveBranchSummary = async () => {
+    try {
+        await agentsState.updateAgent({
+            agentId: props.agent.id,
+            branchSummary: { ...branchSummarySettings.value }
+        })
+        toast.success(t('common.savedSuccess'))
+        branchSummaryModal.value?.close()
+    } catch (err: any) {
+        toast.error(err.message || String(err))
+    }
+}
+
+const retryModal = ref<HTMLDialogElement | null>(null)
+const retrySettings = ref<{
+    enabled: boolean;
+    maxRetries: number;
+    baseDelayMs: number;
+    maxDelayMs: number;
+}>({
+    enabled: false,
+    maxRetries: 3,
+    baseDelayMs: 1000,
+    maxDelayMs: 10000
+})
+
+const openRetryModal = () => {
+    const r = props.agent?.retry;
+    let enabled = false;
+    let maxRetries = 3;
+    let baseDelayMs = 1000;
+    let maxDelayMs = 10000;
+
+    if (typeof r === 'number') {
+        enabled = r > 0;
+        maxRetries = r;
+    } else if (r && typeof r === 'object') {
+        enabled = r.enabled ?? false;
+        maxRetries = r.maxRetries ?? 3;
+        baseDelayMs = r.baseDelayMs ?? 1000;
+        maxDelayMs = r.maxDelayMs ?? 10000;
+    }
+
+    retrySettings.value = { enabled, maxRetries, baseDelayMs, maxDelayMs }
+    retryModal.value?.showModal()
+}
+
+const saveRetry = async () => {
+    try {
+        await agentsState.updateAgent({
+            agentId: props.agent.id,
+            retry: { ...retrySettings.value }
+        })
+        toast.success(t('common.savedSuccess'))
+        retryModal.value?.close()
+    } catch (err: any) {
+        toast.error(err.message || String(err))
+    }
+}
+
 // Delete Agent Logic
 import { useRouter } from 'vue-router'
 import { useConfirm } from '../../../composables/useConfirm'
@@ -161,6 +342,53 @@ const handleDeleteAgent = async () => {
                             </div>
                         </li>
                         <li class="flex items-center justify-between p-4 bg-base-100">
+                            <span class="font-medium text-base-content/90">{{ $t('chat.thinkingLevel') }}</span>
+                            <div class="flex-1 max-w-[250px] flex flex-col items-end gap-1">
+                                <select v-model="defaultThinkingLevel" class="select select-bordered select-sm w-full font-sans">
+                                    <option value="off">{{ $t('chat.thinkingLevels.off') }}</option>
+                                    <option value="minimal">{{ $t('chat.thinkingLevels.minimal') }}</option>
+                                    <option value="low">{{ $t('chat.thinkingLevels.low') }}</option>
+                                    <option value="medium">{{ $t('chat.thinkingLevels.medium') }}</option>
+                                    <option value="high">{{ $t('chat.thinkingLevels.high') }}</option>
+                                    <option value="xhigh">{{ $t('chat.thinkingLevels.xhigh') }}</option>
+                                </select>
+                            </div>
+                        </li>
+                        <li class="flex items-center justify-between p-4 bg-base-100">
+                            <span class="font-medium text-base-content/90">{{ $t('agent.steeringMode') }}</span>
+                            <div class="flex-1 max-w-[250px] flex flex-col items-end gap-1">
+                                <select v-model="steeringMode" class="select select-bordered select-sm w-full font-sans">
+                                    <option value="all">{{ $t('agent.modeAll') }}</option>
+                                    <option value="one-at-a-time">{{ $t('agent.modeOneAtATime') }}</option>
+                                </select>
+                            </div>
+                        </li>
+                        <li class="flex items-center justify-between p-4 bg-base-100">
+                            <span class="font-medium text-base-content/90">{{ $t('agent.followUpMode') }}</span>
+                            <div class="flex-1 max-w-[250px] flex flex-col items-end gap-1">
+                                <select v-model="followUpMode" class="select select-bordered select-sm w-full font-sans">
+                                    <option value="all">{{ $t('agent.modeAll') }}</option>
+                                    <option value="one-at-a-time">{{ $t('agent.modeOneAtATime') }}</option>
+                                </select>
+                            </div>
+                        </li>
+                        <li class="flex items-center justify-between p-4 bg-base-100">
+                            <span class="font-medium text-base-content/90">{{ $t('agent.compactionSettings') }}</span>
+                            <button class="btn btn-sm btn-outline font-sans" @click="openCompactionModal">{{ $t('common.settings') }}</button>
+                        </li>
+                        <li class="flex items-center justify-between p-4 bg-base-100">
+                            <span class="font-medium text-base-content/90">{{ $t('agent.branchSummarySettings') }}</span>
+                            <button class="btn btn-sm btn-outline font-sans" @click="openBranchSummaryModal">{{ $t('common.settings') }}</button>
+                        </li>
+                        <li class="flex items-center justify-between p-4 bg-base-100">
+                            <span class="font-medium text-base-content/90">{{ $t('agent.retrySettings') }}</span>
+                            <button class="btn btn-sm btn-outline font-sans" @click="openRetryModal">{{ $t('common.settings') }}</button>
+                        </li>
+                        <li class="flex items-center justify-between p-4 bg-base-100">
+                            <span class="font-medium text-base-content/90">{{ $t('agent.hideThinkingBlock') }}</span>
+                            <input type="checkbox" v-model="hideThinkingBlock" class="toggle toggle-primary toggle-sm" />
+                        </li>
+                        <li class="flex items-center justify-between p-4 bg-base-100">
                             <div>
                                 <h5 class="font-medium text-base-content/90">{{ $t('agent.allowPeerAccess') }}</h5>
                                 <p class="text-xs text-base-content/60 mt-1 max-w-[200px] md:max-w-md">
@@ -173,7 +401,124 @@ const handleDeleteAgent = async () => {
                 </div>
             </div>
 
+            <dialog ref="compactionModal" class="modal">
+                <div class="modal-box">
+                    <h3 class="font-bold text-lg mb-2">{{ $t('agent.compactionSettings') }}</h3>
+                    <p class="text-sm text-base-content/70 mb-4">{{ $t('agent.compactionSettingsDesc') }}</p>
 
+                    <div class="form-control w-full mb-4">
+                        <label class="label cursor-pointer justify-start gap-4">
+                            <input type="checkbox" v-model="compactionSettings.enabled" class="toggle toggle-primary" />
+                            <span class="label-text">{{ $t('agent.compactionEnabled') }}</span>
+                        </label>
+                    </div>
+
+                    <div class="form-control w-full mb-4">
+                        <label class="label">
+                            <span class="label-text">{{ $t('agent.compactionReserveTokens') }}</span>
+                        </label>
+                        <input type="number" v-model.number="compactionSettings.reserveTokens"
+                            class="input input-bordered w-full" :disabled="!compactionSettings.enabled" />
+                    </div>
+
+                    <div class="form-control w-full mb-6">
+                        <label class="label">
+                            <span class="label-text">{{ $t('agent.compactionKeepRecentTokens') }}</span>
+                        </label>
+                        <input type="number" v-model.number="compactionSettings.keepRecentTokens"
+                            class="input input-bordered w-full" :disabled="!compactionSettings.enabled" />
+                    </div>
+
+                    <div class="modal-action mt-0">
+                        <form method="dialog">
+                            <button class="btn btn-ghost mr-2">{{ $t('common.cancel') }}</button>
+                        </form>
+                        <button class="btn btn-primary px-8" @click="saveCompaction">{{ $t('common.save') }}</button>
+                    </div>
+                </div>
+                <form method="dialog" class="modal-backdrop">
+                    <button>close</button>
+                </form>
+            </dialog>
+
+            <dialog ref="branchSummaryModal" class="modal">
+                <div class="modal-box">
+                    <h3 class="font-bold text-lg mb-2">{{ $t('agent.branchSummarySettings') }}</h3>
+                    <p class="text-sm text-base-content/70 mb-4">{{ $t('agent.branchSummarySettingsDesc') }}</p>
+
+                    <div class="form-control w-full mb-4">
+                        <label class="label">
+                            <span class="label-text">{{ $t('agent.branchSummaryReserveTokens') }}</span>
+                        </label>
+                        <input type="number" v-model.number="branchSummarySettings.reserveTokens" class="input input-bordered w-full" />
+                    </div>
+
+                    <div class="form-control w-full mb-6">
+                        <label class="label cursor-pointer justify-start gap-4">
+                            <input type="checkbox" v-model="branchSummarySettings.skipPrompt" class="toggle toggle-primary" />
+                            <span class="label-text">{{ $t('agent.branchSummarySkipPrompt') }}</span>
+                        </label>
+                    </div>
+
+                    <div class="modal-action mt-0">
+                        <form method="dialog">
+                            <button class="btn btn-ghost mr-2">{{ $t('common.cancel') }}</button>
+                        </form>
+                        <button class="btn btn-primary px-8" @click="saveBranchSummary">{{ $t('common.save') }}</button>
+                    </div>
+                </div>
+                <form method="dialog" class="modal-backdrop">
+                    <button>close</button>
+                </form>
+            </dialog>
+
+            <dialog ref="retryModal" class="modal">
+                <div class="modal-box">
+                    <h3 class="font-bold text-lg mb-2">{{ $t('agent.retrySettings') }}</h3>
+                    <p class="text-sm text-base-content/70 mb-4">{{ $t('agent.retrySettingsDesc') }}</p>
+
+                    <div class="form-control w-full mb-4">
+                        <label class="label cursor-pointer justify-start gap-4">
+                            <input type="checkbox" v-model="retrySettings.enabled" class="toggle toggle-primary" />
+                            <span class="label-text">{{ $t('agent.retryEnabled') }}</span>
+                        </label>
+                    </div>
+
+                    <div class="form-control w-full mb-4">
+                        <label class="label">
+                            <span class="label-text">{{ $t('agent.retryMaxRetries') }}</span>
+                        </label>
+                        <input type="number" v-model.number="retrySettings.maxRetries"
+                            class="input input-bordered w-full" :disabled="!retrySettings.enabled" />
+                    </div>
+
+                    <div class="form-control w-full mb-4">
+                        <label class="label">
+                            <span class="label-text">{{ $t('agent.retryBaseDelayMs') }}</span>
+                        </label>
+                        <input type="number" v-model.number="retrySettings.baseDelayMs"
+                            class="input input-bordered w-full" :disabled="!retrySettings.enabled" />
+                    </div>
+
+                    <div class="form-control w-full mb-6">
+                        <label class="label">
+                            <span class="label-text">{{ $t('agent.retryMaxDelayMs') }}</span>
+                        </label>
+                        <input type="number" v-model.number="retrySettings.maxDelayMs"
+                            class="input input-bordered w-full" :disabled="!retrySettings.enabled" />
+                    </div>
+
+                    <div class="modal-action mt-0">
+                        <form method="dialog">
+                            <button class="btn btn-ghost mr-2">{{ $t('common.cancel') }}</button>
+                        </form>
+                        <button class="btn btn-primary px-8" @click="saveRetry">{{ $t('common.save') }}</button>
+                    </div>
+                </div>
+                <form method="dialog" class="modal-backdrop">
+                    <button>close</button>
+                </form>
+            </dialog>
 
             <!-- Danger Zone -->
             <div class="space-y-2 pt-6 border-t border-base-200/50">

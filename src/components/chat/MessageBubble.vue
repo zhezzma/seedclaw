@@ -605,7 +605,7 @@ const closeFileViewer = () => {
                             </button>
                         </div>
                     </div>
-                    <div v-else-if="block.type === 'thinking'" class="my-2">
+                    <div v-else-if="block.type === 'thinking' && !currentAgent?.hideThinkingBlock" class="my-2">
                         <div class="collapse collapse-arrow border border-base-300 bg-base-100 rounded-box">
                             <input type="checkbox" />
                             <div class="collapse-title text-sm font-medium opacity-70 flex items-center gap-2">

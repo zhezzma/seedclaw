@@ -265,7 +265,7 @@ const toggleAllSkills = () => {
 </script>
 
 <template>
-    <div class="h-full flex flex-col p-4">
+    <div class="h-full flex flex-col">
         <!-- Header Actions -->
         <div class="flex justify-between items-center mb-6">
             <h3 class="text-lg font-bold flex items-center gap-2">
@@ -411,7 +411,7 @@ const toggleAllSkills = () => {
                             <label class="label"><span class="label-text font-medium">{{ $t('agent.tab.tools') ||
                                 'Tools' }}
                                     <span class="text-base-content/50 font-normal">({{ $t('common.optional')
-                                        }})</span></span></label>
+                                    }})</span></span></label>
                             <button v-if="formData.tools.type === 'custom' && availableTools.length > 0" type="button"
                                 class="btn btn-ghost btn-xs text-xs" @click="toggleAllTools">
                                 {{ isAllToolsSelected ? ($t('common.deselectAll') || 'Deselect All') :
@@ -425,13 +425,13 @@ const toggleAllSkills = () => {
                                 <input type="radio" class="radio radio-primary radio-sm" value="inherit"
                                     v-model="formData.tools.type" />
                                 <span class="label-text">{{ $t('agent.tools.inheritParent') || 'Inherit Parent'
-                                    }}</span>
+                                }}</span>
                             </label>
                             <label class="label cursor-pointer gap-2 justify-start">
                                 <input type="radio" class="radio radio-primary radio-sm" value="custom"
                                     v-model="formData.tools.type" />
                                 <span class="label-text">{{ $t('agent.tools.customSelection') || 'Custom Selection'
-                                    }}</span>
+                                }}</span>
                             </label>
                         </div>
 
@@ -464,7 +464,7 @@ const toggleAllSkills = () => {
                                 'Skills'
                                     }}
                                     <span class="text-base-content/50 font-normal">({{ $t('common.optional')
-                                        }})</span></span></label>
+                                    }})</span></span></label>
                             <button v-if="formData.skills.type === 'custom' && availableSkills.length > 0" type="button"
                                 class="btn btn-ghost btn-xs text-xs" @click="toggleAllSkills">
                                 {{ isAllSkillsSelected ? ($t('common.deselectAll') || 'Deselect All') :
@@ -483,13 +483,13 @@ const toggleAllSkills = () => {
                                 <input type="radio" class="radio radio-primary radio-sm" value="inherit"
                                     v-model="formData.skills.type" />
                                 <span class="label-text">{{ $t('agent.skills.inheritParent') || 'Inherit Parent'
-                                }}</span>
+                                    }}</span>
                             </label>
                             <label class="label cursor-pointer gap-2 justify-start">
                                 <input type="radio" class="radio radio-primary radio-sm" value="custom"
                                     v-model="formData.skills.type" />
                                 <span class="label-text">{{ $t('agent.skills.customSelection') || 'Custom Selection'
-                                }}</span>
+                                    }}</span>
                             </label>
                         </div>
 
@@ -518,7 +518,7 @@ const toggleAllSkills = () => {
 
                 <div class="modal-action mt-6">
                     <button class="btn btn-ghost" @click="closeModal" :disabled="isSubmitting">{{ $t('common.cancel')
-                        }}</button>
+                    }}</button>
                     <button class="btn btn-primary" @click="saveSubagent" :disabled="isSubmitting">
                         <span v-if="isSubmitting" class="loading loading-spinner loading-xs"></span>
                         {{ $t('common.save') }}
