@@ -35,8 +35,10 @@ const chatState = useChatState()
 const sessionsState = useSessionsState()
 const agentsState = useAgentsState()
 
-
-
+const busyAllowedCommands = ['steer', 'follow-up', 'autocontinue']
+const busyAllowedCommandPattern = new RegExp(`^\\/(${busyAllowedCommands
+    .map(command => command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|')})\\b`)
 
 // Refs
 const messagesContainerRef = ref<HTMLDivElement | null>(null)
@@ -164,8 +166,8 @@ const handleSend = async () => {
     if (isBusy.value && inputText) {
         // 检查是否为 / 开头的命令
         if (inputText.startsWith('/')) {
-            // /steer 和 /follow-up 作为普通消息发送，不走 steerMessage
-            if (/^\/(steer|follow-up)\b/.test(inputText)) {
+            // Allow a small set of commands to pass through as normal messages while busy.
+            if (busyAllowedCommandPattern.test(inputText)) {
                 await chatState.sendMessage(inputText)
                 scrollToBottom(true)
                 return
