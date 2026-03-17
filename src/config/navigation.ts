@@ -71,8 +71,8 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         icon: SparklesIcon,
         activeIcon: SparklesIconSolid,
         route: 'skills',
-        showInSidebar: true,
-        showInBottomNav: true
+        showInSidebar: false,
+        showInBottomNav: false
     },
 
     {
