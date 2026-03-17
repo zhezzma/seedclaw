@@ -129,7 +129,7 @@ const userParsedBlocks = computed(() => {
     for (const block of props.message.blocks) {
         // Handle text blocks - extract file content markers
         if (block.type === 'text' && block.text) {
-            
+
             // Pattern: === File Content: filename === content ==============================
             const fileRegex = /=== File Content: (.*?) ===([\s\S]*?)==============================/g
             let lastIndex = 0
@@ -419,7 +419,8 @@ const closeFileViewer = () => {
         </div>
 
         <!-- User Message Bubble -->
-        <div v-if="message.role === 'user'" class="max-w-full chat-bubble bg-primary/10 text-base-content relative">
+        <div v-if="message.role === 'user'"
+            class="max-w-full md:max-w-[90%] chat-bubble bg-primary/10 text-base-content relative">
             <div class="whitespace-normal flex flex-col gap-2">
                 <!-- Edit mode: textarea shown above invisible original content -->
                 <textarea v-if="isEditing" v-model="editText" rows="4"
@@ -430,20 +431,25 @@ const closeFileViewer = () => {
                     <!-- Text blocks first -->
                     <template v-for="(block, bIndex) in userParsedBlocks" :key="'text-' + bIndex">
                         <MarkdownRenderer v-if="block.type === 'text'" :content="block.text || ''" />
-                        
+
                         <!-- NEW: A2UI Action Block -->
                         <div v-else-if="block.type === 'a2ui-action'" class="my-1 min-w-[240px] max-w-sm">
-                            <div class="collapse collapse-arrow border border-base-content/10 bg-base-100/50 backdrop-blur-sm shadow-sm rounded-lg">
+                            <div
+                                class="collapse collapse-arrow border border-base-content/10 bg-base-100/50 backdrop-blur-sm shadow-sm rounded-lg">
                                 <input type="checkbox" />
                                 <div class="collapse-title p-2 min-h-0 flex items-center gap-2">
                                     <span class="text-lg opacity-80">⚡</span>
                                     <div class="flex flex-col flex-1 min-w-0 pr-2">
-                                        <span class="text-[10px] font-semibold text-base-content/50 uppercase tracking-wider">{{ $t('chat.a2uiAction') }}</span>
-                                        <span class="text-sm font-medium text-base-content/90 truncate">{{ block.a2uiEventName }}</span>
+                                        <span
+                                            class="text-[10px] font-semibold text-base-content/50 uppercase tracking-wider">{{
+                                                $t('chat.a2uiAction') }}</span>
+                                        <span class="text-sm font-medium text-base-content/90 truncate">{{
+                                            block.a2uiEventName }}</span>
                                     </div>
                                 </div>
                                 <div class="collapse-content p-0 pb-2 px-3 cursor-text">
-                                    <pre class="text-[11px] leading-tight bg-base-200/50 p-2 rounded overflow-x-auto text-base-content/70 whitespace-pre-wrap max-h-60 overflow-y-auto">{{ JSON.stringify(block.a2uiPayload, null, 2) }}</pre>
+                                    <pre
+                                        class="text-[11px] leading-tight bg-base-200/50 p-2 rounded overflow-x-auto text-base-content/70 whitespace-pre-wrap max-h-60 overflow-y-auto">{{ JSON.stringify(block.a2uiPayload, null, 2) }}</pre>
                                 </div>
                             </div>
                         </div>
@@ -557,15 +563,11 @@ const closeFileViewer = () => {
                         :args="block.toolArgs || {}" :result="block.toolResult" :state="block.toolState"
                         :errorMessage="block.toolError" :details="block.toolDetails" />
                     <!-- A2UI 组件渲染 -->
-                    <A2UIRenderer
-                        v-else-if="block.type === 'a2ui' && block.a2uiComponents && block.a2uiSurfaceId"
+                    <A2UIRenderer v-else-if="block.type === 'a2ui' && block.a2uiComponents && block.a2uiSurfaceId"
                         :components="block.a2uiComponents"
-                        :data-model="getSurface(block.a2uiSurfaceId)?.dataModel || {}"
-                        :root-ids="block.a2uiRootIds"
-                        :disabled="!isLastMessage"
-                        class="my-2"
-                        @action="(action: any, dm: any, sourceId: string) => onA2UIAction(action, dm, block.a2uiSurfaceId, sourceId)"
-                    />
+                        :data-model="getSurface(block.a2uiSurfaceId)?.dataModel || {}" :root-ids="block.a2uiRootIds"
+                        :disabled="!isLastMessage" class="my-2"
+                        @action="(action: any, dm: any, sourceId: string) => onA2UIAction(action, dm, block.a2uiSurfaceId, sourceId)" />
                     <!-- A2UI 加载中（流式接收，标签未闭合） -->
                     <div v-else-if="block.type === 'a2ui_loading'" class="my-2">
                         <div class="collapse collapse-arrow border border-base-300 bg-base-100 rounded-box">
@@ -575,7 +577,9 @@ const closeFileViewer = () => {
                                 {{ $t('chat.a2ui_loading') }}
                             </div>
                             <div class="collapse-content">
-                                <div class="opacity-50 text-xs font-mono border-t border-base-300 pt-2 mt-2 whitespace-pre-wrap break-all max-h-40 overflow-auto">{{ block.text }}</div>
+                                <div
+                                    class="opacity-50 text-xs font-mono border-t border-base-300 pt-2 mt-2 whitespace-pre-wrap break-all max-h-40 overflow-auto">
+                                    {{ block.text }}</div>
                             </div>
                         </div>
                     </div>
