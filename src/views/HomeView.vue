@@ -23,6 +23,7 @@ import { SessionRow, useSessionsState, type SessionsResult } from '../composable
 import { useAgentsState } from '../composables/useAgentsState'
 import { useToast } from '../composables/useToast'
 import { truncateText } from '../utils/format'
+import { buildBranchIndexes, findLeafId as findBranchLeafId, getBranchInfo as resolveBranchInfo } from '../utils/chatBranchNavigation'
 
 const route = useRoute()
 const router = useRouter()
@@ -259,93 +260,11 @@ const readAloud = (msg: DisplayMessage) => {
 // ==================== Delete / Retry / Branch ====================
 
 // Session tree data for branch navigation
-// 直接使用 chatState 中的响应式数据
 const sessionTreeEntries = computed(() => chatState.sessionTree)
+const branchIndexes = computed(() => buildBranchIndexes(sessionTreeEntries.value))
 
-// Map: parentId → array of child message entry IDs (only type="message")
-const childrenMap = ref<Map<string, string[]>>(new Map())
-// Map: parentId → array of ALL child entry IDs (for finding leaf nodes)
-const allChildrenMap = ref<Map<string, string[]>>(new Map())
-// Map: id → entry (for quick lookup)
-const entryMap = ref<Map<string, any>>(new Map())
-
-
-// 监听 chatState.sessionTree 的变化，自动更新派生的 Map
-watch(sessionTreeEntries, (tree) => {
-    const msgChildren = new Map<string, string[]>()
-    const allChildren = new Map<string, string[]>()
-    const entries = new Map<string, any>()
-
-    if (tree && Array.isArray(tree)) {
-        for (const entry of tree) {
-            entries.set(entry.id, entry)
-            if (!entry.parentId) continue
-            // allChildrenMap: 所有类型的子节点
-            const allArr = allChildren.get(entry.parentId)
-            if (allArr) allArr.push(entry.id)
-            else allChildren.set(entry.parentId, [entry.id])
-            // childrenMap: 只包含 message 类型
-            if (entry.type === 'message') {
-                const msgChildrenArr = msgChildren.get(entry.parentId)
-                if (msgChildrenArr) msgChildrenArr.push(entry.id)
-                else msgChildren.set(entry.parentId, [entry.id])
-            }
-        }
-    }
-    childrenMap.value = msgChildren
-    allChildrenMap.value = allChildren
-    entryMap.value = entries
-}, { immediate: true })
-
-// 原有手动加载逻辑已废弃，直接移除 loadSessionTree / debounce 函数
-
-// 找到某个 entry 分支的叶子节点 ID
-const findLeafId = (startId: string): string => {
-    let leafId = startId
-    while (true) {
-        const childIds = allChildrenMap.value.get(leafId)
-        if (!childIds || childIds.length === 0) break
-        const messageChild = childIds.find(cid => entryMap.value.get(cid)?.type === 'message')
-        leafId = messageChild || childIds[0]
-    }
-    return leafId
-}
-
-// Compute branch info for each message based on the session tree
 const getBranchInfo = (msg: DisplayMessage): BranchInfo | null => {
-    if (!msg.entryId || !msg.parentEntryId) return null
-
-    // 1. 检查自身兄弟（直接 retry 场景：同一 parent 下多个 assistant）
-    const ownSiblings = childrenMap.value.get(msg.parentEntryId)
-    if (ownSiblings && ownSiblings.length > 1) {
-        const currentIndex = ownSiblings.indexOf(msg.entryId)
-        if (currentIndex >= 0) {
-            return { siblings: ownSiblings, currentIndex }
-        }
-    }
-
-    // 2. assistant 消息向上冒泡，检查父级 user 消息的兄弟
-    //    场景：用户删除后重新发送，导致同一父节点下有多个 user 分支
-    //    注意：中间可能包含非 message 类型的 entry（如 session_info），需要向上回溯找到最近的 message 祖先
-    if (msg.role === 'assistant') {
-        let curr = entryMap.value.get(msg.parentEntryId)
-        // 向上回溯直到找到 message 类型的节点（即 User 消息），或者到顶
-        while (curr && curr.type !== 'message' && curr.parentId) {
-            curr = entryMap.value.get(curr.parentId)
-        }
-
-        if (curr && curr.type === 'message' && curr.parentId) {
-            const parentSiblings = childrenMap.value.get(curr.parentId)
-            if (parentSiblings && parentSiblings.length > 1) {
-                const parentIndex = parentSiblings.indexOf(curr.id)
-                if (parentIndex >= 0) {
-                    return { siblings: parentSiblings, currentIndex: parentIndex }
-                }
-            }
-        }
-    }
-
-    return null
+    return resolveBranchInfo(msg, branchIndexes.value)
 }
 
 const deleteMessage = async (msg: DisplayMessage) => {
@@ -373,7 +292,7 @@ const navigateBranch = async (msg: DisplayMessage, direction: 'prev' | 'next') =
     if (newIndex < 0 || newIndex >= info.siblings.length) return
 
     // 找到目标分支的叶子节点 ID（后端需要 leaf ID 才能返回完整分支）
-    const leafId = findLeafId(info.siblings[newIndex])
+    const leafId = findBranchLeafId(info.siblings[newIndex], branchIndexes.value)
     await chatState.navigateBranch(leafId)
     // 切换后强制滚动到底部（延迟确保 DOM 渲染完成）
     scrollToBottom(true)
