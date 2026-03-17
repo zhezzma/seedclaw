@@ -62,7 +62,7 @@ const {
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
-const THINKING_LEVELS = ['off', 'low', 'medium', 'high', 'xhigh'] as const
+const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const
 type ThinkingLevel = typeof THINKING_LEVELS[number]
 
 
@@ -82,13 +82,18 @@ const currentModel = computed(() => {
     return ''
 })
 
-// 推理状态和思考级别：从 currentSession 获取
+// 思考级别：优先从 session 获取，否则从 agent 默认值获取
 // 使用 computed 确保 /thinking 命令修改 session.thinkingLevel 后能正确响应
 const thinkingLevel = computed<ThinkingLevel>(() => {
     const session = chatState.currentSession
-    if (!session) return 'off'
-    const level = session.thinkingLevel || 'off'
-    return (THINKING_LEVELS as readonly string[]).includes(level) ? (level as ThinkingLevel) : 'off'
+    const sessionLevel = session?.thinkingLevel
+    if (sessionLevel && (THINKING_LEVELS as readonly string[]).includes(sessionLevel)) {
+        return sessionLevel as ThinkingLevel
+    }
+
+    const agent = chatState.currentAgent
+    const agentLevel = agent?.defaultThinkingLevel || 'off'
+    return (THINKING_LEVELS as readonly string[]).includes(agentLevel) ? (agentLevel as ThinkingLevel) : 'off'
 })
 
 
