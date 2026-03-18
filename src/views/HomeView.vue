@@ -38,7 +38,7 @@ const agentsState = useAgentsState()
 const busyAllowedCommands = ['steer', 'follow-up', 'autocontinue']
 const busyAllowedCommandPattern = new RegExp(`^\\/(${busyAllowedCommands
     .map(command => command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    .join('|')})\\b`)
+    .join('|')})(?=\\s|$)`)
 
 // Refs
 const messagesContainerRef = ref<HTMLDivElement | null>(null)
