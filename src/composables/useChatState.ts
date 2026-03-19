@@ -38,8 +38,8 @@ export interface ChatAttachment {
 export interface ChatSessionData {
     chatMessages: ChatMessage[]
     chatToolMessages: ChatMessage[]
-    // New: Session Tree (Branching info)
-    sessionTree: any[] | null
+    // Branch navigation uses a flat entry list, not a nested tree payload.
+    sessionTree: SessionTreeEntry[] | null
     chatStream: any[] | null
     chatStreamStartedAt: number | null
     chatSending: boolean
@@ -783,7 +783,8 @@ export interface SessionTreeEntry {
     id: string
     parentId: string | null
     type: string
-    message?: any
+    role?: string
+    timestamp?: string
 }
 
 const fetchSessionTree = async (sessionKey?: string): Promise<SessionTreeEntry[] | null> => {
@@ -791,8 +792,11 @@ const fetchSessionTree = async (sessionKey?: string): Promise<SessionTreeEntry[]
     if (!targetKey) return null
 
     try {
-        const result = await apiGet<any>(`/api/chat/${targetKey}/entries`)
-        const entries = result?.entries || result || null
+        // 服务端返回轻量 flat entries；客户端分支导航只依赖 id / parentId / type。
+        const result = await apiGet<{ leafId?: string | null, entries?: SessionTreeEntry[] } | SessionTreeEntry[]>(`/api/chat/${targetKey}/entries`)
+        const entries = Array.isArray(result)
+            ? result
+            : (Array.isArray(result?.entries) ? result.entries : null)
 
         // Update store state
         const sd = getSessionData(targetKey)
