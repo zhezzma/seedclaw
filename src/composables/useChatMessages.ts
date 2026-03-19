@@ -3,6 +3,7 @@ import { useChatState, type ChatMessage } from './useChatState'
 import { useUiSettingsStore } from '../stores/setting'
 import type { A2UIComponent } from '../components/a2ui/types'
 import { getOrCreateSurface, updateSurfaceDataModel, deleteSurface } from './useA2UISurfaces'
+import { resolveAutoScrollOnScroll } from '../utils/chatAutoScroll'
 
 // Types for internal display
 export interface DisplayBlock {
@@ -473,6 +474,7 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
     const userScrolledUp = ref(false)
     const isAutoScrolling = ref(false) // Lock: ignore scroll events fired by programmatic scrolls
     const SCROLL_THRESHOLD = 50 // px from bottom to consider "at bottom"
+    const lastAutoScrollTop = ref(0)
 
     const isNearBottom = (): boolean => {
         const el = messagesContainerRef.value
@@ -482,12 +484,21 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
         return Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) <= SCROLL_THRESHOLD
     }
 
-    // Simple scroll handler: just check distance from bottom.
-    // No direction tracking, no debounce — the isAutoScrolling lock is sufficient
-    // to filter out programmatic scroll events.
+    // Scroll handler keeps the original bottom-distance rule, but allows a real
+    // upward user gesture to interrupt an in-flight auto-scroll lock.
     const handleScroll = () => {
-        if (isAutoScrolling.value) return
-        userScrolledUp.value = !isNearBottom()
+        const el = messagesContainerRef.value
+        if (!el) return
+
+        const nextState = resolveAutoScrollOnScroll({
+            isAutoScrolling: isAutoScrolling.value,
+            nearBottom: isNearBottom(),
+            currentScrollTop: el.scrollTop,
+            lastAutoScrollTop: lastAutoScrollTop.value,
+        })
+
+        isAutoScrolling.value = nextState.isAutoScrolling
+        userScrolledUp.value = nextState.userScrolledUp
     }
 
     const scrollToBottom = (force = false) => {
@@ -508,6 +519,7 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
             }
 
             const targetScrollTop = el.scrollHeight - el.clientHeight
+            lastAutoScrollTop.value = targetScrollTop
             if (Math.abs(el.scrollTop - targetScrollTop) > 2) {
                 el.scrollTop = targetScrollTop
             }
