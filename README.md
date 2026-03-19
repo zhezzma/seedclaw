@@ -73,3 +73,13 @@ WebSocket 连接会被拒绝。
    ```bash
    npm run tauri build
    ```
+
+## Web 自动部署（Cloudflare Workers）
+
+项目已支持将 Web 版本通过 **GitHub Actions** 自动部署到 **Cloudflare Workers + Static Assets**。
+
+- 自动部署分支：`seedagent`
+- 手动部署：GitHub Actions `workflow_dispatch`
+- 自定义域名：`seedclaw.godgodgame.com`
+
+详细说明见：[`docs/Cloudflare-Workers-部署.md`](docs/Cloudflare-Workers-部署.md)
