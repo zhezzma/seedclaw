@@ -1,3 +1,5 @@
+import { createRuntimeId } from '../utils/runtime-id.ts'
+
 export interface ConvexSkill {
     latestVersion?: {
         _id: string
@@ -64,7 +66,7 @@ class ClawHubClient {
     private querySetVersion = 0
     private activeQueries = new Map<string, number>()
     private callbacks: ClawHubClientCallbacks = {}
-    private sessionId = crypto.randomUUID()
+    private sessionId = createRuntimeId('clawhub')
 
     setCallbacks(callbacks: ClawHubClientCallbacks) {
         this.callbacks = { ...this.callbacks, ...callbacks }
