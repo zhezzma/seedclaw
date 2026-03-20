@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { ensureRenderableBlocks } from '../../../src/utils/chatMessageRender.ts'
+import { ensureRenderableBlocks } from '../src/utils/chatMessageRender.ts'
 
 test('preserves persisted empty assistant messages as placeholder blocks', () => {
     const blocks = ensureRenderableBlocks(
