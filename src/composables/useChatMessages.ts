@@ -3,6 +3,7 @@ import { useChatState, type ChatMessage } from './useChatState'
 import { useUiSettingsStore } from '../stores/setting'
 import type { A2UIComponent } from '../components/a2ui/types'
 import { getOrCreateSurface, updateSurfaceDataModel, deleteSurface } from './useA2UISurfaces'
+import { ensureRenderableBlocks } from '../utils/chatMessageRender'
 
 // Types for internal display
 export interface DisplayBlock {
@@ -358,7 +359,13 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
             }
 
             // 1.2 处理普通消息 (User / Assistant)
-            const blocks: DisplayBlock[] = convertToBlocks(msg.content)
+            const blocks: DisplayBlock[] = ensureRenderableBlocks(
+                {
+                    role: msg.role,
+                    entryId: msg.entryId,
+                },
+                convertToBlocks(msg.content),
+            )
 
             // 顶级错误信息处理
             if (msg.errorMessage) {
