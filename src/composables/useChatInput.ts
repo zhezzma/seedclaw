@@ -4,6 +4,7 @@ import { takeAudioControl, releaseAudioControl } from '../utils/audioManager'
 import { useUiSettingsStore } from '../stores/setting'
 import { useToast } from './useToast'
 import { readFile } from '../utils/fileReader'
+import { createRuntimeId } from '../utils/runtime-id.ts'
 import { useCommandState, type CommandInfo } from './useCommandState'
 
 export interface CommandItem {
@@ -203,7 +204,7 @@ const addAttachment = async (file: File) => {
         const isImage = file.type.startsWith('image/')
         const result = await readFile(file)
         attachments.value.push({
-            id: crypto.randomUUID(),
+            id: createRuntimeId('attachment'),
             name: file.name,
             mimeType: file.type || 'application/octet-stream',
             dataUrl: isImage ? result : '',

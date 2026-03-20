@@ -1,6 +1,7 @@
 import { ASREngine } from './types';
-// UUID generation — replaced ~openclaw import with native API
-const generateUUID = () => crypto.randomUUID();
+import { createRuntimeId } from '../runtime-id.ts';
+// UUID generation — replaced ~openclaw import with runtime-safe helper
+const generateUUID = () => createRuntimeId('asr');
 import { useUiSettingsStore } from '../../stores/setting';
 import { useToast } from '../../composables/useToast';
 import WebSocket from '@tauri-apps/plugin-websocket';
