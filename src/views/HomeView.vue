@@ -516,7 +516,8 @@ async function applyDefaultSessionBehavior() {
                 </div>
 
                 <!-- Chat messages - only this area scrolls -->
-                <div v-else ref="messagesContainerRef" class="flex-1 overflow-y-auto p-2 md:p-4 relative">
+                <div v-else ref="messagesContainerRef" class="flex-1 overflow-y-auto p-2 md:p-4 relative"
+                    style="overflow-anchor: none;">
                     <div class="mx-auto w-full" :class="{ 'max-w-3xl': !settingsStore.isWideMode }">
                         <VirtualMessageList :messages="processedMessages" :is-busy="isBusy"
                             :scroll-container="messagesContainerRef" :is-wide-mode="settingsStore.isWideMode"

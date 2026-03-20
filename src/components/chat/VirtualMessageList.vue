@@ -8,7 +8,6 @@ import {
     nextTick,
 } from 'vue'
 import type { DisplayMessage } from '../../composables/useChatMessages'
-import { calculateVirtualScrollCompensation } from '../../utils/virtualListScrollAnchor'
 import type { BranchInfo } from './MessageBubble.vue'
 import MessageBubble from './MessageBubble.vue'
 
@@ -124,9 +123,7 @@ const updateVisibleRange = () => {
 // ──────────────────────────────────────────────────────────────────────────
 const setupRO = () => {
     ro = new ResizeObserver(entries => {
-        const container = props.scrollContainer
-        const heightChanges: Array<{ key: string, nextHeight: number }> = []
-
+        let changed = false
         for (const entry of entries) {
             const key = (entry.target as any).__vl_key as string | undefined
             if (!key) continue
@@ -137,31 +134,11 @@ const setupRO = () => {
                 entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height
 
             if (newH > 0 && heights.value[key] !== newH) {
-                heightChanges.push({ key, nextHeight: newH })
+                heights.value[key] = newH
+                changed = true
             }
         }
-
-        if (heightChanges.length === 0) return
-
-        const compensation = container
-            ? calculateVirtualScrollCompensation({
-                orderedKeys: enrichedItems.value.map(item => item.key),
-                heights: heights.value,
-                estimatedHeight: ESTIMATED_HEIGHT,
-                scrollTop: container.scrollTop,
-                changes: heightChanges,
-            })
-            : 0
-
-        for (const change of heightChanges) {
-            heights.value[change.key] = change.nextHeight
-        }
-
-        if (container && compensation !== 0) {
-            container.scrollTop += compensation
-        }
-
-        updateVisibleRange()
+        if (changed) updateVisibleRange()
     })
 }
 
