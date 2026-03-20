@@ -8,6 +8,7 @@ import { AgentInfo, useAgentsState } from './useAgentsState'
 import { type KnownApi } from './useModelsState'
 import { useToast } from './useToast'
 import { clearAllSurfaces } from './useA2UISurfaces'
+import { createRuntimeId } from '../utils/runtime-id.ts'
 import router from '../router'
 
 // ==================== Types ====================
@@ -70,7 +71,7 @@ const state = reactive<ChatState>({
 // ==================== Helpers ====================
 
 function generateUUID(): string {
-    return crypto.randomUUID()
+    return createRuntimeId('chat')
 }
 
 /** 重置会话的流状态（chatSending / chatRunId / chatStreamStartedAt / chatStream） */

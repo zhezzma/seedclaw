@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { useUiSettingsStore } from '../stores/setting'
+import { createRuntimeId } from '../utils/runtime-id.ts'
 import { connectBrowserWs, disconnectBrowserWs, getWsUrl, sendBrowserWs } from './notify-client'
 
 // ==================== Types ====================
@@ -182,7 +183,7 @@ function cleanupTauriListeners() {
 // ==================== Public API: Request ====================
 
 export async function sendRequest(method: string, params: any = {}): Promise<any> {
-    const id = crypto.randomUUID()
+    const id = createRuntimeId('notify')
     const payload = {
         type: "req",
         method,
