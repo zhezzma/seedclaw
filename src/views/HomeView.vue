@@ -54,12 +54,12 @@ const {
     streamingText,
 } = useChatMessages(chatState as any)
 
-// Scroll management composable
+// 滚动管理 composable
 const {
     userScrolledUp,
     scrollToBottom,
-    saveScrollPosition,
     setupScrollWatchers,
+    restoreIfSaved,
 } = useScrollManager({
     containerRef: messagesContainerRef,
     messages: processedMessages,
@@ -399,17 +399,14 @@ const handleClickOutside = (event: MouseEvent) => {
 
 onMounted(async () => {
     document.addEventListener('click', handleClickOutside)
-    scrollToBottom()
-    // Add a delay to ensure scroll happens after transition/layout updates
-    setTimeout(scrollToBottom, 100)
     setupScrollWatchers()
+    // 重新挂载时恢复滚动位置（从智能体等非 HomeView 路由返回时需要）
+    // 路由 watcher (immediate) 在 setup 阶段触发时 session 切换 watcher 尚未注册，
+    // 需要在 onMounted 时兜底恢复。
+    restoreIfSaved()
 })
 
 onUnmounted(() => {
-    // Save scroll position before unmounting (e.g., navigating to Settings)
-    if (chatState.sessionKey) {
-        saveScrollPosition(chatState.sessionKey)
-    }
     document.removeEventListener('click', handleClickOutside)
 })
 
@@ -417,7 +414,6 @@ onUnmounted(() => {
 
 // 路由变化 → 切换会话（核心路由处理逻辑）
 watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath]) => {
-    console.log("[HomeView] watch route.params", sessionkey, routePath)
 
     // /new 路由 → 创建新会话
     if (isNewSession(route)) {
@@ -431,9 +427,10 @@ watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath
 
     // 路由中有 sessionKey → 切换到该会话（setSessionKey 内部会处理 currentSession / currentAgent）
     if (sessionkey && typeof sessionkey === 'string') {
-        // 优化：如果 sessionKey 未变则跳过
+        // 优化：如果 sessionKey 未变则跳过加载，但恢复滚动位置
+        // （从首页/消息等路由返回时，HomeView 不会卸载，scrollTop 可能已重置）
         if (chatState.sessionKey === sessionkey) {
-            console.log('[HomeView] Session key unchanged, skipping reload', sessionkey)
+            restoreIfSaved()
             return
         }
         const type = route.query.type as string | undefined
