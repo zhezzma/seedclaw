@@ -6,6 +6,7 @@ import { useUiSettingsStore } from '../stores/setting'
 import { ChevronDoubleDownIcon } from '@heroicons/vue/24/outline'
 
 import { useChatMessages, type DisplayMessage } from '../composables/useChatMessages'
+import { useScrollManager } from '../composables/useScrollManager'
 import type { BranchInfo } from '../components/chat/MessageBubble.vue'
 import { useTTS } from '../composables/useTTS'
 import { useVoiceChat } from '../composables/useVoiceChat'
@@ -51,11 +52,22 @@ const {
     isLoading,
     isBusy,
     streamingText,
+} = useChatMessages(chatState as any)
+
+// Scroll management composable
+const {
     userScrolledUp,
     scrollToBottom,
+    saveScrollPosition,
     setupScrollWatchers,
-    refreshChatAndScroll
-} = useChatMessages(chatState as any, messagesContainerRef)
+} = useScrollManager({
+    containerRef: messagesContainerRef,
+    messages: processedMessages,
+    isLoading,
+    isBusy,
+    streamingText,
+    state: chatState as any,
+})
 
 // TTS
 const { currentReadingMsgId, readAloud: ttsReadAloud } = useTTS()
@@ -394,6 +406,10 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+    // Save scroll position before unmounting (e.g., navigating to Settings)
+    if (chatState.sessionKey) {
+        saveScrollPosition(chatState.sessionKey)
+    }
     document.removeEventListener('click', handleClickOutside)
 })
 

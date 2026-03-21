@@ -237,7 +237,7 @@ onBeforeUnmount(() => {
     <div class="virtual-message-list">
         <template v-for="item in enrichedItems" :key="item.key">
             <!-- Mounted row -->
-            <div v-if="visibleKeys.has(item.key)" :ref="setRowRef(item.key) as any" class="virtual-row">
+            <div v-if="visibleKeys.has(item.key)" :ref="setRowRef(item.key) as any" class="virtual-row" :data-key="item.key">
                 <MessageBubble :message="item.msg" :is-loading="isBusy && item.isLast" :is-busy="isBusy"
                     :is-last-message="item.isLast"
                     :branch-info="getBranchInfo(item.msg)" @copy="emit('copy', item.msg)"

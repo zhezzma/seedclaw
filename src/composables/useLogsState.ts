@@ -3,7 +3,6 @@ import { reactive } from 'vue'
 import { apiGet } from './api-client'
 
 // ==================== Types ====================
-// ==================== Types ====================
 export interface LogEntry {
     timestamp: string
     level: string

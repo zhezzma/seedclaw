@@ -1,4 +1,4 @@
-import { computed, watch, nextTick, ref, onMounted, onUnmounted, type Ref } from 'vue'
+import { computed } from 'vue'
 import { useChatState, type ChatMessage } from './useChatState'
 import { useUiSettingsStore } from '../stores/setting'
 import type { A2UIComponent } from '../components/a2ui/types'
@@ -54,7 +54,7 @@ export interface ChatStateShape {
     [key: string]: any
 }
 
-export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref<HTMLDivElement | null>) {
+export function useChatMessages(state: ChatStateShape) {
 
     // 转换原始消息为显示格式，并合并工具调用结果
     const processedMessages = computed(() => {
@@ -473,146 +473,12 @@ export function useChatMessages(state: ChatStateShape, messagesContainerRef: Ref
     const isBusy = computed(() => state.chatSending || Boolean(state.chatRunId))
     const streamingText = computed(() => state.chatStream)
 
-    // ==================== Smart Auto-Scroll ====================
-    // Simple rule: track whether the user is scrolled away from the bottom.
-    // - `userScrolledUp = true`  → FAB visible, auto-scroll paused
-    // - `userScrolledUp = false` → FAB hidden, auto-scroll active
-    const userScrolledUp = ref(false)
-    const isAutoScrolling = ref(false) // Lock: ignore scroll events fired by programmatic scrolls
-    const SCROLL_THRESHOLD = 50 // px from bottom to consider "at bottom"
 
-    const isNearBottom = (): boolean => {
-        const el = messagesContainerRef.value
-        if (!el) return true
-        // If content fits in container (no scrollbar), we are effectively at bottom
-        if (el.scrollHeight <= el.clientHeight + 1) return true
-        return Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) <= SCROLL_THRESHOLD
-    }
-
-    // Simple scroll handler: just check distance from bottom.
-    // No direction tracking, no debounce — the isAutoScrolling lock is sufficient
-    // to filter out programmatic scroll events.
-    const handleScroll = () => {
-        if (isAutoScrolling.value) return
-        userScrolledUp.value = !isNearBottom()
-    }
-
-    const scrollToBottom = (force = false) => {
-        // If not forcing and user has scrolled up, respect their position
-        if (!force && userScrolledUp.value) return
-
-        const el = messagesContainerRef.value
-        if (!el) return
-
-        // Activate lock so handleScroll ignores the resulting scroll event
-        isAutoScrolling.value = true
-        if (force) userScrolledUp.value = false
-
-        nextTick(() => {
-            if (!el) {
-                isAutoScrolling.value = false
-                return
-            }
-
-            const targetScrollTop = el.scrollHeight - el.clientHeight
-            if (Math.abs(el.scrollTop - targetScrollTop) > 2) {
-                el.scrollTop = targetScrollTop
-            }
-
-            // Keep lock active long enough for the browser to finish layout + fire scroll event.
-            // 200ms covers most layout recalculations from new messages / images.
-            setTimeout(() => {
-                isAutoScrolling.value = false
-                // Final consistency check after DOM settles
-                if (isNearBottom()) {
-                    userScrolledUp.value = false
-                }
-            }, 200)
-        })
-    }
-
-    const setupScrollWatchers = () => {
-        // Listen to user scroll events
-        const el = messagesContainerRef.value
-        if (el) {
-            el.addEventListener('scroll', handleScroll, { passive: true })
-        }
-
-        // Watch for container ref changes (in case it mounts later)
-        watch(messagesContainerRef, (newEl, oldEl) => {
-            if (oldEl) oldEl.removeEventListener('scroll', handleScroll)
-            if (newEl) newEl.addEventListener('scroll', handleScroll, { passive: true })
-        })
-
-        // Auto-scroll on new messages / stream updates (respects userScrolledUp)
-        watch(processedMessages, () => scrollToBottom(), { deep: true })
-        watch(() => streamingText.value, () => scrollToBottom())
-
-        // Loading finished → force scroll to bottom (e.g. initial history load)
-        watch(isLoading, (newVal, oldVal) => {
-            if (!newVal && oldVal) {
-                nextTick(() => {
-                    scrollToBottom(true)
-                    setTimeout(() => scrollToBottom(true), 500)
-                })
-            }
-        })
-
-        // busy→idle: scroll to bottom only if user is already at bottom
-        watch(isBusy, (newVal, oldVal) => {
-            if (!newVal && oldVal) {
-                nextTick(() => {
-                    scrollToBottom()
-                    setTimeout(() => scrollToBottom(), 300)
-                })
-            }
-        })
-
-        // Session switch: force scroll to bottom + reset userScrolledUp
-        watch(() => state.sessionKey, (newKey, oldKey) => {
-            if (newKey && newKey !== oldKey) {
-                userScrolledUp.value = false
-                nextTick(() => {
-                    scrollToBottom(true)
-                    setTimeout(() => scrollToBottom(true), 300)
-                })
-            }
-        })
-
-        // Cleanup on unmount
-        onUnmounted(() => {
-            const el = messagesContainerRef.value
-            if (el) el.removeEventListener('scroll', handleScroll)
-        })
-    }
-
-    const formatTime = (timestamp?: number): string => {
-        if (!timestamp) return ''
-        const date = new Date(timestamp)
-        return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-    }
-
-    const isAvatarUrl = (avatar: string | null | undefined): boolean => {
-        if (!avatar) return false
-        return avatar.startsWith('http') || avatar.startsWith('data:') || avatar.startsWith('/')
-    }
-
-    const refreshChatAndScroll = async () => {
-        const chatState = useChatState()
-        await chatState.loadChatHistory()
-        scrollToBottom()
-    }
 
     return {
         processedMessages,
         isLoading,
         isBusy,
         streamingText,
-        userScrolledUp,
-        scrollToBottom,
-        setupScrollWatchers,
-        formatTime,
-        isAvatarUrl,
-        refreshChatAndScroll
     }
 }
