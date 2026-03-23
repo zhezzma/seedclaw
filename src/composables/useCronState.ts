@@ -1,5 +1,6 @@
 import { reactive } from 'vue'
 
+import type { DeliveryTarget } from '../utils/delivery-targets'
 import { apiGet, apiPost, apiPatch, apiDelete } from './api-client'
 
 // ==================== Types ====================
@@ -18,6 +19,7 @@ export interface TaskJob {
     cronTz: string
     payloadText: string
     timeoutSeconds: string
+    deliveryTargets: DeliveryTarget[]
     lastRun?: string
     createdAt: string
 }
@@ -49,6 +51,7 @@ export interface CronFormState {
     cronTz: string
     payloadText: string
     timeoutSeconds: string
+    deliveryTargets: DeliveryTarget[]
 }
 
 export interface CronState {

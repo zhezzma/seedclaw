@@ -143,6 +143,10 @@ export default {
         branchSummarySettingsDesc: 'Automatically generate context summary when conversation branches out.',
         branchSummaryReserveTokens: 'Reserve Tokens (reserveTokens)',
         branchSummarySkipPrompt: 'Skip Prompt (skipPrompt)',
+        heartbeatSettings: 'Heartbeat Settings',
+        heartbeatSettingsDesc: 'Configure heartbeat cadence and result delivery targets.',
+        heartbeatEvery: 'Heartbeat Cadence',
+        heartbeatEveryPlaceholder: 'e.g. 30m, 1h, 0m',
         retrySettings: 'Retry Settings',
         retrySettingsDesc: 'Automatically retry when API request fails.',
         retryEnabled: 'Enable Retry',
@@ -326,6 +330,22 @@ export default {
             hours: 'Hours',
             days: 'Days',
         },
+    },
+
+    delivery: {
+        targets: 'Delivery Targets',
+        description: 'When a task or heartbeat finishes, its result is delivered to these targets.',
+        addNotification: 'Add Notification',
+        addEmail: 'Add Email',
+        addNone: 'Add No Delivery',
+        emptyState: 'No delivery targets yet. Add one above.',
+        type: 'Target Type',
+        notification: 'Notification',
+        email: 'Email',
+        none: 'No Delivery',
+        recipients: 'Recipients',
+        recipientsPlaceholder: 'One email per line, or separate with commas',
+        validationTitle: 'Fix the delivery target configuration first:',
     },
 
     log: {
