@@ -43,6 +43,26 @@ test('cron form allows save when delivery validation and schedule fields are val
     assert.equal(errors.length, 0)
 })
 
+test('cron form allows save when no delivery targets are selected', () => {
+    const errors = validateCronForm({
+        name: 'daily',
+        description: '',
+        agentId: 'main',
+        enabled: true,
+        scheduleKind: 'cron',
+        scheduleAt: '',
+        everyAmount: '1',
+        everyUnit: 'hours',
+        cronExpr: '* * * * *',
+        cronTz: '',
+        payloadText: 'run',
+        timeoutSeconds: '',
+        deliveryTargets: [],
+    }, true)
+
+    assert.equal(errors.length, 0)
+})
+
 test('heartbeat form blocks save when delivery validation fails', () => {
     const errors = validateHeartbeatForm({ every: '30m' }, false)
 

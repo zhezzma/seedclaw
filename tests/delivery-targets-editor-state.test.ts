@@ -20,6 +20,13 @@ test('editor state reports none exclusivity errors', () => {
     assert.equal(result.validation.valid, false)
 })
 
+test('editor state collapses a none-only value to empty client state', () => {
+    const result = buildEditorEmission([{ type: 'none' }])
+
+    assert.equal(result.validation.valid, true)
+    assert.deepEqual(result.modelValue, [])
+})
+
 test('email recipient text is parsed and deduped', () => {
     assert.deepEqual(
         parseEmailRecipients('a@example.com,\n a@example.com \n b@example.com'),

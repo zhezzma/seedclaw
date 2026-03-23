@@ -3,9 +3,11 @@ import assert from 'node:assert/strict'
 
 import {
     defaultCronDeliveryTargets,
+    defaultHeartbeatDeliveryTargets,
     buildDeliveryValidationPayload,
     sanitizeDeliveryTargets,
     summarizeDeliveryTargets,
+    validateDeliveryTargets,
 } from '../src/utils/delivery-targets.ts'
 
 test('sanitize merges duplicate email recipients', () => {
@@ -24,8 +26,20 @@ test('buildDeliveryValidationPayload matches editor emit contract', () => {
     assert.ok(result.errors.length > 0)
 })
 
-test('new cron jobs default to notification delivery', () => {
-    assert.deepEqual(defaultCronDeliveryTargets(), [{ type: 'notification' }])
+test('buildDeliveryValidationPayload collapses none to empty client state', () => {
+    const result = buildDeliveryValidationPayload([{ type: 'none' }])
+
+    assert.equal(result.valid, true)
+    assert.deepEqual(result.value, [])
+})
+
+test('new cron and heartbeat forms default to no delivery targets selected', () => {
+    assert.deepEqual(defaultCronDeliveryTargets(), [])
+    assert.deepEqual(defaultHeartbeatDeliveryTargets(), [])
+})
+
+test('empty delivery targets are valid and mean no delivery', () => {
+    assert.deepEqual(validateDeliveryTargets([]), [])
 })
 
 test('summarize returns no delivery for empty delivery targets', () => {
