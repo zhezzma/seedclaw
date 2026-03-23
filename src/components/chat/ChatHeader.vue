@@ -38,6 +38,9 @@ const router = useRouter()
 const route = useRoute()
 const chatState = useChatState()
 const handleBack = () => {
+    // 这里必须走 history.back()，而不是再次 push /tasks。
+    // 否则移动端链路会变成 /tasks -> /tasks/:id -> /tasks，
+    // 用户在列表页再按一次返回时又会跳回刚才那个任务详情。
     navigateBackFromTaskSession(router)
 }
 const settingsStore = useUiSettingsStore()
