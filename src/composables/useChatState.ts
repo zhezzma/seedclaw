@@ -513,6 +513,7 @@ const loadChatHistory = async (sessionKey?: string) => {
         const sessionId = targetKey
         const result = await apiGet<{ messages: ChatMessage[], isStreaming?: boolean, partialText?: string }>(`/api/chat/${sessionId}/messages`)
         sd.chatMessages = result?.messages || []
+        const afterEntryId = sd.chatMessages.length > 0 ? sd.chatMessages[sd.chatMessages.length - 1]?.entryId : undefined
         // 清空本地临时存储的 toolResult 消息，因为历史记录中应该已经包含（或者由 chatMessages 自行管理）
         sd.chatToolMessages = []
 
@@ -540,9 +541,16 @@ const loadChatHistory = async (sessionKey?: string) => {
                         if (data) {
                             const sd = getSessionData(targetKey)
 
-                            // 1. Sync full history
+                            // 1. Sync persisted history.
+                            // messages 表示完整当前分支；deltaMessages 表示 afterEntryId 之后的新持久化消息。
                             if (data.messages && Array.isArray(data.messages)) {
                                 sd.chatMessages = data.messages
+                            } else if (data.deltaMessages && Array.isArray(data.deltaMessages) && data.deltaMessages.length > 0) {
+                                const existingEntryIds = new Set(sd.chatMessages.map(message => message.entryId).filter(Boolean))
+                                const deduped = data.deltaMessages.filter((message: ChatMessage) => !message.entryId || !existingEntryIds.has(message.entryId))
+                                if (deduped.length > 0) {
+                                    sd.chatMessages = [...sd.chatMessages, ...deduped]
+                                }
                             }
 
                             // 2. Sync streaming status
@@ -564,7 +572,8 @@ const loadChatHistory = async (sessionKey?: string) => {
 
                     handleSSEEvent(event.event, event.data, targetKey)
                 },
-                () => resetStreamState(sd)
+                () => resetStreamState(sd),
+                { afterEntryId }
             )
 
             bindSSELifecycle(sse, targetKey)

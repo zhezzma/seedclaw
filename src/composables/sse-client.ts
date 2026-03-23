@@ -76,11 +76,12 @@ export function startChatSSE(
 export function connectSessionSSE(
     sessionId: string,
     onEvent: SSEEventHandler,
-    onError?: (error: Error) => void
+    onError?: (error: Error) => void,
+    options?: { afterEntryId?: string }
 ): SSEConnection {
     const controller = new AbortController()
 
-    const url = getApiUrl(`/api/chat/${sessionId}/connect`)
+    const url = getApiUrl(`/api/chat/${sessionId}/connect${options?.afterEntryId ? `?afterEntryId=${encodeURIComponent(options.afterEntryId)}` : ''}`)
     const token = getAuthToken()
 
     const headers: Record<string, string> = {
