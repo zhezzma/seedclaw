@@ -6,6 +6,7 @@ import { useToast } from './useToast'
 import { readFile } from '../utils/fileReader'
 import { createRuntimeId } from '../utils/runtime-id.ts'
 import { useCommandState, type CommandInfo } from './useCommandState'
+import { useInputHistoryStore } from '../stores/inputHistory'
 
 export interface CommandItem {
     label: string
@@ -47,9 +48,7 @@ const selectedModel = ref('glm')
 const commandDropdownOpen = ref(false)
 const modelDropdownOpen = ref(false)
 
-// ——— 输入历史（每个 session 独立）———
-const INPUT_HISTORY_MAX = 100
-const inputHistoryMap = new Map<string, string[]>()  // sessionKey -> history[]
+// ——— 输入历史（每个 session 独立，本地持久化）———
 const historyIndex = ref(-1)   // -1 = 不在历史浏览模式
 const savedDraft = ref('')     // 进入历史浏览前暂存当前输入
 
@@ -176,26 +175,16 @@ const setSessionKeyResolver = (resolver: () => string) => {
 const _getSessionHistory = (): string[] => {
     const key = _sessionKeyResolver?.() || ''
     if (!key) return []
-    let history = inputHistoryMap.get(key)
-    if (!history) {
-        history = []
-        inputHistoryMap.set(key, history)
-    }
-    return history
+    const historyStore = useInputHistoryStore()
+    return historyStore.getHistory(key)
 }
 
 /** 将输入文本追加到当前 session 的历史记录 */
 const pushInputHistory = (text: string) => {
-    const trimmed = text.trim()
-    if (!trimmed) return
-    const history = _getSessionHistory()
-    // 去重：如果最近一条和当前相同则不重复添加
-    if (history.length > 0 && history[history.length - 1] === trimmed) return
-    history.push(trimmed)
-    // 限制长度
-    if (history.length > INPUT_HISTORY_MAX) {
-        history.splice(0, history.length - INPUT_HISTORY_MAX)
-    }
+    const key = _sessionKeyResolver?.() || ''
+    if (!key) return
+    const historyStore = useInputHistoryStore()
+    historyStore.pushHistory(key, text)
     // 重置浏览指针
     historyIndex.value = -1
 }

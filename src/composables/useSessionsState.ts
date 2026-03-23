@@ -1,6 +1,7 @@
 import { reactive, watch } from 'vue'
 
 import { apiGet, apiPost, apiDelete, apiPatch } from './api-client'
+import { useInputHistoryStore } from '../stores/inputHistory'
 
 // ==================== Types ====================
 export interface SessionRow {
@@ -121,6 +122,7 @@ const deleteSession = async (key: string) => {
             total: Math.max(0, (state.cronSessionsResult.total || 0) - 1)
         }
     }
+    useInputHistoryStore().removeSessionHistory(key)
     return { deleted: true }
 }
 
@@ -149,6 +151,7 @@ const deleteSessions = async (keys: string[]) => {
                 total: Math.max(0, (state.cronSessionsResult.total || 0) - deletedKeys.length)
             }
         }
+        useInputHistoryStore().removeManySessionHistories(deletedKeys)
     }
     return { deleted: true, deletedCount: deletedKeys.length }
 }
