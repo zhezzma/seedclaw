@@ -84,7 +84,9 @@ const currentSessionName = computed(() => {
     if (!sessionKey) return ''
 
     // 从 sessionsState 中取最新数据（patchSession / triggerSessionRename 会更新这里）
-    const sessions = sessionsState.sessionsResult?.sessions
+    const sessions = isTaskSessionsRoute.value
+        ? sessionsState.taskSessionsResult?.sessions
+        : sessionsState.sessionsResult?.sessions
     if (sessions) {
         const found = sessions.find((s: SessionRow) => s.id === sessionKey)
         if (found) {
@@ -98,37 +100,33 @@ const currentSessionName = computed(() => {
     return session.name || truncateText(session.firstMessage, 9)
 })
 
-// Messages / Cron Mode Logic
-// 根据路由 query.type 决定展示哪个 session 列表
+// Task Sessions Route Logic
+const isTaskSessionsRoute = computed(() => route.name === 'tasks')
 const currentSessions = computed(() => {
-    if (route.query && route.query.type === 'cron') {
-        return sessionsState.cronSessionsResult?.sessions || []
+    if (isTaskSessionsRoute.value) {
+        return sessionsState.taskSessionsResult?.sessions || []
     }
     return sessionsState.sessionsResult?.sessions || []
 })
-const isTypeMode = computed(() => route.query && route.query.type)
 
-
-watch(() => route.query.type, async (val) => {
-    if (route.query.type === 'cron') {
-        await sessionsState.loadCronSessions()
+watch(() => route.name, async (routeName) => {
+    if (routeName === 'tasks') {
+        await sessionsState.loadTaskSessions()
     }
 }, { immediate: true })
 
-const handleTypeSessionselect = (key: string) => {
+const handleTaskSessionSelect = (key: string) => {
     router.push({
-        name: 'chat',
+        name: 'tasks',
         params: { sessionkey: key },
-        query: { type: route.query.type }
     })
 }
 
-const handleTypeSessionDelete = async (key: string) => {
+const handleTaskSessionDelete = async (key: string) => {
     const result = await sessionsState.deleteSession(key)
     if (result?.deleted) {
         if (chatState.sessionKey === key) {
-            // If we deleted the currently viewed session, clear selection
-            router.push({ name: 'chat', query: { type: 'cron' } })
+            router.push({ name: 'tasks' })
         }
     }
 }
@@ -137,11 +135,11 @@ const typeSelectedKey = ref("")
 const isCreatingSession = ref(false)
 
 // Auto-select first session
-watch(() => [route.query.type, currentSessions.value, route.params.sessionkey], (values) => {
-    const type = values[0] as string | null
+watch(() => [route.name, currentSessions.value, route.params.sessionkey], (values) => {
+    const currentRouteName = values[0] as string | null
     const sessions = values[1] as any[]
     const currentKey = values[2] as string | null
-    if (type && currentKey && sessions && sessions.length > 0) {
+    if (currentRouteName === 'tasks' && currentKey && sessions && sessions.length > 0) {
         typeSelectedKey.value = currentKey
     }
     else {
@@ -150,7 +148,7 @@ watch(() => [route.query.type, currentSessions.value, route.params.sessionkey], 
 }, { immediate: true })
 
 const showMobileSessionList = computed(() => {
-    if (!isTypeMode.value) return false
+    if (!isTaskSessionsRoute.value) return false
     return !typeSelectedKey.value
 })
 
@@ -440,8 +438,8 @@ watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath
             restoreIfSaved()
             return
         }
-        const type = route.query.type as string | undefined
-        chatState.setSessionKey(sessionkey, true, type)
+        const category = route.name === 'tasks' ? 'task' : undefined
+        chatState.setSessionKey(sessionkey, true, category)
         return
     }
 
@@ -454,8 +452,8 @@ watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath
 
 // Helper function to apply default session behavior based on settings
 async function applyDefaultSessionBehavior() {
-    if (isTypeMode.value) {
-        console.log('[HomeView] Messages mode, skipping default session behavior')
+    if (isTaskSessionsRoute.value) {
+        console.log('[HomeView] Task sessions route, skipping default chat behavior')
         return
     }
 
@@ -467,7 +465,7 @@ async function applyDefaultSessionBehavior() {
         const targetKey = settingsStore.lastActiveSessionKey
         if (targetKey && sessionsState.hasSession(targetKey)) {
             console.log('Default: last active session', targetKey)
-            chatState.setSessionKey(targetKey, true, route.query.type as string | undefined)
+            chatState.setSessionKey(targetKey, true)
             router.replace({ name: 'chat', params: { sessionkey: targetKey } })
         } else {
             // If session doesn't exist, go to new session
@@ -490,26 +488,26 @@ async function applyDefaultSessionBehavior() {
             </div>
         </div>
 
-        <!-- NEW: Messages List Column (Desktop: visible if isTypeMode; Mobile: visible if isTypeMode && showMobileSessionList) -->
-        <div v-if="isTypeMode" class="w-full lg:w-80 bg-base-100 border-r border-base-200 flex flex-col shrink-0"
+        <!-- Task Sessions List Column (Desktop: visible if tasks route; Mobile: visible if tasks route && showMobileSessionList) -->
+        <div v-if="isTaskSessionsRoute" class="w-full lg:w-80 bg-base-100 border-r border-base-200 flex flex-col shrink-0"
             :class="{ 'hidden lg:flex': !showMobileSessionList, 'flex': showMobileSessionList }">
-            <SessionSidebar :title="$t('home.messageList')" :sessions="currentSessions" :selected-key="typeSelectedKey"
-                @select="handleTypeSessionselect" @delete="handleTypeSessionDelete" />
+            <SessionSidebar :title="$t('home.taskSessionList')" :sessions="currentSessions" :selected-key="typeSelectedKey"
+                @select="handleTaskSessionSelect" @delete="handleTaskSessionDelete" />
         </div>
 
 
-        <!-- Empty Messages list state -->
-        <div v-if="isTypeMode && !typeSelectedKey" class="flex-1 flex flex-col items-center justify-center p-4">
+        <!-- Empty Task Sessions list state -->
+        <div v-if="isTaskSessionsRoute && !typeSelectedKey" class="flex-1 flex flex-col items-center justify-center p-4">
             <div class="text-center text-base-content/60">
                 <div class="text-center">
-                    <h1 class="text-3xl font-bold mb-2">{{ $t('home.welcomeTitle') }}</h1>
-                    <p class="text-base-content/60">{{ $t('home.welcomeDesc') }}</p>
+                    <h1 class="text-3xl font-bold mb-2">{{ $t('home.taskSessionList') }}</h1>
+                    <p class="text-base-content/60">{{ $t('home.noTaskSessions') }}</p>
                 </div>
             </div>
         </div>
         <!-- Chat Area -->
         <div v-else class="flex-1 flex flex-col h-full min-w-0"
-            :class="{ 'hidden lg:flex': isTypeMode && showMobileSessionList }">
+            :class="{ 'hidden lg:flex': isTaskSessionsRoute && showMobileSessionList }">
 
             <!-- Header -->
             <ChatHeader ref="chatHeaderRef" :selected-agent="selectedAgent" :agents="agentsState.agentsList"

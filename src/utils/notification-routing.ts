@@ -1,22 +1,19 @@
-export type SessionListType = 'default' | 'cron'
-export type NotificationRouteType = Extract<SessionListType, 'cron'>
+export type SessionCategory = 'default' | 'task'
 export type NotificationNavigationReason = 'exact-notification-id' | 'single-candidate' | 'no-candidates' | 'multiple-candidates'
 export type NotificationFallbackToastKey = 'notificationsNoCandidates' | 'notificationsMultipleCandidates'
 
 export interface SessionLike {
     id: string
-    sessionType?: SessionListType
+    sessionCategory?: SessionCategory
 }
 
-export interface NotificationChatLocation {
-    name: 'chat'
+export interface SessionLocation {
+    name: 'chat' | 'tasks'
     params: { sessionkey: string }
-    query?: { type: NotificationRouteType }
 }
 
-export interface MessagesListLocation {
-    name: 'chat'
-    query: { type: NotificationRouteType }
+export interface TaskSessionsLocation {
+    name: 'tasks'
 }
 
 export interface PendingNotificationEntry {
@@ -34,7 +31,7 @@ export type NotificationNavigationDecision =
         remainingNotifications: PendingNotificationMap
     }
     | {
-        kind: 'messages-list'
+        kind: 'task-sessions'
         reason: Extract<NotificationNavigationReason, 'no-candidates' | 'multiple-candidates'>
         remainingNotifications: PendingNotificationMap
     }
@@ -48,43 +45,31 @@ export interface ResolveNotificationNavigationOptions {
 
 /**
  * 根据当前缓存的两个 session 列表判断 session 属于哪个列表。
- * cron 列表优先级更高，避免历史脏数据或重复缓存时把 cron session 误判成普通 session。
+ * task 列表优先级更高，避免历史脏数据或重复缓存时把任务会话误判成普通会话。
  */
-export const resolveCachedSessionListType = (
+export const resolveCachedSessionCategory = (
     sessionId: string,
     defaultSessions: SessionLike[] = [],
-    cronSessions: SessionLike[] = [],
-): SessionListType | undefined => {
+    taskSessions: SessionLike[] = [],
+): SessionCategory | undefined => {
     if (!sessionId) return undefined
-    if (cronSessions.some(session => session.id === sessionId)) return 'cron'
+    if (taskSessions.some(session => session.id === sessionId)) return 'task'
     if (defaultSessions.some(session => session.id === sessionId)) return 'default'
     return undefined
 }
 
-export const toNotificationRouteType = (sessionType?: SessionListType): NotificationRouteType | undefined => {
-    return sessionType === 'cron' ? 'cron' : undefined
-}
-
-export const buildNotificationChatLocation = (
+export const buildSessionLocation = (
     sessionKey: string,
-    sessionType?: SessionListType,
-): NotificationChatLocation => {
-    const routeType = toNotificationRouteType(sessionType)
-    return routeType
-        ? {
-            name: 'chat',
-            params: { sessionkey: sessionKey },
-            query: { type: routeType },
-        }
-        : {
-            name: 'chat',
-            params: { sessionkey: sessionKey },
-        }
+    sessionCategory?: SessionCategory,
+): SessionLocation => {
+    return {
+        name: sessionCategory === 'task' ? 'tasks' : 'chat',
+        params: { sessionkey: sessionKey },
+    }
 }
 
-export const buildMessagesListLocation = (): MessagesListLocation => ({
-    name: 'chat',
-    query: { type: 'cron' },
+export const buildTaskSessionsLocation = (): TaskSessionsLocation => ({
+    name: 'tasks',
 })
 
 export const pruneExpiredNotifications = (
@@ -115,7 +100,7 @@ export const clearPendingNotifications = (): PendingNotificationMap => ({})
 export const getNotificationFallbackToastKey = (
     resolution: NotificationNavigationDecision,
 ): NotificationFallbackToastKey | undefined => {
-    if (resolution.kind !== 'messages-list') return undefined
+    if (resolution.kind !== 'task-sessions') return undefined
     if (resolution.reason === 'no-candidates') return 'notificationsNoCandidates'
     if (resolution.reason === 'multiple-candidates') return 'notificationsMultipleCandidates'
     return undefined
@@ -152,7 +137,7 @@ export const resolveNotificationNavigation = ({
     }
 
     return {
-        kind: 'messages-list',
+        kind: 'task-sessions',
         reason: candidates.length === 0 ? 'no-candidates' : 'multiple-candidates',
         remainingNotifications: clearPendingNotifications(),
     }
