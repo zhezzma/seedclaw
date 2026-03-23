@@ -538,15 +538,15 @@ const closeFileViewer = () => {
                     :title="$t('common.edit')">
                     <PencilSquareIcon class="h-4 w-4" />
                 </button>
-                <button v-if="!isBusy && message.entryId" @click="handleDelete"
-                    class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-error hover:bg-error/10"
-                    :title="$t('common.delete')">
-                    <TrashIcon class="h-4 w-4" />
-                </button>
                 <button v-if="!isBusy && message.entryId" @click="emit('retry', message)"
                     class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-warning hover:bg-warning/10"
                     :title="$t('chat.retry')">
                     <ArrowPathIcon class="h-4 w-4" />
+                </button>
+                <button v-if="!isBusy && message.entryId" @click="handleDelete"
+                    class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-error hover:bg-error/10"
+                    :title="$t('common.delete')">
+                    <TrashIcon class="h-4 w-4" />
                 </button>
             </template>
         </div>
@@ -668,15 +668,15 @@ const closeFileViewer = () => {
                     <SpeakerWaveIcon class="h-4 w-4" />
                 </template>
             </button>
-            <button v-if="!isBusy && message.entryId" @click="handleDelete"
-                class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-error hover:bg-error/10"
-                :title="$t('common.delete')">
-                <TrashIcon class="h-4 w-4" />
-            </button>
             <button v-if="!isBusy && message.entryId" @click="emit('retry', message)"
                 class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-warning hover:bg-warning/10"
                 :title="$t('chat.retry')">
                 <ArrowPathIcon class="h-4 w-4" />
+            </button>
+            <button v-if="!isBusy && message.entryId" @click="handleDelete"
+                class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-error hover:bg-error/10"
+                :title="$t('common.delete')">
+                <TrashIcon class="h-4 w-4" />
             </button>
 
             <!-- Branch Navigation -->
