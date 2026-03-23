@@ -3,6 +3,7 @@ import router from '../router'
 import { isTauri, onServerMessage, type WsMessage } from './notify-server-connection'
 import { useSessionsState } from './useSessionsState'
 import { buildSessionLocation } from '../utils/notification-routing'
+import { buildTaskSessionNotificationRoutePlan } from '../utils/task-sessions-routing'
 
 export interface WsTaskData {
     taskId: string
@@ -23,6 +24,20 @@ const openSessionFromNotification = async (sessionKey: string) => {
     if (!sessionKey) return
 
     const sessionCategory = await useSessionsState().resolveNotificationSessionCategory(sessionKey)
+    if (sessionCategory === 'task') {
+        const plan = buildTaskSessionNotificationRoutePlan(
+            sessionKey,
+            router.currentRoute.value.name,
+            typeof router.currentRoute.value.params.sessionkey === 'string'
+                ? router.currentRoute.value.params.sessionkey
+                : undefined,
+        )
+        for (const location of plan) {
+            await router.push(location)
+        }
+        return
+    }
+
     await router.push(buildSessionLocation(sessionKey, sessionCategory))
 }
 

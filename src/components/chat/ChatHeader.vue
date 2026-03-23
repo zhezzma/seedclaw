@@ -19,7 +19,7 @@ import { isConnected } from '../../composables/notify-server-connection'
 
 import ViewHeader from '../ViewHeader.vue'
 import { isNewSession, NEW_SESSION_ROUTE_NAME } from '../../utils/route-helpers'
-import { buildTaskSessionBackLocation } from '../../utils/task-sessions-routing'
+import { navigateBackFromTaskSession } from '../../utils/task-sessions-routing'
 import { useChatState } from '../../composables/useChatState'
 import { AgentInfo, useAgentsState } from '~/src/composables/useAgentsState'
 
@@ -38,8 +38,7 @@ const router = useRouter()
 const route = useRoute()
 const chatState = useChatState()
 const handleBack = () => {
-    // 任务会话详情页总是显式回到任务会话列表，避免通知冷启动时没有历史栈可退。
-    router.push(buildTaskSessionBackLocation())
+    navigateBackFromTaskSession(router)
 }
 const settingsStore = useUiSettingsStore()
 

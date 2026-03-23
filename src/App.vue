@@ -20,6 +20,7 @@ import {
     shouldSuppressForegroundReload,
     type PendingNotificationMap,
 } from './utils/notification-routing'
+import { buildTaskSessionNotificationRoutePlan } from './utils/task-sessions-routing'
 import { onAction } from '@tauri-apps/plugin-notification'
 import { listen } from '@tauri-apps/api/event'
 
@@ -69,6 +70,22 @@ const openSessionFromNotification = async (sessionKey: string) => {
 
     markNotificationNavigation()
     const sessionCategory = await sessionsState.resolveNotificationSessionCategory(sessionKey)
+
+    if (sessionCategory === 'task') {
+        const plan = buildTaskSessionNotificationRoutePlan(
+            sessionKey,
+            router.currentRoute.value.name,
+            typeof router.currentRoute.value.params.sessionkey === 'string'
+                ? router.currentRoute.value.params.sessionkey
+                : undefined,
+        )
+
+        for (const location of plan) {
+            await router.push(location)
+        }
+        return
+    }
+
     await router.push(buildSessionLocation(sessionKey, sessionCategory))
 }
 
