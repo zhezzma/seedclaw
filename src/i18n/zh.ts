@@ -512,6 +512,8 @@ export default {
         welcomeDesc: '我是 SeedClaw，聊天、写作、搜索都在行，助你灵感无限',
         noAgentDesc: '还未设定哟',
         commandNotAvailableWhileBusy: '智能体运行中，无法使用命令',
+        notificationsNoCandidates: '未能确定通知对应会话，已打开消息列表',
+        notificationsMultipleCandidates: '检测到多条待处理通知，已打开消息列表',
     },
     settings: {
         title: '设置',

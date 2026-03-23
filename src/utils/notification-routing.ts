@@ -1,5 +1,7 @@
 export type SessionListType = 'default' | 'cron'
 export type NotificationRouteType = Extract<SessionListType, 'cron'>
+export type NotificationNavigationReason = 'exact-notification-id' | 'single-candidate' | 'no-candidates' | 'multiple-candidates'
+export type NotificationFallbackToastKey = 'notificationsNoCandidates' | 'notificationsMultipleCandidates'
 
 export interface SessionLike {
     id: string
@@ -27,11 +29,13 @@ export type PendingNotificationMap = Record<string, PendingNotificationEntry>
 export type NotificationNavigationDecision =
     | {
         kind: 'session'
+        reason: Extract<NotificationNavigationReason, 'exact-notification-id' | 'single-candidate'>
         sessionKey: string
         remainingNotifications: PendingNotificationMap
     }
     | {
         kind: 'messages-list'
+        reason: Extract<NotificationNavigationReason, 'no-candidates' | 'multiple-candidates'>
         remainingNotifications: PendingNotificationMap
     }
 
@@ -108,6 +112,15 @@ export const removeNotificationById = (
 
 export const clearPendingNotifications = (): PendingNotificationMap => ({})
 
+export const getNotificationFallbackToastKey = (
+    resolution: NotificationNavigationDecision,
+): NotificationFallbackToastKey | undefined => {
+    if (resolution.kind !== 'messages-list') return undefined
+    if (resolution.reason === 'no-candidates') return 'notificationsNoCandidates'
+    if (resolution.reason === 'multiple-candidates') return 'notificationsMultipleCandidates'
+    return undefined
+}
+
 export const resolveNotificationNavigation = ({
     notificationMap,
     nowMs,
@@ -121,6 +134,7 @@ export const resolveNotificationNavigation = ({
         if (matched?.sessionKey) {
             return {
                 kind: 'session',
+                reason: 'exact-notification-id',
                 sessionKey: matched.sessionKey,
                 remainingNotifications: removeNotificationById(liveNotifications, notificationId),
             }
@@ -131,6 +145,7 @@ export const resolveNotificationNavigation = ({
     if (candidates.length === 1) {
         return {
             kind: 'session',
+            reason: 'single-candidate',
             sessionKey: candidates[0],
             remainingNotifications: clearPendingNotifications(),
         }
@@ -138,6 +153,7 @@ export const resolveNotificationNavigation = ({
 
     return {
         kind: 'messages-list',
+        reason: candidates.length === 0 ? 'no-candidates' : 'multiple-candidates',
         remainingNotifications: clearPendingNotifications(),
     }
 }

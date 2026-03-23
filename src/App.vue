@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 // import { onAction } from '@tauri-apps/plugin-notification' // Keep if needed, but might be optional
 // import { listen } from '@tauri-apps/api/event'
 import { useUiSettingsStore } from './stores/setting'
@@ -9,9 +10,11 @@ import ConfirmPlugin from './components/ConfirmPlugin.vue'
 import ExecApprovalModal from './components/ExecApprovalModal.vue'
 import { useAppInit } from './composables/useAppInit'
 import { useSessionsState } from './composables/useSessionsState'
+import { useToast } from './composables/useToast'
 import {
     buildMessagesListLocation,
     buildNotificationChatLocation,
+    getNotificationFallbackToastKey,
     resolveNotificationNavigation,
     shouldReloadAfterForeground,
     shouldSuppressForegroundReload,
@@ -21,6 +24,8 @@ import { onAction } from '@tauri-apps/plugin-notification'
 import { listen } from '@tauri-apps/api/event'
 
 // Initialize app
+const { t } = useI18n()
+const toast = useToast()
 const uiSettings = useUiSettingsStore()
 uiSettings.initTheme()
 uiSettings.initLanguage()
@@ -67,9 +72,12 @@ const openSessionFromNotification = async (sessionKey: string) => {
     await router.push(buildNotificationChatLocation(sessionKey, sessionType))
 }
 
-const openMessagesListFromNotification = async () => {
+const openMessagesListFromNotification = async (toastKey?: 'notificationsNoCandidates' | 'notificationsMultipleCandidates') => {
     markNotificationNavigation()
     await router.push(buildMessagesListLocation())
+    if (toastKey) {
+        toast.info(t(`home.${toastKey}`), 3000)
+    }
 }
 
 const markBackgrounded = () => {
@@ -173,12 +181,19 @@ onMounted(async () => {
                 })
                 notificationMap.value = resolution.remainingNotifications
 
+                console.info('[notification] navigation resolved:', {
+                    kind: resolution.kind,
+                    reason: resolution.reason,
+                    sessionKey: resolution.kind === 'session' ? resolution.sessionKey : undefined,
+                    remainingCount: Object.keys(resolution.remainingNotifications).length,
+                })
+
                 if (resolution.kind === 'session') {
                     await openSessionFromNotification(resolution.sessionKey)
                     return
                 }
 
-                await openMessagesListFromNotification()
+                await openMessagesListFromNotification(getNotificationFallbackToastKey(resolution))
             })
         } catch (actionError) {
             console.warn('Configuration Note: Notification actions (onAction) are not supported on this platform or permissions are missing. Interaction might be limited to system default behavior.', actionError);

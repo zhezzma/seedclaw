@@ -512,6 +512,8 @@ export default {
         welcomeDesc: 'I am SeedClaw, good at chatting, writing, and searching, helping you with infinite inspiration',
         noAgentDesc: 'Not set yet',
         commandNotAvailableWhileBusy: 'Commands are not available while the agent is busy',
+        notificationsNoCandidates: 'Could not determine the target session, opened the message list instead',
+        notificationsMultipleCandidates: 'Detected multiple pending notifications, opened the message list instead',
     },
     settings: {
         title: 'Settings',

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import {
     buildMessagesListLocation,
     buildNotificationChatLocation,
+    getNotificationFallbackToastKey,
     resolveCachedSessionListType,
     resolveNotificationNavigation,
     shouldReloadAfterForeground,
@@ -74,11 +75,13 @@ test('exact notification id opens the mapped session and removes only that entry
 
     assert.deepEqual(result, {
         kind: 'session',
+        reason: 'exact-notification-id',
         sessionKey: 'session-a',
         remainingNotifications: {
             '102': { sessionKey: 'session-b', createdAt: 1100 },
         },
     })
+    assert.equal(getNotificationFallbackToastKey(result), undefined)
 })
 
 test('bare tap with one unique live candidate opens that session and clears pending notifications', () => {
@@ -95,9 +98,11 @@ test('bare tap with one unique live candidate opens that session and clears pend
 
     assert.deepEqual(result, {
         kind: 'session',
+        reason: 'single-candidate',
         sessionKey: 'session-a',
         remainingNotifications: {},
     })
+    assert.equal(getNotificationFallbackToastKey(result), undefined)
 })
 
 test('bare tap with zero live candidates opens the messages list and clears stale entries', () => {
@@ -113,8 +118,10 @@ test('bare tap with zero live candidates opens the messages list and clears stal
 
     assert.deepEqual(result, {
         kind: 'messages-list',
+        reason: 'no-candidates',
         remainingNotifications: {},
     })
+    assert.equal(getNotificationFallbackToastKey(result), 'notificationsNoCandidates')
 })
 
 test('bare tap with multiple live candidates opens the messages list instead of guessing', () => {
@@ -131,8 +138,10 @@ test('bare tap with multiple live candidates opens the messages list instead of 
 
     assert.deepEqual(result, {
         kind: 'messages-list',
+        reason: 'multiple-candidates',
         remainingNotifications: {},
     })
+    assert.equal(getNotificationFallbackToastKey(result), 'notificationsMultipleCandidates')
 })
 
 test('foreground reload is suppressed when a recent notification action already claimed the focus event', () => {
