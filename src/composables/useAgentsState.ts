@@ -1,5 +1,6 @@
 import { reactive } from 'vue'
 
+import type { DeliveryTarget } from '../utils/delivery-targets'
 import { apiGet, apiPost, apiPatch, apiDelete, apiPut, apiUpload, apiPatchMultipart } from './api-client'
 
 // ==================== Types ====================
@@ -37,6 +38,10 @@ export interface AgentInfo {
     branchSummary?: boolean | BranchSummarySettings
     retry?: number | RetrySettings
     hideThinkingBlock?: boolean
+    heartbeat?: {
+        every?: string
+        deliveryTargets?: DeliveryTarget[]
+    }
     sessionId?: string
     createdAt?: string
     lastActiveAt?: string
