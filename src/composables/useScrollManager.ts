@@ -50,6 +50,55 @@ const SCROLL_THRESHOLD = 50
 /** 滚动事件保存位置的节流间隔（毫秒） */
 const SAVE_THROTTLE_MS = 300
 
+export interface ScrollMetrics {
+    scrollTop: number
+    scrollHeight: number
+    clientHeight: number
+}
+
+export interface ScrollStateAfterNonUserChange {
+    nextUserScrolledUp: boolean
+    shouldScrollToBottom: boolean
+}
+
+const isNearBottomByMetrics = (metrics: ScrollMetrics, threshold = SCROLL_THRESHOLD): boolean => {
+    if (metrics.scrollHeight <= metrics.clientHeight + 1) return true
+    return metrics.scrollHeight - metrics.scrollTop - metrics.clientHeight <= threshold
+}
+
+/**
+ * 非用户主动滚动（如新消息、内容清空、键盘弹起导致视口变化）后的滚动状态决策。
+ *
+ * 规则：
+ * 1. 内容已经贴底/不再溢出时，直接隐藏 FAB。
+ * 2. 如果用户此前没有手动上滑，则继续保持贴底锚定。
+ * 3. 只有用户确实手动上滑过，才继续显示 FAB，且不强制抢回到底部。
+ */
+export const getScrollStateAfterNonUserChange = (
+    metrics: ScrollMetrics,
+    userScrolledUp: boolean,
+    threshold = SCROLL_THRESHOLD,
+): ScrollStateAfterNonUserChange => {
+    if (isNearBottomByMetrics(metrics, threshold)) {
+        return {
+            nextUserScrolledUp: false,
+            shouldScrollToBottom: false,
+        }
+    }
+
+    if (!userScrolledUp) {
+        return {
+            nextUserScrolledUp: false,
+            shouldScrollToBottom: true,
+        }
+    }
+
+    return {
+        nextUserScrolledUp: true,
+        shouldScrollToBottom: false,
+    }
+}
+
 /**
  * 模块级别的滚动位置缓存，key = sessionKey，value = 保存的滚动位置。
  * 放在模块作用域（函数外），而非组件实例内，确保：
@@ -69,19 +118,71 @@ export function useScrollManager(options: ScrollManagerOptions) {
     const isAutoScrolling = ref(false)
     /** 等待加载完成后恢复位置的 sessionKey（session 数据尚未加载时暂存） */
     let pendingRestoreKey: string | null = null
+    /** 容器尺寸观察器：用于捕捉键盘弹起/收起、输入框高度变化等布局变化 */
+    let containerResizeObserver: ResizeObserver | null = null
 
     // ── 工具方法 ─────────────────────────────────────────────────────
+
+    const getScrollMetrics = (): ScrollMetrics | null => {
+        const el = containerRef.value
+        if (!el) return null
+        return {
+            scrollTop: el.scrollTop,
+            scrollHeight: el.scrollHeight,
+            clientHeight: el.clientHeight,
+        }
+    }
 
     /**
      * 判断滚动容器是否接近底部。
      * 用于决定是否显示 "回到底部" FAB 以及是否自动跟随新消息。
      */
     const isNearBottom = (): boolean => {
-        const el = containerRef.value
-        if (!el) return true
-        // 内容不足以撑满容器时视为在底部
-        if (el.scrollHeight <= el.clientHeight + 1) return true
-        return el.scrollHeight - el.scrollTop - el.clientHeight <= SCROLL_THRESHOLD
+        const metrics = getScrollMetrics()
+        if (!metrics) return true
+        return isNearBottomByMetrics(metrics)
+    }
+
+    /**
+     * 处理非用户主动滚动引起的几何变化：
+     * - 新消息/流式输出导致 scrollHeight 改变
+     * - /reset 清空消息后不再溢出
+     * - 移动端键盘弹起/收起导致 viewport / clientHeight 改变
+     */
+    const syncScrollStateAfterNonUserChange = () => {
+        const metrics = getScrollMetrics()
+        if (!metrics) {
+            userScrolledUp.value = false
+            return
+        }
+
+        const decision = getScrollStateAfterNonUserChange(metrics, userScrolledUp.value)
+        if (decision.shouldScrollToBottom) {
+            scrollToBottom(true)
+            return
+        }
+
+        userScrolledUp.value = decision.nextUserScrolledUp
+    }
+
+    const handleViewportResize = () => {
+        if (isAutoScrolling.value) return
+        syncScrollStateAfterNonUserChange()
+    }
+
+    const bindContainerResizeObserver = (el: HTMLElement | null) => {
+        if (containerResizeObserver) {
+            containerResizeObserver.disconnect()
+            containerResizeObserver = null
+        }
+
+        if (!el || typeof ResizeObserver === 'undefined') return
+
+        containerResizeObserver = new ResizeObserver(() => {
+            if (isAutoScrolling.value) return
+            syncScrollStateAfterNonUserChange()
+        })
+        containerResizeObserver.observe(el)
     }
 
     // ── 保存位置 ─────────────────────────────────────────────────────
@@ -273,16 +374,30 @@ export function useScrollManager(options: ScrollManagerOptions) {
      * 在 HomeView 的 onMounted 中调用，确保 containerRef 已就绪。
      */
     const setupScrollWatchers = () => {
-        // 绑定当前容器的 scroll 事件
+        // 绑定当前容器的 scroll / resize 监听
         const el = containerRef.value
         if (el) {
             el.addEventListener('scroll', handleScroll, { passive: true })
+            bindContainerResizeObserver(el)
         }
+
+        const viewportTarget = typeof window !== 'undefined' ? window.visualViewport : null
+        if (typeof window !== 'undefined') {
+            window.addEventListener('resize', handleViewportResize, { passive: true })
+        }
+        viewportTarget?.addEventListener('resize', handleViewportResize, { passive: true })
 
         // 容器 ref 变化时重新绑定（理论上不常触发，作为安全保障）
         watch(containerRef, (newEl, oldEl) => {
             if (oldEl) oldEl.removeEventListener('scroll', handleScroll)
             if (newEl) newEl.addEventListener('scroll', handleScroll, { passive: true })
+            bindContainerResizeObserver(newEl)
+
+            if (newEl) {
+                nextTick(() => syncScrollStateAfterNonUserChange())
+            } else {
+                userScrolledUp.value = false
+            }
         })
 
         /**
@@ -335,11 +450,17 @@ export function useScrollManager(options: ScrollManagerOptions) {
             }
         })
 
-        // 消息列表变化时自动滚动到底部（新消息到达 / 消息编辑等）
-        watch(messages, () => scrollToBottom(), { deep: true })
+        // 消息列表变化后同步滚动状态：
+        // - 用户贴底时继续贴底
+        // - /reset 清空后若内容已不溢出，立即隐藏 FAB
+        watch(messages, () => {
+            nextTick(() => syncScrollStateAfterNonUserChange())
+        }, { deep: true })
 
-        // 流式输出内容变化时自动滚动到底部（逐字显示时跟随）
-        watch(() => streamingText.value, () => scrollToBottom())
+        // 流式输出内容变化时同步到底部/按钮状态
+        watch(() => streamingText.value, () => {
+            nextTick(() => syncScrollStateAfterNonUserChange())
+        })
 
         /**
          * 生成结束 watcher：busy 从 true → false 时滚动到底部。
@@ -354,11 +475,19 @@ export function useScrollManager(options: ScrollManagerOptions) {
             }
         })
 
-        // 组件卸载时清理：清除节流计时器、移除 scroll 事件监听
+        // 组件卸载时清理：清除节流计时器、移除 scroll / resize 监听
         onUnmounted(() => {
             if (saveThrottleTimer) clearTimeout(saveThrottleTimer)
             const el = containerRef.value
             if (el) el.removeEventListener('scroll', handleScroll)
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('resize', handleViewportResize)
+                window.visualViewport?.removeEventListener('resize', handleViewportResize)
+            }
+            if (containerResizeObserver) {
+                containerResizeObserver.disconnect()
+                containerResizeObserver = null
+            }
         })
     }
 
