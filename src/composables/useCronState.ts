@@ -19,6 +19,7 @@ export interface TaskJob {
     cronTz: string
     payloadText: string
     timeoutSeconds: string
+    deliveryTargets?: DeliveryTarget[]
     lastRun?: string
     createdAt: string
 }
