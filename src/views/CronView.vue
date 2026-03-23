@@ -395,8 +395,8 @@ onMounted(() => {
 
                 <div class="modal-action">
                     <button class="btn" @click="closeModal">{{ $t('common.cancel') }}</button>
-                    <button class="btn btn-primary" @click="handleSave" :disabled="cronState.cronBusy">
-                        <span v-if="cronState.cronBusy" class="loading loading-spinner"></span>
+                    <button class="btn btn-primary" @click="handleSave" :disabled="cronState.cronSaving">
+                        <span v-if="cronState.cronSaving" class="loading loading-spinner"></span>
                         {{ editingId ? $t('common.save') : $t('cron.createJob') }}
                     </button>
                 </div>

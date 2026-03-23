@@ -59,6 +59,7 @@ export interface CronState {
     // Loading / busy / error 直接放进 state，避免与 reactive 合并时 Ref 被自动解包
     cronLoading: boolean
     cronBusy: boolean
+    cronSaving: boolean
     cronError: string | null
 }
 
@@ -68,6 +69,7 @@ const state = reactive<CronState>({
     cronJobs: [],
     cronLoading: false,
     cronBusy: false,
+    cronSaving: false,
     cronError: null,
 })
 
@@ -87,7 +89,7 @@ const loadCron = async () => {
 }
 
 const addCronJob = async (form: CronFormState) => {
-    state.cronBusy = true
+    state.cronSaving = true
     state.cronError = null
     try {
         const newJob = await apiPost<TaskJob>('/api/crons', { ...form })
@@ -96,7 +98,7 @@ const addCronJob = async (form: CronFormState) => {
         state.cronError = String(err)
         throw err
     } finally {
-        state.cronBusy = false
+        state.cronSaving = false
     }
 }
 
@@ -131,8 +133,8 @@ const removeCronJob = async (job: TaskJob) => {
 }
 
 const updateCronJob = async (id: string, form: CronFormState) => {
-    if (state.cronBusy) return
-    state.cronBusy = true
+    if (state.cronSaving) return
+    state.cronSaving = true
     state.cronError = null
     try {
         const updatedJob = await apiPatch<TaskJob>(`/api/crons/${id}`, { ...form })
@@ -144,7 +146,7 @@ const updateCronJob = async (id: string, form: CronFormState) => {
         state.cronError = String(err)
         throw err
     } finally {
-        state.cronBusy = false
+        state.cronSaving = false
     }
 }
 
