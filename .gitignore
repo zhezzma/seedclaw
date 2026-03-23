@@ -32,3 +32,4 @@ debug.keystore
 .codeartsdoer
 
 *.keystore 
+.worktrees/
