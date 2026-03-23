@@ -19,7 +19,7 @@ export interface TaskJob {
     cronTz: string
     payloadText: string
     timeoutSeconds: string
-    deliveryTargets?: DeliveryTarget[]
+    deliveryTargets: DeliveryTarget[]
     lastRun?: string
     createdAt: string
 }
@@ -51,7 +51,7 @@ export interface CronFormState {
     cronTz: string
     payloadText: string
     timeoutSeconds: string
-    deliveryTargets?: DeliveryTarget[]
+    deliveryTargets: DeliveryTarget[]
 }
 
 export interface CronState {

@@ -143,6 +143,10 @@ export default {
         branchSummarySettingsDesc: '当对话分支较多时，自动生成上下文摘要。',
         branchSummaryReserveTokens: '预留可用 Token (reserveTokens)',
         branchSummarySkipPrompt: '跳过提示 (skipPrompt)',
+        heartbeatSettings: '心跳设置',
+        heartbeatSettingsDesc: '配置心跳执行间隔与结果交付目标。',
+        heartbeatEvery: '心跳间隔',
+        heartbeatEveryPlaceholder: '例如：30m、1h、0m',
         retrySettings: '重试配置 (Retry)',
         retrySettingsDesc: '当 API 请求失败时自动进行重试。',
         retryEnabled: '启用重试',
@@ -326,6 +330,22 @@ export default {
             hours: '小时',
             days: '天',
         },
+    },
+
+    delivery: {
+        targets: '交付目标',
+        description: '任务或心跳执行完成后，会把结果投递到这些目标。',
+        addNotification: '添加通知',
+        addEmail: '添加邮箱',
+        addNone: '添加无交付',
+        emptyState: '暂无交付目标，点击上方按钮添加。',
+        type: '目标类型',
+        notification: '通知',
+        email: '邮箱',
+        none: '无交付',
+        recipients: '收件人',
+        recipientsPlaceholder: '每行一个邮箱，或使用逗号分隔',
+        validationTitle: '请先修正交付目标配置：',
     },
 
     log: {
