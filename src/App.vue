@@ -25,14 +25,41 @@ appInit.init()
 const router = useRouter()
 const notificationMap = ref<Record<string, string>>({})
 let unlistenNotification: (() => void) | null = null
+let unlistenFocus: (() => void) | null = null
 
+const MOBILE_BACKGROUND_RELOAD_MS = 30_000
+const isTauriApp = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
+const isMobileTauri = isTauriApp && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+let backgroundedAt: number | null = null
 
+const markBackgrounded = () => {
+    // 仅在移动端 Tauri 启用：桌面端切窗口很常见，不应触发重载策略。
+    if (!isMobileTauri) return
+    if (document.visibilityState === 'hidden') {
+        backgroundedAt = Date.now()
+    }
+}
+
+const handleForeground = () => {
+    if (!isMobileTauri || backgroundedAt == null) return
+
+    const elapsed = Date.now() - backgroundedAt
+    backgroundedAt = null
+
+    // Android/iOS 回前台后，WebView 内存往往还在，但长连接 / 本地缓存状态可能已漂移。
+    // 后台停留超过阈值时，直接整页刷新，用最小复杂度重建所有前端状态。
+    if (elapsed >= MOBILE_BACKGROUND_RELOAD_MS) {
+        console.log(`[app] Mobile app resumed after ${elapsed}ms in background, reloading page...`)
+        window.location.reload()
+    }
+}
 
 onMounted(async () => {
+    document.addEventListener('visibilitychange', markBackgrounded)
+
     try {
         // Check if running in Tauri environment
-        const isTauri = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__;
-        if (!isTauri) return;
+        if (!isTauriApp) return;
 
         // 监听 Rust 发送的 "notify://notification-sent" 事件
         // 作用：接收通知 ID 和 SessionKey 的对应关系
@@ -47,13 +74,14 @@ onMounted(async () => {
             }
         })
 
-         // Listen for app focus event (e.g. switching back from background)
-         await listen('tauri://focus', () => {
-             console.log('App focused, checking connection...')
-             import('./composables/notify-server-connection').then(({ checkConnection }) => {
-                 checkConnection()
-             })
-         })
+        // Listen for app focus event (e.g. switching back from background)
+        unlistenFocus = await listen('tauri://focus', () => {
+            handleForeground()
+            console.log('App focused, checking connection...')
+            import('./composables/notify-server-connection').then(({ checkConnection }) => {
+                checkConnection()
+            })
+        })
 
         // 监听用户点击通知的动作
         // 作用：当用户点击系统通知时触发
@@ -121,8 +149,12 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+    document.removeEventListener('visibilitychange', markBackgrounded)
     if (unlistenNotification) {
         unlistenNotification()
+    }
+    if (unlistenFocus) {
+        unlistenFocus()
     }
 }) 
 </script>
