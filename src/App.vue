@@ -12,8 +12,8 @@ import { useAppInit } from './composables/useAppInit'
 import { useSessionsState } from './composables/useSessionsState'
 import { useToast } from './composables/useToast'
 import {
-    buildMessagesListLocation,
-    buildNotificationChatLocation,
+    buildSessionLocation,
+    buildTaskSessionsLocation,
     getNotificationFallbackToastKey,
     resolveNotificationNavigation,
     shouldReloadAfterForeground,
@@ -68,13 +68,13 @@ const openSessionFromNotification = async (sessionKey: string) => {
     if (!sessionKey) return
 
     markNotificationNavigation()
-    const sessionType = await sessionsState.resolveNotificationSessionType(sessionKey)
-    await router.push(buildNotificationChatLocation(sessionKey, sessionType))
+    const sessionCategory = await sessionsState.resolveNotificationSessionCategory(sessionKey)
+    await router.push(buildSessionLocation(sessionKey, sessionCategory))
 }
 
-const openMessagesListFromNotification = async (toastKey?: 'notificationsNoCandidates' | 'notificationsMultipleCandidates') => {
+const openTaskSessionsFromNotification = async (toastKey?: 'notificationsNoCandidates' | 'notificationsMultipleCandidates') => {
     markNotificationNavigation()
-    await router.push(buildMessagesListLocation())
+    await router.push(buildTaskSessionsLocation())
     if (toastKey) {
         toast.info(t(`home.${toastKey}`), 3000)
     }
@@ -193,7 +193,7 @@ onMounted(async () => {
                     return
                 }
 
-                await openMessagesListFromNotification(getNotificationFallbackToastKey(resolution))
+                await openTaskSessionsFromNotification(getNotificationFallbackToastKey(resolution))
             })
         } catch (actionError) {
             console.warn('Configuration Note: Notification actions (onAction) are not supported on this platform or permissions are missing. Interaction might be limited to system default behavior.', actionError);

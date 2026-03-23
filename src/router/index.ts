@@ -42,6 +42,11 @@ const router = createRouter({
                     component: HomeView
                 },
                 {
+                    path: 'tasks/:sessionkey?',
+                    name: 'tasks',
+                    component: HomeView
+                },
+                {
                     path: 'new',
                     name: NEW_SESSION_ROUTE_NAME,
                     component: HomeView

@@ -89,7 +89,7 @@ defineExpose({
     <ViewHeader>
         <!-- Back Button or Hamburger -->
         <template #left>
-            <button v-if="route.query && route.query.type" @click="handleBack"
+            <button v-if="route.name === 'tasks'" @click="handleBack"
                 class="btn btn-ghost btn-sm btn-circle  lg:hidden">
                 <ChevronLeftIcon class="h-5 w-5" />
             </button>

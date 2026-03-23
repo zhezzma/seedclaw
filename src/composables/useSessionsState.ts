@@ -2,7 +2,9 @@ import { reactive, watch } from 'vue'
 
 import { apiGet, apiPost, apiDelete } from './api-client'
 import { useInputHistoryStore } from '../stores/inputHistory'
-import { resolveCachedSessionListType, type SessionListType } from '../utils/notification-routing'
+import { resolveCachedSessionCategory, type SessionCategory } from '../utils/notification-routing'
+
+export type { SessionCategory } from '../utils/notification-routing'
 
 // ==================== Types ====================
 export interface SessionRow {
@@ -19,7 +21,7 @@ export interface SessionRow {
     modified?: string
     path?: string
     thinkingLevel?: string
-    sessionType?: SessionListType
+    sessionCategory?: SessionCategory
 }
 
 export interface SessionsResult {
@@ -32,12 +34,12 @@ export interface SessionsResult {
 // ==================== State ====================
 export interface SessionsState {
     sessionsResult: SessionsResult | null
-    cronSessionsResult: SessionsResult | null
+    taskSessionsResult: SessionsResult | null
 }
 
 const state = reactive<SessionsState>({
     sessionsResult: null,
-    cronSessionsResult: null,
+    taskSessionsResult: null,
 })
 
 // Session ID → SessionRow 的索引，用于 O(1) 快速查找
@@ -48,11 +50,11 @@ const sessionsIndex = new Map<string, SessionRow>()
 const rebuildIndex = () => {
     sessionsIndex.clear()
     state.sessionsResult?.sessions?.forEach(s => sessionsIndex.set(s.id, s))
-    state.cronSessionsResult?.sessions?.forEach(s => sessionsIndex.set(s.id, s))
+    state.taskSessionsResult?.sessions?.forEach(s => sessionsIndex.set(s.id, s))
 }
 
-const upsertSessionByType = (session: SessionRow, sessionType: SessionListType = 'default') => {
-    const targetKey = sessionType === 'cron' ? 'cronSessionsResult' : 'sessionsResult'
+const upsertSessionByCategory = (session: SessionRow, sessionCategory: SessionCategory = 'default') => {
+    const targetKey = sessionCategory === 'task' ? 'taskSessionsResult' : 'sessionsResult'
     const existing = state[targetKey]?.sessions || []
     if (!existing.some(s => s.id === session.id)) {
         state[targetKey] = {
@@ -63,18 +65,18 @@ const upsertSessionByType = (session: SessionRow, sessionType: SessionListType =
     sessionsIndex.set(session.id, session)
 }
 
-const resolveSessionTypeFromCache = (id: string): SessionListType | undefined => {
-    return resolveCachedSessionListType(
+const resolveSessionCategoryFromCache = (id: string): SessionCategory | undefined => {
+    return resolveCachedSessionCategory(
         id,
         state.sessionsResult?.sessions || [],
-        state.cronSessionsResult?.sessions || [],
+        state.taskSessionsResult?.sessions || [],
     )
 }
 
 // sessions 变更时自动重建索引（模块级全局 watcher）
-watch(() => [state.sessionsResult, state.cronSessionsResult], rebuildIndex, { immediate: true, deep: false })
+watch(() => [state.sessionsResult, state.taskSessionsResult], rebuildIndex, { immediate: true, deep: false })
 
-const loadSessions = async (opts?: any) => {
+const loadSessions = async (_opts?: any) => {
     const result = await apiGet<SessionsResult>('/api/sessions')
     state.sessionsResult = result || { sessions: [] }
 }
@@ -82,9 +84,8 @@ const loadSessions = async (opts?: any) => {
 const patchSession = async (key: string, patch: { label?: string | null }) => {
     try {
         await apiPost(`/api/sessions/${encodeURIComponent(key)}/name`, { name: patch.label })
-        // 原地修改，保持引用一致性（避免与 currentSession 分裂）
         const found = state.sessionsResult?.sessions?.find((s: SessionRow) => s.id === key)
-            || state.cronSessionsResult?.sessions?.find((s: SessionRow) => s.id === key)
+            || state.taskSessionsResult?.sessions?.find((s: SessionRow) => s.id === key)
         if (found) {
             found.name = patch.label || undefined
         }
@@ -97,17 +98,16 @@ const patchSession = async (key: string, patch: { label?: string | null }) => {
 /**
  * 仅更新本地 session 数据，不发送 API 请求。
  * 用于后端已持久化的场景（如 /name 命令回调），只需同步前端响应式状态。
- * 原地修改，保持引用一致性。
  */
 const updateSessionLocal = (key: string, patch: Partial<SessionRow>) => {
     const found = state.sessionsResult?.sessions?.find((s: SessionRow) => s.id === key)
-        || state.cronSessionsResult?.sessions?.find((s: SessionRow) => s.id === key)
+        || state.taskSessionsResult?.sessions?.find((s: SessionRow) => s.id === key)
     if (found) {
         Object.assign(found, patch)
     }
 }
 
-const triggerSessionRename = async (targetKey: string, agentId: string, userText: string) => {
+const triggerSessionRename = async (targetKey: string, _agentId: string, userText: string) => {
     if (!userText) return
     try {
         const result = await apiPost<{ sessionId: string; name: string }>(
@@ -116,9 +116,8 @@ const triggerSessionRename = async (targetKey: string, agentId: string, userText
         )
         const name = result?.name
         if (name) {
-            // 原地修改，保持引用一致性
             const found = state.sessionsResult?.sessions?.find((s: SessionRow) => s.id === targetKey)
-                || state.cronSessionsResult?.sessions?.find((s: SessionRow) => s.id === targetKey)
+                || state.taskSessionsResult?.sessions?.find((s: SessionRow) => s.id === targetKey)
             if (found) {
                 found.name = name
             }
@@ -137,11 +136,11 @@ const deleteSession = async (key: string) => {
             total: Math.max(0, (state.sessionsResult.total || 0) - 1)
         }
     }
-    if (state.cronSessionsResult?.sessions) {
-        state.cronSessionsResult = {
-            ...state.cronSessionsResult,
-            sessions: state.cronSessionsResult.sessions.filter((s: SessionRow) => s.id !== key),
-            total: Math.max(0, (state.cronSessionsResult.total || 0) - 1)
+    if (state.taskSessionsResult?.sessions) {
+        state.taskSessionsResult = {
+            ...state.taskSessionsResult,
+            sessions: state.taskSessionsResult.sessions.filter((s: SessionRow) => s.id !== key),
+            total: Math.max(0, (state.taskSessionsResult.total || 0) - 1)
         }
     }
     useInputHistoryStore().removeSessionHistory(key)
@@ -166,11 +165,11 @@ const deleteSessions = async (keys: string[]) => {
                 total: Math.max(0, (state.sessionsResult.total || 0) - deletedKeys.length)
             }
         }
-        if (state.cronSessionsResult?.sessions) {
-            state.cronSessionsResult = {
-                ...state.cronSessionsResult,
-                sessions: state.cronSessionsResult.sessions.filter((s: SessionRow) => !deletedKeys.includes(s.id)),
-                total: Math.max(0, (state.cronSessionsResult.total || 0) - deletedKeys.length)
+        if (state.taskSessionsResult?.sessions) {
+            state.taskSessionsResult = {
+                ...state.taskSessionsResult,
+                sessions: state.taskSessionsResult.sessions.filter((s: SessionRow) => !deletedKeys.includes(s.id)),
+                total: Math.max(0, (state.taskSessionsResult.total || 0) - deletedKeys.length)
             }
         }
         useInputHistoryStore().removeManySessionHistories(deletedKeys)
@@ -186,7 +185,6 @@ const commitNewSession = async (agentId: string, inputText?: string): Promise<st
     const body = inputText ? { firstMessage: inputText } : undefined
     const session = await apiPost<SessionRow>(`/api/sessions/${agentId}`, body)
     if (state.sessionsResult) {
-        // 去重：防止并发导致同一 session 被添加两次
         const existing = state.sessionsResult.sessions || []
         if (!existing.some(s => s.id === session.id)) {
             state.sessionsResult = {
@@ -195,10 +193,8 @@ const commitNewSession = async (agentId: string, inputText?: string): Promise<st
                 total: (state.sessionsResult?.total || 0) + 1
             }
         }
-        // 同步更新索引，避免后续 getSessionById 在 watcher 执行前查不到
         sessionsIndex.set(session.id, session)
     }
-    // Trigger auto-rename in background if we have input text
     if (inputText && session.id) {
         triggerSessionRename(session.id, agentId, inputText).catch(err => {
             console.error('Auto-rename failed', err)
@@ -207,13 +203,13 @@ const commitNewSession = async (agentId: string, inputText?: string): Promise<st
     return session.id
 }
 
-const loadCronSessions = async (page = 1, pageSize = 50): Promise<SessionsResult> => {
+const loadTaskSessions = async (page = 1, pageSize = 50): Promise<SessionsResult> => {
     try {
-        const result = await apiGet<SessionsResult>(`/api/sessions/crons?page=${page}&pageSize=${pageSize}`)
-        state.cronSessionsResult = result || { sessions: [] }
+        const result = await apiGet<SessionsResult>(`/api/sessions/tasks?page=${page}&pageSize=${pageSize}`)
+        state.taskSessionsResult = result || { sessions: [] }
         return result || { sessions: [] }
     } catch (error) {
-        console.error('Failed to load cron sessions', error)
+        console.error('Failed to load task sessions', error)
         return { sessions: [] }
     }
 }
@@ -221,40 +217,38 @@ const loadCronSessions = async (page = 1, pageSize = 50): Promise<SessionsResult
 const fetchSessionInfo = (id: string) =>
     apiGet<SessionRow>(`/api/sessions/${encodeURIComponent(id)}/info`)
 
-const resolveNotificationSessionType = async (id: string): Promise<SessionListType | undefined> => {
-    const cachedType = resolveSessionTypeFromCache(id)
-    if (cachedType) return cachedType
+const resolveNotificationSessionCategory = async (id: string): Promise<SessionCategory | undefined> => {
+    const cachedCategory = resolveSessionCategoryFromCache(id)
+    if (cachedCategory) return cachedCategory
 
     const cached = sessionsIndex.get(id)
-    if (cached?.sessionType) return cached.sessionType
+    if (cached?.sessionCategory) return cached.sessionCategory
 
     try {
         const session = await fetchSessionInfo(id)
         if (!session) return undefined
-        const resolvedType = session.sessionType === 'cron' ? 'cron' : 'default'
-        upsertSessionByType(session, resolvedType)
-        return resolvedType
+        const resolvedCategory = session.sessionCategory === 'task' ? 'task' : 'default'
+        upsertSessionByCategory(session, resolvedCategory)
+        return resolvedCategory
     } catch (error) {
-        console.warn('Failed to resolve session type by id', id, error)
+        console.warn('Failed to resolve session category by id', id, error)
         return undefined
     }
 }
 
-const getSessionById = async (id: string, type?: string): Promise<SessionRow | undefined> => {
-    // O(1) 从索引中查找
+const getSessionById = async (id: string, category?: SessionCategory): Promise<SessionRow | undefined> => {
     const cached = sessionsIndex.get(id)
     if (cached) return cached
 
-    // 本地未找到，从服务器获取
     try {
         const session = await fetchSessionInfo(id)
         if (!session) return undefined
 
-        const resolvedType = type === 'cron'
-            ? 'cron'
-            : (session.sessionType === 'cron' ? 'cron' : 'default')
+        const resolvedCategory = category === 'task'
+            ? 'task'
+            : (session.sessionCategory === 'task' ? 'task' : 'default')
 
-        upsertSessionByType(session, resolvedType)
+        upsertSessionByCategory(session, resolvedCategory)
         return session
     } catch (error) {
         console.warn('Failed to fetch session by id', id, error)
@@ -262,11 +256,9 @@ const getSessionById = async (id: string, type?: string): Promise<SessionRow | u
     }
 }
 
-// ==================== Export ====================
-
 const _sessionsState = Object.assign(state, {
     loadSessions,
-    loadCronSessions,
+    loadTaskSessions,
     patchSession,
     updateSessionLocal,
     deleteSession,
@@ -274,7 +266,7 @@ const _sessionsState = Object.assign(state, {
     hasSession,
     commitNewSession,
     getSessionById,
-    resolveNotificationSessionType,
+    resolveNotificationSessionCategory,
 })
 
 export function useSessionsState() {

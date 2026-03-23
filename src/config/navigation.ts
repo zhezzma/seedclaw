@@ -50,11 +50,10 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         showInBottomNav: true
     },
     {
-        label: 'sidebar.chat',
+        label: 'sidebar.taskSessions',
         icon: ChatBubbleLeftRightIcon,
         activeIcon: ChatBubbleLeftRightIconSolid,
-        route: 'chat',
-        query: { type: 'cron' },
+        route: 'tasks',
         showInSidebar: true,
         showInBottomNav: true
     },

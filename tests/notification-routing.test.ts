@@ -2,62 +2,60 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
-    buildMessagesListLocation,
-    buildNotificationChatLocation,
+    buildTaskSessionsLocation,
+    buildSessionLocation,
     getNotificationFallbackToastKey,
-    resolveCachedSessionListType,
+    resolveCachedSessionCategory,
     resolveNotificationNavigation,
     shouldReloadAfterForeground,
     shouldSuppressForegroundReload,
     type PendingNotificationMap,
 } from '../src/utils/notification-routing.ts'
 
-test('buildNotificationChatLocation omits type query for non-cron sessions', () => {
-    assert.deepEqual(buildNotificationChatLocation('session-1'), {
+test('buildSessionLocation routes default sessions to chat', () => {
+    assert.deepEqual(buildSessionLocation('session-1'), {
         name: 'chat',
         params: { sessionkey: 'session-1' },
     })
 
-    assert.deepEqual(buildNotificationChatLocation('session-1', undefined), {
+    assert.deepEqual(buildSessionLocation('session-1', undefined), {
         name: 'chat',
         params: { sessionkey: 'session-1' },
     })
 
-    assert.deepEqual(buildNotificationChatLocation('session-1', 'default'), {
+    assert.deepEqual(buildSessionLocation('session-1', 'default'), {
         name: 'chat',
         params: { sessionkey: 'session-1' },
     })
 })
 
-test('buildNotificationChatLocation adds type=cron only for cron sessions', () => {
-    assert.deepEqual(buildNotificationChatLocation('session-2', 'cron'), {
-        name: 'chat',
+test('buildSessionLocation routes task sessions to tasks route', () => {
+    assert.deepEqual(buildSessionLocation('session-2', 'task'), {
+        name: 'tasks',
         params: { sessionkey: 'session-2' },
-        query: { type: 'cron' },
     })
 })
 
-test('buildMessagesListLocation always routes to the messages list mode', () => {
-    assert.deepEqual(buildMessagesListLocation(), {
-        name: 'chat',
-        query: { type: 'cron' },
+test('buildTaskSessionsLocation always routes to the task sessions list', () => {
+    assert.deepEqual(buildTaskSessionsLocation(), {
+        name: 'tasks',
     })
 })
 
-test('resolveCachedSessionListType prefers cached cron membership and otherwise falls back to default list', () => {
+test('resolveCachedSessionCategory prefers cached task membership and otherwise falls back to default list', () => {
     const defaultSessions = [
-        { id: 'default-1', sessionType: 'default' as const },
-        { id: 'shared-id', sessionType: 'default' as const },
+        { id: 'default-1', sessionCategory: 'default' as const },
+        { id: 'shared-id', sessionCategory: 'default' as const },
     ]
-    const cronSessions = [
-        { id: 'cron-1', sessionType: 'cron' as const },
-        { id: 'shared-id', sessionType: 'cron' as const },
+    const taskSessions = [
+        { id: 'task-1', sessionCategory: 'task' as const },
+        { id: 'shared-id', sessionCategory: 'task' as const },
     ]
 
-    assert.equal(resolveCachedSessionListType('cron-1', defaultSessions, cronSessions), 'cron')
-    assert.equal(resolveCachedSessionListType('default-1', defaultSessions, cronSessions), 'default')
-    assert.equal(resolveCachedSessionListType('shared-id', defaultSessions, cronSessions), 'cron')
-    assert.equal(resolveCachedSessionListType('missing', defaultSessions, cronSessions), undefined)
+    assert.equal(resolveCachedSessionCategory('task-1', defaultSessions, taskSessions), 'task')
+    assert.equal(resolveCachedSessionCategory('default-1', defaultSessions, taskSessions), 'default')
+    assert.equal(resolveCachedSessionCategory('shared-id', defaultSessions, taskSessions), 'task')
+    assert.equal(resolveCachedSessionCategory('missing', defaultSessions, taskSessions), undefined)
 })
 
 test('exact notification id opens the mapped session and removes only that entry', () => {
@@ -105,7 +103,7 @@ test('bare tap with one unique live candidate opens that session and clears pend
     assert.equal(getNotificationFallbackToastKey(result), undefined)
 })
 
-test('bare tap with zero live candidates opens the messages list and clears stale entries', () => {
+test('bare tap with zero live candidates opens the task sessions list and clears stale entries', () => {
     const notifications: PendingNotificationMap = {
         '301': { sessionKey: 'session-a', createdAt: 1000 },
     }
@@ -117,14 +115,14 @@ test('bare tap with zero live candidates opens the messages list and clears stal
     })
 
     assert.deepEqual(result, {
-        kind: 'messages-list',
+        kind: 'task-sessions',
         reason: 'no-candidates',
         remainingNotifications: {},
     })
     assert.equal(getNotificationFallbackToastKey(result), 'notificationsNoCandidates')
 })
 
-test('bare tap with multiple live candidates opens the messages list instead of guessing', () => {
+test('bare tap with multiple live candidates opens the task sessions list instead of guessing', () => {
     const notifications: PendingNotificationMap = {
         '401': { sessionKey: 'session-a', createdAt: 1000 },
         '402': { sessionKey: 'session-b', createdAt: 1200 },
@@ -137,7 +135,7 @@ test('bare tap with multiple live candidates opens the messages list instead of 
     })
 
     assert.deepEqual(result, {
-        kind: 'messages-list',
+        kind: 'task-sessions',
         reason: 'multiple-candidates',
         remainingNotifications: {},
     })
