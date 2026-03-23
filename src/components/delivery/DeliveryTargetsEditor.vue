@@ -36,7 +36,11 @@ function createRow(type: DeliveryTargetType, recipientsText = ''): EditorRow {
 }
 
 function toEditorRows(input: DeliveryTarget[]): EditorRow[] {
-    return (input || []).map(target => {
+    const normalizedInput = input?.length === 1 && input[0]?.type === 'none'
+        ? []
+        : (input || [])
+
+    return normalizedInput.map(target => {
         if (target.type === 'email') {
             return createRow('email', stringifyEmailRecipients(target.to))
         }
@@ -61,6 +65,7 @@ const validationErrors = ref<string[]>([])
 
 function emitChanges() {
     const { modelValue, validation } = buildEditorEmission(toRawTargets(rows.value))
+    rows.value = toEditorRows(modelValue)
     validationErrors.value = validation.errors
     emit('update:modelValue', modelValue)
     emit('validation-change', validation)
@@ -102,9 +107,6 @@ onMounted(() => {
                 </button>
                 <button type="button" class="btn btn-xs btn-outline" @click="addTarget('email')">
                     {{ t('delivery.addEmail') }}
-                </button>
-                <button type="button" class="btn btn-xs btn-outline" @click="addTarget('none')">
-                    {{ t('delivery.addNone') }}
                 </button>
             </div>
         </div>

@@ -28,11 +28,11 @@ function normalizeRecipients(input: string[]): string[] {
 }
 
 export function defaultCronDeliveryTargets(): DeliveryTarget[] {
-    return [{ type: 'notification' }]
+    return []
 }
 
 export function defaultHeartbeatDeliveryTargets(): DeliveryTarget[] {
-    return [{ type: 'notification' }]
+    return []
 }
 
 export function sanitizeDeliveryTargets(input: DeliveryTarget[]): DeliveryTarget[] {
@@ -84,10 +84,6 @@ export function validateDeliveryTargets(input: DeliveryTarget[]): string[] {
     const hasNone = sanitized.some(target => target.type === 'none')
     const emailTargets = (input || []).filter((target): target is Extract<DeliveryTarget, { type: 'email' }> => target?.type === 'email')
 
-    if (sanitized.length === 0) {
-        errors.push('Select at least one delivery target')
-    }
-
     if (hasNone && sanitized.length > 1) {
         errors.push('No delivery must be used by itself')
     }
@@ -137,8 +133,11 @@ export function summarizeDeliveryTargets(input: DeliveryTarget[]): string {
 }
 
 export function buildDeliveryValidationPayload(input: DeliveryTarget[]): DeliveryValidationPayload {
-    const value = sanitizeDeliveryTargets(input)
+    const sanitized = sanitizeDeliveryTargets(input)
     const errors = validateDeliveryTargets(input)
+    const value = sanitized.length === 1 && sanitized[0]?.type === 'none'
+        ? []
+        : sanitized
 
     return {
         valid: errors.length === 0,
