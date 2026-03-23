@@ -3,6 +3,7 @@ import { reactive, watch } from 'vue'
 import { apiGet, apiPost, apiDelete } from './api-client'
 import { useInputHistoryStore } from '../stores/inputHistory'
 import { resolveCachedSessionCategory, type SessionCategory } from '../utils/notification-routing'
+import { hasSessionInLists } from '../utils/task-sessions-routing'
 
 export type { SessionCategory } from '../utils/notification-routing'
 
@@ -178,7 +179,11 @@ const deleteSessions = async (keys: string[]) => {
 }
 
 const hasSession = (key: string) => {
-    return state.sessionsResult?.sessions?.some((s: SessionRow) => s.id === key) ?? false
+    return hasSessionInLists(
+        key,
+        state.sessionsResult?.sessions || [],
+        state.taskSessionsResult?.sessions || [],
+    )
 }
 
 const commitNewSession = async (agentId: string, inputText?: string): Promise<string> => {
