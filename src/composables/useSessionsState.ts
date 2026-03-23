@@ -1,7 +1,8 @@
 import { reactive, watch } from 'vue'
 
-import { apiGet, apiPost, apiDelete, apiPatch } from './api-client'
+import { apiGet, apiPost, apiDelete } from './api-client'
 import { useInputHistoryStore } from '../stores/inputHistory'
+import { resolveCachedSessionListType, type SessionListType } from '../utils/notification-routing'
 
 // ==================== Types ====================
 export interface SessionRow {
@@ -18,6 +19,7 @@ export interface SessionRow {
     modified?: string
     path?: string
     thinkingLevel?: string
+    sessionType?: SessionListType
 }
 
 export interface SessionsResult {
@@ -47,6 +49,26 @@ const rebuildIndex = () => {
     sessionsIndex.clear()
     state.sessionsResult?.sessions?.forEach(s => sessionsIndex.set(s.id, s))
     state.cronSessionsResult?.sessions?.forEach(s => sessionsIndex.set(s.id, s))
+}
+
+const upsertSessionByType = (session: SessionRow, sessionType: SessionListType = 'default') => {
+    const targetKey = sessionType === 'cron' ? 'cronSessionsResult' : 'sessionsResult'
+    const existing = state[targetKey]?.sessions || []
+    if (!existing.some(s => s.id === session.id)) {
+        state[targetKey] = {
+            ...(state[targetKey] || {}),
+            sessions: [session, ...existing],
+        }
+    }
+    sessionsIndex.set(session.id, session)
+}
+
+const resolveSessionTypeFromCache = (id: string): SessionListType | undefined => {
+    return resolveCachedSessionListType(
+        id,
+        state.sessionsResult?.sessions || [],
+        state.cronSessionsResult?.sessions || [],
+    )
 }
 
 // sessions 变更时自动重建索引（模块级全局 watcher）
@@ -199,34 +221,40 @@ const loadCronSessions = async (page = 1, pageSize = 50): Promise<SessionsResult
 const fetchSessionInfo = (id: string) =>
     apiGet<SessionRow>(`/api/sessions/${encodeURIComponent(id)}/info`)
 
+const resolveNotificationSessionType = async (id: string): Promise<SessionListType | undefined> => {
+    const cachedType = resolveSessionTypeFromCache(id)
+    if (cachedType) return cachedType
+
+    const cached = sessionsIndex.get(id)
+    if (cached?.sessionType) return cached.sessionType
+
+    try {
+        const session = await fetchSessionInfo(id)
+        if (!session) return undefined
+        const resolvedType = session.sessionType === 'cron' ? 'cron' : 'default'
+        upsertSessionByType(session, resolvedType)
+        return resolvedType
+    } catch (error) {
+        console.warn('Failed to resolve session type by id', id, error)
+        return undefined
+    }
+}
+
 const getSessionById = async (id: string, type?: string): Promise<SessionRow | undefined> => {
     // O(1) 从索引中查找
     const cached = sessionsIndex.get(id)
     if (cached) return cached
+
     // 本地未找到，从服务器获取
     try {
         const session = await fetchSessionInfo(id)
         if (!session) return undefined
-        if (type === 'cron') {
-            if (state.cronSessionsResult) {
-                const existing = state.cronSessionsResult.sessions || []
-                if (!existing.some(s => s.id === id)) {
-                    state.cronSessionsResult = { ...state.cronSessionsResult, sessions: [session, ...existing] }
-                }
-            } else {
-                state.cronSessionsResult = { sessions: [session] }
-            }
-        } else {
-            if (state.sessionsResult) {
-                const existing = state.sessionsResult.sessions || []
-                if (!existing.some(s => s.id === id)) {
-                    state.sessionsResult = { ...state.sessionsResult, sessions: [session, ...existing] }
-                }
-            } else {
-                state.sessionsResult = { sessions: [session] }
-            }
-        }
-        sessionsIndex.set(id, session)
+
+        const resolvedType = type === 'cron'
+            ? 'cron'
+            : (session.sessionType === 'cron' ? 'cron' : 'default')
+
+        upsertSessionByType(session, resolvedType)
         return session
     } catch (error) {
         console.warn('Failed to fetch session by id', id, error)
@@ -246,6 +274,7 @@ const _sessionsState = Object.assign(state, {
     hasSession,
     commitNewSession,
     getSessionById,
+    resolveNotificationSessionType,
 })
 
 export function useSessionsState() {

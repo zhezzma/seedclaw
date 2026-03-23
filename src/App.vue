@@ -8,6 +8,15 @@ import MessagePlugin from './components/MessagePlugin.vue'
 import ConfirmPlugin from './components/ConfirmPlugin.vue'
 import ExecApprovalModal from './components/ExecApprovalModal.vue'
 import { useAppInit } from './composables/useAppInit'
+import { useSessionsState } from './composables/useSessionsState'
+import {
+    buildMessagesListLocation,
+    buildNotificationChatLocation,
+    resolveNotificationNavigation,
+    shouldReloadAfterForeground,
+    shouldSuppressForegroundReload,
+    type PendingNotificationMap,
+} from './utils/notification-routing'
 import { onAction } from '@tauri-apps/plugin-notification'
 import { listen } from '@tauri-apps/api/event'
 
@@ -23,14 +32,45 @@ appInit.init()
 
 
 const router = useRouter()
-const notificationMap = ref<Record<string, string>>({})
+const sessionsState = useSessionsState()
+const notificationMap = ref<PendingNotificationMap>({})
 let unlistenNotification: (() => void) | null = null
 let unlistenFocus: (() => void) | null = null
 
 const MOBILE_BACKGROUND_RELOAD_MS = 30_000
+const NOTIFICATION_RELOAD_SUPPRESS_MS = 5_000
+const NOTIFICATION_TTL_MS = 5 * 60 * 1000
+const FOREGROUND_RELOAD_GRACE_MS = 1_200
 const isTauriApp = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
 const isMobileTauri = isTauriApp && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
 let backgroundedAt: number | null = null
+let suppressForegroundReloadUntil: number | null = null
+let pendingForegroundReloadTimer: number | null = null
+
+const cancelPendingForegroundReload = () => {
+    if (pendingForegroundReloadTimer != null) {
+        window.clearTimeout(pendingForegroundReloadTimer)
+        pendingForegroundReloadTimer = null
+    }
+}
+
+const markNotificationNavigation = () => {
+    suppressForegroundReloadUntil = Date.now() + NOTIFICATION_RELOAD_SUPPRESS_MS
+    cancelPendingForegroundReload()
+}
+
+const openSessionFromNotification = async (sessionKey: string) => {
+    if (!sessionKey) return
+
+    markNotificationNavigation()
+    const sessionType = await sessionsState.resolveNotificationSessionType(sessionKey)
+    await router.push(buildNotificationChatLocation(sessionKey, sessionType))
+}
+
+const openMessagesListFromNotification = async () => {
+    markNotificationNavigation()
+    await router.push(buildMessagesListLocation())
+}
 
 const markBackgrounded = () => {
     // 仅在移动端 Tauri 启用：桌面端切窗口很常见，不应触发重载策略。
@@ -45,13 +85,26 @@ const handleForeground = () => {
 
     const elapsed = Date.now() - backgroundedAt
     backgroundedAt = null
+    const now = Date.now()
+    const reloadSuppressed = shouldSuppressForegroundReload(suppressForegroundReloadUntil, now)
 
     // Android/iOS 回前台后，WebView 内存往往还在，但长连接 / 本地缓存状态可能已漂移。
-    // 后台停留超过阈值时，直接整页刷新，用最小复杂度重建所有前端状态。
-    if (elapsed >= MOBILE_BACKGROUND_RELOAD_MS) {
+    // 但如果本次 focus 是由“点击通知”触发，需要跳过 reload，避免与通知跳转互相打架。
+    if (!shouldReloadAfterForeground(elapsed, MOBILE_BACKGROUND_RELOAD_MS, reloadSuppressed)) {
+        return
+    }
+
+    cancelPendingForegroundReload()
+    pendingForegroundReloadTimer = window.setTimeout(() => {
+        pendingForegroundReloadTimer = null
+
+        if (shouldSuppressForegroundReload(suppressForegroundReloadUntil, Date.now())) {
+            return
+        }
+
         console.log(`[app] Mobile app resumed after ${elapsed}ms in background, reloading page...`)
         window.location.reload()
-    }
+    }, FOREGROUND_RELOAD_GRACE_MS)
 }
 
 onMounted(async () => {
@@ -68,9 +121,11 @@ onMounted(async () => {
             const payload = event.payload
             console.log('Notification sent:', payload)
             if (payload && payload.id && payload.sessionKey) {
-                // 将关系存入 map，供后续点击时查询
-                notificationMap.value[String(payload.id)] = payload.sessionKey
-                // Optional: cleanup old entries to prevent memory leak
+                // 将关系存入 map，供后续点击时查询；createdAt 用于 TTL 过期清理，避免旧通知污染 tap 判定。
+                notificationMap.value[String(payload.id)] = {
+                    sessionKey: payload.sessionKey,
+                    createdAt: Date.now(),
+                }
             }
         })
 
@@ -91,54 +146,39 @@ onMounted(async () => {
         // 在 Windows/Desktop 上，如果此功能未实现或权限不可用，可能会抛出 "Command not found" 或 "registerListener not allowed"
         // 这里的 try-catch 是为了防止桌面端报错中断应用流程
         try {
-            await onAction((event) => {
+            await onAction(async (event) => {
                 console.log('Notification action:', event)
-                // Event might be the ID directly or an object with ID
-                // Check if we have a mapped session key for this notification ID
-                let notificationId = ''
-                if (typeof event === 'string' || typeof event === 'number') {
-                    notificationId = String(event)
-                } else if ((event as any).id) {
-                    notificationId = String((event as any).id)
-                }
-                // Android specific: clicking the notification body often returns 'tap' as the action
-                else if ((event as any).actionId === 'tap') {
-                    // If we only have one active notification or track the last one, we could use it.
-                    // For now, let's try to find *any* pending notification or the most recent one.
-                    // A simple heuristic: if there's only one key in the map, use it.
-                    const keys = Object.keys(notificationMap.value);
-                    if (keys.length > 0) {
-                        // Use the most recently added one (assuming keys roughly ordered or just pick one)
-                        // Better approach: track `lastNotificationId` separately.
-                        notificationId = keys[keys.length - 1];
-                        console.log("Tap event received, defaulting to last notificationId:", notificationId);
-                    }
+                const actionId = (event as any)?.actionId || ''
+
+                // Fallback: actionId 直接携带 sessionId 时，优先走精确目标跳转。
+                if (actionId && actionId.startsWith('open_session:')) {
+                    const key = actionId.split('open_session:')[1]
+                    await openSessionFromNotification(key)
+                    return
                 }
 
-                const sessionKey = notificationMap.value[notificationId]
-                if (sessionKey) {
-                    router.push({
-                        name: 'chat',
-                        params: { sessionkey: sessionKey },
-                        // 如果包含则传递对象，否则传递 undefined (Vue Router 会自动忽略 undefined 的 query)
-                        query: { type: 'cron' }
-                    });
-                    // Clean up map
-                    delete notificationMap.value[notificationId]
-                } else {
-                    // Fallback: check actionId if we ever use it again
-                    // 注意：sessionKey 在这里可能未定义，但在 fallback 中我们假设它已被其他逻辑处理，或者这里有一个 bug
-                    // 为了安全起见，我们只在确信 key 存在时跳转
-                    const actionId = (event as any).actionId || ''
-                    if (actionId && actionId.startsWith('open_session:')) {
-                        const key = actionId.split('open_session:')[1]
-                        router.push({
-                            name: 'chat',
-                            params: { sessionkey: key },
-                            query: { type: 'cron' }
-                        });
-                    }
+                // Event might be the ID directly or an object with ID.
+                let notificationId: string | undefined
+                if (typeof event === 'string' || typeof event === 'number') {
+                    notificationId = String(event)
+                } else if ((event as any)?.id) {
+                    notificationId = String((event as any).id)
                 }
+
+                const resolution = resolveNotificationNavigation({
+                    notificationMap: notificationMap.value,
+                    notificationId,
+                    nowMs: Date.now(),
+                    ttlMs: NOTIFICATION_TTL_MS,
+                })
+                notificationMap.value = resolution.remainingNotifications
+
+                if (resolution.kind === 'session') {
+                    await openSessionFromNotification(resolution.sessionKey)
+                    return
+                }
+
+                await openMessagesListFromNotification()
             })
         } catch (actionError) {
             console.warn('Configuration Note: Notification actions (onAction) are not supported on this platform or permissions are missing. Interaction might be limited to system default behavior.', actionError);
@@ -150,6 +190,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
     document.removeEventListener('visibilitychange', markBackgrounded)
+    cancelPendingForegroundReload()
     if (unlistenNotification) {
         unlistenNotification()
     }

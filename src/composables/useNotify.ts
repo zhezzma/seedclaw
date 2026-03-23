@@ -1,6 +1,8 @@
 import { useToast } from './useToast'
 import router from '../router'
 import { isTauri, onServerMessage, type WsMessage } from './notify-server-connection'
+import { useSessionsState } from './useSessionsState'
+import { buildNotificationChatLocation } from '../utils/notification-routing'
 
 export interface WsTaskData {
     taskId: string
@@ -16,6 +18,14 @@ export interface WsTaskData {
     expiresAtMs?: number
     id?: string
 }
+
+const openSessionFromNotification = async (sessionKey: string) => {
+    if (!sessionKey) return
+
+    const sessionType = await useSessionsState().resolveNotificationSessionType(sessionKey)
+    await router.push(buildNotificationChatLocation(sessionKey, sessionType))
+}
+
 // 1. 定义兜底逻辑（App内通知），避免代码重复
 const showInAppNotification = (title: string, body: string, sessionKey: string) => {
     const { info } = useToast()
@@ -23,11 +33,7 @@ const showInAppNotification = (title: string, body: string, sessionKey: string) 
     info(title ? `${title}: ${body}` : body, {
         duration: 10000,
         onClick: () => {
-            router.push({
-                name: 'chat',
-                params: { sessionkey: sessionKey },
-                query: { type: 'cron' }
-            });
+            void openSessionFromNotification(sessionKey)
         }
     });
 };
@@ -46,11 +52,7 @@ const showNativeNotification = (title: string, body: string, sessionKey: string)
             window.focus();
             n.close();
             if (router) {
-                router.push({
-                    name: 'chat',
-                    params: { sessionkey: sessionKey },
-                    query: { type: 'cron' }
-                });
+                void openSessionFromNotification(sessionKey)
             }
         };
     } catch (e) {
@@ -104,7 +106,7 @@ function handleServerMessage(msg: WsMessage) {
     }
 
     if (msg.event === 'notification') {
-        const { title, sessionId, message, type } = msg.payload
+        const { title, sessionId, message } = msg.payload
         triggerNotify(title ?? "", message, sessionId)
     }
 
