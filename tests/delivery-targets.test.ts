@@ -32,6 +32,13 @@ test('summarize returns no delivery for empty delivery targets', () => {
     assert.equal(summarizeDeliveryTargets([]), 'No delivery')
 })
 
+test('summarize keeps invalid blank email targets invalid', () => {
+    assert.equal(
+        summarizeDeliveryTargets([{ type: 'email', to: ['   '] }]),
+        'Invalid delivery targets',
+    )
+})
+
 test('summarize formats mixed notification and email delivery', () => {
     assert.equal(
         summarizeDeliveryTargets([{ type: 'notification' }, { type: 'email', to: ['ops@example.com'] }]),
