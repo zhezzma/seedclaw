@@ -111,14 +111,15 @@ export function validateDeliveryTargets(input: DeliveryTarget[]): string[] {
 
 export function summarizeDeliveryTargets(input: DeliveryTarget[]): string {
     const sanitized = sanitizeDeliveryTargets(input)
+
+    if (sanitized.length === 0) {
+        return 'No delivery'
+    }
+
     const errors = validateDeliveryTargets(input)
 
     if (errors.length > 0) {
         return 'Invalid delivery targets'
-    }
-
-    if (sanitized.length === 0) {
-        return 'No delivery'
     }
 
     return sanitized.map(target => {

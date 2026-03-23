@@ -28,6 +28,10 @@ test('new cron jobs default to notification delivery', () => {
     assert.deepEqual(defaultCronDeliveryTargets(), [{ type: 'notification' }])
 })
 
+test('summarize returns no delivery for empty delivery targets', () => {
+    assert.equal(summarizeDeliveryTargets([]), 'No delivery')
+})
+
 test('summarize formats mixed notification and email delivery', () => {
     assert.equal(
         summarizeDeliveryTargets([{ type: 'notification' }, { type: 'email', to: ['ops@example.com'] }]),
