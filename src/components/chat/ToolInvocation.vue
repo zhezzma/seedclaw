@@ -190,14 +190,15 @@ function extractPaths(text: string): string[] {
     if (!text) return []
     // 1. 移除 URL，防止 URL 路径被误提取
     let cleaned = text.replace(/(?:https?|ftp|wss?):\/\/[^\s"'`,;[\]{}()]+/gi, '')
-    // 2. 移除 JSON 转义序列（\n \t \r \0 等），防止 \n 被视为路径
+    // 2. 移除 JSON 转义序列（\n \t \r 等），防止 \n 被视为路径
     //    使用负向后瞻 (?<!\\) 确保不会破坏路径中的 \\t (如 \\test_xxx.txt)
-    cleaned = cleaned.replace(/(?<!\\)\\[nrtbf0v]/g, ' ')
+    //    注意：不包含 0，因为 \0 在路径中常见（如 \00-剧情总纲.md）
+    cleaned = cleaned.replace(/(?<!\\)\\[nrtbfv]/g, ' ')
     const patterns = [
         // Windows: D:\ or D:\\ or D:/ 后跟路径段，最终以 .ext 结尾（文件名）
         /[A-Za-z]:[\\\/](?:[^\s"'`,;\[\]{}()]*[\\\/])*[^\s"'`,;\[\]{}()\\\/]+\.[A-Za-z0-9_]{1,20}/g,
-        // Unix absolute: /xxx/... 至少 1 段目录，文件名可以有扩展名或者是 .dotfile
-        /\/(?:[\w.\-@]+\/)+\.?[\w\-@]+(?:\.[\w]{1,20})?/g,
+        // Unix absolute: /xxx/... 至少 1 段目录，支持 Unicode（如中文），lookbehind 防止误匹配 a/b/c
+        /(?<=^|[\s"'`,;\[\]{}()])\/(?:[\w.\-@\p{L}]+\/)+\.?[\w\-@\p{L}]+(?:\.[\w]{1,20})?/gmu,
     ]
     const results = new Set<string>()
     for (const regex of patterns) {

@@ -20,6 +20,7 @@ import AppSidebar from '../components/AppSidebar.vue'
 
 import { isNewSession, NEW_SESSION_PATH, NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
 import { useChatState } from '../composables/useChatState'
+import { useChatInput } from '../composables/useChatInput'
 import { SessionRow, useSessionsState, type SessionsResult } from '../composables/useSessionsState'
 import { useAgentsState } from '../composables/useAgentsState'
 import { useToast } from '../composables/useToast'
@@ -33,6 +34,8 @@ const settingsStore = useUiSettingsStore()
 
 
 const chatState = useChatState()
+const { setSessionKeyResolver } = useChatInput()
+setSessionKeyResolver(() => chatState.sessionKey)
 const sessionsState = useSessionsState()
 const agentsState = useAgentsState()
 
@@ -161,6 +164,10 @@ const handleSend = async () => {
     const hasAttachments = rawAttachments.length > 0
 
     if (!inputText && !hasAttachments && !isBusy.value) return
+
+    // 记录输入历史（在清空前保存）
+    const { pushInputHistory } = useChatInput()
+    pushInputHistory(inputText)
 
     // Optimistic UI update: Clear input immediately
     if (chatInputRef.value) {

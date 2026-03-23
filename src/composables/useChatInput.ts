@@ -47,6 +47,12 @@ const selectedModel = ref('glm')
 const commandDropdownOpen = ref(false)
 const modelDropdownOpen = ref(false)
 
+// ——— 输入历史（每个 session 独立）———
+const INPUT_HISTORY_MAX = 100
+const inputHistoryMap = new Map<string, string[]>()  // sessionKey -> history[]
+const historyIndex = ref(-1)   // -1 = 不在历史浏览模式
+const savedDraft = ref('')     // 进入历史浏览前暂存当前输入
+
 // ——— 命令补全 watch（模块级，只注册一次）———
 const { filterCommands } = useCommandState()
 watch(inputText, (val) => {
@@ -160,6 +166,40 @@ const handleInputFocus = () => {
     }
 }
 
+/** session key 解析回调（由外部设置，避免循环依赖） */
+let _sessionKeyResolver: (() => string) | null = null
+const setSessionKeyResolver = (resolver: () => string) => {
+    _sessionKeyResolver = resolver
+}
+
+/** 获取当前 session 的输入历史 */
+const _getSessionHistory = (): string[] => {
+    const key = _sessionKeyResolver?.() || ''
+    if (!key) return []
+    let history = inputHistoryMap.get(key)
+    if (!history) {
+        history = []
+        inputHistoryMap.set(key, history)
+    }
+    return history
+}
+
+/** 将输入文本追加到当前 session 的历史记录 */
+const pushInputHistory = (text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    const history = _getSessionHistory()
+    // 去重：如果最近一条和当前相同则不重复添加
+    if (history.length > 0 && history[history.length - 1] === trimmed) return
+    history.push(trimmed)
+    // 限制长度
+    if (history.length > INPUT_HISTORY_MAX) {
+        history.splice(0, history.length - INPUT_HISTORY_MAX)
+    }
+    // 重置浏览指针
+    historyIndex.value = -1
+}
+
 const handleKeydown = (e: KeyboardEvent, onSend: () => void) => {
     if (commandSuggestionsVisible.value) {
         if (e.key === 'ArrowDown') {
@@ -184,6 +224,55 @@ const handleKeydown = (e: KeyboardEvent, onSend: () => void) => {
             closeSuggestions()
             return
         }
+    }
+
+    // ——— 输入历史上下翻阅 ———
+    const textarea = e.target as HTMLTextAreaElement
+    if (e.key === 'ArrowUp' && !e.shiftKey && !e.altKey && !e.metaKey) {
+        // 仅当光标在第一行时触发（多行文本中不拦截正常的光标移动）
+        const cursorPos = textarea.selectionStart
+        const textBeforeCursor = textarea.value.substring(0, cursorPos)
+        if (!textBeforeCursor.includes('\n')) {
+            const history = _getSessionHistory()
+            if (history.length === 0) return
+
+            e.preventDefault()
+            if (historyIndex.value === -1) {
+                // 首次进入历史浏览，保存当前草稿
+                savedDraft.value = inputText.value
+                historyIndex.value = history.length - 1
+            } else if (historyIndex.value > 0) {
+                historyIndex.value--
+            }
+            inputText.value = history[historyIndex.value]
+            return
+        }
+    }
+
+    if (e.key === 'ArrowDown' && !e.shiftKey && !e.altKey && !e.metaKey) {
+        // 仅当光标在最后一行时触发
+        const cursorPos = textarea.selectionStart
+        const textAfterCursor = textarea.value.substring(cursorPos)
+        if (!textAfterCursor.includes('\n')) {
+            if (historyIndex.value !== -1) {
+                e.preventDefault()
+                const history = _getSessionHistory()
+                if (historyIndex.value < history.length - 1) {
+                    historyIndex.value++
+                    inputText.value = history[historyIndex.value]
+                } else {
+                    // 回到最新：恢复草稿
+                    historyIndex.value = -1
+                    inputText.value = savedDraft.value
+                }
+                return
+            }
+        }
+    }
+
+    // 非上下键操作时，退出历史浏览模式（用户开始新输入）
+    if (historyIndex.value !== -1 && e.key !== 'ArrowUp' && e.key !== 'ArrowDown') {
+        historyIndex.value = -1
     }
 
     // Ctrl+Enter 发送消息
@@ -245,6 +334,8 @@ const _chatInputState = {
     commandSuggestionIndex,
     confirmCommandSuggestion,
     closeSuggestions,
+    pushInputHistory,
+    setSessionKeyResolver,
 }
 
 export function useChatInput() {
