@@ -7,7 +7,7 @@ test('cron form blocks save when delivery validation fails', () => {
     const errors = validateCronForm({
         name: 'daily',
         description: '',
-        agentId: 'main',
+        executionTarget: { type: 'newSession', agentId: 'main' },
         enabled: true,
         scheduleKind: 'cron',
         scheduleAt: '',
@@ -27,7 +27,7 @@ test('cron form allows save when delivery validation and schedule fields are val
     const errors = validateCronForm({
         name: 'daily',
         description: '',
-        agentId: 'main',
+        executionTarget: { type: 'newSession', agentId: 'main' },
         enabled: true,
         scheduleKind: 'cron',
         scheduleAt: '',
@@ -47,7 +47,7 @@ test('cron form allows save when no delivery targets are selected', () => {
     const errors = validateCronForm({
         name: 'daily',
         description: '',
-        agentId: 'main',
+        executionTarget: { type: 'newSession', agentId: 'main' },
         enabled: true,
         scheduleKind: 'cron',
         scheduleAt: '',

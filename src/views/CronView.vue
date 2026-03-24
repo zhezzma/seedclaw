@@ -153,7 +153,7 @@ const handleOpenEdit = (job: TaskJob) => {
     form.value = {
         name: job.name,
         description: job.description || '',
-        executionTarget: job.executionTarget || { type: 'newSession', agentId: job.agentId || agents.value[0]?.id || '' },
+        executionTarget: job.executionTarget || { type: 'newSession', agentId: agents.value[0]?.id || '' },
         enabled: job.enabled,
         scheduleKind: job.scheduleKind,
         scheduleAt: job.scheduleAt || '',

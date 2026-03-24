@@ -10,7 +10,6 @@ export interface TaskJob {
     id: string
     name: string
     description: string
-    agentId?: string
     executionTarget: TaskExecutionTarget
     enabled: boolean
     scheduleKind: 'at' | 'every' | 'cron'
