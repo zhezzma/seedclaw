@@ -9,6 +9,8 @@ import {
   findExactSessionCandidate,
   findSessionCandidateById,
   formatSessionCandidateDisplay,
+  getSessionInputUiState,
+  shouldAutoSelectSessionInput,
 } from '@/utils/cron-session-select'
 
 const props = defineProps<{
@@ -73,6 +75,12 @@ const selectedSessionValid = computed(() => {
   if (props.modelValue.type !== 'existingSession') return true
   return Boolean(findExactSessionCandidate(allKnownCandidates.value, props.modelValue.sessionId))
 })
+
+const sessionInputUiState = computed(() => getSessionInputUiState({
+  loading: loading.value,
+  hasInputText: Boolean(inputText.value.trim()),
+  selectedSessionValid: selectedSessionValid.value,
+}))
 
 const syncInputTextFromModel = () => {
   if (mode.value !== 'existingSession' || editingText.value) return
@@ -153,7 +161,15 @@ const handleInputFocus = async () => {
     editingText.value = true
     inputText.value = props.modelValue.sessionId
     await nextTick()
-    inputRef.value?.select()
+    const canAutoSelect = shouldAutoSelectSessionInput({
+      maxTouchPoints: typeof navigator !== 'undefined' ? navigator.maxTouchPoints : 0,
+      coarsePointer: typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+        ? window.matchMedia('(pointer: coarse)').matches
+        : false,
+    })
+    if (canAutoSelect) {
+      inputRef.value?.select()
+    }
     return
   }
   editingText.value = true
@@ -224,7 +240,7 @@ const clearSelection = async () => {
           <input
             ref="inputRef"
             class="input input-bordered w-full pr-20"
-            :class="{ 'input-error': inputText.trim() && !selectedSessionValid }"
+            :class="{ 'input-error': sessionInputUiState.showInlineError }"
             :value="inputText"
             placeholder="输入 sessionId 搜索并选择"
             autocomplete="off"
@@ -243,12 +259,12 @@ const clearSelection = async () => {
             >
               <XMarkIcon class="w-4 h-4" />
             </button>
-            <ChevronDownIcon class="w-4 h-4 opacity-50 pointer-events-none" />
+            <span v-if="sessionInputUiState.showLoadingSpinner" class="loading loading-spinner loading-xs opacity-60"></span>
+            <ChevronDownIcon v-else class="w-4 h-4 opacity-50 pointer-events-none" />
           </div>
         </div>
-        <label class="label" v-if="loading || (inputText.trim() && !selectedSessionValid)">
-          <span class="label-text-alt" v-if="loading">搜索中…</span>
-          <span class="label-text-alt text-error" v-else>请选择列表中的有效 Session ID</span>
+        <label class="label" v-if="sessionInputUiState.showInlineError">
+          <span class="label-text-alt text-error">请选择列表中的有效 Session ID</span>
         </label>
       </div>
 
