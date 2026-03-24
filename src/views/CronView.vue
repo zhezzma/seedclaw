@@ -11,12 +11,16 @@ import { useI18n } from 'vue-i18n'
 
 import ViewHeader from '@/components/ViewHeader.vue'
 import DeliveryTargetsEditor from '@/components/delivery/DeliveryTargetsEditor.vue'
+import ExecutionTargetEditor from '@/components/cron/ExecutionTargetEditor.vue'
 import { useUiSettingsStore } from '../stores/setting'
 import { useToast } from '../composables/useToast'
 import { useCronState, type CronFormState, type CronRunLogEntry, type TaskJob } from '../composables/useCronState'
 import { useAgentsState } from '../composables/useAgentsState'
 import { useConfirm } from '../composables/useConfirm'
+import { useSessionsState } from '../composables/useSessionsState'
 import { defaultCronDeliveryTargets, summarizeDeliveryTargets } from '../utils/delivery-targets'
+import { summarizeExecutionTarget } from '../utils/cron-execution-target'
+import { mergeExecutionTargetCandidates } from '../utils/cron-session-search'
 import { validateCronForm } from '../utils/form-validation'
 
 const settingsStore = useUiSettingsStore()
@@ -32,14 +36,16 @@ const {
     runCronJob,
     toggleCronJob,
     updateCronJob,
+    searchSessions,
 } = cronState
 
 const agentsState = useAgentsState()
+const sessionsState = useSessionsState()
 
 const defaultForm = (): CronFormState => ({
     name: '',
     description: '',
-    agentId: '',
+    executionTarget: { type: 'newSession', agentId: '' },
     enabled: true,
     scheduleKind: 'cron',
     scheduleAt: '',
@@ -63,7 +69,26 @@ const logsJob = ref<TaskJob | null>(null)
 const logsLoading = ref(false)
 const cronRunLogs = ref<CronRunLogEntry[]>([])
 
-const agents = computed(() => agentsState.agentsList || [])
+const agents = computed(() => (agentsState.agentsList || []).map(agent => ({
+    id: agent.id,
+    name: agent.name || agent.id,
+})))
+const cachedSessionCandidates = computed(() => mergeExecutionTargetCandidates(
+    [
+        ...(sessionsState.sessionsResult?.sessions || []),
+        ...(sessionsState.taskSessionsResult?.sessions || []),
+    ].map(session => ({
+        id: session.id,
+        name: session.name,
+        agentId: session.agentId,
+        agentName: session.agentName,
+        sessionCategory: session.sessionCategory,
+        modified: typeof session.modified === 'string' ? session.modified : undefined,
+    })),
+    [],
+    '',
+    10,
+))
 const modalTitle = computed(() => editingId.value ? t('cron.editJob') : t('cron.newJobModal'))
 
 const formatDate = (ts: number | string | undefined) => {
@@ -81,6 +106,16 @@ const getScheduleDisplay = (job: TaskJob) => {
 }
 
 const getDeliverySummary = (targets: TaskJob['deliveryTargets']) => summarizeDeliveryTargets(targets || [])
+const getExecutionTargetSummary = (job: TaskJob) => {
+    const target = job.executionTarget
+    const agentName = target.type === 'newSession'
+        ? agents.value.find(agent => agent.id === target.agentId)?.name
+        : undefined
+    const summary = summarizeExecutionTarget(target, agentName)
+    return summary.mode === 'existingSession'
+        ? `复用会话: ${summary.primaryText}`
+        : `新建会话: ${summary.primaryText}`
+}
 
 const openModal = () => {
     const modal = document.getElementById('job_modal') as HTMLDialogElement | null
@@ -106,7 +141,7 @@ const handleOpenAdd = () => {
     modalError.value = null
     form.value = defaultForm()
     if (agents.value.length > 0) {
-        form.value.agentId = agents.value[0].id
+        form.value.executionTarget = { type: 'newSession', agentId: agents.value[0].id }
     }
     resetDeliveryEditor()
     openModal()
@@ -118,7 +153,7 @@ const handleOpenEdit = (job: TaskJob) => {
     form.value = {
         name: job.name,
         description: job.description || '',
-        agentId: job.agentId || '',
+        executionTarget: job.executionTarget || { type: 'newSession', agentId: job.agentId || agents.value[0]?.id || '' },
         enabled: job.enabled,
         scheduleKind: job.scheduleKind,
         scheduleAt: job.scheduleAt || '',
@@ -195,6 +230,8 @@ const handleViewLogs = async (job: TaskJob) => {
 
 onMounted(() => {
     void loadCron()
+    void sessionsState.loadSessions()
+    void sessionsState.loadTaskSessions()
 })
 </script>
 
@@ -265,6 +302,7 @@ onMounted(() => {
 
                                 <div class="flex flex-col gap-2 mt-3 text-xs opacity-70">
                                     <p class="line-clamp-2">{{ job.description || 'No description' }}</p>
+                                    <p class="truncate">{{ getExecutionTargetSummary(job) }}</p>
                                     <p class="truncate">{{ $t('delivery.targets') }}: {{ getDeliverySummary(job.deliveryTargets) }}</p>
 
                                     <div class="flex items-center justify-between pt-2 border-t border-base-200">
@@ -319,15 +357,12 @@ onMounted(() => {
                         <input v-model="form.description" type="text" class="input input-bordered w-full" :placeholder="$t('cron.form.descPlaceholder')" />
                     </div>
 
-                    <div class="form-control w-full">
-                        <label class="label">
-                            <span class="label-text">{{ $t('cron.form.agentId') }} <span class="text-error">*</span></span>
-                        </label>
-                        <select v-model="form.agentId" class="select select-bordered w-full">
-                            <option value="">{{ $t('agent.selectAgentPrompt') }}</option>
-                            <option v-for="agent in agents" :key="agent.id" :value="agent.id">{{ agent.name }}</option>
-                        </select>
-                    </div>
+                    <ExecutionTargetEditor
+                        v-model="form.executionTarget"
+                        :agents="agents"
+                        :cached-candidates="cachedSessionCandidates"
+                        :remote-search="searchSessions"
+                    />
 
                     <div class="form-control">
                         <label class="label"><span class="label-text">{{ $t('cron.form.scheduleKind') }}</span></label>

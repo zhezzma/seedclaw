@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
+import { useSessionsState } from '../composables/useSessionsState'
+import { resolveSessionRouteRedirect } from '../utils/notification-routing'
 import { NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
 
 // Layouts
@@ -102,7 +104,7 @@ const router = createRouter({
 })
 
 // Navigation guard to check config
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to, _from, next) => {
     const configStore = useUiSettingsStore()
 
     // If route requires config and user is not configured
@@ -115,6 +117,17 @@ router.beforeEach((to, _from, next) => {
     if (to.name === 'setup' && configStore.isConfigured) {
         next({ name: 'home' })
         return
+    }
+
+    const routeName = to.name === 'tasks' ? 'tasks' : (to.name === 'chat' ? 'chat' : undefined)
+    const sessionKey = typeof to.params.sessionkey === 'string' ? to.params.sessionkey : undefined
+    if (routeName && sessionKey) {
+        const latestCategory = await useSessionsState().resolveNotificationSessionCategory(sessionKey)
+        const redirect = resolveSessionRouteRedirect(routeName, latestCategory, sessionKey)
+        if (redirect.shouldRedirect && redirect.location) {
+            next(redirect.location)
+            return
+        }
     }
 
     next()

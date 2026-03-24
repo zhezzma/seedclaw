@@ -1,6 +1,8 @@
 import { reactive } from 'vue'
 
 import type { DeliveryTarget } from '../utils/delivery-targets'
+import type { TaskExecutionTarget } from '../utils/cron-execution-target'
+import type { SessionSearchCandidate } from '../utils/cron-session-search'
 import { apiGet, apiPost, apiPatch, apiDelete } from './api-client'
 
 // ==================== Types ====================
@@ -8,7 +10,8 @@ export interface TaskJob {
     id: string
     name: string
     description: string
-    agentId: string
+    agentId?: string
+    executionTarget: TaskExecutionTarget
     enabled: boolean
     scheduleKind: 'at' | 'every' | 'cron'
     scheduleAt: string
@@ -30,6 +33,7 @@ export interface CronRunLogEntry {
     start: string
     durationMs: number
     agentId: string
+    executionTarget?: TaskExecutionTarget
     kind: string
     cron: string
     prompt: string
@@ -41,7 +45,7 @@ export interface CronRunLogEntry {
 export interface CronFormState {
     name: string
     description: string
-    agentId: string
+    executionTarget: TaskExecutionTarget
     enabled: boolean
     scheduleKind: 'at' | 'every' | 'cron'
     scheduleAt: string
@@ -172,6 +176,16 @@ const loadCronRuns = async (jobId: string): Promise<CronRunLogEntry[]> => {
     }
 }
 
+const searchSessions = async (query: string, limit = 10): Promise<SessionSearchCandidate[]> => {
+    try {
+        const result = await apiGet<{ sessions: SessionSearchCandidate[] }>(`/api/sessions/search?q=${encodeURIComponent(query)}&limit=${limit}`)
+        return result?.sessions || []
+    } catch (err) {
+        console.error('Failed to search sessions', err)
+        return []
+    }
+}
+
 // ==================== Export ====================
 
 const _cronState = Object.assign(state, {
@@ -182,6 +196,7 @@ const _cronState = Object.assign(state, {
     updateCronJob,
     runCronJob,
     loadCronRuns,
+    searchSessions,
 })
 
 export function useCronState() {
