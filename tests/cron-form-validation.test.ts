@@ -38,3 +38,21 @@ test('validateCronForm requires session id for existingSession mode', () => {
     deliveryTargets: [],
   } as any, true), ['Session ID is required'])
 })
+
+test('validateCronForm rejects invalid existingSession selection', () => {
+  assert.deepEqual(validateCronForm({
+    name: 'job',
+    description: '',
+    executionTarget: { type: 'existingSession', sessionId: 'sess-1' },
+    enabled: true,
+    scheduleKind: 'cron',
+    scheduleAt: '',
+    everyAmount: '',
+    everyUnit: 'minutes',
+    cronExpr: '* * * * *',
+    cronTz: '',
+    payloadText: 'run',
+    timeoutSeconds: '',
+    deliveryTargets: [],
+  } as any, true, false), ['Session ID is invalid'])
+})

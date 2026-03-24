@@ -63,6 +63,7 @@ const editingId = ref<string | null>(null)
 const runningJobId = ref<string | null>(null)
 const modalError = ref<string | null>(null)
 const deliveryValidation = ref({ valid: true, errors: [] as string[] })
+const executionTargetValid = ref(true)
 const deliveryEditorKey = ref(0)
 
 const logsJob = ref<TaskJob | null>(null)
@@ -73,8 +74,8 @@ const agents = computed(() => (agentsState.agentsList || []).map(agent => ({
     id: agent.id,
     name: agent.name || agent.id,
 })))
-const cachedSessionCandidates = computed(() => mergeExecutionTargetCandidates(
-    [
+const cachedSessionCandidates = computed(() => {
+    const sessions = [
         ...(sessionsState.sessionsResult?.sessions || []),
         ...(sessionsState.taskSessionsResult?.sessions || []),
     ].map(session => ({
@@ -84,11 +85,10 @@ const cachedSessionCandidates = computed(() => mergeExecutionTargetCandidates(
         agentName: session.agentName,
         sessionCategory: session.sessionCategory,
         modified: typeof session.modified === 'string' ? session.modified : undefined,
-    })),
-    [],
-    '',
-    10,
-))
+    }))
+
+    return mergeExecutionTargetCandidates(sessions, [], '', Math.max(sessions.length, 10))
+})
 const modalTitle = computed(() => editingId.value ? t('cron.editJob') : t('cron.newJobModal'))
 
 const formatDate = (ts: number | string | undefined) => {
@@ -129,11 +129,16 @@ const closeModal = () => {
 
 const resetDeliveryEditor = () => {
     deliveryValidation.value = { valid: true, errors: [] }
+    executionTargetValid.value = true
     deliveryEditorKey.value += 1
 }
 
 const handleDeliveryValidationChange = (payload: { valid: boolean; errors: string[] }) => {
     deliveryValidation.value = payload
+}
+
+const handleExecutionTargetValidityChange = (valid: boolean) => {
+    executionTargetValid.value = valid
 }
 
 const handleOpenAdd = () => {
@@ -170,7 +175,7 @@ const handleOpenEdit = (job: TaskJob) => {
 }
 
 const handleSave = async () => {
-    const errors = validateCronForm(form.value, deliveryValidation.value.valid)
+    const errors = validateCronForm(form.value, deliveryValidation.value.valid, executionTargetValid.value)
     if (errors.length > 0) {
         modalError.value = errors[0]
         return
@@ -362,6 +367,7 @@ onMounted(() => {
                         :agents="agents"
                         :cached-candidates="cachedSessionCandidates"
                         :remote-search="searchSessions"
+                        @validity-change="handleExecutionTargetValidityChange"
                     />
 
                     <div class="form-control">

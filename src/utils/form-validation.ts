@@ -1,6 +1,10 @@
 import type { CronFormState } from '../composables/useCronState.ts'
 
-export function validateCronForm(input: CronFormState, deliveryValid: boolean): string[] {
+export function validateCronForm(
+    input: CronFormState,
+    deliveryValid: boolean,
+    existingSessionValid = true,
+): string[] {
     const errors: string[] = []
 
     if (!input.name?.trim()) {
@@ -11,6 +15,9 @@ export function validateCronForm(input: CronFormState, deliveryValid: boolean): 
     }
     if (input.executionTarget?.type === 'existingSession' && !input.executionTarget.sessionId?.trim()) {
         errors.push('Session ID is required')
+    }
+    if (input.executionTarget?.type === 'existingSession' && !existingSessionValid) {
+        errors.push('Session ID is invalid')
     }
     if (input.scheduleKind === 'cron' && !input.cronExpr?.trim()) {
         errors.push('Cron expression is required')
