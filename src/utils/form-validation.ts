@@ -6,8 +6,11 @@ export function validateCronForm(input: CronFormState, deliveryValid: boolean): 
     if (!input.name?.trim()) {
         errors.push('Name is required')
     }
-    if (!input.agentId?.trim()) {
+    if (input.executionTarget?.type === 'newSession' && !input.executionTarget.agentId?.trim()) {
         errors.push('Agent is required')
+    }
+    if (input.executionTarget?.type === 'existingSession' && !input.executionTarget.sessionId?.trim()) {
+        errors.push('Session ID is required')
     }
     if (input.scheduleKind === 'cron' && !input.cronExpr?.trim()) {
         errors.push('Cron expression is required')

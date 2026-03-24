@@ -12,6 +12,11 @@ export interface SessionLocation {
     params: { sessionkey: string }
 }
 
+export interface SessionRouteRedirectDecision {
+    shouldRedirect: boolean
+    location?: SessionLocation
+}
+
 export interface TaskSessionsLocation {
     name: 'tasks'
 }
@@ -71,6 +76,26 @@ export const buildSessionLocation = (
 export const buildTaskSessionsLocation = (): TaskSessionsLocation => ({
     name: 'tasks',
 })
+
+export const resolveSessionRouteRedirect = (
+    routeName: 'chat' | 'tasks',
+    latestCategory: SessionCategory | undefined,
+    sessionKey: string,
+): SessionRouteRedirectDecision => {
+    if (!sessionKey || !latestCategory) {
+        return { shouldRedirect: false }
+    }
+
+    const expectedRouteName = latestCategory === 'task' ? 'tasks' : 'chat'
+    if (routeName === expectedRouteName) {
+        return { shouldRedirect: false }
+    }
+
+    return {
+        shouldRedirect: true,
+        location: buildSessionLocation(sessionKey, latestCategory),
+    }
+}
 
 export const pruneExpiredNotifications = (
     notificationMap: PendingNotificationMap,
