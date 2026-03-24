@@ -6,13 +6,13 @@ import { ref, watch, nextTick, onUnmounted, type Ref, type ComputedRef } from 'v
  * 职责：
  * 1. 跟踪用户是否向上滚动（控制 "回到底部" FAB 显示 & 自动滚动暂停）
  * 2. 提供 scrollToBottom（支持自动 & 强制模式）
- * 3. 按 sessionKey 保存/恢复滚动位置（基于消息 entryId + 视口偏移）
+ * 3. 按 sessionKey 保存/恢复滚动位置（混合策略：anchor 优先，异常场景退回 scrollTop）
  * 4. 绑定 scroll/loading/busy/session-switch 等 watcher
  *
  * 保存/恢复原理：
- * - 保存时：找到视口中第一个可见的消息行，记录其 entryId 和相对于容器顶部的偏移 (offset)
- * - 恢复时：通过 entryId 找到目标元素（可能是 spacer 或真实 row），
- *   计算当前偏移与保存偏移的差值，调整 scrollTop 使其恢复到保存时的视觉位置
+ * - 保存时：优先记录稳定消息锚点（entryId + offset）；若当前视口只有明显不稳定的超高候选，改存 absolute scrollTop
+ * - 恢复时：anchor 模式通过 data-key 找回目标元素并微调到原视觉位置；scrollTop 模式直接恢复绝对位置并做短时稳定校正
+ * - 恢复期间临时抑制 auto-bottom，同步避免刚恢复又被非用户滚动抢回到底部
  * - 使用 getBoundingClientRect 做视口相对定位，避免 offsetTop 在复杂 CSS 下的不准确
  */
 
@@ -37,13 +37,29 @@ export interface ScrollManagerOptions {
     }
 }
 
-/** 保存的滚动位置 */
-interface SavedScrollPosition {
+/**
+ * 保存的滚动位置。
+ *
+ * 两种模式：
+ * 1. anchor：常规情况，保存 entryId + 相对偏移，能更稳地跟随虚拟列表重排。
+ * 2. scrollTop：当视口内只有超高候选（超长消息 / spacer）时，直接保存绝对 scrollTop
+ *    反而比错误锚点更可靠。
+ */
+interface SavedScrollPositionByAnchor {
     /** 锚定消息的 entryId（用于在 DOM 中查找元素） */
     entryId: string
     /** 该消息行顶部到容器可视区域顶部的像素距离（保存时刻的视觉位置） */
     offset: number
+    type: 'anchor'
 }
+
+interface SavedScrollPositionByScrollTop {
+    /** 直接保存绝对 scrollTop，作为超高候选场景下的最小兜底。 */
+    scrollTop: number
+    type: 'scrollTop'
+}
+
+type SavedScrollPosition = SavedScrollPositionByAnchor | SavedScrollPositionByScrollTop
 
 /** 判定"接近底部"的阈值（像素） */
 const SCROLL_THRESHOLD = 50
@@ -59,6 +75,36 @@ export interface ScrollMetrics {
 export interface ScrollStateAfterNonUserChange {
     nextUserScrolledUp: boolean
     shouldScrollToBottom: boolean
+}
+
+export interface ScrollAnchorCandidate {
+    key: string
+    top: number
+    bottom: number
+    height: number
+}
+
+export interface ScrollSaveTargetOptions {
+    scrollTop: number
+    viewportHeight: number
+    rowCandidates: ScrollAnchorCandidate[]
+    fallbackCandidates: ScrollAnchorCandidate[]
+}
+
+export type ScrollSaveTarget =
+    | { type: 'anchor'; entryId: string; offset: number }
+    | { type: 'scrollTop'; scrollTop: number }
+    | null
+
+export interface ScrollTopStabilizationOptions {
+    expectedScrollTop: number
+    actualScrollTop: number
+    attempts: number
+}
+
+export interface AutoBottomSyncSuppressionOptions {
+    isRestoringSavedPosition: boolean
+    hasSavedPosition: boolean
 }
 
 const isNearBottomByMetrics = (metrics: ScrollMetrics, threshold = SCROLL_THRESHOLD): boolean => {
@@ -99,6 +145,102 @@ export const getScrollStateAfterNonUserChange = (
     }
 }
 
+const isReasonableAnchorCandidate = (candidate: ScrollAnchorCandidate, viewportHeight: number): boolean => {
+    // 巨型候选（常见于超长上下文的 spacer / 超高消息）会把恢复直接带偏。
+    // 这里不追求“必须找到锚点”，而是先排除明显不稳定的候选，再让上层决定是否退回 absolute scrollTop。
+    if (candidate.height > viewportHeight * 3) return false
+    if (candidate.top < -viewportHeight) return false
+    return true
+}
+
+const selectRowAnchorCandidate = (candidates: ScrollAnchorCandidate[], viewportHeight: number): ScrollAnchorCandidate | null => {
+    for (const candidate of candidates) {
+        if (candidate.bottom <= 0) continue
+        if (candidate.top >= viewportHeight) continue
+        if (!isReasonableAnchorCandidate(candidate, viewportHeight)) continue
+        if (candidate.top >= -candidate.height / 2) return candidate
+    }
+    return null
+}
+
+/**
+ * 选择本次保存使用的目标。
+ *
+ * 优先级：
+ * 1. 视口内的正常 row 锚点
+ * 2. 视口内且形态合理的 fallback 候选
+ * 3. 如果两者都不可靠，则直接退回 absolute scrollTop
+ *
+ * 不直接“一律保存 scrollTop”的原因：
+ * - 不同 session 的总高度会因虚拟列表估算、流式输出、图片/代码块延迟测量而变化；
+ * - 纯 scrollTop 在这些场景下会丢失“我正在看哪一条消息”的语义；
+ * - 因此只有在锚点明显不可靠时，才退回 scrollTop 兜底。
+ */
+export const selectScrollSaveTarget = ({
+    scrollTop,
+    viewportHeight,
+    rowCandidates,
+    fallbackCandidates,
+}: ScrollSaveTargetOptions): ScrollSaveTarget => {
+    const rowAnchor = selectRowAnchorCandidate(rowCandidates, viewportHeight)
+    if (rowAnchor) {
+        return {
+            type: 'anchor',
+            entryId: rowAnchor.key,
+            offset: rowAnchor.top,
+        }
+    }
+
+    const fallback = fallbackCandidates.find(candidate => {
+        if (candidate.bottom <= 0) return false
+        if (candidate.top >= viewportHeight) return false
+        return isReasonableAnchorCandidate(candidate, viewportHeight)
+    })
+
+    if (fallback) {
+        return {
+            type: 'anchor',
+            entryId: fallback.key,
+            offset: fallback.top,
+        }
+    }
+
+    return {
+        type: 'scrollTop',
+        scrollTop,
+    }
+}
+
+/**
+ * scrollTop 兜底恢复后的短时稳定判定。
+ *
+ * 绝对 scrollTop 在恢复后仍可能被虚拟列表重算、内容高度更新等因素顶开，
+ * 因此允许在极短时间内重复校正几次，但只用于 scrollTop 兜底分支，
+ * 不把整个恢复流程扩展成通用轮询。
+ */
+export const shouldContinueScrollTopStabilization = ({
+    expectedScrollTop,
+    actualScrollTop,
+    attempts,
+}: ScrollTopStabilizationOptions): boolean => {
+    if (attempts >= 5) return false
+    return Math.abs(actualScrollTop - expectedScrollTop) > 24
+}
+
+/**
+ * 在“已有保存位置的恢复阶段”临时屏蔽 auto-bottom 同步。
+ *
+ * 这是本次 bug 的关键之一：如果恢复刚把用户带回历史位置，
+ * container/messages/streaming 的非用户变化又立刻执行 scrollToBottom(true)，
+ * 就会把恢复结果再次冲掉。
+ */
+export const shouldSuppressAutoBottomSync = ({
+    isRestoringSavedPosition,
+    hasSavedPosition,
+}: AutoBottomSyncSuppressionOptions): boolean => {
+    return isRestoringSavedPosition && hasSavedPosition
+}
+
 /**
  * 模块级别的滚动位置缓存，key = sessionKey，value = 保存的滚动位置。
  * 放在模块作用域（函数外），而非组件实例内，确保：
@@ -118,6 +260,8 @@ export function useScrollManager(options: ScrollManagerOptions) {
     const isAutoScrolling = ref(false)
     /** 等待加载完成后恢复位置的 sessionKey（session 数据尚未加载时暂存） */
     let pendingRestoreKey: string | null = null
+    /** 当前是否正在恢复已有保存位置；用于抑制恢复期间的自动贴底。 */
+    let isRestoringSavedPosition = false
     /** 容器尺寸观察器：用于捕捉键盘弹起/收起、输入框高度变化等布局变化 */
     let containerResizeObserver: ResizeObserver | null = null
 
@@ -156,6 +300,13 @@ export function useScrollManager(options: ScrollManagerOptions) {
             return
         }
 
+        if (shouldSuppressAutoBottomSync({
+            isRestoringSavedPosition,
+            hasSavedPosition: !!state.sessionKey && scrollPositionMap.has(state.sessionKey),
+        })) {
+            return
+        }
+
         const decision = getScrollStateAfterNonUserChange(metrics, userScrolledUp.value)
         if (decision.shouldScrollToBottom) {
             scrollToBottom(true)
@@ -190,13 +341,13 @@ export function useScrollManager(options: ScrollManagerOptions) {
     /**
      * 保存当前会话的滚动位置。
      *
-     * 遍历视口中已渲染的 .virtual-row[data-key] 元素（DOM 顺序从上到下），
-     * 选取第一个在视口内可见（或大部分可见）的行作为锚点，记录：
-     * - entryId: 该行的 data-key（消息的唯一标识）
-     * - offset: 行顶部到容器可视区域顶部的像素距离
+     * 常规路径仍然优先保存“消息锚点”（entryId + offset），
+     * 只有当当前视口里能拿到的候选明显不稳定（超高 row / spacer）时，
+     * 才退回保存 absolute scrollTop。
      *
-     * 注意：虚拟列表会渲染缓冲区外的行（OVERSCAN），因此不能直接取第一个 row，
-     * 需要用 getBoundingClientRect 检查是否真正在视口内。
+     * 这样做比“永远只存 scrollTop”更稳：
+     * - 正常消息列表依然保留语义化锚点；
+     * - 超长上下文 / 流式变化场景下避免把坏锚点存进去。
      */
     const saveCurrentPosition = () => {
         const sessionKey = state.sessionKey
@@ -204,20 +355,48 @@ export function useScrollManager(options: ScrollManagerOptions) {
         if (!el || !sessionKey) return
 
         const containerRect = el.getBoundingClientRect()
-        const rows = el.querySelectorAll<HTMLElement>('.virtual-row[data-key]')
-
-        for (const row of rows) {
-            const rowRect = row.getBoundingClientRect()
-            // 跳过完全在视口外的行（完全在上方或完全在下方）
-            if (rowRect.bottom <= containerRect.top || rowRect.top >= containerRect.bottom) continue
-            const offset = rowRect.top - containerRect.top
-            // 选第一个 top 在视口内（offset >= 0）的行，
-            // 或者虽然部分在视口上方但超过一半仍可见的行
-            if (offset >= -rowRect.height / 2) {
-                scrollPositionMap.set(sessionKey, { entryId: row.dataset.key!, offset })
-                return
+        const rowCandidates = Array.from(el.querySelectorAll<HTMLElement>('.virtual-row[data-key]')).map(row => {
+            const rect = row.getBoundingClientRect()
+            return {
+                key: row.dataset.key!,
+                top: rect.top - containerRect.top,
+                bottom: rect.bottom - containerRect.top,
+                height: rect.height,
             }
+        })
+
+        const fallbackCandidates = Array.from(el.querySelectorAll<HTMLElement>('[data-key]')).map(node => {
+            const rect = node.getBoundingClientRect()
+            return {
+                key: node.dataset.key!,
+                top: rect.top - containerRect.top,
+                bottom: rect.bottom - containerRect.top,
+                height: rect.height,
+            }
+        })
+
+        const target = selectScrollSaveTarget({
+            scrollTop: el.scrollTop,
+            viewportHeight: el.clientHeight,
+            rowCandidates,
+            fallbackCandidates,
+        })
+
+        if (!target) return
+
+        if (target.type === 'anchor') {
+            scrollPositionMap.set(sessionKey, {
+                type: 'anchor',
+                entryId: target.entryId,
+                offset: target.offset,
+            })
+            return
         }
+
+        scrollPositionMap.set(sessionKey, {
+            type: 'scrollTop',
+            scrollTop: target.scrollTop,
+        })
     }
 
     // ── 滚动事件处理 ─────────────────────────────────────────────────
@@ -312,13 +491,48 @@ export function useScrollManager(options: ScrollManagerOptions) {
         const el = containerRef.value
         if (!el) return false
 
-        // 查找目标元素（spacer 和 row 都有 data-key 属性）
-        const target = el.querySelector<HTMLElement>(`[data-key="${saved.entryId}"]`)
-        if (!target) return false
-
         isAutoScrolling.value = true
 
+        if (saved.type === 'scrollTop') {
+            // 进入恢复态后，短时间内屏蔽 auto-bottom，避免恢复结果立即被 watcher 抢走。
+            isRestoringSavedPosition = true
+            let attempts = 0
+            const stabilize = () => {
+                el.scrollTop = saved.scrollTop
+
+                // scrollTop 兜底分支允许短时间内重复校正，
+                // 避免刚恢复就被虚拟列表/内容高度更新顶开。
+                setTimeout(() => {
+                    if (shouldContinueScrollTopStabilization({
+                        expectedScrollTop: saved.scrollTop,
+                        actualScrollTop: el.scrollTop,
+                        attempts,
+                    })) {
+                        attempts += 1
+                        stabilize()
+                        return
+                    }
+
+                    isRestoringSavedPosition = false
+                    isAutoScrolling.value = false
+                    userScrolledUp.value = !isNearBottom()
+                }, 120)
+            }
+
+            stabilize()
+            return true
+        }
+
+        // 查找目标元素（spacer 和 row 都有 data-key 属性）
+        const target = el.querySelector<HTMLElement>(`[data-key="${saved.entryId}"]`)
+        if (!target) {
+            isRestoringSavedPosition = false
+            isAutoScrolling.value = false
+            return false
+        }
+
         // 第一步：粗定位 — 将目标滚动到保存时的视口位置
+        isRestoringSavedPosition = true
         const containerRect = el.getBoundingClientRect()
         const targetRect = target.getBoundingClientRect()
         el.scrollTop += (targetRect.top - containerRect.top) - saved.offset
@@ -336,6 +550,7 @@ export function useScrollManager(options: ScrollManagerOptions) {
             userScrolledUp.value = !isNearBottom()
             // 延迟释放自动滚动标志
             setTimeout(() => {
+                isRestoringSavedPosition = false
                 isAutoScrolling.value = false
                 userScrolledUp.value = !isNearBottom()
             }, 200)
