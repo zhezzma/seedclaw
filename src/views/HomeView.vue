@@ -21,6 +21,7 @@ import AppSidebar from '../components/AppSidebar.vue'
 import { isNewSession, NEW_SESSION_PATH, NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
 import { useChatState } from '../composables/useChatState'
 import { useChatInput } from '../composables/useChatInput'
+import { useCommandState } from '../composables/useCommandState'
 import { SessionRow, useSessionsState, type SessionsResult } from '../composables/useSessionsState'
 import { useAgentsState } from '../composables/useAgentsState'
 import { useToast } from '../composables/useToast'
@@ -38,6 +39,7 @@ const { setSessionKeyResolver } = useChatInput()
 setSessionKeyResolver(() => chatState.sessionKey)
 const sessionsState = useSessionsState()
 const agentsState = useAgentsState()
+const { loadCommands, setCurrentAgent } = useCommandState()
 
 const busyAllowedCommands = ['steer', 'follow-up', 'autocontinue']
 const busyAllowedCommandPattern = new RegExp(`^\\/(${busyAllowedCommands
@@ -424,9 +426,13 @@ watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath
 
     // /new 路由 → 创建新会话
     if (isNewSession(route)) {
-        // 新会话时，如果还没选择 agent，默认选第一个
+        // 新会话/首页进入时，始终重置为第一个 agent。
+        // 不沿用上一个会话的 agent，否则用户点击首页后会看到“最后一次聊天所用 agent”。
         if (agentsState.agentsList.length > 0) {
-            chatState.selectAgent(agentsState.agentsList[0].id)
+            const defaultAgentId = agentsState.agentsList[0].id
+            chatState.selectAgent(defaultAgentId)
+            setCurrentAgent(defaultAgentId)
+            await loadCommands(defaultAgentId)
         }
         await chatState.createNewSession()
         return
@@ -441,7 +447,9 @@ watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath
             return
         }
         const category = route.name === 'tasks' ? 'task' : undefined
-        chatState.setSessionKey(sessionkey, category)
+        await chatState.setSessionKey(sessionkey, category)
+        setCurrentAgent(chatState.agentsSelectedId || undefined)
+        await loadCommands(chatState.agentsSelectedId || undefined)
         return
     }
 

@@ -77,7 +77,7 @@ const getGlobalPrompt = async (promptId: string) => {
 const saveGlobalPrompt = async (data: { id: string; name: string; description?: string; content: string }) => {
     await apiPost('/api/prompts/global', data)
     await loadGlobalPrompts()
-    useCommandState().addOrUpdateCommand({
+    useCommandState().updateGlobalPromptCaches({
         name: data.id,
         description: data.description || '',
         source: 'prompt',
@@ -88,7 +88,7 @@ const saveGlobalPrompt = async (data: { id: string; name: string; description?: 
 const deleteGlobalPrompt = async (promptId: string) => {
     await apiDelete(`/api/prompts/global/${promptId}`)
     await loadGlobalPrompts()
-    useCommandState().removeCommand(promptId)
+    useCommandState().updateGlobalPromptCaches(null, promptId)
 }
 
 // ── Agent Prompts (CRUD) ──
@@ -118,18 +118,18 @@ const getAgentPrompt = async (agentId: string, promptId: string) => {
 const saveAgentPrompt = async (agentId: string, data: { id: string; name: string; description?: string; content: string }) => {
     await apiPost(`/api/prompts/${agentId}`, data)
     await loadAgentPrompts(agentId)
-    useCommandState().addOrUpdateCommand({
+    useCommandState().upsertCommand({
         name: data.id,
         description: data.description || '',
         source: 'prompt',
         extensionPath: undefined,
-    })
+    }, agentId)
 }
 
 const deleteAgentPrompt = async (agentId: string, promptId: string) => {
     await apiDelete(`/api/prompts/${agentId}/${promptId}`)
     await loadAgentPrompts(agentId)
-    useCommandState().removeCommand(promptId)
+    useCommandState().removeCommand(promptId, agentId, 'prompt')
 }
 
 const _promptState = Object.assign(state, {

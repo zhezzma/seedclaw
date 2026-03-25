@@ -22,73 +22,120 @@ interface CommandsResponse {
 
 // ==================== State ====================
 
+const GLOBAL_COMMAND_SCOPE = '__global__'
+
 const state = reactive<{
-    commands: CommandInfo[]
-    loaded: boolean
-    loading: boolean
+    commandsByAgentId: Record<string, CommandInfo[]>
+    loadedByAgentId: Record<string, boolean>
+    loadingByAgentId: Record<string, boolean>
+    currentAgentId: string
 }>({
-    commands: [],
-    loaded: false,
-    loading: false,
+    commandsByAgentId: {},
+    loadedByAgentId: {},
+    loadingByAgentId: {},
+    currentAgentId: GLOBAL_COMMAND_SCOPE,
 })
+
+const resolveScopeKey = (agentId?: string) => (agentId?.trim() || GLOBAL_COMMAND_SCOPE)
+
+const getCommandsForScope = (agentId?: string): CommandInfo[] => {
+    const scopeKey = resolveScopeKey(agentId)
+    return state.commandsByAgentId[scopeKey] ?? []
+}
+
+const setCurrentAgent = (agentId?: string) => {
+    state.currentAgentId = resolveScopeKey(agentId)
+}
 
 // ==================== Derived Computeds & Actions（模块级，仅初始化一次）====================
 
-const loadCommands = async (agentId?: string) => {
-    if (state.loading) return
-    state.loading = true
+const loadCommands = async (agentId?: string, options?: { force?: boolean }) => {
+    const scopeKey = resolveScopeKey(agentId)
+    const force = options?.force === true
+
+    setCurrentAgent(agentId)
+
+    if (state.loadingByAgentId[scopeKey]) return
+    if (!force && state.loadedByAgentId[scopeKey]) return
+
+    state.loadingByAgentId[scopeKey] = true
     try {
         const query = agentId ? `?agentId=${encodeURIComponent(agentId)}` : ''
         const result = await apiGet<CommandsResponse>(`/api/commands${query}`)
-        state.commands = result?.commands ?? []
-        state.loaded = true
+        state.commandsByAgentId[scopeKey] = result?.commands ?? []
+        state.loadedByAgentId[scopeKey] = true
     } catch (err) {
         console.error('[useCommandState] 获取命令列表失败:', err)
     } finally {
-        state.loading = false
+        state.loadingByAgentId[scopeKey] = false
     }
 }
 
 const forceReload = async (agentId?: string) => {
-    state.loaded = false
-    await loadCommands(agentId)
+    const scopeKey = resolveScopeKey(agentId)
+    state.loadedByAgentId[scopeKey] = false
+    await loadCommands(agentId, { force: true })
 }
 
-const addOrUpdateCommand = (command: CommandInfo) => {
-    const index = state.commands.findIndex(c => c.name === command.name)
+const upsertCommand = (command: CommandInfo, agentId?: string) => {
+    const scopeKey = resolveScopeKey(agentId)
+    const current = [...getCommandsForScope(agentId)]
+    const index = current.findIndex(c => c.name === command.name && c.source === command.source)
+
     if (index >= 0) {
-        state.commands[index] = command
+        current[index] = command
     } else {
-        state.commands.push(command)
+        current.push(command)
     }
+
+    state.commandsByAgentId[scopeKey] = current
+    state.loadedByAgentId[scopeKey] = true
 }
 
-const removeCommand = (name: string) => {
-    state.commands = state.commands.filter(c => c.name !== name)
+const removeCommand = (name: string, agentId?: string, source?: CommandInfo['source']) => {
+    const scopeKey = resolveScopeKey(agentId)
+    const current = getCommandsForScope(agentId)
+    state.commandsByAgentId[scopeKey] = current.filter(cmd => {
+        if (cmd.name !== name) return true
+        if (source && cmd.source !== source) return true
+        return false
+    })
+}
+
+const updateGlobalPromptCaches = (command: CommandInfo | null, removeName?: string) => {
+    for (const scopeKey of Object.keys(state.commandsByAgentId)) {
+        const current = state.commandsByAgentId[scopeKey] ?? []
+        const withoutTarget = current.filter(cmd => !(cmd.source === 'prompt' && cmd.name === (removeName || command?.name)))
+        state.commandsByAgentId[scopeKey] = command ? [...withoutTarget, command] : withoutTarget
+    }
 }
 
 /** 根据输入前缀过滤命令（输入 `/foo` 则匹配所有以 `foo` 开头的命令） */
 const filterCommands = computed(() => (prefix: string) => {
     const lc = prefix.toLowerCase()
-    return state.commands.filter(cmd =>
+    return getCommandsForScope(state.currentAgentId).filter(cmd =>
         cmd.name.toLowerCase().startsWith(lc)
     )
 })
 
-const allCommands = computed(() => state.commands)
-const isLoaded = computed(() => state.loaded)
+const allCommands = computed(() => getCommandsForScope(state.currentAgentId))
+const isLoaded = computed(() => state.loadedByAgentId[state.currentAgentId] ?? false)
 
 const _commandState = {
     allCommands,
     isLoaded,
+    currentAgentId: computed(() => state.currentAgentId),
+    commandsByAgentId: computed(() => state.commandsByAgentId),
+    setCurrentAgent,
+    getCommandsForScope,
     loadCommands,
     forceReload,
-    addOrUpdateCommand,
+    upsertCommand,
     removeCommand,
+    updateGlobalPromptCaches,
     filterCommands,
 }
 
 export function useCommandState() {
     return _commandState
 }
-

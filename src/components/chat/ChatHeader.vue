@@ -22,6 +22,7 @@ import { isNewSession, NEW_SESSION_ROUTE_NAME } from '../../utils/route-helpers'
 import { navigateBackFromTaskSession } from '../../utils/task-sessions-routing'
 import { useChatState } from '../../composables/useChatState'
 import { AgentInfo, useAgentsState } from '~/src/composables/useAgentsState'
+import { useCommandState } from '../../composables/useCommandState'
 
 const props = defineProps<{
     sessionName?: string
@@ -37,6 +38,7 @@ const emit = defineEmits<{
 const router = useRouter()
 const route = useRoute()
 const chatState = useChatState()
+const { loadCommands, setCurrentAgent } = useCommandState()
 const handleBack = () => {
     // 这里必须走 history.back()，而不是再次 push /tasks。
     // 否则移动端链路会变成 /tasks -> /tasks/:id -> /tasks，
@@ -55,9 +57,11 @@ const selectedAgentId = computed(() => props.selectedAgent?.id || '')
 
 
 // 选择 Agent（新会话下拉菜单）→ 通过 chatState.selectAgent 统一管理
-const selectAgent = (agentId: string) => {
+const selectAgent = async (agentId: string) => {
     if (isNewSession(route)) {
         chatState.selectAgent(agentId)
+        setCurrentAgent(agentId)
+        await loadCommands(agentId)
     }
     if (dropdownRef.value) {
         dropdownRef.value.open = false

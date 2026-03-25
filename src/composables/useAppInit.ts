@@ -23,7 +23,7 @@ export function useAppInit() {
     const { initConvexConnection } = useSkillsState()
     const { initGotify } = useGotify()
     const chatState = useChatState()
-    const { loadCommands } = useCommandState()
+    const { loadCommands, setCurrentAgent } = useCommandState()
     useCronState()
     useNotify()
     useExecApproval()
@@ -34,17 +34,21 @@ export function useAppInit() {
             agentsState.loadAgents(),
             sessionsState.loadSessions(),
             loadModels(),
-            loadCommands(),
         ])
-
-        initConvexConnection()
-        connectServer()
-        initGotify()
 
         // 加载完 agents 后，如果还没有选中的 agent，自动选择第一个
         if (!chatState.agentsSelectedId && agentsState.agentsList.length > 0) {
             chatState.selectAgent(agentsState.agentsList[0].id)
+            setCurrentAgent(agentsState.agentsList[0].id)
+            await loadCommands(agentsState.agentsList[0].id)
+        } else {
+            setCurrentAgent(chatState.agentsSelectedId || undefined)
+            await loadCommands(chatState.agentsSelectedId || undefined)
         }
+
+        initConvexConnection()
+        connectServer()
+        initGotify()
     }
 
     return {

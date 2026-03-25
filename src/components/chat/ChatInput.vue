@@ -285,8 +285,10 @@ defineExpose({
                             class="text-xs opacity-60 whitespace-nowrap overflow-hidden text-ellipsis flex-1 min-w-0">{{
                                 cmd.description }}</span>
                         <span v-if="cmd.source" class="ml-auto badge badge-xs shrink-0"
-                            :class="cmd.source === 'builtin' ? 'badge-ghost' : 'badge-primary badge-outline'">
-                            {{ cmd.source === 'builtin' ? '内置' : '扩展' }}
+                            :class="cmd.source === 'builtin'
+                                ? 'badge-ghost'
+                                : (cmd.source === 'prompt' ? 'badge-secondary badge-outline' : 'badge-primary badge-outline')">
+                            {{ cmd.source === 'builtin' ? '内置' : (cmd.source === 'prompt' ? 'Prompt' : '扩展') }}
                         </span>
                     </button>
                 </div>
