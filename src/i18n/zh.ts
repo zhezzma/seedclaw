@@ -281,7 +281,7 @@ export default {
             scheduleKind: '调度类型',
             every: '每隔 (间隔)',
             at: '特定时间点',
-            cron: 'Cron 表达式',
+            cron: 'Cron',
             everyAmount: '间隔数值',
             everyUnit: '单位',
             scheduleAt: '执行时间',
