@@ -266,7 +266,7 @@ defineExpose({
             <!-- Input Top -->
             <!-- 命令补全浮层 -->
             <div v-if="commandSuggestionsVisible"
-                class="absolute left-3 bottom-full mb-2 w-96 max-h-64 bg-base-100 border border-base-300 rounded-xl shadow-xl z-[200] overflow-hidden flex flex-col">
+                class="absolute left-3 right-3 bottom-full mb-2 w-auto max-w-[calc(100vw-1.5rem)] sm:right-auto sm:w-96 sm:max-w-none max-h-64 bg-base-100 border border-base-300 rounded-xl shadow-xl z-[200] overflow-hidden flex flex-col">
                 <div
                     class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-base-content/40 border-b border-base-200 shrink-0">
                     命令建议
