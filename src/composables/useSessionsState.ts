@@ -1,6 +1,6 @@
 import { reactive, watch } from 'vue'
 
-import { apiGet, apiPost, apiDelete } from './api-client'
+import { ApiError, apiGet, apiPost, apiDelete } from './api-client'
 import { useInputHistoryStore } from '../stores/inputHistory'
 import { resolveCachedSessionCategory, type SessionCategory } from '../utils/notification-routing'
 import { hasSessionInLists } from '../utils/task-sessions-routing'
@@ -241,8 +241,13 @@ const resolveNotificationSessionCategory = async (id: string): Promise<SessionCa
     }
 }
 
-const getSessionById = async (id: string, category?: SessionCategory): Promise<SessionRow | undefined> => {
-    const cached = sessionsIndex.get(id)
+const getSessionById = async (
+    id: string,
+    category?: SessionCategory,
+    options?: { forceRefresh?: boolean; throwOnError?: boolean },
+): Promise<SessionRow | undefined> => {
+    // forceRefresh 绕过本地缓存，直接向后端确认 session 是否还存在（用于前台恢复场景）
+    const cached = options?.forceRefresh ? undefined : sessionsIndex.get(id)
     if (cached) return cached
 
     try {
@@ -255,7 +260,13 @@ const getSessionById = async (id: string, category?: SessionCategory): Promise<S
 
         upsertSessionByCategory(session, resolvedCategory)
         return session
-    } catch (error) {
+    } catch (error: unknown) {
+        if (options?.throwOnError) {
+            throw error
+        }
+        if (error instanceof ApiError && error.code === 404) {
+            return undefined
+        }
         console.warn('Failed to fetch session by id', id, error)
         return undefined
     }

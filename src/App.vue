@@ -9,6 +9,7 @@ import MessagePlugin from './components/MessagePlugin.vue'
 import ConfirmPlugin from './components/ConfirmPlugin.vue'
 import ExecApprovalModal from './components/ExecApprovalModal.vue'
 import { useAppInit } from './composables/useAppInit'
+import { ApiError } from './composables/api-client'
 import { useSessionsState } from './composables/useSessionsState'
 import { useToast } from './composables/useToast'
 import {
@@ -108,6 +109,32 @@ const markBackgrounded = () => {
     }
 }
 
+const resolveForegroundResumeAction = async (): Promise<'reload' | 'go-home'> => {
+    const routeName = router.currentRoute.value.name
+    const sessionKey = typeof router.currentRoute.value.params.sessionkey === 'string'
+        ? router.currentRoute.value.params.sessionkey
+        : undefined
+
+    if ((routeName !== 'chat' && routeName !== 'tasks') || !sessionKey) {
+        return 'reload'
+    }
+
+    try {
+        const session = await sessionsState.getSessionById(sessionKey, routeName === 'tasks' ? 'task' : undefined, {
+            forceRefresh: true,
+            throwOnError: true,
+        })
+        return session ? 'reload' : 'go-home'
+    } catch (error: unknown) {
+        if (error instanceof ApiError && error.code === 404) {
+            return 'go-home'
+        }
+        // 非 404（如网络抖动）不应误伤为首页，保持原来的 reload 行为。
+        console.warn('[app] failed to validate foreground session before reload', error)
+        return 'reload'
+    }
+}
+
 const handleForeground = () => {
     if (!isMobileTauri || backgroundedAt == null) return
 
@@ -123,10 +150,17 @@ const handleForeground = () => {
     }
 
     cancelPendingForegroundReload()
-    pendingForegroundReloadTimer = window.setTimeout(() => {
+    pendingForegroundReloadTimer = window.setTimeout(async () => {
         pendingForegroundReloadTimer = null
 
         if (shouldSuppressForegroundReload(suppressForegroundReloadUntil, Date.now())) {
+            return
+        }
+
+        const resumeAction = await resolveForegroundResumeAction()
+        if (resumeAction === 'go-home') {
+            console.log(`[app] Mobile app resumed after ${elapsed}ms in background, session missing, redirecting home...`)
+            window.location.replace('/')
             return
         }
 
@@ -243,6 +277,10 @@ onUnmounted(() => {
         <ConfirmPlugin />
     </div>
 </template>
+
+<style>
+/* Global styles */
+</style>late>
 
 <style>
 /* Global styles */
