@@ -439,7 +439,7 @@ watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath
             return
         }
         const category = route.name === 'tasks' ? 'task' : undefined
-        chatState.setSessionKey(sessionkey, true, category)
+        chatState.setSessionKey(sessionkey, category)
         return
     }
 
@@ -465,7 +465,7 @@ async function applyDefaultSessionBehavior() {
         const targetKey = settingsStore.lastActiveSessionKey
         if (targetKey && sessionsState.hasSession(targetKey)) {
             console.log('Default: last active session', targetKey)
-            chatState.setSessionKey(targetKey, true)
+            chatState.setSessionKey(targetKey)
             router.replace({ name: 'chat', params: { sessionkey: targetKey } })
         } else {
             // If session doesn't exist, go to new session

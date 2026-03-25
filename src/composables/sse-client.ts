@@ -71,9 +71,13 @@ export function startChatSSE(
 }
 
 /**
- * Connect to an existing session SSE stream (without prompt)
+ * Attach to a session SSE stream (without sending a prompt).
+ *
+ * 服务端语义：
+ * - 流中：message_state -> ...events -> done
+ * - 非流：message_state -> done
  */
-export function connectSessionSSE(
+export function attachSessionSSE(
     sessionId: string,
     onEvent: SSEEventHandler,
     onError?: (error: Error) => void,
@@ -81,7 +85,7 @@ export function connectSessionSSE(
 ): SSEConnection {
     const controller = new AbortController()
 
-    const url = getApiUrl(`/api/chat/${sessionId}/connect${options?.afterEntryId ? `?afterEntryId=${encodeURIComponent(options.afterEntryId)}` : ''}`)
+    const url = getApiUrl(`/api/chat/${sessionId}/attach${options?.afterEntryId ? `?afterEntryId=${encodeURIComponent(options.afterEntryId)}` : ''}`)
     const token = getAuthToken()
 
     const headers: Record<string, string> = {

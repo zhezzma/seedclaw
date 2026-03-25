@@ -3,8 +3,9 @@ import { reactive, computed, type ComputedRef } from 'vue'
 import { SessionRow, type SessionCategory, useSessionsState } from './useSessionsState'
 import { useUiSettingsStore } from '../stores/setting'
 import { apiGet, apiPost } from './api-client'
-import { startChatSSE, connectSessionSSE, startRetrySSE, startEditSSE, type SSEConnection } from './sse-client'
+import { startChatSSE, attachSessionSSE, startRetrySSE, startEditSSE, type SSEConnection } from './sse-client'
 import { AgentInfo, useAgentsState } from './useAgentsState'
+import { applyAttachMessageState, getLastMessageEntryId, shouldAttachSession } from '../utils/chat-attach'
 import { type KnownApi } from './useModelsState'
 import { useToast } from './useToast'
 import { clearAllSurfaces } from './useA2UISurfaces'
@@ -92,7 +93,35 @@ function bindSSELifecycle(sse: SSEConnection, targetKey: string) {
     sse.done.then(cleanup).catch(cleanup)
 }
 
+function attachToSessionIfNeeded(targetKey: string) {
+    if (!shouldAttachSession(sseConnections.has(targetKey))) {
+        return
+    }
 
+    const sessionData = getSessionData(targetKey)
+    const afterEntryId = getLastMessageEntryId(sessionData.chatMessages)
+    const sse = attachSessionSSE(
+        targetKey,
+        (event) => {
+            if (event.event === 'message_state') {
+                const currentSessionData = getSessionData(targetKey)
+                applyAttachMessageState(currentSessionData, event.data || {})
+
+                if (event.data?.isStreaming) {
+                    currentSessionData.chatRunId = currentSessionData.chatRunId || generateUUID()
+                    currentSessionData.chatStreamStartedAt = currentSessionData.chatStreamStartedAt || Date.now()
+                }
+                return
+            }
+
+            handleSSEEvent(event.event, event.data, targetKey)
+        },
+        () => resetStreamState(sessionData),
+        { afterEntryId }
+    )
+
+    bindSSELifecycle(sse, targetKey)
+}
 
 function getSessionData(key: string): ChatSessionData {
     let data = state.sessionsMap.get(key)
@@ -243,7 +272,7 @@ const handleCommandDelta = (data: any, targetKey: string) => {
                 // 刷新会话列表（让新会话出现在侧边栏）
                 sessionsState.loadSessions()
                 // 切换到新会话并导航
-                setSessionKey(newSessionId, true)
+                setSessionKey(newSessionId)
                 router.push({ name: 'chat', params: { sessionkey: newSessionId } })
             }
             break
@@ -513,71 +542,13 @@ const loadChatHistory = async (sessionKey?: string) => {
         const sessionId = targetKey
         const result = await apiGet<{ messages: ChatMessage[], isStreaming?: boolean, partialText?: string }>(`/api/chat/${sessionId}/messages`)
         sd.chatMessages = result?.messages || []
-        const afterEntryId = sd.chatMessages.length > 0 ? sd.chatMessages[sd.chatMessages.length - 1]?.entryId : undefined
         // 清空本地临时存储的 toolResult 消息，因为历史记录中应该已经包含（或者由 chatMessages 自行管理）
         sd.chatToolMessages = []
 
-        // Handle resuming stream if active
-        if (result.isStreaming) {
-            sd.chatSending = true
-            sd.chatRunId = generateUUID() // Generate a temp run ID for UI
-            sd.chatStreamStartedAt = Date.now()
-
-            // Initialize stream with partial text if available
-            sd.chatStream = []
-
-            // Connect to existing stream
-            const existingSSE = sseConnections.get(targetKey)
-            if (existingSSE) {
-                existingSSE.abort()
-            }
-
-            const sse = connectSessionSSE(
-                sessionId,
-                (event) => {
-                    // Handle initial state sync message separately
-                    if (event.event === 'message_state') {
-                        const data = event.data
-                        if (data) {
-                            const sd = getSessionData(targetKey)
-
-                            // 1. Sync persisted history.
-                            // messages 表示完整当前分支；deltaMessages 表示 afterEntryId 之后的新持久化消息。
-                            if (data.messages && Array.isArray(data.messages)) {
-                                sd.chatMessages = data.messages
-                            } else if (data.deltaMessages && Array.isArray(data.deltaMessages) && data.deltaMessages.length > 0) {
-                                const existingEntryIds = new Set(sd.chatMessages.map(message => message.entryId).filter(Boolean))
-                                const deduped = data.deltaMessages.filter((message: ChatMessage) => !message.entryId || !existingEntryIds.has(message.entryId))
-                                if (deduped.length > 0) {
-                                    sd.chatMessages = [...sd.chatMessages, ...deduped]
-                                }
-                            }
-
-                            // 2. Sync streaming status
-                            if (typeof data.isStreaming === 'boolean') {
-                                sd.chatSending = data.isStreaming
-                            }
-
-                            // 3. Sync current stream content
-                            if (data.streamMessage) {
-                                if (data.streamMessage.content && Array.isArray(data.streamMessage.content)) {
-                                    sd.chatStream = JSON.parse(JSON.stringify(data.streamMessage.content))
-                                }
-                            } else if (data.isStreaming && !sd.chatStream) {
-                                sd.chatStream = []
-                            }
-                        }
-                        return
-                    }
-
-                    handleSSEEvent(event.event, event.data, targetKey)
-                },
-                () => resetStreamState(sd),
-                { afterEntryId }
-            )
-
-            bindSSELifecycle(sse, targetKey)
-        }
+        // 不再依赖 /messages.isStreaming 决定是否 attach。
+        // 只要本地没有该 session 的活跃 SSE，就 attach 一次，让服务端决定
+        // 是立即 done（空闲）还是继续附着到当前已有流。
+        attachToSessionIfNeeded(sessionId)
     } catch (err: any) {
         console.error('Failed to load chat history:', err)
     } finally {
@@ -598,10 +569,10 @@ const loadChatHistory = async (sessionKey?: string) => {
  * 3. 通过 session.agentId 推导 agentsSelectedId 和 currentAgent
  * 4. 加载聊天历史
  */
-const setSessionKey = async (key: string, loadHistory = true, category?: SessionCategory) => {
+const setSessionKey = async (key: string, category?: SessionCategory) => {
     // 在设置 sessionKey 之前先判断是否需要加载历史
     // 因为设置 sessionKey 后，UI 会通过 getter 读取数据，自动创建 sessionsMap entry
-    const needsLoad = loadHistory && !state.sessionsMap.has(key)
+    const needsLoad = !state.sessionsMap.has(key)
 
     // 切换会话时清空 A2UI Surface 注册表（防止跨会话数据泄漏）
     clearAllSurfaces()
@@ -621,6 +592,8 @@ const setSessionKey = async (key: string, loadHistory = true, category?: Session
 
     if (needsLoad) {
         await loadChatHistory(key)
+    } else {
+        attachToSessionIfNeeded(key)
     }
 }
 
