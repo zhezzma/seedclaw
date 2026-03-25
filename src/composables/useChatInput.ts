@@ -7,6 +7,7 @@ import { readFile } from '../utils/fileReader'
 import { createRuntimeId } from '../utils/runtime-id.ts'
 import { useCommandState, type CommandInfo } from './useCommandState'
 import { useInputHistoryStore } from '../stores/inputHistory'
+import { decideArrowKeyPriority, shouldOpenCommandSuggestions } from '../utils/chat-input-key-routing.ts'
 
 export interface CommandItem {
     label: string
@@ -41,6 +42,7 @@ const attachments = ref<{ id: string; name: string; dataUrl: string; mimeType: s
 const commandSuggestionsVisible = ref(false)
 const commandSuggestions = ref<CommandInfo[]>([])
 const commandSuggestionIndex = ref(0)
+const suppressCommandSuggestionsOnce = ref(false)
 
 // ——— 其他 UI 状态 ———
 const isRecording = ref(false)
@@ -55,7 +57,10 @@ const savedDraft = ref('')     // 进入历史浏览前暂存当前输入
 // ——— 命令补全 watch（模块级，只注册一次）———
 const { filterCommands } = useCommandState()
 watch(inputText, (val) => {
-    if (/^\/[^\s]*$/.test(val)) {
+    const fromHistoryNavigation = suppressCommandSuggestionsOnce.value
+    suppressCommandSuggestionsOnce.value = false
+
+    if (shouldOpenCommandSuggestions(val, fromHistoryNavigation)) {
         const prefix = val.slice(1)
         commandSuggestions.value = filterCommands.value(prefix)
         commandSuggestionsVisible.value = commandSuggestions.value.length > 0
@@ -179,9 +184,9 @@ const _getSessionHistory = (): string[] => {
     return historyStore.getHistory(key)
 }
 
-/** 将输入文本追加到当前 session 的历史记录 */
-const pushInputHistory = (text: string) => {
-    const key = _sessionKeyResolver?.() || ''
+/** 将输入文本追加到指定 session 的历史记录；未传时回退到当前 session */
+const pushInputHistory = (text: string, sessionKey?: string) => {
+    const key = sessionKey?.trim() || _sessionKeyResolver?.() || ''
     if (!key) return
     const historyStore = useInputHistoryStore()
     historyStore.pushHistory(key, text)
@@ -190,13 +195,19 @@ const pushInputHistory = (text: string) => {
 }
 
 const handleKeydown = (e: KeyboardEvent, onSend: () => void) => {
+    const arrowKeyPriority = decideArrowKeyPriority({
+        key: e.key,
+        commandSuggestionsVisible: commandSuggestionsVisible.value,
+        historyIndex: historyIndex.value,
+    })
+
     if (commandSuggestionsVisible.value) {
-        if (e.key === 'ArrowDown') {
+        if (arrowKeyPriority === 'suggestions' && e.key === 'ArrowDown') {
             e.preventDefault()
             commandSuggestionIndex.value = (commandSuggestionIndex.value + 1) % commandSuggestions.value.length
             return
         }
-        if (e.key === 'ArrowUp') {
+        if (arrowKeyPriority === 'suggestions' && e.key === 'ArrowUp') {
             e.preventDefault()
             commandSuggestionIndex.value =
                 (commandSuggestionIndex.value - 1 + commandSuggestions.value.length) % commandSuggestions.value.length
@@ -233,6 +244,7 @@ const handleKeydown = (e: KeyboardEvent, onSend: () => void) => {
             } else if (historyIndex.value > 0) {
                 historyIndex.value--
             }
+            suppressCommandSuggestionsOnce.value = true
             inputText.value = history[historyIndex.value]
             return
         }
@@ -248,10 +260,12 @@ const handleKeydown = (e: KeyboardEvent, onSend: () => void) => {
                 const history = _getSessionHistory()
                 if (historyIndex.value < history.length - 1) {
                     historyIndex.value++
+                    suppressCommandSuggestionsOnce.value = true
                     inputText.value = history[historyIndex.value]
                 } else {
                     // 回到最新：恢复草稿
                     historyIndex.value = -1
+                    suppressCommandSuggestionsOnce.value = true
                     inputText.value = savedDraft.value
                 }
                 return

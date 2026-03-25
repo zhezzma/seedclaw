@@ -163,9 +163,7 @@ const handleSend = async () => {
 
     if (!inputText && !hasAttachments && !isBusy.value) return
 
-    // 记录输入历史（在清空前保存）
     const { pushInputHistory } = useChatInput()
-    pushInputHistory(inputText)
 
     // Optimistic UI update: Clear input immediately
     if (chatInputRef.value) {
@@ -225,6 +223,10 @@ const handleSend = async () => {
             return
         }
     }
+
+    // 记录输入历史：必须绑定最终 sessionKey。
+    // 新会话首条消息如果在 commitNewSession 之前写入，会因为 sessionKey 为空而丢失。
+    pushInputHistory(inputText, targetSessionKey)
 
     // Process attachments:
     // - Images: Keep as attachments
