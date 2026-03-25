@@ -5,21 +5,6 @@ import { useSessionsState } from './useSessionsState'
 import { buildSessionLocation } from '../utils/notification-routing'
 import { buildTaskSessionNotificationRoutePlan } from '../utils/task-sessions-routing'
 
-export interface WsTaskData {
-    taskId: string
-    taskName: string
-    agentId: string
-    sessionId?: string
-    sessionName?: string
-    prompt?: string
-    resultSnippet?: string
-    error?: string
-    // Command execution approval
-    command?: string
-    expiresAtMs?: number
-    id?: string
-}
-
 const openSessionFromNotification = async (sessionKey: string) => {
     if (!sessionKey) return
 
