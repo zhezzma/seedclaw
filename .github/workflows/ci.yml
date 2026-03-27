@@ -1,32 +1,76 @@
-name: "Publish Release"
+name: SeedClaw Seedagent Latest Build
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - seedagent
   workflow_dispatch:
-    inputs:
-      tag_name:
-        description: "Tag name for the release"
-        required: true
-        default: "v0.0.1-manual"
+
+concurrency:
+  group: seedagent-build-latest
+  cancel-in-progress: true
 
 jobs:
   create-release:
+    runs-on: ubuntu-latest
     permissions:
       contents: write
+
+    steps:
+      - name: Delete existing latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release delete seedagent-build-latest --yes --cleanup-tag || true
+
+      - name: Create latest prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create seedagent-build-latest \
+            --target ${{ github.sha }} \
+            --title "SeedClaw Seedagent Latest Build" \
+            --notes "Automated latest build for seedagent at ${{ github.sha }}" \
+            --prerelease
+
+  publish-web:
+    needs: create-release
     runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+
     steps:
       - uses: actions/checkout@v4
-      - name: Create Release
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+
+      - name: Type check
+        run: npm run tcs
+
+      - name: Build web
+        run: npm run build
+
+      - name: Archive web build
+        run: tar -czf seedclaw-web-dist.tar.gz dist
+
+      - name: Upload web build to latest release
         uses: softprops/action-gh-release@v1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}
-          name: "SeedClaw ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}"
-          body: "Automated release for ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}"
+          tag_name: seedagent-build-latest
+          files: seedclaw-web-dist.tar.gz
           draft: false
-          prerelease: false
+          prerelease: true
+          overwrite_files: true
+          fail_on_unmatched_files: true
 
   publish-desktop:
     needs: create-release
@@ -51,6 +95,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -73,13 +118,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}
+          tagName: seedagent-build-latest
+          releaseName: "SeedClaw Seedagent Latest Build"
+          releaseBody: "Automated latest desktop build for seedagent at ${{ github.sha }}"
+          releaseDraft: false
+          prerelease: true
           args: ${{ matrix.args }}
 
       - name: Upload Artifacts
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         with:
+          tag_name: seedagent-build-latest
           files: |
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/msi/*.msi.sig
@@ -93,10 +142,9 @@ jobs:
             src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg.sig
             src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
             src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}
           draft: false
-          prerelease: false
+          prerelease: true
+          overwrite_files: true
           fail_on_unmatched_files: false
 
   publish-android:
@@ -111,6 +159,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - name: install java
         uses: actions/setup-java@v4
@@ -130,13 +179,10 @@ jobs:
           echo "ANDROID_NDK_HOME=$NDK_HOME" >> $GITHUB_ENV
           echo "$NDK_BIN" >> $GITHUB_PATH
 
-          # Configure CC/AR for aarch64
           CLANG="$NDK_BIN/aarch64-linux-android24-clang"
           echo "CC_aarch64_linux_android=$CLANG" >> $GITHUB_ENV
           echo "AR_aarch64_linux_android=$NDK_BIN/llvm-ar" >> $GITHUB_ENV
           echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$CLANG" >> $GITHUB_ENV
-
-          # Force OpenSSL to build from source (ignoring pkg-config)
           echo "OPENSSL_NO_PKG_CONFIG=1" >> $GITHUB_ENV
           echo "OPENSSL_STATIC=1" >> $GITHUB_ENV
 
@@ -177,12 +223,12 @@ jobs:
       - name: upload apk to release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: seedagent-build-latest
           files: |
             src-tauri/gen/android/app/build/outputs/apk/release/app-release.apk
             src-tauri/gen/android/app/build/outputs/apk/debug/app-debug.apk
             src-tauri/gen/android/**/*.apk
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}
           draft: false
-          prerelease: false
+          prerelease: true
+          overwrite_files: true
           fail_on_unmatched_files: false
