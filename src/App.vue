@@ -44,7 +44,7 @@ const notificationMap = ref<PendingNotificationMap>({})
 let unlistenNotification: (() => void) | null = null
 let unlistenFocus: (() => void) | null = null
 
-const MOBILE_BACKGROUND_RELOAD_MS = 30_000
+const MOBILE_BACKGROUND_RELOAD_MS = 60_000
 const NOTIFICATION_RELOAD_SUPPRESS_MS = 5_000
 const NOTIFICATION_TTL_MS = 5 * 60 * 1000
 const FOREGROUND_RELOAD_GRACE_MS = 1_200
