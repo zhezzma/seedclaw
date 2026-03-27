@@ -2,6 +2,7 @@
 import { ref, reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AvailableModel } from '../../composables/useModelsState'
+import { createDefaultModelFormData, applyModelFormData } from './model-form-state'
 
 const props = defineProps<{
     show: boolean
@@ -18,42 +19,19 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const formData = reactive<AvailableModel>({
-    id: '',
-    name: '',
-    contextWindow: 128000,
-    maxTokens: 4096,
-    cost: {
-        input: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0
-    },
-    reasoning: false,
-    input: ['text'] // Default
-})
+const formData = reactive(createDefaultModelFormData())
 
 const isSubmitting = ref(false)
 
 watch(() => props.show, (newVal) => {
-    if (newVal) {
-        if (props.mode === 'edit' && props.initialData) {
-            Object.assign(formData, JSON.parse(JSON.stringify(props.initialData)))
-            // Ensure cost object exists
-            if (!formData.cost) {
-                formData.cost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
-            }
-        } else {
-            // Reset
-            formData.id = ''
-            formData.name = ''
-            formData.contextWindow = 128000
-            formData.maxTokens = 4096
-            formData.cost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
-            formData.reasoning = false
-            formData.input = ['text']
-        }
+    if (!newVal) return
+
+    if (props.mode === 'edit') {
+        applyModelFormData(formData, props.initialData)
+        return
     }
+
+    applyModelFormData(formData)
 })
 
 const isFormValid = computed(() => {
