@@ -131,9 +131,9 @@ defineExpose({
                 <div v-else class="lg:pl-5 font-semibold flex items-center gap-2 min-w-0 flex-1">
                     <span class="truncate max-w-[150px] lg:max-w-none text-lg">{{ sessionName }}</span>
                     <span v-if="chatState.agentsSelectedId"
-                        class="badge badge-sm badge-ghost shrink-0 inline-block max-w-[6ch] truncate align-middle"
+                        class="badge badge-sm badge-ghost shrink-0 max-w-[10ch] overflow-hidden align-middle"
                         :title="chatState.agentsSelectedId">
-                        {{ chatState.agentsSelectedId }}
+                        <span class="block truncate whitespace-nowrap">{{ chatState.agentsSelectedId }}</span>
                     </span>
                 </div>
             </div>
