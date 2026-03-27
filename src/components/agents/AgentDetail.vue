@@ -100,7 +100,9 @@ const handleAgentSaved = async () => {
                             </h1>
                             <!-- Compact ID & Default Badge -->
                             <div class="flex items-center gap-2">
-                                <div class="badge badge-ghost badge-sm font-mono opacity-60 text-xs">{{ agent.id }}
+                                <div class="badge badge-ghost badge-sm font-mono opacity-60 text-xs inline-block max-w-[6ch] truncate align-middle"
+                                    :title="agent.id">
+                                    {{ agent.id }}
                                 </div>
                                 <div v-if="agent.isDefault" class="badge badge-primary badge-xs">{{ $t('agent.default')
                                 }}</div>
