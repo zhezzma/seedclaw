@@ -8,6 +8,7 @@ import { useUiSettingsStore } from './stores/setting'
 import MessagePlugin from './components/MessagePlugin.vue'
 import ConfirmPlugin from './components/ConfirmPlugin.vue'
 import ExecApprovalModal from './components/ExecApprovalModal.vue'
+import WeixinLoginModal from './components/WeixinLoginModal.vue'
 import { useAppInit } from './composables/useAppInit'
 import { ApiError } from './composables/api-client'
 import { useSessionsState } from './composables/useSessionsState'
@@ -274,6 +275,7 @@ onUnmounted(() => {
         <RouterView />
         <MessagePlugin />
         <ExecApprovalModal />
+        <WeixinLoginModal />
         <ConfirmPlugin />
     </div>
 </template>

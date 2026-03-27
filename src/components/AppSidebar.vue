@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import {
     MagnifyingGlassIcon,
@@ -8,6 +8,7 @@ import {
     ChatBubbleLeftRightIcon,
     TrashIcon,
     ArrowTopRightOnSquareIcon,
+    QrCodeIcon,
 } from '@heroicons/vue/24/outline'
 import { SIDEBAR_ITEMS } from '../config/navigation'
 
@@ -21,6 +22,7 @@ import { useNavActive } from '../composables/useNavActive'
 import { useUiSettingsStore } from '../stores/setting'
 import { useI18n } from 'vue-i18n'
 import { truncateText } from '../utils/format'
+import { useWeixinLogin } from '../composables/useWeixinLogin'
 
 const router = useRouter()
 const { confirm } = useConfirm()
@@ -29,7 +31,12 @@ const sessionsState = useSessionsState()
 const chatState = useChatState()
 const { t } = useI18n()
 const configStore = useUiSettingsStore()
+const weixinLogin = useWeixinLogin()
 
+const weixinButtonLabel = computed(() => {
+    if (weixinLogin.status.value === 'connected') return t('sidebar.weixinLoginConnectedButton')
+    return t('sidebar.weixinLoginButton')
+})
 
 
 // Filter sessions for display (exclude agent main sessions if needed, logic copied)
@@ -96,6 +103,11 @@ const handleNavClick = (item: any) => {
         closeSidebarDrawer()
     }
 }
+
+const openWeixinLoginModal = () => {
+    closeSidebarDrawer()
+    weixinLogin.openModal()
+}
 </script>
 
 <template>
@@ -111,6 +123,14 @@ const handleNavClick = (item: any) => {
                     rel="noopener noreferrer" class="btn btn-ghost btn-circle btn-sm hover:bg-base-300">
                     <ArrowTopRightOnSquareIcon class="h-5 w-5" />
                 </a>
+                <button
+                    @click="openWeixinLoginModal"
+                    class="btn btn-ghost btn-sm hover:bg-base-300 px-3"
+                    :title="$t('sidebar.weixinLoginButton')"
+                >
+                    <QrCodeIcon class="h-5 w-5" />
+                    <span class="hidden xl:inline text-xs ml-1">{{ weixinButtonLabel }}</span>
+                </button>
                 <button @click="router.push('/settings')" class="btn btn-ghost btn-circle btn-sm hover:bg-base-300">
                     <Cog6ToothIcon class="h-5 w-5" />
                 </button>
