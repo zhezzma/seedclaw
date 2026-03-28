@@ -21,6 +21,7 @@ import { useChatState } from '../../composables/useChatState'
 import { useUiSettingsStore } from '../../stores/setting'
 import { computed } from 'vue'
 import { useToast } from '~/src/composables/useToast'
+import { useMediaPreview } from '../../composables/useMediaPreview'
 
 const props = defineProps<{
     isBusy: boolean
@@ -62,6 +63,8 @@ const {
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const commandSuggestionsPanelRef = ref<HTMLDivElement | null>(null)
+
+const { openLightbox } = useMediaPreview()
 
 const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const
 type ThinkingLevel = typeof THINKING_LEVELS[number]
@@ -201,6 +204,25 @@ watch(() => settingsStore.autoSendCommands, () => {
     settingsStore.persist()
 })
 
+const handlePaste = (e: ClipboardEvent) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+
+    for (const item of items) {
+        if (item.type.startsWith('image/')) {
+            e.preventDefault()
+            const blob = item.getAsFile()
+            if (blob) {
+                // Generate a friendly filename with timestamp
+                const ext = item.type.split('/')[1] || 'png'
+                const name = `clipboard-${Date.now()}.${ext}`
+                const file = new File([blob], name, { type: item.type })
+                addAttachment(file)
+            }
+        }
+    }
+}
+
 const handleInputKeydown = (e: KeyboardEvent) => {
     handleKeydown(e, onSend)
 }
@@ -236,7 +258,7 @@ defineExpose({
                 class="flex gap-2 px-3 pt-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-base-300 scrollbar-track-transparent">
                 <div v-for="att in attachments" :key="att.id" class="relative group flex-shrink-0">
                     <!-- Image Preview -->
-                    <div v-if="att.mimeType.startsWith('image/')" class="relative">
+                    <div v-if="att.mimeType.startsWith('image/')" class="relative cursor-pointer" @click="openLightbox(att.dataUrl)">
                         <img :src="att.dataUrl" class="h-16 w-16 object-cover rounded-lg border border-base-300"
                             :title="att.name" />
                     </div>
@@ -297,7 +319,7 @@ defineExpose({
 
             <textarea ref="textareaRef" v-model="inputText" rows="1" :placeholder="$t('chat.inputPlaceholder')"
                 class="textarea textarea-ghost w-full resize-none focus:outline-none focus:bg-transparent text-base min-h-[44px] max-h-[200px] px-3 py-3 leading-6 placeholder:text-base-content/40 hide-scrollbar"
-                @keydown="handleInputKeydown" @focus="handleInputFocus" @input="adjustHeight"
+                @keydown="handleInputKeydown" @focus="handleInputFocus" @input="adjustHeight" @paste="handlePaste"
                 :disabled="disabled"></textarea>
 
             <!-- Toolbar Bottom -->

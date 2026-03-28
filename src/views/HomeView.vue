@@ -17,6 +17,7 @@ import ChatInput from '../components/chat/ChatInput.vue'
 import VoiceChatOverlay from '../components/chat/VoiceChatOverlay.vue'
 import SessionSidebar from '../components/chat/SessionSidebar.vue'
 import AppSidebar from '../components/AppSidebar.vue'
+import MediaPreviewOverlay from '../components/chat/MediaPreviewOverlay.vue'
 
 import { isNewSession, NEW_SESSION_PATH, NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
 import { useChatState } from '../composables/useChatState'
@@ -570,6 +571,9 @@ async function applyDefaultSessionBehavior() {
             <!-- Voice Chat Overlay -->
             <VoiceChatOverlay :is-open="isVoiceChatActive" :status="voiceStatus" :transcript="transcript"
                 :speaking-text="currentlySpeakingText" :is-waiting="isWaitingForAudio" @close="stopVoiceChat" />
+
+            <!-- Media Preview Overlay (shared image lightbox & file viewer) -->
+            <MediaPreviewOverlay />
         </div>
     </div>
 </template>
