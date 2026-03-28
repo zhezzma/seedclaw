@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { reactive, computed, watch } from 'vue'
 import { AvailableModel } from '../../composables/useModelsState'
 import { createDefaultModelFormData, applyModelFormData } from './model-form-state'
 
@@ -17,11 +16,7 @@ const emit = defineEmits<{
     (e: 'save', model: AvailableModel): void
 }>()
 
-const { t } = useI18n()
-
 const formData = reactive(createDefaultModelFormData())
-
-const isSubmitting = ref(false)
 
 watch(() => props.show, (newVal) => {
     if (!newVal) return
@@ -34,11 +29,27 @@ watch(() => props.show, (newVal) => {
     applyModelFormData(formData)
 })
 
+const hasSelectedInput = computed(() => formData.input.length > 0)
+
 const isFormValid = computed(() => {
-    return formData.id.trim().length > 0 && formData.name.trim().length > 0
+    return formData.id.trim().length > 0
+        && formData.name.trim().length > 0
+        && hasSelectedInput.value
 })
 
 const isReadonly = computed(() => props.mode === 'edit' && props.custom === false)
+
+const toggleInputType = (type: 'text' | 'image', enabled: boolean) => {
+    const next = new Set(formData.input)
+
+    if (enabled) {
+        next.add(type)
+    } else {
+        next.delete(type)
+    }
+
+    formData.input = Array.from(next)
+}
 
 const handleClose = () => {
     emit('close')
@@ -105,6 +116,34 @@ const handleSubmit = () => {
                         <span class="label-text">{{ $t('model.reasoning') }}</span>
                         <input v-model="formData.reasoning" type="checkbox" class="checkbox" :disabled="isReadonly" />
                     </label>
+                </div>
+
+                <div class="form-control md:col-span-2">
+                    <label class="label">
+                        <span class="label-text">{{ $t('model.inputCapabilities') }}</span>
+                    </label>
+                    <div class="flex flex-wrap gap-6">
+                        <label class="label cursor-pointer justify-start gap-3 py-0">
+                            <span class="label-text">{{ $t('model.inputText') }}</span>
+                            <input
+                                :checked="formData.input.includes('text')"
+                                type="checkbox"
+                                class="checkbox"
+                                :disabled="isReadonly"
+                                @change="toggleInputType('text', ($event.target as HTMLInputElement).checked)"
+                            />
+                        </label>
+                        <label class="label cursor-pointer justify-start gap-3 py-0">
+                            <span class="label-text">{{ $t('model.inputImage') }}</span>
+                            <input
+                                :checked="formData.input.includes('image')"
+                                type="checkbox"
+                                class="checkbox"
+                                :disabled="isReadonly"
+                                @change="toggleInputType('image', ($event.target as HTMLInputElement).checked)"
+                            />
+                        </label>
+                    </div>
                 </div>
             </div>
 
