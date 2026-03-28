@@ -306,4 +306,3 @@ export function useWeixinLogin() {
     }
 }
 }
-}
