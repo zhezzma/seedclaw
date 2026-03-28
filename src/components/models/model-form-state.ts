@@ -28,7 +28,7 @@ export function createDefaultModelFormData(): ModelFormState {
             cacheWrite: 0,
         },
         reasoning: false,
-        input: ['text'],
+        input: ['text', 'image'],
     }
 }
 
@@ -47,7 +47,9 @@ export function applyModelFormData(target: ModelFormState, initialData?: Availab
         cacheWrite: initialData?.cost?.cacheWrite ?? defaults.cost.cacheWrite,
     }
     target.reasoning = initialData?.reasoning ?? defaults.reasoning
-    target.input = [...(initialData?.input?.length ? initialData.input : defaults.input)]
+    target.input = initialData
+        ? [...(initialData.input?.length ? initialData.input : ['text'])]
+        : [...defaults.input]
 
     return target
 }
