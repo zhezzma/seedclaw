@@ -15,6 +15,9 @@ let lastDistance = 0
 let lastX = 0
 let lastY = 0
 let lastTap = 0
+// Mobile Safari / Chromium may emit a synthetic dblclick right after a touch double tap.
+// Track the touch-driven zoom time so we can ignore that follow-up event without affecting desktop dblclick.
+let lastTouchDoubleTapAt = 0
 const isMouseDragging = ref(false)
 let lastMouseX = 0
 let lastMouseY = 0
@@ -23,6 +26,14 @@ const resetZoomState = () => {
     imgScale.value = 1
     imgTranslateX.value = 0
     imgTranslateY.value = 0
+}
+
+const toggleZoom = () => {
+    if (imgScale.value > 1) {
+        resetZoomState()
+    } else {
+        imgScale.value = 2.5
+    }
 }
 
 const openLightbox = (src: string) => {
@@ -80,14 +91,11 @@ const handleTouchEnd = (e: TouchEvent) => {
         }
 
         // Handle double tap
-        const currentTime = new Date().getTime()
+        const currentTime = Date.now()
         const tapLength = currentTime - lastTap
         if (tapLength < 300 && tapLength > 0) {
-            if (imgScale.value > 1) {
-                resetZoomState()
-            } else {
-                imgScale.value = 2.5
-            }
+            toggleZoom()
+            lastTouchDoubleTapAt = currentTime
         }
         lastTap = currentTime
     }
@@ -105,11 +113,14 @@ const handleWheel = (e: WheelEvent) => {
 
 const handleImageDblClick = (e: Event) => {
     e.stopPropagation()
-    if (imgScale.value > 1) {
-        resetZoomState()
-    } else {
-        imgScale.value = 2.5
+
+    // Ignore the synthetic dblclick some mobile browsers dispatch immediately
+    // after touch-based double tap, otherwise the zoom toggles twice and flickers.
+    if (Date.now() - lastTouchDoubleTapAt < 350) {
+        return
     }
+
+    toggleZoom()
 }
 
 const handleMouseDown = (e: MouseEvent) => {
