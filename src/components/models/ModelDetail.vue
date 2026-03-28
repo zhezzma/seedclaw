@@ -24,6 +24,7 @@ const modelList = computed(() => {
         id: m.id,
         name: m.name,
         reasoning: m.reasoning,
+        input: m.input?.length ? m.input : ['text'],
         contextWindow: m.contextWindow || 0,
         maxTokens: m.maxTokens || 0,
         // api: m.api, // Not on model level usually
@@ -199,6 +200,12 @@ const handleDeleteModel = async (modelId: string) => {
                         <div class="flex flex-wrap gap-1 mt-2">
                             <span v-if="item.reasoning" class="badge badge-xs badge-primary">{{
                                 $t('model.mode.reasoning') }}</span>
+                            <span v-if="item.input.includes('text')" class="badge badge-xs badge-ghost">
+                                {{ $t('model.inputText') }}
+                            </span>
+                            <span v-if="item.input.includes('image')" class="badge badge-xs badge-ghost">
+                                {{ $t('model.inputImage') }}
+                            </span>
                             <span v-if="item.contextWindow > 0" class="badge badge-xs badge-ghost">
                                 {{ $t('model.ctx') }} {{ formatNumber(item.contextWindow) }}
                             </span>
