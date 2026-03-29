@@ -182,6 +182,15 @@ const deleteModel = async (providerId: string, modelId: string) => {
     provider.models = provider.models.filter(m => m.id !== modelId)
 }
 
+const clearProviderModels = async (providerId: string) => {
+    const provider = state.providers[providerId]
+    if (!provider) throw new Error('Provider not found')
+
+    const res = await apiDelete<{ message: string, deleted: number }>(`/api/models/providers/${providerId}/models`)
+    provider.models = []
+    return res
+}
+
 /**
  * Trigger sync models from the server.
  */
@@ -245,6 +254,7 @@ const _modelsState = {
     deleteProvider,
     saveModel,
     deleteModel,
+    clearProviderModels,
     syncModels,
     startOAuth,
     pollOAuthStatus,

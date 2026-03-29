@@ -22,6 +22,7 @@ export default {
         savedSuccess: '保存成功',
         sync: '同步',
         add: '添加',
+        clear: '清理',
         success: '成功',
         refresh: '刷新',
         scrollToBottom: '滚动到底部',
@@ -419,8 +420,10 @@ export default {
         fetchError: '未获取到模型列表',
         syncFailed: '同步失败',
         deleteConfirm: '确定要删除模型 "{id}" 吗？',
+        clearConfirm: '确认清理提供商 {id} 下的全部模型吗？',
         listTitle: '模型列表',
         syncSuccess: '同步完成：新增 {n} 个模型。',
+        clearSuccess: '已清理 {n} 个模型',
         ctx: '上下文',
         input: {
             text: '文本',

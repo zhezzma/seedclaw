@@ -22,6 +22,7 @@ export default {
         savedSuccess: 'Saved successfully',
         sync: 'Sync',
         add: 'Add',
+        clear: 'Clear',
         success: 'Success',
         error: 'Error',
         refresh: 'Refresh',
@@ -419,8 +420,10 @@ export default {
         fetchError: 'Failed to fetch model list',
         syncFailed: 'Sync failed',
         deleteConfirm: 'Are you sure you want to delete model "{id}"?',
+        clearConfirm: 'Clear all models under provider {id}?',
         listTitle: 'Model List',
         syncSuccess: 'Synced: {n} new models added.',
+        clearSuccess: 'Cleared {n} models',
         ctx: 'ctx',
         input: {
             text: 'Text',

@@ -12,7 +12,15 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const { providers, loadModels, deleteProvider: deleteProviderAction, syncModels: syncModelsAction, saveModel, deleteModel: deleteModelAction } = useModelsState()
+const {
+    providers,
+    loadModels,
+    deleteProvider: deleteProviderAction,
+    syncModels: syncModelsAction,
+    saveModel,
+    deleteModel: deleteModelAction,
+    clearProviderModels: clearProviderModelsAction,
+} = useModelsState()
 
 // Get provider from the providers list
 const provider = computed(() => {
@@ -39,6 +47,7 @@ const formatNumber = (n: number) => {
 
 // Sync
 const syncing = ref(false)
+const clearingModels = ref(false)
 const syncError = ref('')
 const syncResult = ref('')
 
@@ -116,6 +125,23 @@ const handleDeleteModel = async (modelId: string) => {
     }
 }
 
+const handleClearModels = async () => {
+    if (!provider.value?.custom) return
+    if (!confirm(t('model.clearConfirm', { id: props.providerId }))) return
+
+    clearingModels.value = true
+    syncError.value = ''
+    syncResult.value = ''
+    try {
+        const res = await clearProviderModelsAction(props.providerId)
+        syncResult.value = t('model.clearSuccess', { n: res.deleted })
+    } catch (e: any) {
+        alert(e.message)
+    } finally {
+        clearingModels.value = false
+    }
+}
+
 </script>
 
 <template>
@@ -153,12 +179,19 @@ const handleDeleteModel = async (modelId: string) => {
 
             <!-- Content -->
             <div class="flex-1 overflow-y-auto p-4 md:p-6">
-                <h2 class="text-lg font-semibold mb-4 flex items-center justify-between">
+                <h2 class="text-lg font-semibold mb-4 flex items-center justify-between gap-2">
                     {{ $t('model.listTitle') }}
-                    <button @click="openAddModel" class="btn btn-xs btn-ghost gap-1">
-                        <PlusIcon class="w-3 h-3" />
-                        {{ $t('common.add') }}
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button v-if="provider?.custom" @click="handleClearModels"
+                            class="btn btn-xs btn-ghost gap-1 text-warning" :disabled="clearingModels">
+                            <TrashIcon class="w-3 h-3" />
+                            {{ $t('common.clear') }}
+                        </button>
+                        <button @click="openAddModel" class="btn btn-xs btn-ghost gap-1">
+                            <PlusIcon class="w-3 h-3" />
+                            {{ $t('common.add') }}
+                        </button>
+                    </div>
                 </h2>
 
                 <!-- Model Grid -->
