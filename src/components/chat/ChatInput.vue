@@ -259,7 +259,8 @@ defineExpose({
                 class="flex gap-2 px-3 pt-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-base-300 scrollbar-track-transparent">
                 <div v-for="att in attachments" :key="att.id" class="relative group flex-shrink-0">
                     <!-- Image Preview -->
-                    <div v-if="att.mimeType.startsWith('image/')" class="relative cursor-pointer" @click="openLightbox(att.dataUrl)">
+                    <div v-if="att.mimeType.startsWith('image/')" class="relative cursor-pointer"
+                        @click="openLightbox(att.dataUrl)">
                         <img :src="att.dataUrl" class="h-16 w-16 object-cover rounded-lg border border-base-300"
                             :title="att.name" />
                     </div>
@@ -377,10 +378,8 @@ defineExpose({
                             <ChevronUpIcon class="h-3 w-3 ml-0.5 opacity-50" />
                         </button>
                         <div v-if="modelDropdownOpen"
-                            class="dropdown-content shadow-xl bg-base-100 rounded-box border border-base-300 z-[100] max-h-[50vh] overflow-hidden flex flex-col flex-nowrap fixed left-4 right-4 bottom-24 sm:absolute sm:left-0 sm:right-auto sm:bottom-[100%] sm:mb-2 sm:w-80">
-                            <ModelSelectMenuContent
-                                :available-models="availableModels"
-                                :current-model="currentModel"
+                            class="dropdown-content shadow-xl bg-base-100 rounded-box border border-base-300 z-[100] max-h-96 overflow-hidden flex flex-col flex-nowrap fixed left-4 right-4 bottom-24 sm:absolute sm:left-0 sm:right-auto sm:bottom-[100%] sm:mb-2 sm:w-80">
+                            <ModelSelectMenuContent :available-models="availableModels" :current-model="currentModel"
                                 @select="handleModelSelect" />
                         </div>
                     </div>
@@ -403,8 +402,7 @@ defineExpose({
                             class="dropdown-content menu p-2 shadow-xl bg-base-100 rounded-box w-36 border border-base-300 mb-2 z-[100]">
                             <li class="menu-title"><span>{{ $t('chat.thinkingLevel') }}</span></li>
                             <li v-for="level in THINKING_LEVELS" :key="level">
-                                <a @click="selectThinkingLevel(level)"
-                                    class="flex items-center gap-2 rounded-lg"
+                                <a @click="selectThinkingLevel(level)" class="flex items-center gap-2 rounded-lg"
                                     :class="{ 'bg-primary/10 text-primary': thinkingLevel === level }">
                                     <span class="flex-1">{{ $t(`chat.thinkingLevels.${level}`) }}</span>
                                     <CheckIcon v-if="thinkingLevel === level" class="h-4 w-4 shrink-0" />
