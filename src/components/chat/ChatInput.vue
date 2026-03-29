@@ -416,11 +416,11 @@ defineExpose({
                             <ChevronUpIcon class="h-3 w-3 ml-0.5 opacity-50" />
                         </button>
                         <ul v-if="thinkingDropdownOpen"
-                            class="dropdown-content menu p-2 shadow-xl bg-base-100 rounded-box w-56 border border-base-300 mb-2 z-[100]">
+                            class="dropdown-content menu p-2 shadow-xl bg-base-100 rounded-box w-36 border border-base-300 mb-2 z-[100]">
                             <li class="menu-title"><span>{{ $t('chat.thinkingLevel') }}</span></li>
                             <li v-for="level in THINKING_LEVELS" :key="level">
                                 <a @click="selectThinkingLevel(level)" class="rounded-lg"
-                                    :class="{ 'active': thinkingLevel === level }">
+                                    :class="{ 'menu-active': thinkingLevel === level }">
                                     {{ $t(`chat.thinkingLevels.${level}`) }}
                                 </a>
                             </li>
