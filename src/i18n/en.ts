@@ -436,6 +436,7 @@ export default {
         contextWindow: 'Context Window',
         maxTokens: 'Max Tokens',
         maxOutputTokens: 'Max Output Tokens',
+        maxOutputShort: 'out',
         inputCost: 'Input Cost ($/1M)',
         outputCost: 'Output Cost ($/1M)',
         reasoning: 'Supports Reasoning',

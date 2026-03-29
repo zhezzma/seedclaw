@@ -194,6 +194,17 @@ const handleDeleteModel = async (modelId: string) => {
                         <div class="flex-1 min-w-0">
                             <div class="font-semibold text-sm truncate" :title="item.name">{{ item.name }}</div>
                             <div class="text-xs text-base-content/50 truncate" :title="item.id">{{ item.id }}</div>
+
+                            <!-- Capacity line: keep context window and max output tokens together on their own row -->
+                            <div v-if="item.contextWindow > 0 || item.maxTokens > 0"
+                                class="mt-2 text-[11px] leading-4 text-base-content/60 flex flex-wrap gap-x-3 gap-y-1">
+                                <span v-if="item.contextWindow > 0">
+                                    {{ $t('model.ctx') }} {{ formatNumber(item.contextWindow) }}
+                                </span>
+                                <span v-if="item.maxTokens > 0">
+                                    {{ $t('model.maxOutputShort') }} {{ formatNumber(item.maxTokens) }}
+                                </span>
+                            </div>
                         </div>
 
                         <!-- Tags -->
@@ -205,9 +216,6 @@ const handleDeleteModel = async (modelId: string) => {
                             </span>
                             <span v-if="item.input.includes('image')" class="badge badge-xs badge-ghost">
                                 {{ $t('model.inputImage') }}
-                            </span>
-                            <span v-if="item.contextWindow > 0" class="badge badge-xs badge-ghost">
-                                {{ $t('model.ctx') }} {{ formatNumber(item.contextWindow) }}
                             </span>
                         </div>
                     </div>

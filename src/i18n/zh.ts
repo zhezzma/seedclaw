@@ -436,6 +436,7 @@ export default {
         contextWindow: '上下文窗口',
         maxTokens: '最大 Token',
         maxOutputTokens: '最大输出 Token',
+        maxOutputShort: '输出',
         inputCost: '输入成本 ($/1M)',
         outputCost: '输出成本 ($/1M)',
         reasoning: '支持推理',
