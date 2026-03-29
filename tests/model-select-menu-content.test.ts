@@ -27,3 +27,10 @@ test('model select menu content renders grouped search UI and emits full model i
     assert.match(source, /<CheckIcon/)
     assert.match(source, /<MagnifyingGlassIcon/)
 })
+
+test('model select menu content keeps sticky header controls separate from the scrolling list', () => {
+    assert.match(source, /class="flex max-h-full min-h-0 flex-col"/)
+    assert.match(source, /class="sticky top-0 z-20 bg-base-100"/)
+    assert.match(source, /class="min-h-0 overflow-y-auto px-2 pb-2"/)
+    assert.match(source, /sticky top-\[5\.25rem\]/)
+})
