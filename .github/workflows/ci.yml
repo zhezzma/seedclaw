@@ -197,6 +197,30 @@ jobs:
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
 
+      - name: Patch Android Maven repositories for CI
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path("src-tauri/gen/android/build.gradle.kts")
+          text = path.read_text()
+
+          original = text
+          lines = []
+          for line in text.splitlines():
+              if "maven.aliyun.com" in line:
+                  continue
+              lines.append(line)
+
+          new_text = "\n".join(lines) + "\n"
+          path.write_text(new_text)
+
+          print(f"=== Patched: {path} ===")
+          print(new_text)
+          if original == new_text:
+              print("No aliyun repository lines found.")
+          PY
+
       - name: Decode Keystore
         if: env.ANDROID_KEYSTORE_BASE64 != ''
         run: |
