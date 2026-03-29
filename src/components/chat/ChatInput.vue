@@ -388,13 +388,13 @@ defineExpose({
                                     <a @click="handleModelSelect(`${group.provider}/${m.id}`)"
                                         class="flex items-center gap-2 p-2 rounded-lg hover:bg-base-200 transition-colors cursor-pointer"
                                         :class="{ 'bg-primary/10 text-primary': currentModel === `${group.provider}/${m.id}` }">
-                                        <CheckIcon v-if="currentModel === `${group.provider}/${m.id}`"
-                                            class="h-4 w-4 shrink-0" />
-                                        <span v-else class="w-4 h-4 shrink-0"></span>
-                                        <span class="truncate block text-xs" :title="m.name">
+                                        <span class="truncate block text-xs flex-1 min-w-0" :title="m.name">
                                             {{ m.name }}
                                             <!-- <span class="opacity-50  font-mono ml-1">({{ m.id }})</span> -->
                                         </span>
+                                        <CheckIcon v-if="currentModel === `${group.provider}/${m.id}`"
+                                            class="h-4 w-4 shrink-0" />
+                                        <span v-else class="w-4 h-4 shrink-0"></span>
                                     </a>
                                 </li>
                             </template>
@@ -419,9 +419,12 @@ defineExpose({
                             class="dropdown-content menu p-2 shadow-xl bg-base-100 rounded-box w-36 border border-base-300 mb-2 z-[100]">
                             <li class="menu-title"><span>{{ $t('chat.thinkingLevel') }}</span></li>
                             <li v-for="level in THINKING_LEVELS" :key="level">
-                                <a @click="selectThinkingLevel(level)" class="rounded-lg"
-                                    :class="{ 'menu-active': thinkingLevel === level }">
-                                    {{ $t(`chat.thinkingLevels.${level}`) }}
+                                <a @click="selectThinkingLevel(level)"
+                                    class="flex items-center gap-2 rounded-lg"
+                                    :class="{ 'bg-primary/10 text-primary': thinkingLevel === level }">
+                                    <span class="flex-1">{{ $t(`chat.thinkingLevels.${level}`) }}</span>
+                                    <CheckIcon v-if="thinkingLevel === level" class="h-4 w-4 shrink-0" />
+                                    <span v-else class="w-4 h-4 shrink-0"></span>
                                 </a>
                             </li>
                         </ul>
