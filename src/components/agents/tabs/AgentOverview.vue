@@ -467,7 +467,7 @@ const handleDeleteAgent = async () => {
                                 </button>
 
                                 <div v-if="modelDropdownOpen" :style="modelDropdownStyle"
-                                    class="fixed left-4 right-4 shadow-xl bg-base-100 rounded-box border border-base-300 z-[120] max-h-[50vh] overflow-y-auto sm:absolute sm:left-auto sm:right-0 sm:bottom-full sm:mb-2 sm:w-[22rem] sm:max-w-[calc(100vw-2rem)]">
+                                    class="fixed left-4 right-4 shadow-xl bg-base-100 rounded-box border border-base-300 z-[120] max-h-[50vh] overflow-hidden flex flex-col sm:absolute sm:left-auto sm:right-0 sm:bottom-full sm:mb-2 sm:w-[22rem] sm:max-w-[calc(100vw-2rem)]">
                                     <ModelSelectMenuContent
                                         :available-models="availableModels"
                                         :current-model="currentModel"

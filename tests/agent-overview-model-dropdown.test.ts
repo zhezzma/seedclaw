@@ -63,7 +63,7 @@ test('agent overview model dropdown computes mobile fixed positioning from the t
 
     assert.match(
         source,
-        /class="fixed left-4 right-4 shadow-xl bg-base-100 rounded-box border border-base-300 z-\[120\] max-h-\[50vh\] overflow-y-auto sm:absolute sm:left-auto sm:right-0 sm:bottom-full sm:mb-2 sm:w-\[22rem\] sm:max-w-\[calc\(100vw-2rem\)\]"/,
-        'AgentOverview should use mobile fixed positioning and switch to desktop absolute upward positioning on larger screens',
+        /class="fixed left-4 right-4 shadow-xl bg-base-100 rounded-box border border-base-300 z-\[120\] max-h-\[50vh\] overflow-hidden flex flex-col sm:absolute sm:left-auto sm:right-0 sm:bottom-full sm:mb-2 sm:w-\[22rem\] sm:max-w-\[calc\(100vw-2rem\)\]"/,
+        'AgentOverview should use mobile fixed positioning, keep the shared menu header pinned, and switch to desktop absolute upward positioning on larger screens',
     )
 })

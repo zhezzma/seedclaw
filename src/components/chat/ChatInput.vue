@@ -377,7 +377,7 @@ defineExpose({
                             <ChevronUpIcon class="h-3 w-3 ml-0.5 opacity-50" />
                         </button>
                         <div v-if="modelDropdownOpen"
-                            class="dropdown-content shadow-xl bg-base-100 rounded-box border border-base-300 z-[100] max-h-[50vh] overflow-y-auto flex flex-col flex-nowrap fixed left-4 right-4 bottom-24 sm:absolute sm:left-0 sm:right-auto sm:bottom-[100%] sm:mb-2 sm:w-80">
+                            class="dropdown-content shadow-xl bg-base-100 rounded-box border border-base-300 z-[100] max-h-[50vh] overflow-hidden flex flex-col flex-nowrap fixed left-4 right-4 bottom-24 sm:absolute sm:left-0 sm:right-auto sm:bottom-[100%] sm:mb-2 sm:w-80">
                             <ModelSelectMenuContent
                                 :available-models="availableModels"
                                 :current-model="currentModel"
