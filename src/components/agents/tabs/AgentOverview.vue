@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useToast } from '../../../composables/useToast'
 
 import { useModelsState } from '../../../composables/useModelsState'
@@ -7,9 +7,12 @@ import { AgentInfo, useAgentsState } from '../../../composables/useAgentsState'
 import { useI18n } from 'vue-i18n'
 import {
     FingerPrintIcon,
-    ExclamationTriangleIcon
+    ExclamationTriangleIcon,
+    CpuChipIcon,
+    ChevronUpIcon,
 } from '@heroicons/vue/24/outline'
 import DeliveryTargetsEditor from '@/components/delivery/DeliveryTargetsEditor.vue'
+import ModelSelectMenuContent from '../../models/ModelSelectMenuContent.vue'
 import { defaultHeartbeatDeliveryTargets, sanitizeDeliveryTargets, summarizeDeliveryTargets } from '../../../utils/delivery-targets'
 import { validateHeartbeatForm } from '../../../utils/form-validation'
 
@@ -64,6 +67,75 @@ const isCurrentModelAvailable = computed(() => {
         if (group.models.some((m: any) => `${group.provider}/${m.id}` === val)) return true
     }
     return false
+})
+
+const modelDropdownOpen = ref(false)
+const modelDropdownRef = ref<HTMLElement | null>(null)
+const modelTriggerRef = ref<HTMLElement | null>(null)
+const modelDropdownStyle = ref<Record<string, string>>({})
+
+const currentModelLabel = computed(() => {
+    const val = currentModel.value
+    if (!val) return t('agent.selectModel')
+
+    for (const group of availableModels.value) {
+        const matched = group.models.find((m: any) => `${group.provider}/${m.id}` === val)
+        if (matched) return matched.name
+    }
+
+    return `${val} (${t('agent.unknownModel')})`
+})
+
+const updateModelDropdownPosition = () => {
+    if (window.innerWidth >= 640) {
+        modelDropdownStyle.value = {}
+        return
+    }
+
+    const rect = modelTriggerRef.value?.getBoundingClientRect()
+    if (!rect) return
+
+    modelDropdownStyle.value = {
+        bottom: `${window.innerHeight - rect.top + 8}px`
+    }
+}
+
+const toggleModelDropdown = () => {
+    modelDropdownOpen.value = !modelDropdownOpen.value
+    if (modelDropdownOpen.value) {
+        updateModelDropdownPosition()
+    }
+}
+
+const handleAgentModelSelect = (modelId: string) => {
+    modelDropdownOpen.value = false
+    currentModel.value = modelId
+}
+
+const handleDocumentClick = (event: MouseEvent) => {
+    const target = event.target as Node | null
+    if (!modelDropdownOpen.value || !target) return
+    if (!modelDropdownRef.value?.contains(target)) {
+        modelDropdownOpen.value = false
+    }
+}
+
+const handleViewportChange = () => {
+    if (modelDropdownOpen.value) {
+        updateModelDropdownPosition()
+    }
+}
+
+onMounted(() => {
+    document.addEventListener('click', handleDocumentClick)
+    window.addEventListener('resize', handleViewportChange)
+    window.addEventListener('scroll', handleViewportChange, true)
+})
+
+onBeforeUnmount(() => {
+    document.removeEventListener('click', handleDocumentClick)
+    window.removeEventListener('resize', handleViewportChange)
+    window.removeEventListener('scroll', handleViewportChange, true)
 })
 
 
@@ -363,7 +435,7 @@ const handleDeleteAgent = async () => {
                     <FingerPrintIcon class="w-4 h-4" />
                     {{ $t('agent.basicInfo') }}
                 </h4>
-                <div class="card bg-base-100 shadow-sm overflow-hidden">
+                <div class="card bg-base-100 shadow-sm overflow-visible">
                     <ul class="divide-y divide-base-300">
                         <li class="flex items-center justify-between p-4 bg-base-100">
                             <span class="font-medium text-base-content/90">{{ $t('agent.workspace') }}</span>
@@ -382,20 +454,26 @@ const handleDeleteAgent = async () => {
                         <li class="flex items-center justify-between p-4 bg-base-100">
                             <span class="font-medium text-base-content/90">{{ $t('agent.mainModel') }}</span>
 
-                            <div class="flex-1 max-w-[250px] flex flex-col items-end gap-1">
-                                <select v-model="currentModel" class="select select-bordered w-full">
-                                    <option value="" disabled>{{ $t('agent.selectModel') }}</option>
-                                    <option v-if="!isCurrentModelAvailable && currentModel" :value="currentModel">
-                                        {{ currentModel }} ({{ $t('agent.unknownModel') }})
-                                    </option>
-                                    <optgroup v-for="group in availableModels" :key="group.provider"
-                                        :label="group.provider">
-                                        <option v-for="model in group.models" :key="model.id"
-                                            :value="`${group.provider}/${model.id}`" class="w-100 truncate block">
-                                            {{ model.name }}
-                                        </option>
-                                    </optgroup>
-                                </select>
+                            <div ref="modelDropdownRef" class="flex-1 max-w-[250px] flex flex-col items-end gap-1 relative">
+                                <button ref="modelTriggerRef" @click.stop="toggleModelDropdown"
+                                    class="btn btn-ghost btn-sm gap-2 font-normal rounded-full border border-base-content/20 hover:border-base-content/40 hover:bg-base-300 transition-all w-full justify-between"
+                                    :title="$t('agent.selectModel')">
+                                    <span class="flex items-center gap-2 min-w-0 flex-1">
+                                        <CpuChipIcon class="h-4 w-4 shrink-0" />
+                                        <span class="truncate">{{ currentModelLabel }}</span>
+                                    </span>
+                                    <ChevronUpIcon class="h-3 w-3 shrink-0 opacity-50 transition-transform"
+                                        :class="{ 'rotate-180': modelDropdownOpen }" />
+                                </button>
+
+                                <div v-if="modelDropdownOpen" :style="modelDropdownStyle"
+                                    class="fixed left-4 right-4 shadow-xl bg-base-100 rounded-box border border-base-300 z-[120] max-h-[50vh] overflow-y-auto sm:absolute sm:left-auto sm:right-0 sm:bottom-full sm:mb-2 sm:w-[22rem] sm:max-w-[calc(100vw-2rem)]">
+                                    <ModelSelectMenuContent
+                                        :available-models="availableModels"
+                                        :current-model="currentModel"
+                                        :show-unknown-current="!isCurrentModelAvailable && !!currentModel"
+                                        @select="handleAgentModelSelect" />
+                                </div>
                             </div>
                         </li>
                         <li class="flex items-center justify-between p-4 bg-base-100">

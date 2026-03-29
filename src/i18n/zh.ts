@@ -392,6 +392,7 @@ export default {
         title: '模型提供商',
         noProviders: '暂无模型提供商',
         selectModel: '选择模型',
+        searchModels: '搜索模型名或 ID...',
         addDesc: '点击右上角 + 号添加',
         modelCount: '{n} 个模型',
         manageDesc: '管理 AI 模型提供商和模型配置',

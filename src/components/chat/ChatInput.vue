@@ -22,6 +22,7 @@ import { useUiSettingsStore } from '../../stores/setting'
 import { computed } from 'vue'
 import { useToast } from '~/src/composables/useToast'
 import { useMediaPreview } from '../../composables/useMediaPreview'
+import ModelSelectMenuContent from '../models/ModelSelectMenuContent.vue'
 
 const props = defineProps<{
     isBusy: boolean
@@ -375,30 +376,13 @@ defineExpose({
                             <span class="sm:inline">{{ $t('chat.models') }}</span>
                             <ChevronUpIcon class="h-3 w-3 ml-0.5 opacity-50" />
                         </button>
-                        <ul v-if="modelDropdownOpen"
-                            class="dropdown-content p-2 shadow-xl bg-base-100 rounded-box border border-base-300 z-[100] max-h-[50vh] overflow-y-auto flex flex-col flex-nowrap fixed left-4 right-4 bottom-24 sm:absolute sm:left-0 sm:right-auto sm:bottom-[100%] sm:mb-2 sm:w-80">
-                            <li class="px-4 py-2 text-xs opacity-50 font-bold uppercase tracking-wider block">{{
-                                $t('provider.selectModel') }}</li>
-                            <template v-for="group in availableModels" :key="group.provider">
-                                <li
-                                    class="px-4 py-1 text-[10px] uppercase tracking-wider bg-base-200/50 mb-1 font-bold block sticky top-0 backdrop-blur-md z-10">
-                                    {{ group.provider }}
-                                </li>
-                                <li v-for="m in group.models" :key="m.id" class="block">
-                                    <a @click="handleModelSelect(`${group.provider}/${m.id}`)"
-                                        class="flex items-center gap-2 p-2 rounded-lg hover:bg-base-200 transition-colors cursor-pointer"
-                                        :class="{ 'bg-primary/10 text-primary': currentModel === `${group.provider}/${m.id}` }">
-                                        <span class="truncate block text-xs flex-1 min-w-0" :title="m.name">
-                                            {{ m.name }}
-                                            <!-- <span class="opacity-50  font-mono ml-1">({{ m.id }})</span> -->
-                                        </span>
-                                        <CheckIcon v-if="currentModel === `${group.provider}/${m.id}`"
-                                            class="h-4 w-4 shrink-0" />
-                                        <span v-else class="w-4 h-4 shrink-0"></span>
-                                    </a>
-                                </li>
-                            </template>
-                        </ul>
+                        <div v-if="modelDropdownOpen"
+                            class="dropdown-content shadow-xl bg-base-100 rounded-box border border-base-300 z-[100] max-h-[50vh] overflow-y-auto flex flex-col flex-nowrap fixed left-4 right-4 bottom-24 sm:absolute sm:left-0 sm:right-auto sm:bottom-[100%] sm:mb-2 sm:w-80">
+                            <ModelSelectMenuContent
+                                :available-models="availableModels"
+                                :current-model="currentModel"
+                                @select="handleModelSelect" />
+                        </div>
                     </div>
 
 

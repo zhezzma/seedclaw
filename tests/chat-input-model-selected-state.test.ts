@@ -18,16 +18,22 @@ assert.notEqual(end, -1, 'missing model dropdown section end marker')
 
 const modelSection = source.slice(start, end)
 
-test('model dropdown places the selected check icon on the right side', () => {
+test('chat input reuses the shared model menu content component', () => {
     assert.match(
-        modelSection,
-        /m\.name[\s\S]*<CheckIcon\s+v-if="currentModel === `\$\{group\.provider\}\/\$\{m\.id\}`"\s+class="h-4 w-4 shrink-0"\s*\/>/s,
-        'model dropdown should render the selected check icon after the model label so it appears on the right side',
+        source,
+        /import ModelSelectMenuContent from '\.\.\/models\/ModelSelectMenuContent\.vue'/,
+        'ChatInput should import the shared model menu content component',
     )
 
     assert.match(
         modelSection,
-        /m\.name[\s\S]*<span\s+v-else\s+class="w-4 h-4 shrink-0"><\/span>/s,
-        'model dropdown should keep a right-side placeholder for unselected items so labels stay aligned',
+        /<ModelSelectMenuContent[\s\S]*@select="handleModelSelect"/s,
+        'ChatInput should render the shared model menu content component and keep using handleModelSelect',
+    )
+
+    assert.doesNotMatch(
+        modelSection,
+        /v-for="group in availableModels"/,
+        'ChatInput should no longer inline the model group rendering after extracting the shared component',
     )
 })

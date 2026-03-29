@@ -392,6 +392,7 @@ export default {
         title: 'Model Providers',
         noProviders: 'No Model Providers',
         selectModel: 'Select Model',
+        searchModels: 'Search model name or ID...',
         addDesc: 'Click + in the top right to add',
         modelCount: '{n} Models',
         manageDesc: 'Manage AI model providers and model configurations',
