@@ -99,7 +99,7 @@ const emitSelect = (provider: string, modelId: string) => emit('select', `${prov
                 </button>
 
                 <template v-for="group in filteredGroups" :key="group.provider">
-                    <div class="px-4 py-1 text-[10px] uppercase tracking-wider bg-base-200/50 mb-1 font-bold block sticky top-[5.25rem] backdrop-blur-md z-10">
+                    <div class="px-4 py-1 text-[10px] uppercase tracking-wider bg-base-200/50 mb-1 font-bold block sticky top-0 backdrop-blur-md z-10">
                         {{ group.provider }}
                     </div>
                     <button v-for="m in group.models" :key="m.id" @click="emitSelect(group.provider, m.id)"
