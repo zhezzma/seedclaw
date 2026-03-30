@@ -8,6 +8,12 @@ import {
     type SessionCategory,
     type SessionRouteState,
 } from '../utils/notification-routing'
+import {
+    moveSessionToRouteState,
+    normalizeSessionRouteState,
+    removeSessionFromResult,
+    prependSessionToResult,
+} from './session-route-state'
 import { hasSessionInLists } from '../utils/task-sessions-routing'
 
 export type { SessionCategory, SessionRouteState } from '../utils/notification-routing'
@@ -63,58 +69,15 @@ const rebuildIndex = () => {
     state.archivedSessionsResult?.sessions?.forEach(s => sessionsIndex.set(s.id, s))
 }
 
-const normalizeSessionRouteState = (routeState?: SessionRouteState): Required<SessionRouteState> => ({
-    sessionCategory: routeState?.sessionCategory === 'task' ? 'task' : 'default',
-    archived: Boolean(routeState?.archived),
-})
-
-const getSessionBucketKey = (routeState?: SessionRouteState): keyof SessionsState => {
-    const normalized = normalizeSessionRouteState(routeState)
-    if (normalized.sessionCategory === 'task') return 'taskSessionsResult'
-    if (normalized.archived) return 'archivedSessionsResult'
-    return 'sessionsResult'
-}
 
 const upsertSessionByRouteState = (session: SessionRow, routeState?: SessionRouteState) => {
     const normalized = normalizeSessionRouteState(routeState ?? session)
-    const targetKey = getSessionBucketKey(normalized)
     const nextSession = {
         ...session,
-        sessionCategory: normalized.sessionCategory,
-        archived: normalized.archived,
+        ...normalized,
     }
-    const existing = state[targetKey]?.sessions || []
-    const deduped = existing.filter(s => s.id !== session.id)
-    state[targetKey] = {
-        ...(state[targetKey] || {}),
-        sessions: [nextSession, ...deduped],
-        total: deduped.length + 1,
-    }
+    Object.assign(state, moveSessionToRouteState(state, nextSession, normalized))
     sessionsIndex.set(session.id, nextSession)
-}
-
-const removeSessionFromResult = (result: SessionsResult | null, id: string): SessionsResult | null => {
-    if (!result?.sessions) return result
-    const nextSessions = result.sessions.filter(session => session.id !== id)
-    if (nextSessions.length === result.sessions.length) return result
-    const nextTotal = typeof result.total === 'number'
-        ? Math.max(0, result.total - (result.sessions.length - nextSessions.length))
-        : nextSessions.length
-    return {
-        ...result,
-        sessions: nextSessions,
-        total: nextTotal,
-    }
-}
-
-const prependSessionToResult = (result: SessionsResult | null, session: SessionRow): SessionsResult => {
-    const existing = result?.sessions || []
-    const deduped = existing.filter(item => item.id !== session.id)
-    return {
-        ...(result || {}),
-        sessions: [session, ...deduped],
-        total: typeof result?.total === 'number' ? deduped.length + 1 : deduped.length + 1,
-    }
 }
 
 const findSessionLocal = (id: string) =>
@@ -216,13 +179,21 @@ const triggerSessionRename = async (targetKey: string, _agentId: string, userTex
 const archiveSession = async (id: string) => {
     await apiPost(`/api/sessions/${encodeURIComponent(id)}/archive`)
 
-    const known = state.sessionsResult?.sessions?.find((session: SessionRow) => session.id === id)
-    state.sessionsResult = removeSessionFromResult(state.sessionsResult, id)
-
+    const known = findSessionLocal(id)
     if (known) {
-        const archivedSession = { ...known, archived: true, sessionCategory: known.sessionCategory || 'default' }
-        state.archivedSessionsResult = prependSessionToResult(state.archivedSessionsResult, archivedSession)
+        const archivedSession = {
+            ...known,
+            ...normalizeSessionRouteState({
+                sessionCategory: known.sessionCategory,
+                archived: true,
+            }),
+        }
+        Object.assign(state, moveSessionToRouteState(state, archivedSession, archivedSession))
         sessionsIndex.set(id, archivedSession)
+    } else {
+        state.sessionsResult = removeSessionFromResult(state.sessionsResult, id)
+        state.taskSessionsResult = removeSessionFromResult(state.taskSessionsResult, id)
+        state.archivedSessionsResult = removeSessionFromResult(state.archivedSessionsResult, id)
     }
 
     return { archived: true }
@@ -231,13 +202,21 @@ const archiveSession = async (id: string) => {
 const unarchiveSession = async (id: string) => {
     await apiDelete(`/api/sessions/${encodeURIComponent(id)}/archive`)
 
-    const known = state.archivedSessionsResult?.sessions?.find((session: SessionRow) => session.id === id)
-    state.archivedSessionsResult = removeSessionFromResult(state.archivedSessionsResult, id)
-
+    const known = findSessionLocal(id)
     if (known) {
-        const restoredSession = { ...known, archived: false, sessionCategory: known.sessionCategory || 'default' }
-        state.sessionsResult = prependSessionToResult(state.sessionsResult, restoredSession)
+        const restoredSession = {
+            ...known,
+            ...normalizeSessionRouteState({
+                sessionCategory: known.sessionCategory,
+                archived: false,
+            }),
+        }
+        Object.assign(state, moveSessionToRouteState(state, restoredSession, restoredSession))
         sessionsIndex.set(id, restoredSession)
+    } else {
+        state.sessionsResult = removeSessionFromResult(state.sessionsResult, id)
+        state.taskSessionsResult = removeSessionFromResult(state.taskSessionsResult, id)
+        state.archivedSessionsResult = removeSessionFromResult(state.archivedSessionsResult, id)
     }
 
     return { archived: false }

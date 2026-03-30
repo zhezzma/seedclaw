@@ -1,0 +1,83 @@
+import type { SessionRouteState } from '../utils/notification-routing.ts'
+
+export interface SessionRouteRow extends SessionRouteState {
+    id: string
+}
+
+export interface SessionRouteResult<TSession extends SessionRouteRow> {
+    sessions: TSession[]
+    total?: number
+    page?: number
+    pageSize?: number
+}
+
+export interface SessionRouteBuckets<TSession extends SessionRouteRow> {
+    sessionsResult: SessionRouteResult<TSession> | null
+    taskSessionsResult: SessionRouteResult<TSession> | null
+    archivedSessionsResult: SessionRouteResult<TSession> | null
+}
+
+export const normalizeSessionRouteState = (routeState?: SessionRouteState): Required<SessionRouteState> => ({
+    sessionCategory: routeState?.sessionCategory === 'task' ? 'task' : 'default',
+    archived: Boolean(routeState?.archived),
+})
+
+export const getSessionBucketKey = (routeState?: SessionRouteState): keyof SessionRouteBuckets<SessionRouteRow> => {
+    const normalized = normalizeSessionRouteState(routeState)
+    if (normalized.sessionCategory === 'task') return 'taskSessionsResult'
+    if (normalized.archived) return 'archivedSessionsResult'
+    return 'sessionsResult'
+}
+
+export const removeSessionFromResult = <TSession extends SessionRouteRow>(
+    result: SessionRouteResult<TSession> | null,
+    id: string,
+): SessionRouteResult<TSession> | null => {
+    if (!result?.sessions) return result
+    const nextSessions = result.sessions.filter(session => session.id !== id)
+    if (nextSessions.length === result.sessions.length) return result
+    const nextTotal = typeof result.total === 'number'
+        ? Math.max(0, result.total - (result.sessions.length - nextSessions.length))
+        : nextSessions.length
+    return {
+        ...result,
+        sessions: nextSessions,
+        total: nextTotal,
+    }
+}
+
+export const prependSessionToResult = <TSession extends SessionRouteRow>(
+    result: SessionRouteResult<TSession> | null,
+    session: TSession,
+): SessionRouteResult<TSession> => {
+    const existing = result?.sessions || []
+    const deduped = existing.filter(item => item.id !== session.id)
+    return {
+        ...(result || {}),
+        sessions: [session, ...deduped],
+        total: deduped.length + 1,
+    }
+}
+
+export const moveSessionToRouteState = <TSession extends SessionRouteRow>(
+    sessionsState: SessionRouteBuckets<TSession>,
+    session: TSession,
+    routeState?: SessionRouteState,
+): SessionRouteBuckets<TSession> => {
+    const normalized = normalizeSessionRouteState(routeState ?? session)
+    const targetKey = getSessionBucketKey(normalized) as keyof SessionRouteBuckets<TSession>
+    const nextSession = {
+        ...session,
+        sessionCategory: normalized.sessionCategory,
+        archived: normalized.archived,
+    } as TSession
+
+    const nextState: SessionRouteBuckets<TSession> = {
+        sessionsResult: removeSessionFromResult(sessionsState.sessionsResult, session.id),
+        taskSessionsResult: removeSessionFromResult(sessionsState.taskSessionsResult, session.id),
+        archivedSessionsResult: removeSessionFromResult(sessionsState.archivedSessionsResult, session.id),
+    }
+
+    nextState[targetKey] = prependSessionToResult(nextState[targetKey], nextSession)
+    return nextState
+}
