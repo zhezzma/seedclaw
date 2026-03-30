@@ -2,13 +2,17 @@ export type SessionCategory = 'default' | 'task'
 export type NotificationNavigationReason = 'exact-notification-id' | 'single-candidate' | 'no-candidates' | 'multiple-candidates'
 export type NotificationFallbackToastKey = 'notificationsNoCandidates' | 'notificationsMultipleCandidates'
 
-export interface SessionLike {
-    id: string
+export interface SessionRouteState {
     sessionCategory?: SessionCategory
+    archived?: boolean
+}
+
+export interface SessionLike extends SessionRouteState {
+    id: string
 }
 
 export interface SessionLocation {
-    name: 'chat' | 'tasks'
+    name: 'chat' | 'tasks' | 'archived'
     params: { sessionkey: string }
 }
 
@@ -49,26 +53,65 @@ export interface ResolveNotificationNavigationOptions {
 }
 
 /**
- * 根据当前缓存的两个 session 列表判断 session 属于哪个列表。
+ * 根据当前缓存的 session 列表判断 session 的最新路由状态。
  * task 列表优先级更高，避免历史脏数据或重复缓存时把任务会话误判成普通会话。
  */
+export const resolveCachedSessionRouteState = (
+    sessionId: string,
+    defaultSessions: SessionLike[] = [],
+    taskSessions: SessionLike[] = [],
+    archivedSessions: SessionLike[] = [],
+): SessionRouteState | undefined => {
+    if (!sessionId) return undefined
+
+    const taskSession = taskSessions.find(session => session.id === sessionId)
+    if (taskSession) {
+        return {
+            sessionCategory: 'task',
+            archived: Boolean(taskSession.archived),
+        }
+    }
+
+    const archivedSession = archivedSessions.find(session => session.id === sessionId)
+    if (archivedSession) {
+        return {
+            sessionCategory: archivedSession.sessionCategory === 'task' ? 'task' : 'default',
+            archived: true,
+        }
+    }
+
+    const defaultSession = defaultSessions.find(session => session.id === sessionId)
+    if (defaultSession) {
+        return {
+            sessionCategory: defaultSession.sessionCategory === 'task' ? 'task' : 'default',
+            archived: Boolean(defaultSession.archived),
+        }
+    }
+
+    return undefined
+}
+
 export const resolveCachedSessionCategory = (
     sessionId: string,
     defaultSessions: SessionLike[] = [],
     taskSessions: SessionLike[] = [],
+    archivedSessions: SessionLike[] = [],
 ): SessionCategory | undefined => {
-    if (!sessionId) return undefined
-    if (taskSessions.some(session => session.id === sessionId)) return 'task'
-    if (defaultSessions.some(session => session.id === sessionId)) return 'default'
-    return undefined
+    return resolveCachedSessionRouteState(sessionId, defaultSessions, taskSessions, archivedSessions)?.sessionCategory
+}
+
+const resolveSessionLocationName = (routeState?: SessionRouteState): SessionLocation['name'] => {
+    if (routeState?.sessionCategory === 'task') return 'tasks'
+    if (routeState?.archived) return 'archived'
+    return 'chat'
 }
 
 export const buildSessionLocation = (
     sessionKey: string,
-    sessionCategory?: SessionCategory,
+    routeState?: SessionRouteState,
 ): SessionLocation => {
     return {
-        name: sessionCategory === 'task' ? 'tasks' : 'chat',
+        name: resolveSessionLocationName(routeState),
         params: { sessionkey: sessionKey },
     }
 }
@@ -78,22 +121,22 @@ export const buildTaskSessionsLocation = (): TaskSessionsLocation => ({
 })
 
 export const resolveSessionRouteRedirect = (
-    routeName: 'chat' | 'tasks',
-    latestCategory: SessionCategory | undefined,
+    routeName: 'chat' | 'tasks' | 'archived',
+    latestRouteState: SessionRouteState | undefined,
     sessionKey: string,
 ): SessionRouteRedirectDecision => {
-    if (!sessionKey || !latestCategory) {
+    if (!sessionKey || !latestRouteState) {
         return { shouldRedirect: false }
     }
 
-    const expectedRouteName = latestCategory === 'task' ? 'tasks' : 'chat'
+    const expectedRouteName = resolveSessionLocationName(latestRouteState)
     if (routeName === expectedRouteName) {
         return { shouldRedirect: false }
     }
 
     return {
         shouldRedirect: true,
-        location: buildSessionLocation(sessionKey, latestCategory),
+        location: buildSessionLocation(sessionKey, latestRouteState),
     }
 }
 

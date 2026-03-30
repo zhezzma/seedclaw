@@ -8,8 +8,8 @@ import { buildTaskSessionNotificationRoutePlan } from '../utils/task-sessions-ro
 const openSessionFromNotification = async (sessionKey: string) => {
     if (!sessionKey) return
 
-    const sessionCategory = await useSessionsState().resolveNotificationSessionCategory(sessionKey)
-    if (sessionCategory === 'task') {
+    const sessionRouteState = await useSessionsState().resolveNotificationSessionRouteState(sessionKey)
+    if (sessionRouteState?.sessionCategory === 'task') {
         // 与 App.vue 中的移动端通知链路保持一致：
         // 非任务列表上下文先补 /tasks，再进入详情，保证返回链路稳定。
         const plan = buildTaskSessionNotificationRoutePlan(
@@ -25,7 +25,7 @@ const openSessionFromNotification = async (sessionKey: string) => {
         return
     }
 
-    await router.push(buildSessionLocation(sessionKey, sessionCategory))
+    await router.push(buildSessionLocation(sessionKey, sessionRouteState))
 }
 
 const showInAppNotification = (title: string, body: string, sessionKey: string) => {

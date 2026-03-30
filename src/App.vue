@@ -71,9 +71,9 @@ const openSessionFromNotification = async (sessionKey: string) => {
     if (!sessionKey) return
 
     markNotificationNavigation()
-    const sessionCategory = await sessionsState.resolveNotificationSessionCategory(sessionKey)
+    const sessionRouteState = await sessionsState.resolveNotificationSessionRouteState(sessionKey)
 
-    if (sessionCategory === 'task') {
+    if (sessionRouteState?.sessionCategory === 'task') {
         // 任务通知不能总是直接 push 到 /tasks/:id。
         // 若当前不在任务列表，必须先补一层 /tasks 到历史栈里，
         // 这样移动端从通知进入详情后：第一次返回回列表，第二次返回才回到通知前页面。
@@ -91,7 +91,7 @@ const openSessionFromNotification = async (sessionKey: string) => {
         return
     }
 
-    await router.push(buildSessionLocation(sessionKey, sessionCategory))
+    await router.push(buildSessionLocation(sessionKey, sessionRouteState))
 }
 
 const openTaskSessionsFromNotification = async (toastKey?: 'notificationsNoCandidates' | 'notificationsMultipleCandidates') => {

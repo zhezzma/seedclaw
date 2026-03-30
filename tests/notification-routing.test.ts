@@ -23,14 +23,14 @@ test('buildSessionLocation routes default sessions to chat', () => {
         params: { sessionkey: 'session-1' },
     })
 
-    assert.deepEqual(buildSessionLocation('session-1', 'default'), {
+    assert.deepEqual(buildSessionLocation('session-1', { sessionCategory: 'default' }), {
         name: 'chat',
         params: { sessionkey: 'session-1' },
     })
 })
 
 test('buildSessionLocation routes task sessions to tasks route', () => {
-    assert.deepEqual(buildSessionLocation('session-2', 'task'), {
+    assert.deepEqual(buildSessionLocation('session-2', { sessionCategory: 'task' }), {
         name: 'tasks',
         params: { sessionkey: 'session-2' },
     })

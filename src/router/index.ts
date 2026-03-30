@@ -49,6 +49,11 @@ const router = createRouter({
                     component: HomeView
                 },
                 {
+                    path: 'archived/:sessionkey?',
+                    name: 'archived',
+                    component: HomeView
+                },
+                {
                     path: 'new',
                     name: NEW_SESSION_ROUTE_NAME,
                     component: HomeView
@@ -119,11 +124,13 @@ router.beforeEach(async (to, _from, next) => {
         return
     }
 
-    const routeName = to.name === 'tasks' ? 'tasks' : (to.name === 'chat' ? 'chat' : undefined)
+    const routeName = to.name === 'tasks'
+        ? 'tasks'
+        : (to.name === 'archived' ? 'archived' : (to.name === 'chat' ? 'chat' : undefined))
     const sessionKey = typeof to.params.sessionkey === 'string' ? to.params.sessionkey : undefined
     if (routeName && sessionKey) {
-        const latestCategory = await useSessionsState().resolveNotificationSessionCategory(sessionKey)
-        const redirect = resolveSessionRouteRedirect(routeName, latestCategory, sessionKey)
+        const latestRouteState = await useSessionsState().resolveNotificationSessionRouteState(sessionKey)
+        const redirect = resolveSessionRouteRedirect(routeName, latestRouteState, sessionKey)
         if (redirect.shouldRedirect && redirect.location) {
             next(redirect.location)
             return

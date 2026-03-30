@@ -2,10 +2,15 @@ import { reactive, watch } from 'vue'
 
 import { ApiError, apiGet, apiPost, apiDelete } from './api-client'
 import { useInputHistoryStore } from '../stores/inputHistory'
-import { resolveCachedSessionCategory, type SessionCategory } from '../utils/notification-routing'
+import {
+    resolveCachedSessionCategory,
+    resolveCachedSessionRouteState,
+    type SessionCategory,
+    type SessionRouteState,
+} from '../utils/notification-routing'
 import { hasSessionInLists } from '../utils/task-sessions-routing'
 
-export type { SessionCategory } from '../utils/notification-routing'
+export type { SessionCategory, SessionRouteState } from '../utils/notification-routing'
 
 // ==================== Types ====================
 export interface SessionRow {
@@ -23,6 +28,7 @@ export interface SessionRow {
     path?: string
     thinkingLevel?: string
     sessionCategory?: SessionCategory
+    archived?: boolean
 }
 
 export interface SessionsResult {
@@ -36,11 +42,13 @@ export interface SessionsResult {
 export interface SessionsState {
     sessionsResult: SessionsResult | null
     taskSessionsResult: SessionsResult | null
+    archivedSessionsResult: SessionsResult | null
 }
 
 const state = reactive<SessionsState>({
     sessionsResult: null,
     taskSessionsResult: null,
+    archivedSessionsResult: null,
 })
 
 // Session ID → SessionRow 的索引，用于 O(1) 快速查找
@@ -52,41 +60,120 @@ const rebuildIndex = () => {
     sessionsIndex.clear()
     state.sessionsResult?.sessions?.forEach(s => sessionsIndex.set(s.id, s))
     state.taskSessionsResult?.sessions?.forEach(s => sessionsIndex.set(s.id, s))
+    state.archivedSessionsResult?.sessions?.forEach(s => sessionsIndex.set(s.id, s))
 }
 
-const upsertSessionByCategory = (session: SessionRow, sessionCategory: SessionCategory = 'default') => {
-    const targetKey = sessionCategory === 'task' ? 'taskSessionsResult' : 'sessionsResult'
-    const existing = state[targetKey]?.sessions || []
-    if (!existing.some(s => s.id === session.id)) {
-        state[targetKey] = {
-            ...(state[targetKey] || {}),
-            sessions: [session, ...existing],
-        }
-    }
-    sessionsIndex.set(session.id, session)
+const normalizeSessionRouteState = (routeState?: SessionRouteState): Required<SessionRouteState> => ({
+    sessionCategory: routeState?.sessionCategory === 'task' ? 'task' : 'default',
+    archived: Boolean(routeState?.archived),
+})
+
+const getSessionBucketKey = (routeState?: SessionRouteState): keyof SessionsState => {
+    const normalized = normalizeSessionRouteState(routeState)
+    if (normalized.sessionCategory === 'task') return 'taskSessionsResult'
+    if (normalized.archived) return 'archivedSessionsResult'
+    return 'sessionsResult'
 }
+
+const upsertSessionByRouteState = (session: SessionRow, routeState?: SessionRouteState) => {
+    const normalized = normalizeSessionRouteState(routeState ?? session)
+    const targetKey = getSessionBucketKey(normalized)
+    const nextSession = {
+        ...session,
+        sessionCategory: normalized.sessionCategory,
+        archived: normalized.archived,
+    }
+    const existing = state[targetKey]?.sessions || []
+    const deduped = existing.filter(s => s.id !== session.id)
+    state[targetKey] = {
+        ...(state[targetKey] || {}),
+        sessions: [nextSession, ...deduped],
+        total: deduped.length + 1,
+    }
+    sessionsIndex.set(session.id, nextSession)
+}
+
+const removeSessionFromResult = (result: SessionsResult | null, id: string): SessionsResult | null => {
+    if (!result?.sessions) return result
+    const nextSessions = result.sessions.filter(session => session.id !== id)
+    if (nextSessions.length === result.sessions.length) return result
+    const nextTotal = typeof result.total === 'number'
+        ? Math.max(0, result.total - (result.sessions.length - nextSessions.length))
+        : nextSessions.length
+    return {
+        ...result,
+        sessions: nextSessions,
+        total: nextTotal,
+    }
+}
+
+const prependSessionToResult = (result: SessionsResult | null, session: SessionRow): SessionsResult => {
+    const existing = result?.sessions || []
+    const deduped = existing.filter(item => item.id !== session.id)
+    return {
+        ...(result || {}),
+        sessions: [session, ...deduped],
+        total: typeof result?.total === 'number' ? deduped.length + 1 : deduped.length + 1,
+    }
+}
+
+const findSessionLocal = (id: string) =>
+    state.sessionsResult?.sessions?.find((s: SessionRow) => s.id === id)
+    || state.taskSessionsResult?.sessions?.find((s: SessionRow) => s.id === id)
+    || state.archivedSessionsResult?.sessions?.find((s: SessionRow) => s.id === id)
 
 const resolveSessionCategoryFromCache = (id: string): SessionCategory | undefined => {
     return resolveCachedSessionCategory(
         id,
         state.sessionsResult?.sessions || [],
         state.taskSessionsResult?.sessions || [],
+        state.archivedSessionsResult?.sessions || [],
+    )
+}
+
+const resolveSessionRouteStateFromCache = (id: string): SessionRouteState | undefined => {
+    return resolveCachedSessionRouteState(
+        id,
+        state.sessionsResult?.sessions || [],
+        state.taskSessionsResult?.sessions || [],
+        state.archivedSessionsResult?.sessions || [],
     )
 }
 
 // sessions 变更时自动重建索引（模块级全局 watcher）
-watch(() => [state.sessionsResult, state.taskSessionsResult], rebuildIndex, { immediate: true, deep: false })
+watch(() => [state.sessionsResult, state.taskSessionsResult, state.archivedSessionsResult], rebuildIndex, { immediate: true, deep: false })
 
 const loadSessions = async (_opts?: any) => {
     const result = await apiGet<SessionsResult>('/api/sessions')
     state.sessionsResult = result || { sessions: [] }
 }
 
+const loadTaskSessions = async (page = 1, pageSize = 50): Promise<SessionsResult> => {
+    try {
+        const result = await apiGet<SessionsResult>(`/api/sessions/tasks?page=${page}&pageSize=${pageSize}`)
+        state.taskSessionsResult = result || { sessions: [] }
+        return result || { sessions: [] }
+    } catch (error) {
+        console.error('Failed to load task sessions', error)
+        return { sessions: [] }
+    }
+}
+
+const loadArchivedSessions = async (page = 1, pageSize = 50): Promise<SessionsResult> => {
+    try {
+        const result = await apiGet<SessionsResult>(`/api/sessions/archived?page=${page}&pageSize=${pageSize}`)
+        state.archivedSessionsResult = result || { sessions: [] }
+        return result || { sessions: [] }
+    } catch (error) {
+        console.error('Failed to load archived sessions', error)
+        return { sessions: [] }
+    }
+}
+
 const patchSession = async (key: string, patch: { label?: string | null }) => {
     try {
         await apiPost(`/api/sessions/${encodeURIComponent(key)}/name`, { name: patch.label })
-        const found = state.sessionsResult?.sessions?.find((s: SessionRow) => s.id === key)
-            || state.taskSessionsResult?.sessions?.find((s: SessionRow) => s.id === key)
+        const found = findSessionLocal(key)
         if (found) {
             found.name = patch.label || undefined
         }
@@ -101,8 +188,7 @@ const patchSession = async (key: string, patch: { label?: string | null }) => {
  * 用于后端已持久化的场景（如 /name 命令回调），只需同步前端响应式状态。
  */
 const updateSessionLocal = (key: string, patch: Partial<SessionRow>) => {
-    const found = state.sessionsResult?.sessions?.find((s: SessionRow) => s.id === key)
-        || state.taskSessionsResult?.sessions?.find((s: SessionRow) => s.id === key)
+    const found = findSessionLocal(key)
     if (found) {
         Object.assign(found, patch)
     }
@@ -117,8 +203,7 @@ const triggerSessionRename = async (targetKey: string, _agentId: string, userTex
         )
         const name = result?.name
         if (name) {
-            const found = state.sessionsResult?.sessions?.find((s: SessionRow) => s.id === targetKey)
-                || state.taskSessionsResult?.sessions?.find((s: SessionRow) => s.id === targetKey)
+            const found = findSessionLocal(targetKey)
             if (found) {
                 found.name = name
             }
@@ -128,22 +213,42 @@ const triggerSessionRename = async (targetKey: string, _agentId: string, userTex
     }
 }
 
+const archiveSession = async (id: string) => {
+    await apiPost(`/api/sessions/${encodeURIComponent(id)}/archive`)
+
+    const known = state.sessionsResult?.sessions?.find((session: SessionRow) => session.id === id)
+    state.sessionsResult = removeSessionFromResult(state.sessionsResult, id)
+
+    if (known) {
+        const archivedSession = { ...known, archived: true, sessionCategory: known.sessionCategory || 'default' }
+        state.archivedSessionsResult = prependSessionToResult(state.archivedSessionsResult, archivedSession)
+        sessionsIndex.set(id, archivedSession)
+    }
+
+    return { archived: true }
+}
+
+const unarchiveSession = async (id: string) => {
+    await apiDelete(`/api/sessions/${encodeURIComponent(id)}/archive`)
+
+    const known = state.archivedSessionsResult?.sessions?.find((session: SessionRow) => session.id === id)
+    state.archivedSessionsResult = removeSessionFromResult(state.archivedSessionsResult, id)
+
+    if (known) {
+        const restoredSession = { ...known, archived: false, sessionCategory: known.sessionCategory || 'default' }
+        state.sessionsResult = prependSessionToResult(state.sessionsResult, restoredSession)
+        sessionsIndex.set(id, restoredSession)
+    }
+
+    return { archived: false }
+}
+
 const deleteSession = async (key: string) => {
     await apiDelete(`/api/sessions/${encodeURIComponent(key)}`)
-    if (state.sessionsResult?.sessions) {
-        state.sessionsResult = {
-            ...state.sessionsResult,
-            sessions: state.sessionsResult.sessions.filter((s: SessionRow) => s.id !== key),
-            total: Math.max(0, (state.sessionsResult.total || 0) - 1)
-        }
-    }
-    if (state.taskSessionsResult?.sessions) {
-        state.taskSessionsResult = {
-            ...state.taskSessionsResult,
-            sessions: state.taskSessionsResult.sessions.filter((s: SessionRow) => s.id !== key),
-            total: Math.max(0, (state.taskSessionsResult.total || 0) - 1)
-        }
-    }
+    state.sessionsResult = removeSessionFromResult(state.sessionsResult, key)
+    state.taskSessionsResult = removeSessionFromResult(state.taskSessionsResult, key)
+    state.archivedSessionsResult = removeSessionFromResult(state.archivedSessionsResult, key)
+    sessionsIndex.delete(key)
     useInputHistoryStore().removeSessionHistory(key)
     return { deleted: true }
 }
@@ -159,19 +264,11 @@ const deleteSessions = async (keys: string[]) => {
     }))
     const deletedKeys = results.filter((k): k is string => k !== null)
     if (deletedKeys.length > 0) {
-        if (state.sessionsResult?.sessions) {
-            state.sessionsResult = {
-                ...state.sessionsResult,
-                sessions: state.sessionsResult.sessions.filter((s: SessionRow) => !deletedKeys.includes(s.id)),
-                total: Math.max(0, (state.sessionsResult.total || 0) - deletedKeys.length)
-            }
-        }
-        if (state.taskSessionsResult?.sessions) {
-            state.taskSessionsResult = {
-                ...state.taskSessionsResult,
-                sessions: state.taskSessionsResult.sessions.filter((s: SessionRow) => !deletedKeys.includes(s.id)),
-                total: Math.max(0, (state.taskSessionsResult.total || 0) - deletedKeys.length)
-            }
+        for (const key of deletedKeys) {
+            state.sessionsResult = removeSessionFromResult(state.sessionsResult, key)
+            state.taskSessionsResult = removeSessionFromResult(state.taskSessionsResult, key)
+            state.archivedSessionsResult = removeSessionFromResult(state.archivedSessionsResult, key)
+            sessionsIndex.delete(key)
         }
         useInputHistoryStore().removeManySessionHistories(deletedKeys)
     }
@@ -181,7 +278,10 @@ const deleteSessions = async (keys: string[]) => {
 const hasSession = (key: string) => {
     return hasSessionInLists(
         key,
-        state.sessionsResult?.sessions || [],
+        [
+            ...(state.sessionsResult?.sessions || []),
+            ...(state.archivedSessionsResult?.sessions || []),
+        ],
         state.taskSessionsResult?.sessions || [],
     )
 }
@@ -190,15 +290,9 @@ const commitNewSession = async (agentId: string, inputText?: string): Promise<st
     const body = inputText ? { firstMessage: inputText } : undefined
     const session = await apiPost<SessionRow>(`/api/sessions/${agentId}`, body)
     if (state.sessionsResult) {
-        const existing = state.sessionsResult.sessions || []
-        if (!existing.some(s => s.id === session.id)) {
-            state.sessionsResult = {
-                ...state.sessionsResult,
-                sessions: [session, ...existing],
-                total: (state.sessionsResult?.total || 0) + 1
-            }
-        }
-        sessionsIndex.set(session.id, session)
+        const nextSession = { ...session, archived: Boolean(session.archived) }
+        state.sessionsResult = prependSessionToResult(state.sessionsResult, nextSession)
+        sessionsIndex.set(session.id, nextSession)
     }
     if (inputText && session.id) {
         triggerSessionRename(session.id, agentId, inputText).catch(err => {
@@ -208,37 +302,40 @@ const commitNewSession = async (agentId: string, inputText?: string): Promise<st
     return session.id
 }
 
-const loadTaskSessions = async (page = 1, pageSize = 50): Promise<SessionsResult> => {
-    try {
-        const result = await apiGet<SessionsResult>(`/api/sessions/tasks?page=${page}&pageSize=${pageSize}`)
-        state.taskSessionsResult = result || { sessions: [] }
-        return result || { sessions: [] }
-    } catch (error) {
-        console.error('Failed to load task sessions', error)
-        return { sessions: [] }
-    }
-}
-
 const fetchSessionInfo = (id: string) =>
     apiGet<SessionRow>(`/api/sessions/${encodeURIComponent(id)}/info`)
 
-const resolveNotificationSessionCategory = async (id: string): Promise<SessionCategory | undefined> => {
-    const cachedCategory = resolveSessionCategoryFromCache(id)
-    if (cachedCategory) return cachedCategory
+const resolveNotificationSessionRouteState = async (id: string): Promise<SessionRouteState | undefined> => {
+    const cachedRouteState = resolveSessionRouteStateFromCache(id)
+    if (cachedRouteState) return cachedRouteState
 
     const cached = sessionsIndex.get(id)
-    if (cached?.sessionCategory) return cached.sessionCategory
+    if (cached) {
+        return {
+            sessionCategory: cached.sessionCategory,
+            archived: cached.archived,
+        }
+    }
 
     try {
         const session = await fetchSessionInfo(id)
         if (!session) return undefined
-        const resolvedCategory = session.sessionCategory === 'task' ? 'task' : 'default'
-        upsertSessionByCategory(session, resolvedCategory)
-        return resolvedCategory
+        const resolvedRouteState = {
+            sessionCategory: session.sessionCategory === 'task' ? 'task' : 'default',
+            archived: Boolean(session.archived),
+        } satisfies SessionRouteState
+        upsertSessionByRouteState(session, resolvedRouteState)
+        return resolvedRouteState
     } catch (error) {
-        console.warn('Failed to resolve session category by id', id, error)
+        console.warn('Failed to resolve session route state by id', id, error)
         return undefined
     }
+}
+
+const resolveNotificationSessionCategory = async (id: string): Promise<SessionCategory | undefined> => {
+    const cachedCategory = resolveSessionCategoryFromCache(id)
+    if (cachedCategory) return cachedCategory
+    return (await resolveNotificationSessionRouteState(id))?.sessionCategory
 }
 
 const getSessionById = async (
@@ -254,12 +351,15 @@ const getSessionById = async (
         const session = await fetchSessionInfo(id)
         if (!session) return undefined
 
-        const resolvedCategory = category === 'task'
-            ? 'task'
-            : (session.sessionCategory === 'task' ? 'task' : 'default')
+        const resolvedRouteState = {
+            sessionCategory: category === 'task'
+                ? 'task'
+                : (session.sessionCategory === 'task' ? 'task' : 'default'),
+            archived: Boolean(session.archived),
+        } satisfies SessionRouteState
 
-        upsertSessionByCategory(session, resolvedCategory)
-        return session
+        upsertSessionByRouteState(session, resolvedRouteState)
+        return sessionsIndex.get(id) || session
     } catch (error: unknown) {
         if (options?.throwOnError) {
             throw error
@@ -275,14 +375,18 @@ const getSessionById = async (
 const _sessionsState = Object.assign(state, {
     loadSessions,
     loadTaskSessions,
+    loadArchivedSessions,
     patchSession,
     updateSessionLocal,
+    archiveSession,
+    unarchiveSession,
     deleteSession,
     deleteSessions,
     hasSession,
     commitNewSession,
     getSessionById,
     resolveNotificationSessionCategory,
+    resolveNotificationSessionRouteState,
 })
 
 export function useSessionsState() {
