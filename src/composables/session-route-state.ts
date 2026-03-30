@@ -52,10 +52,14 @@ export const prependSessionToResult = <TSession extends SessionRouteRow>(
 ): SessionRouteResult<TSession> => {
     const existing = result?.sessions || []
     const deduped = existing.filter(item => item.id !== session.id)
+    const alreadyPresent = deduped.length !== existing.length
+    const nextTotal = typeof result?.total === 'number'
+        ? (alreadyPresent ? result.total : result.total + 1)
+        : deduped.length + 1
     return {
         ...(result || {}),
         sessions: [session, ...deduped],
-        total: deduped.length + 1,
+        total: nextTotal,
     }
 }
 

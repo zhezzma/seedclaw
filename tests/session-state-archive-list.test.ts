@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
-import { moveSessionToRouteState, normalizeSessionRouteState } from '../src/composables/session-route-state.ts'
+import { moveSessionToRouteState, normalizeSessionRouteState, prependSessionToResult } from '../src/composables/session-route-state.ts'
 
 const root = path.resolve(import.meta.dirname, '..')
 const sessionsStateSource = readFileSync(path.join(root, 'src/composables/useSessionsState.ts'), 'utf8')
@@ -15,7 +15,7 @@ test('session state defines archived sessions state and archive helpers', () => 
   assert.match(sessionsStateSource, /const archiveSession = async \(id: string\) =>/)
   assert.match(sessionsStateSource, /const unarchiveSession = async \(id: string\) =>/)
   assert.match(sessionsStateSource, /archived\?: boolean/)
-  assert.match(sessionsStateSource, /apiGet<SessionsResult>\(`\/api\/sessions\/archived\?page=\$\{page\}&pageSize=\$\{pageSize\}`\)/)
+  assert.match(sessionsStateSource, /\/api\/sessions\/archived\?page=\$\{page\}&pageSize=\$\{pageSize\}/)
 })
 
 test('moveSessionToRouteState removes stale default copies when a session becomes archived', () => {
@@ -24,21 +24,23 @@ test('moveSessionToRouteState removes stale default copies when a session become
     {
       sessionsResult: { sessions: [session], total: 1 },
       taskSessionsResult: { sessions: [], total: 0 },
-      archivedSessionsResult: { sessions: [{ ...session, archived: true }], total: 1 },
+      archivedSessionsResult: { sessions: [{ ...session, archived: true }], total: 4 },
     },
     session,
     { sessionCategory: 'default', archived: true },
   )
 
   assert.deepEqual(nextState.sessionsResult?.sessions, [])
+  assert.equal(nextState.sessionsResult?.total, 0)
   assert.deepEqual(nextState.archivedSessionsResult?.sessions, [{ ...session, archived: true }])
+  assert.equal(nextState.archivedSessionsResult?.total, 4)
 })
 
 test('moveSessionToRouteState removes stale archived copies when a session becomes active again', () => {
   const archivedSession = { id: 'sess-archived', sessionCategory: 'default' as const, archived: true }
   const nextState = moveSessionToRouteState(
     {
-      sessionsResult: { sessions: [], total: 0 },
+      sessionsResult: { sessions: [], total: 2 },
       taskSessionsResult: { sessions: [], total: 0 },
       archivedSessionsResult: { sessions: [archivedSession], total: 1 },
     },
@@ -47,7 +49,9 @@ test('moveSessionToRouteState removes stale archived copies when a session becom
   )
 
   assert.deepEqual(nextState.archivedSessionsResult?.sessions, [])
+  assert.equal(nextState.archivedSessionsResult?.total, 0)
   assert.deepEqual(nextState.sessionsResult?.sessions, [{ ...archivedSession, archived: false }])
+  assert.equal(nextState.sessionsResult?.total, 3)
 })
 
 test('moveSessionToRouteState keeps task sessions in the task bucket even when archived', () => {
@@ -65,6 +69,29 @@ test('moveSessionToRouteState keeps task sessions in the task bucket even when a
   assert.deepEqual(nextState.sessionsResult?.sessions, [])
   assert.deepEqual(nextState.archivedSessionsResult?.sessions, [])
   assert.deepEqual(nextState.taskSessionsResult?.sessions, [{ ...taskSession, archived: true }])
+  assert.equal(nextState.taskSessionsResult?.total, 1)
+})
+
+test('prependSessionToResult preserves total for existing sessions and increments for new sessions', () => {
+  const existing = { id: 'sess-1', sessionCategory: 'default' as const, archived: false }
+  const nextExisting = prependSessionToResult(
+    { sessions: [existing, { id: 'sess-2', sessionCategory: 'default' as const, archived: false }], total: 10 },
+    { ...existing, archived: true },
+  )
+  const nextNew = prependSessionToResult(
+    { sessions: [existing], total: 10 },
+    { id: 'sess-3', sessionCategory: 'default' as const, archived: false },
+  )
+  const nextFallback = prependSessionToResult(
+    { sessions: [existing] },
+    { id: 'sess-4', sessionCategory: 'default' as const, archived: false },
+  )
+
+  assert.equal(nextExisting.total, 10)
+  assert.deepEqual(nextExisting.sessions, [{ ...existing, archived: true }, { id: 'sess-2', sessionCategory: 'default', archived: false }])
+  assert.equal(nextNew.total, 11)
+  assert.deepEqual(nextNew.sessions, [{ id: 'sess-3', sessionCategory: 'default', archived: false }, existing])
+  assert.equal(nextFallback.total, 2)
 })
 
 test('router defines archived route and archived-aware route guard', () => {
