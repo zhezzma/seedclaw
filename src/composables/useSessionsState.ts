@@ -12,7 +12,6 @@ import {
     moveSessionToRouteState,
     normalizeSessionRouteState,
     removeSessionFromResult,
-    prependSessionToResult,
 } from './session-route-state'
 import { hasSessionInLists } from '../utils/task-sessions-routing'
 
@@ -268,11 +267,7 @@ const hasSession = (key: string) => {
 const commitNewSession = async (agentId: string, inputText?: string): Promise<string> => {
     const body = inputText ? { firstMessage: inputText } : undefined
     const session = await apiPost<SessionRow>(`/api/sessions/${agentId}`, body)
-    if (state.sessionsResult) {
-        const nextSession = { ...session, archived: Boolean(session.archived) }
-        state.sessionsResult = prependSessionToResult(state.sessionsResult, nextSession)
-        sessionsIndex.set(session.id, nextSession)
-    }
+    upsertSessionByRouteState(session)
     if (inputText && session.id) {
         triggerSessionRename(session.id, agentId, inputText).catch(err => {
             console.error('Auto-rename failed', err)
