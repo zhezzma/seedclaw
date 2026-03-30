@@ -199,7 +199,7 @@ const archiveSession = async (id: string) => {
 }
 
 const unarchiveSession = async (id: string) => {
-    await apiDelete(`/api/sessions/${encodeURIComponent(id)}/archive`)
+    await apiPost(`/api/sessions/${encodeURIComponent(id)}/unarchive`)
 
     const known = findSessionLocal(id)
     if (known) {

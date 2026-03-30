@@ -116,7 +116,8 @@ const resolveForegroundResumeAction = async (): Promise<'reload' | 'go-home'> =>
         ? router.currentRoute.value.params.sessionkey
         : undefined
 
-    if ((routeName !== 'chat' && routeName !== 'tasks') || !sessionKey) {
+    const requiresSessionValidation = routeName === 'chat' || routeName === 'tasks' || routeName === 'archived'
+    if (!requiresSessionValidation || !sessionKey) {
         return 'reload'
     }
 

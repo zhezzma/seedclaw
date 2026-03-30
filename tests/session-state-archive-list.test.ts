@@ -18,6 +18,12 @@ test('session state defines archived sessions state and archive helpers', () => 
   assert.match(sessionsStateSource, /\/api\/sessions\/archived\?page=\$\{page\}&pageSize=\$\{pageSize\}/)
 })
 
+
+test('unarchiveSession calls the backend unarchive endpoint', () => {
+  assert.match(sessionsStateSource, /const unarchiveSession = async \(id: string\) => {[\s\S]*?apiPost\(`\/api\/sessions\/\$\{encodeURIComponent\(id\)\}\/unarchive`\)/)
+  assert.doesNotMatch(sessionsStateSource, /const unarchiveSession = async \(id: string\) => {[\s\S]*?apiDelete\(`\/api\/sessions\/\$\{encodeURIComponent\(id\)\}\/archive`\)/)
+})
+
 test('moveSessionToRouteState removes stale default copies when a session becomes archived', () => {
   const session = { id: 'sess-default', sessionCategory: 'default' as const, archived: false }
   const nextState = moveSessionToRouteState(
