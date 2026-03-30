@@ -11,6 +11,7 @@ import {
     QrCodeIcon,
 } from '@heroicons/vue/24/outline'
 import { SIDEBAR_ITEMS } from '../config/navigation'
+import SessionActionMenu from './chat/SessionActionMenu.vue'
 
 import { useConfirm } from '../composables/useConfirm'
 import { NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
@@ -23,6 +24,12 @@ import { useUiSettingsStore } from '../stores/setting'
 import { useI18n } from 'vue-i18n'
 import { truncateText } from '../utils/format'
 import { useWeixinLogin } from '../composables/useWeixinLogin'
+
+type SessionMenuItem = {
+    key: string
+    label: string
+    tone?: 'default' | 'danger'
+}
 
 const router = useRouter()
 const { confirm } = useConfirm()
@@ -65,9 +72,7 @@ const createNewSession = () => {
     closeSidebarDrawer()
 }
 
-const handleDeleteSession = async (session: { key: string, label: string }, event: Event) => {
-    event.stopPropagation() // Prevent selecting the session
-
+const handleDeleteSession = async (session: { key: string, label: string }) => {
     if (!await confirm(t('sidebar.deleteChatConfirm', { key: session.label }))) {
         return
     }
@@ -75,6 +80,37 @@ const handleDeleteSession = async (session: { key: string, label: string }, even
     const result = await sessionsState.deleteSession(session.key)
     if (result?.deleted && chatState.sessionKey === session.key) {
         router.push({ name: 'home' })
+    }
+}
+
+const handleArchiveSession = async (session: { key: string, label: string }) => {
+    await sessionsState.archiveSession(session.key)
+
+    if (chatState.sessionKey === session.key) {
+        router.push({ name: 'home' })
+    }
+}
+
+const buildSessionMenuItems = (): SessionMenuItem[] => [
+    {
+        key: 'archive',
+        label: t('sidebar.archive'),
+    },
+    {
+        key: 'delete',
+        label: t('common.delete'),
+        tone: 'danger',
+    },
+]
+
+const handleSessionMenuSelect = async (session: { key: string, label: string }, action: string) => {
+    if (action === 'archive') {
+        await handleArchiveSession(session)
+        return
+    }
+
+    if (action === 'delete') {
+        await handleDeleteSession(session)
     }
 }
 
@@ -205,11 +241,11 @@ const openWeixinLoginModal = () => {
                     :class="{ 'bg-base-300': chatState.sessionKey === session.key }">
                     <ChatBubbleLeftRightIcon class="h-5 w-5 opacity-50 shrink-0" />
                     <span class="text-sm truncate flex-1">{{ session.label }}</span>
-                    <!-- Delete button - visible on hover -->
-                    <button @click="handleDeleteSession(session, $event)"
-                        class="btn btn-ghost btn-circle btn-xs opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity hover:bg-error/20 hover:text-error">
-                        <TrashIcon class="h-4 w-4" />
-                    </button>
+                    <SessionActionMenu
+                        :actions="buildSessionMenuItems()"
+                        :title="$t('sidebar.more')"
+                        @select="handleSessionMenuSelect(session, $event)"
+                    />
                 </a>
             </div>
         </div>

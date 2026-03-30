@@ -7,7 +7,8 @@ import {
     Cog6ToothIcon,
     CubeIcon,
     ChatBubbleLeftRightIcon,
-    DocumentTextIcon
+    DocumentTextIcon,
+    ArchiveBoxIcon
 } from '@heroicons/vue/24/outline'
 
 import {
@@ -19,7 +20,8 @@ import {
     DocumentIcon as DocumentIconSolid,
     CubeIcon as CubeIconSolid,
     ChatBubbleLeftRightIcon as ChatBubbleLeftRightIconSolid,
-    DocumentTextIcon as DocumentTextIconSolid
+    DocumentTextIcon as DocumentTextIconSolid,
+    ArchiveBoxIcon as ArchiveBoxIconSolid
 } from '@heroicons/vue/24/solid'
 
 export interface NavItem {
@@ -56,6 +58,14 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         route: 'tasks',
         showInSidebar: true,
         showInBottomNav: true
+    },
+    {
+        label: 'sidebar.archived',
+        icon: ArchiveBoxIcon,
+        activeIcon: ArchiveBoxIconSolid,
+        route: 'archived',
+        showInSidebar: true,
+        showInBottomNav: false
     },
     {
         label: 'sidebar.models',
