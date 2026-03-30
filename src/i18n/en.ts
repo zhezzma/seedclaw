@@ -494,6 +494,12 @@ export default {
         deleteMessageConfirm: '⚠️ Deleting a user message will also delete all subsequent messages. Are you sure?',
         deleteMessageConfirmTitle: 'Confirm Delete',
         downloadImage: 'Download Image',
+        downloadImageSuccess: 'Image download started',
+        downloadImageOpenedHint: 'Image opened in new tab, long press to save',
+        downloadImageFallback: 'Image opened in new tab, please save manually',
+        downloadImageFailed: 'Download failed, please try again',
+        copyImage: 'Copy Image',
+        copyImageFailed: 'Failed to copy image',
         zoomHint: 'Double tap to zoom | Pinch to zoom',
     },
     voice: {

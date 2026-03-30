@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { useToast } from './useToast'
 
 // ==================== Image Lightbox State ====================
 
@@ -151,27 +152,91 @@ const handleMouseUp = (_e: MouseEvent) => {
 }
 
 const downloadImage = async (src: string, defaultName?: string) => {
+    const toast = useToast()
+    const { i18n } = await import('../i18n')
+    const _t = (key: string) => i18n.global.t(key)
+    const fileName = defaultName || `image-${Date.now()}.png`
+
+    const ua = navigator.userAgent
+    const isIOS = /iPad|iPhone|iPod/.test(ua)
+    // Android WebView adds "; wv)" to the UA string; standalone browsers don't
+    const isAndroidWebView = /Android/.test(ua) && /; wv\)/.test(ua)
+
     try {
         const response = await fetch(src)
         const blob = await response.blob()
         const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = defaultName || `image-${Date.now()}.png`
-        document.body.appendChild(a)
-        a.click()
-        window.URL.revokeObjectURL(url)
-        document.body.removeChild(a)
+
+        if (isIOS || isAndroidWebView) {
+            // iOS Safari and Android WebView both silently ignore <a download>.
+            // Open the blob URL in a new tab so the user can long-press → save.
+            window.open(url, '_blank')
+            setTimeout(() => window.URL.revokeObjectURL(url), 60000)
+            toast.success(_t('chat.downloadImageOpenedHint'))
+        } else {
+            // Desktop & standard mobile browsers: <a download> works.
+            const a = document.createElement('a')
+            a.href = url
+            a.download = fileName
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            setTimeout(() => window.URL.revokeObjectURL(url), 5000)
+            toast.success(_t('chat.downloadImageSuccess'))
+        }
     } catch (error) {
         console.error('Download failed:', error)
-        const a = document.createElement('a')
-        a.href = src
-        a.download = defaultName || `image-${Date.now()}.png`
-        a.target = '_blank'
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
+        // Fallback: open the original src in a new tab
+        try {
+            window.open(src, '_blank')
+            toast.warning(_t('chat.downloadImageFallback'))
+        } catch {
+            toast.error(_t('chat.downloadImageFailed'))
+        }
     }
+}
+
+const copyImageToClipboard = async (src: string) => {
+    const toast = useToast()
+    const { i18n } = await import('../i18n')
+    const _t = (key: string) => i18n.global.t(key)
+    try {
+        const response = await fetch(src)
+        const blob = await response.blob()
+
+        // The Clipboard API requires image/png. Convert if needed.
+        let pngBlob = blob
+        if (blob.type !== 'image/png') {
+            pngBlob = await convertToPng(blob)
+        }
+
+        await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': pngBlob })
+        ])
+        toast.success(_t('common.copied'))
+    } catch (error) {
+        console.error('Copy image failed:', error)
+        toast.error(_t('chat.copyImageFailed'))
+    }
+}
+
+const convertToPng = (blob: Blob): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+        const img = new Image()
+        img.onload = () => {
+            const canvas = document.createElement('canvas')
+            canvas.width = img.naturalWidth
+            canvas.height = img.naturalHeight
+            const ctx = canvas.getContext('2d')!
+            ctx.drawImage(img, 0, 0)
+            canvas.toBlob(b => {
+                if (b) resolve(b)
+                else reject(new Error('Canvas toBlob failed'))
+            }, 'image/png')
+        }
+        img.onerror = reject
+        img.src = URL.createObjectURL(blob)
+    })
 }
 
 // ==================== File Content Viewer State ====================
@@ -214,6 +279,7 @@ const _mediaPreviewState = {
     handleMouseMove,
     handleMouseUp,
     downloadImage,
+    copyImageToClipboard,
     // File viewer
     fileViewerOpen,
     fileViewerName,
