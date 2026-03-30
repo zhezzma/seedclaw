@@ -3,20 +3,28 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { MagnifyingGlassIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import ViewHeader from '../ViewHeader.vue'
+import SessionActionMenu from './SessionActionMenu.vue'
 
 import { useConfirm } from '../../composables/useConfirm'
 import { SessionRow, useSessionsState } from '../../composables/useSessionsState'
 
+interface SessionSidebarRowAction {
+    key: string
+    label: string
+    tone?: 'default' | 'danger'
+}
 
 const props = defineProps<{
     title?: string
     selectedKey?: string
     sessions: SessionRow[]
+    rowActions?: SessionSidebarRowAction[]
 }>()
 
 const emit = defineEmits<{
     (e: 'select', key: string): void
     (e: 'delete', key: string): void
+    (e: 'row-action', payload: { key: string, action: string }): void
 }>()
 
 const { t } = useI18n()
@@ -54,11 +62,15 @@ const handleDeleteAll = async () => {
 }
 
 
-const handleDelete = async (key: string, event: Event) => {
-    event.stopPropagation()
+const confirmDelete = async (key: string) => {
     if (await confirm(t('chat.deleteConfirm'))) {
         emit('delete', key)
     }
+}
+
+const handleDelete = async (key: string, event: Event) => {
+    event.stopPropagation()
+    await confirmDelete(key)
 }
 
 const searchQuery = ref('')
@@ -72,6 +84,14 @@ const filteredSessions = computed(() => {
     )
 })
 
+const handleRowAction = async (key: string, action: string) => {
+    if (action === 'delete') {
+        await confirmDelete(key)
+        return
+    }
+
+    emit('row-action', { key, action })
+}
 
 </script>
 
@@ -111,7 +131,12 @@ const filteredSessions = computed(() => {
                         {{ s._date.toLocaleString() }}
                     </div>
                 </div>
-                <button @click="handleDelete(s._id, $event)"
+                <SessionActionMenu
+                    v-if="rowActions?.length"
+                    :actions="rowActions"
+                    @select="handleRowAction(s._id, $event)"
+                />
+                <button v-else @click="handleDelete(s._id, $event)"
                     class="btn btn-ghost btn-circle btn-xs opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity hover:bg-error/20 hover:text-error shrink-0">
                     <TrashIcon class="h-4 w-4" />
                 </button>

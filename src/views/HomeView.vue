@@ -87,9 +87,11 @@ const currentSessionName = computed(() => {
     if (!sessionKey) return ''
 
     // 从 sessionsState 中取最新数据（patchSession / triggerSessionRename 会更新这里）
-    const sessions = isTaskSessionsRoute.value
+    const sessions = routeMode.value === 'tasks'
         ? sessionsState.taskSessionsResult?.sessions
-        : sessionsState.sessionsResult?.sessions
+        : (routeMode.value === 'archived'
+            ? sessionsState.archivedSessionsResult?.sessions
+            : sessionsState.sessionsResult?.sessions)
     if (sessions) {
         const found = sessions.find((s: SessionRow) => s.id === sessionKey)
         if (found) {
@@ -103,33 +105,73 @@ const currentSessionName = computed(() => {
     return session.name || truncateText(session.firstMessage, 9)
 })
 
-// Task Sessions Route Logic
-const isTaskSessionsRoute = computed(() => route.name === 'tasks')
+// Split-view Route Logic
+const routeMode = computed<'chat' | 'tasks' | 'archived'>(() => {
+    if (route.name === 'tasks') return 'tasks'
+    if (route.name === 'archived') return 'archived'
+    return 'chat'
+})
+const isTaskSessionsRoute = computed(() => routeMode.value === 'tasks')
+const isArchivedSessionsRoute = computed(() => routeMode.value === 'archived')
+const isSplitViewRoute = computed(() => routeMode.value === 'tasks' || routeMode.value === 'archived')
 const currentSessions = computed(() => {
-    if (isTaskSessionsRoute.value) {
+    if (routeMode.value === 'tasks') {
         return sessionsState.taskSessionsResult?.sessions || []
     }
+    if (routeMode.value === 'archived') {
+        return sessionsState.archivedSessionsResult?.sessions || []
+    }
     return sessionsState.sessionsResult?.sessions || []
+})
+const splitViewTitle = computed(() => isArchivedSessionsRoute.value
+    ? t('home.archivedSessionList')
+    : t('home.taskSessionList'))
+const splitViewEmptyState = computed(() => isArchivedSessionsRoute.value
+    ? t('home.noArchivedSessions')
+    : t('home.noTaskSessions'))
+const splitViewRowActions = computed(() => {
+    if (!isArchivedSessionsRoute.value) return undefined
+    return [
+        {
+            key: 'unarchive',
+            label: t('sidebar.unarchive'),
+        },
+        {
+            key: 'delete',
+            label: t('common.delete'),
+            tone: 'danger' as const,
+        },
+    ]
 })
 
 watch(() => route.name, async (routeName) => {
     if (routeName === 'tasks') {
         await sessionsState.loadTaskSessions()
     }
+    if (routeName === 'archived') {
+        await sessionsState.loadArchivedSessions()
+    }
 }, { immediate: true })
 
-const handleTaskSessionSelect = (key: string) => {
+const handleSplitSessionSelect = (key: string) => {
     router.push({
-        name: 'tasks',
+        name: routeMode.value,
         params: { sessionkey: key },
     })
 }
 
-const handleTaskSessionDelete = async (key: string) => {
+const handleSplitSessionDelete = async (key: string) => {
     const result = await sessionsState.deleteSession(key)
-    if (result?.deleted) {
+    if (result?.deleted && chatState.sessionKey === key) {
+        router.push({ name: routeMode.value })
+    }
+}
+
+const handleSplitSessionRowAction = async ({ key, action }: { key: string, action: string }) => {
+    if (action === 'unarchive') {
+        await sessionsState.unarchiveSession(key)
         if (chatState.sessionKey === key) {
-            router.push({ name: 'tasks' })
+            router.push({ name: 'archived' })
         }
     }
 }
@@ -142,7 +184,7 @@ watch(() => [route.name, currentSessions.value, route.params.sessionkey], (value
     const currentRouteName = values[0] as string | null
     const sessions = values[1] as any[]
     const currentKey = values[2] as string | null
-    if (currentRouteName === 'tasks' && currentKey && sessions && sessions.length > 0) {
+    if ((currentRouteName === 'tasks' || currentRouteName === 'archived') && currentKey && sessions && sessions.length > 0) {
         typeSelectedKey.value = currentKey
     }
     else {
@@ -151,7 +193,7 @@ watch(() => [route.name, currentSessions.value, route.params.sessionkey], (value
 }, { immediate: true })
 
 const showMobileSessionList = computed(() => {
-    if (!isTaskSessionsRoute.value) return false
+    if (!isSplitViewRoute.value) return false
     return !typeSelectedKey.value
 })
 
@@ -463,8 +505,8 @@ watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath
 
 // Helper function to apply default session behavior based on settings
 async function applyDefaultSessionBehavior() {
-    if (isTaskSessionsRoute.value) {
-        console.log('[HomeView] Task sessions route, skipping default chat behavior')
+    if (isSplitViewRoute.value) {
+        console.log('[HomeView] Split-view route, skipping default chat behavior')
         return
     }
 
@@ -499,26 +541,28 @@ async function applyDefaultSessionBehavior() {
             </div>
         </div>
 
-        <!-- Task Sessions List Column (Desktop: visible if tasks route; Mobile: visible if tasks route && showMobileSessionList) -->
-        <div v-if="isTaskSessionsRoute" class="w-full lg:w-80 bg-base-100 border-r border-base-200 flex flex-col shrink-0"
+        <!-- Split-view Sessions List Column (Desktop: visible on split routes; Mobile: visible when no detail selected) -->
+        <div v-if="isSplitViewRoute" class="w-full lg:w-80 bg-base-100 border-r border-base-200 flex flex-col shrink-0"
             :class="{ 'hidden lg:flex': !showMobileSessionList, 'flex': showMobileSessionList }">
-            <SessionSidebar :title="$t('home.taskSessionList')" :sessions="currentSessions" :selected-key="typeSelectedKey"
-                @select="handleTaskSessionSelect" @delete="handleTaskSessionDelete" />
+            <SessionSidebar :title="splitViewTitle" :sessions="currentSessions" :selected-key="typeSelectedKey"
+                :row-actions="splitViewRowActions"
+                @select="handleSplitSessionSelect" @delete="handleSplitSessionDelete"
+                @row-action="handleSplitSessionRowAction" />
         </div>
 
 
-        <!-- Empty Task Sessions list state -->
-        <div v-if="isTaskSessionsRoute && !typeSelectedKey" class="flex-1 flex flex-col items-center justify-center p-4">
+        <!-- Empty split-view list state -->
+        <div v-if="isSplitViewRoute && !typeSelectedKey" class="flex-1 flex flex-col items-center justify-center p-4">
             <div class="text-center text-base-content/60">
                 <div class="text-center">
-                    <h1 class="text-3xl font-bold mb-2">{{ $t('home.taskSessionList') }}</h1>
-                    <p class="text-base-content/60">{{ $t('home.noTaskSessions') }}</p>
+                    <h1 class="text-3xl font-bold mb-2">{{ splitViewTitle }}</h1>
+                    <p class="text-base-content/60">{{ splitViewEmptyState }}</p>
                 </div>
             </div>
         </div>
         <!-- Chat Area -->
         <div v-else class="flex-1 flex flex-col h-full min-w-0"
-            :class="{ 'hidden lg:flex': isTaskSessionsRoute && showMobileSessionList }">
+            :class="{ 'hidden lg:flex': isSplitViewRoute && showMobileSessionList }">
 
             <!-- Header -->
             <ChatHeader ref="chatHeaderRef" :selected-agent="selectedAgent" :agents="agentsState.agentsList"

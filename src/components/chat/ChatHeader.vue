@@ -19,7 +19,6 @@ import { isConnected } from '../../composables/notify-server-connection'
 
 import ViewHeader from '../ViewHeader.vue'
 import { isNewSession, NEW_SESSION_ROUTE_NAME } from '../../utils/route-helpers'
-import { navigateBackFromTaskSession } from '../../utils/task-sessions-routing'
 import { useChatState } from '../../composables/useChatState'
 import { AgentInfo, useAgentsState } from '~/src/composables/useAgentsState'
 import { useCommandState } from '../../composables/useCommandState'
@@ -39,11 +38,13 @@ const router = useRouter()
 const route = useRoute()
 const chatState = useChatState()
 const { loadCommands, setCurrentAgent } = useCommandState()
+const splitRouteNames = ['tasks', 'archived'] as const
 const handleBack = () => {
-    // 这里必须走 history.back()，而不是再次 push /tasks。
-    // 否则移动端链路会变成 /tasks -> /tasks/:id -> /tasks，
-    // 用户在列表页再按一次返回时又会跳回刚才那个任务详情。
-    navigateBackFromTaskSession(router)
+    // 分栏详情页必须走 history.back()，而不是再次 push 列表路由。
+    // 否则移动端链路会变成 /tasks -> /tasks/:id -> /tasks
+    // 或 /archived -> /archived/:id -> /archived，
+    // 用户在列表页再按一次返回时又会跳回刚才那个详情页。
+    router.back()
 }
 const settingsStore = useUiSettingsStore()
 
@@ -96,7 +97,7 @@ defineExpose({
     <ViewHeader>
         <!-- Back Button or Hamburger -->
         <template #left>
-            <button v-if="route.name === 'tasks'" @click="handleBack"
+            <button v-if="splitRouteNames.includes(route.name as typeof splitRouteNames[number])" @click="handleBack"
                 class="btn btn-ghost btn-sm btn-circle  lg:hidden">
                 <ChevronLeftIcon class="h-5 w-5" />
             </button>
