@@ -167,6 +167,19 @@ const handleSplitSessionDelete = async (key: string) => {
     }
 }
 
+const handleSplitClearAll = async (keys: string[]) => {
+    if (keys.length === 0) return
+
+    const selectedKey = typeof route.params.sessionkey === 'string'
+        ? route.params.sessionkey
+        : null
+
+    const result = await sessionsState.deleteSessions(keys)
+    if (result?.deleted && selectedKey && keys.includes(selectedKey)) {
+        router.push({ name: routeMode.value })
+    }
+}
+
 const handleSplitSessionRowAction = async ({ key, action }: { key: string, action: string }) => {
     if (action === 'unarchive') {
         await sessionsState.unarchiveSession(key)
@@ -547,6 +560,7 @@ async function applyDefaultSessionBehavior() {
             <SessionSidebar :title="splitViewTitle" :sessions="currentSessions" :selected-key="typeSelectedKey"
                 :row-actions="splitViewRowActions"
                 @select="handleSplitSessionSelect" @delete="handleSplitSessionDelete"
+                @clear-all="handleSplitClearAll"
                 @row-action="handleSplitSessionRowAction" />
         </div>
 

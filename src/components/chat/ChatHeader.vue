@@ -40,10 +40,17 @@ const chatState = useChatState()
 const { loadCommands, setCurrentAgent } = useCommandState()
 const splitRouteNames = ['tasks', 'archived'] as const
 const handleBack = () => {
-    // 分栏详情页必须走 history.back()，而不是再次 push 列表路由。
-    // 否则移动端链路会变成 /tasks -> /tasks/:id -> /tasks
-    // 或 /archived -> /archived/:id -> /archived，
-    // 用户在列表页再按一次返回时又会跳回刚才那个详情页。
+    const splitListRouteName = splitRouteNames.find(name => name === route.name)
+    const hasUsableHistoryEntry = window.history.length > 1 && typeof window.history.state?.back === 'string'
+
+    // 分栏详情页优先走 history.back()，避免 /tasks -> /tasks/:id -> /tasks
+    // 或 /archived -> /archived/:id -> /archived 这种链路污染移动端返回栈。
+    // 但对于深链直达等没有可用历史记录的情况，需要安全回退到对应列表路由。
+    if (splitListRouteName && !hasUsableHistoryEntry) {
+        router.push({ name: splitListRouteName })
+        return
+    }
+
     router.back()
 }
 const settingsStore = useUiSettingsStore()

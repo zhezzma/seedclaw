@@ -8,6 +8,7 @@ const homeViewSource = readFileSync(path.join(root, 'src/views/HomeView.vue'), '
 const sessionSidebarSource = readFileSync(path.join(root, 'src/components/chat/SessionSidebar.vue'), 'utf8')
 const chatHeaderSource = readFileSync(path.join(root, 'src/components/chat/ChatHeader.vue'), 'utf8')
 const zhSource = readFileSync(path.join(root, 'src/i18n/zh.ts'), 'utf8')
+const enSource = readFileSync(path.join(root, 'src/i18n/en.ts'), 'utf8')
 
 test('HomeView handles archived route mode and loads archived sessions', () => {
     assert.match(homeViewSource, /const routeMode = computed<'chat' \| 'tasks' \| 'archived'>\(\(\) => {[\s\S]*?if \(route\.name === 'archived'\) return 'archived'/)
@@ -22,21 +23,30 @@ test('HomeView archived split view uses archived list copy and archived detail n
     assert.match(homeViewSource, /router\.push\({ name: 'archived' }\)/)
 })
 
-test('ChatHeader mobile back button handles archived split routes', () => {
+test('ChatHeader mobile back button handles archived split routes safely', () => {
     assert.match(chatHeaderSource, /const splitRouteNames = \['tasks', 'archived'\] as const/)
-    assert.match(chatHeaderSource, /splitRouteNames\.includes\(route\.name as typeof splitRouteNames\[number\]\)/)
+    assert.match(chatHeaderSource, /const splitListRouteName = splitRouteNames\.find\(name => name === route\.name\)/)
+    assert.match(chatHeaderSource, /const hasUsableHistoryEntry = window\.history\.length > 1 && typeof window\.history\.state\?\.back === 'string'/)
+    assert.match(chatHeaderSource, /if \(splitListRouteName && !hasUsableHistoryEntry\) {\s*router\.push\({ name: splitListRouteName }\)\s*return\s*}/)
     assert.match(chatHeaderSource, /router\.back\(\)/)
+    assert.match(chatHeaderSource, /splitRouteNames\.includes\(route\.name as typeof splitRouteNames\[number\]\)/)
 })
 
-test('SessionSidebar supports unarchive row actions', () => {
-    assert.match(sessionSidebarSource, /rowActions\?: SessionSidebarRowAction\[\]/)
+test('SessionSidebar delegates split-view clear-all and unarchive row actions to HomeView', () => {
+    assert.match(sessionSidebarSource, /\(e: 'clear-all', keys: string\[\]\): void/)
+    assert.match(sessionSidebarSource, /const handleDeleteAll = async \(\) => {[\s\S]*?const keys = normalizedSessions\.value\.map\(s => s\._id\)\.filter\(\(id\): id is string => !!id\)[\s\S]*?emit\('clear-all', keys\)/)
+    assert.doesNotMatch(sessionSidebarSource, /await deleteSessions\(keys\)/)
     assert.match(sessionSidebarSource, /SessionActionMenu/)
     assert.match(sessionSidebarSource, /const confirmDelete = async \(key: string\) => {[\s\S]*?emit\('delete', key\)/)
     assert.match(sessionSidebarSource, /const handleRowAction = async \(key: string, action: string\) => {[\s\S]*?if \(action === 'delete'\) {[\s\S]*?await confirmDelete\(key\)[\s\S]*?emit\('row-action', \{ key, action \}\)/)
+    assert.match(homeViewSource, /const handleSplitClearAll = async \(keys: string\[\]\) => {[\s\S]*?const selectedKey = typeof route\.params\.sessionkey === 'string'[\s\S]*?await sessionsState\.deleteSessions\(keys\)[\s\S]*?if \(result\?\.deleted && selectedKey && keys\.includes\(selectedKey\)\) {[\s\S]*?router\.push\({ name: routeMode\.value }\)/)
+    assert.match(homeViewSource, /@clear-all="handleSplitClearAll"/)
     assert.match(homeViewSource, /key: 'unarchive',[\s\S]*?label: t\('sidebar\.unarchive'\)/)
 })
 
-test('Chinese copy includes archived split-view empty state strings', () => {
+test('Archived split-view copy exists in Chinese and English locales', () => {
     assert.match(zhSource, /archivedSessionList: '已归档会话列表'/)
     assert.match(zhSource, /noArchivedSessions: '暂无已归档会话'/)
+    assert.match(enSource, /archivedSessionList: 'Archived Session List'/)
+    assert.match(enSource, /noArchivedSessions: 'No archived sessions yet'/)
 })

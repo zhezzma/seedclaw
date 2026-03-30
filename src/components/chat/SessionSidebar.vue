@@ -6,7 +6,7 @@ import ViewHeader from '../ViewHeader.vue'
 import SessionActionMenu from './SessionActionMenu.vue'
 
 import { useConfirm } from '../../composables/useConfirm'
-import { SessionRow, useSessionsState } from '../../composables/useSessionsState'
+import { SessionRow } from '../../composables/useSessionsState'
 
 interface SessionSidebarRowAction {
     key: string
@@ -24,12 +24,12 @@ const props = defineProps<{
 const emit = defineEmits<{
     (e: 'select', key: string): void
     (e: 'delete', key: string): void
+    (e: 'clear-all', keys: string[]): void
     (e: 'row-action', payload: { key: string, action: string }): void
 }>()
 
 const { t } = useI18n()
 const { confirm } = useConfirm()
-const { deleteSessions } = useSessionsState()
 
 const normalizedSessions = computed(() => {
     return props.sessions.map((s: any) => {
@@ -54,9 +54,9 @@ const normalizedSessions = computed(() => {
 const handleDeleteAll = async () => {
     if (props.sessions.length === 0) return
     if (await confirm(t('chat.clearAllConfirm'))) {
-        const keys = normalizedSessions.value.map(s => s._id).filter(id => !!id)
+        const keys = normalizedSessions.value.map(s => s._id).filter((id): id is string => !!id)
         if (keys.length > 0) {
-            await deleteSessions(keys)
+            emit('clear-all', keys)
         }
     }
 }
