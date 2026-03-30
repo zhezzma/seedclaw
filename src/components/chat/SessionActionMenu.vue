@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { EllipsisHorizontalIcon } from '@heroicons/vue/24/outline'
 
 interface SessionActionMenuItem {
@@ -41,8 +41,13 @@ const handleClickOutside = (event: MouseEvent) => {
     }
 }
 
-onMounted(() => {
-    document.addEventListener('click', handleClickOutside)
+watch(isOpen, (open) => {
+    if (open) {
+        document.addEventListener('click', handleClickOutside)
+        return
+    }
+
+    document.removeEventListener('click', handleClickOutside)
 })
 
 onBeforeUnmount(() => {

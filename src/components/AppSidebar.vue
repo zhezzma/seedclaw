@@ -91,7 +91,7 @@ const handleArchiveSession = async (session: { key: string, label: string }) => 
     }
 }
 
-const buildSessionMenuItems = (): SessionMenuItem[] => [
+const sessionMenuItems = computed<SessionMenuItem[]>(() => [
     {
         key: 'archive',
         label: t('sidebar.archive'),
@@ -101,7 +101,7 @@ const buildSessionMenuItems = (): SessionMenuItem[] => [
         label: t('common.delete'),
         tone: 'danger',
     },
-]
+])
 
 const handleSessionMenuSelect = async (session: { key: string, label: string }, action: string) => {
     if (action === 'archive') {
@@ -242,7 +242,7 @@ const openWeixinLoginModal = () => {
                     <ChatBubbleLeftRightIcon class="h-5 w-5 opacity-50 shrink-0" />
                     <span class="text-sm truncate flex-1">{{ session.label }}</span>
                     <SessionActionMenu
-                        :actions="buildSessionMenuItems()"
+                        :actions="sessionMenuItems"
                         :title="$t('sidebar.more')"
                         @select="handleSessionMenuSelect(session, $event)"
                     />
