@@ -177,17 +177,21 @@ const ensureFileExtension = (fileName: string, extension: string) => {
     return /\.[a-z0-9]+$/i.test(fileName) ? fileName : `${fileName}.${extension}`
 }
 
+const shouldUseWebDownloadFallbackForUserAgent = (userAgent: string) => {
+    const isIOS = /iPad|iPhone|iPod/i.test(userAgent)
+    const isAndroid = /Android/i.test(userAgent)
+    const isAndroidWebView = /; wv\)/i.test(userAgent)
+    const isIOSLikeWebView = /Version\/\d+(?:\.\d+)*.*Safari/i.test(userAgent) && !/CriOS/i.test(userAgent)
+
+    return isIOS || (isAndroid && (isAndroidWebView || isIOSLikeWebView))
+}
+
 const shouldUseWebDownloadFallback = () => {
     if (typeof navigator === 'undefined') {
         return false
     }
 
-    const userAgent = navigator.userAgent || ''
-    const isIOS = /iPad|iPhone|iPod/i.test(userAgent)
-    const isAndroid = /Android/i.test(userAgent)
-    const isWebView = /; wv\)|Version\/\d+(?:\.\d+)*.*Safari/i.test(userAgent) && !/Chrome|CriOS/i.test(userAgent)
-
-    return isIOS || (isAndroid && isWebView)
+    return shouldUseWebDownloadFallbackForUserAgent(navigator.userAgent || '')
 }
 
 const downloadBlobInBrowser = (blob: Blob, fileName: string) => {
