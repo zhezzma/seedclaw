@@ -161,6 +161,25 @@ const isTauriApp = () => {
     return !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
 }
 
+const isAndroidTauri = () => {
+    if (typeof navigator === 'undefined') return false
+    return isTauriApp() && /Android/i.test(navigator.userAgent)
+}
+
+const getTauriDownloadTarget = (fileName: string) => {
+    if (isAndroidTauri()) {
+        return {
+            path: `Download/${fileName}`,
+            baseDir: BaseDirectory.Home,
+        }
+    }
+
+    return {
+        path: fileName,
+        baseDir: BaseDirectory.Download,
+    }
+}
+
 const shouldUseWebDownloadFallback = () => {
     if (typeof navigator === 'undefined') {
         return false
@@ -190,7 +209,7 @@ const downloadBlobInBrowser = (blob: Blob, fileName: string) => {
 const downloadImage = async (src: string, defaultName?: string) => {
     const toast = useToast()
     const { i18n } = await import('../i18n')
-    const _t = (key: string) => i18n.global.t(key)
+    const _t = (key: string, named?: Record<string, unknown>) => named ? i18n.global.t(key, named) : i18n.global.t(key)
 
     try {
         const response = await fetch(src)
@@ -200,13 +219,14 @@ const downloadImage = async (src: string, defaultName?: string) => {
 
         if (isTauriApp()) {
             const bytes = new Uint8Array(await blob.arrayBuffer())
-            await writeFile(fileName, bytes, { baseDir: BaseDirectory.Download })
-            toast.success(_t('chat.downloadImageSuccess'))
+            const target = getTauriDownloadTarget(fileName)
+            await writeFile(target.path, bytes, { baseDir: target.baseDir })
+            toast.success(_t('chat.downloadImageSuccess', { path: target.path }))
             return
         }
 
         downloadBlobInBrowser(blob, fileName)
-        toast.success(_t('chat.downloadImageSuccess'))
+        toast.success(_t('chat.downloadImageSuccess', { path: fileName }))
     } catch (error) {
         console.error('Download failed:', error)
         toast.error(_t('chat.downloadImageFailed'))

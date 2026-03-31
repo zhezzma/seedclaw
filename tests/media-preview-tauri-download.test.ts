@@ -17,11 +17,14 @@ const {
   ensureFileExtension
 } = await import(pathToFileURL(path.join(repoRoot, 'src/utils/mediaDownload.ts')).href)
 
-test('media preview writes Tauri downloads to BaseDirectory.Download and keeps browser download logic', () => {
+test('media preview writes Tauri downloads via getTauriDownloadTarget and keeps browser download logic', () => {
   assert.match(mediaPreviewSource, /from '@tauri-apps\/plugin-fs'/)
   assert.match(mediaPreviewSource, /from '\.\.\/utils\/mediaDownload'/)
   assert.match(mediaPreviewSource, /BaseDirectory\.Download/)
-  assert.match(mediaPreviewSource, /writeFile\(fileName, bytes, \{\s*baseDir: BaseDirectory\.Download\s*\}\)/)
+  assert.match(mediaPreviewSource, /BaseDirectory\.Home/)
+  assert.match(mediaPreviewSource, /getTauriDownloadTarget/)
+  assert.match(mediaPreviewSource, /writeFile\(target\.path, bytes, \{\s*baseDir: target\.baseDir\s*\}\)/)
+  assert.match(mediaPreviewSource, /isAndroidTauri/)
   assert.match(mediaPreviewSource, /typeof window === 'undefined'/)
   assert.match(mediaPreviewSource, /__TAURI_INTERNALS__|__TAURI__/)
   assert.match(mediaPreviewSource, /document\.createElement\('a'\)/)
@@ -56,7 +59,7 @@ test('image extension helpers normalize MIME types and preserve existing file ex
   assert.equal(ensureFileExtension('photo', 'jpg'), 'photo.jpg')
 })
 
-test('download success toasts mention saving the image', () => {
-  assert.match(enSource, /downloadImageSuccess:\s*'Image saved to Downloads'/)
-  assert.match(zhSource, /downloadImageSuccess:\s*'图片已保存到下载目录'/)
+test('download success toasts mention saving the image with path', () => {
+  assert.match(enSource, /downloadImageSuccess:\s*'Image saved: \{path\}'/)
+  assert.match(zhSource, /downloadImageSuccess:\s*'图片已保存: \{path\}'/)
 })

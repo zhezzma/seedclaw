@@ -498,7 +498,7 @@ export default {
         deleteMessageConfirm: '⚠️ Deleting a user message will also delete all subsequent messages. Are you sure?',
         deleteMessageConfirmTitle: 'Confirm Delete',
         downloadImage: 'Download Image',
-        downloadImageSuccess: 'Image saved to Downloads',
+        downloadImageSuccess: 'Image saved: {path}',
         downloadImageFailed: 'Download failed, please try again',
         copyImage: 'Copy Image',
         copyImageFailed: 'Failed to copy image',
