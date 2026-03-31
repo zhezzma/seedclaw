@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 import { useMediaPreview } from '../../composables/useMediaPreview'
 
 const { t } = useI18n()
+const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
 
 const {
     lightboxOpen,
@@ -52,7 +53,7 @@ const {
                 <!-- Tools -->
                 <div class="fixed top-4 right-4 flex items-center gap-2 z-[60]">
                     <!-- Copy -->
-                    <button @click.stop="copyImageToClipboard(lightboxSrc)"
+                    <button v-if="!isMobileDevice" @click.stop="copyImageToClipboard(lightboxSrc)"
                         class="btn btn-ghost btn-circle bg-white/10 text-white hover:bg-white/20 backdrop-blur-md"
                         :title="t('chat.copyImage')">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
