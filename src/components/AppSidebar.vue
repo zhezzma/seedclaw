@@ -243,6 +243,7 @@ const openWeixinLoginModal = () => {
                     <span class="text-sm truncate flex-1">{{ session.label }}</span>
                     <SessionActionMenu
                         :actions="sessionMenuItems"
+                        :menu-id="`recent:${session.key}`"
                         :title="$t('sidebar.more')"
                         @select="handleSessionMenuSelect(session, $event)"
                     />

@@ -134,6 +134,7 @@ const handleRowAction = async (key: string, action: string) => {
                 <SessionActionMenu
                     v-if="rowActions?.length"
                     :actions="rowActions"
+                    :menu-id="`list:${s._id}`"
                     @select="handleRowAction(s._id, $event)"
                 />
                 <button v-else @click="handleDelete(s._id, $event)"

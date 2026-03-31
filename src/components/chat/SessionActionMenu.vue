@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
-import { EllipsisHorizontalIcon } from '@heroicons/vue/24/outline'
+import { EllipsisVerticalIcon } from '@heroicons/vue/24/outline'
+
+const activeMenuId = ref<string | null>(null)
 
 interface SessionActionMenuItem {
     key: string
@@ -10,6 +12,7 @@ interface SessionActionMenuItem {
 
 const props = defineProps<{
     actions: SessionActionMenuItem[]
+    menuId: string
     title?: string
 }>()
 
@@ -21,12 +24,22 @@ const menuRef = ref<HTMLElement | null>(null)
 const isOpen = ref(false)
 
 const closeMenu = () => {
+    if (activeMenuId.value === props.menuId) {
+        activeMenuId.value = null
+    }
     isOpen.value = false
 }
 
 const toggleMenu = (event: MouseEvent) => {
     event.stopPropagation()
-    isOpen.value = !isOpen.value
+
+    if (isOpen.value) {
+        closeMenu()
+        return
+    }
+
+    activeMenuId.value = props.menuId
+    isOpen.value = true
 }
 
 const handleSelect = (key: string, event: MouseEvent) => {
@@ -41,16 +54,31 @@ const handleClickOutside = (event: MouseEvent) => {
     }
 }
 
+watch(activeMenuId, (currentMenuId) => {
+    if (currentMenuId !== props.menuId && isOpen.value) {
+        isOpen.value = false
+    }
+})
+
 watch(isOpen, (open) => {
     if (open) {
+        activeMenuId.value = props.menuId
         document.addEventListener('click', handleClickOutside)
         return
+    }
+
+    if (activeMenuId.value === props.menuId) {
+        activeMenuId.value = null
     }
 
     document.removeEventListener('click', handleClickOutside)
 })
 
 onBeforeUnmount(() => {
+    if (activeMenuId.value === props.menuId) {
+        activeMenuId.value = null
+    }
+
     document.removeEventListener('click', handleClickOutside)
 })
 </script>
@@ -58,12 +86,12 @@ onBeforeUnmount(() => {
 <template>
     <div ref="menuRef" class="dropdown dropdown-end" :class="{ 'dropdown-open': isOpen }">
         <button
-            class="btn btn-ghost btn-sm h-8 min-h-0 px-2 gap-1 rounded-full opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity hover:bg-base-300"
+            class="btn btn-ghost btn-sm h-8 min-h-0 px-2 rounded-full opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity hover:bg-base-300"
             :title="title || $t('sidebar.more')"
+            :aria-label="title || $t('sidebar.more')"
             @click="toggleMenu"
         >
-            <EllipsisHorizontalIcon class="h-4 w-4" />
-            <span class="text-xs">{{ title || $t('sidebar.more') }}</span>
+            <EllipsisVerticalIcon class="h-4 w-4" />
         </button>
         <ul
             v-if="isOpen"

@@ -6,6 +6,7 @@ import path from 'node:path'
 const root = path.resolve(import.meta.dirname, '..')
 const navigationSource = readFileSync(path.join(root, 'src/config/navigation.ts'), 'utf8')
 const sidebarSource = readFileSync(path.join(root, 'src/components/AppSidebar.vue'), 'utf8')
+const sessionSidebarSource = readFileSync(path.join(root, 'src/components/chat/SessionSidebar.vue'), 'utf8')
 const sessionActionMenuSource = readFileSync(path.join(root, 'src/components/chat/SessionActionMenu.vue'), 'utf8')
 const zhSource = readFileSync(path.join(root, 'src/i18n/zh.ts'), 'utf8')
 const enSource = readFileSync(path.join(root, 'src/i18n/en.ts'), 'utf8')
@@ -36,9 +37,26 @@ test('session action menu wiring stops row selection click bubbling', () => {
     assert.match(sidebarSource, /<a v-for="session in displaySessions"[\s\S]*?@click="selectSession\(session\.key\)"/)
 })
 
-test('session action menu only binds outside click handler while open', () => {
-    assert.match(sessionActionMenuSource, /watch\(isOpen, \(open\) => {[\s\S]*?if \(open\) {[\s\S]*?document\.addEventListener\('click', handleClickOutside\)[\s\S]*?}[\s\S]*?document\.removeEventListener\('click', handleClickOutside\)/)
+test('session action menu uses icon-only vertical trigger with accessible title and required menu id', () => {
+    assert.match(sessionActionMenuSource, /import \{ EllipsisVerticalIcon \} from '@heroicons\/vue\/24\/outline'/)
+    assert.match(sessionActionMenuSource, /menuId: string/)
+    assert.match(sessionActionMenuSource, /:title="title \|\| \$t\('sidebar\.more'\)"/)
+    assert.match(sessionActionMenuSource, /:aria-label="title \|\| \$t\('sidebar\.more'\)"/)
+    assert.match(sessionActionMenuSource, /<EllipsisVerticalIcon class="h-4 w-4" \/>/)
+    assert.doesNotMatch(sessionActionMenuSource, /<span class="text-xs">\{\{ title \|\| \$t\('sidebar\.more'\) \}\}<\/span>/)
+})
+
+test('session action menu coordinates a shared active menu and only binds outside click handler while open', () => {
+    assert.match(sessionActionMenuSource, /const activeMenuId = ref<string \| null>\(null\)/)
+    assert.match(sessionActionMenuSource, /watch\(activeMenuId, \(currentMenuId\) => {[\s\S]*?currentMenuId !== props\.menuId[\s\S]*?isOpen\.value = false/)
+    assert.match(sessionActionMenuSource, /watch\(isOpen, \(open\) => {[\s\S]*?if \(open\) {[\s\S]*?activeMenuId\.value = props\.menuId[\s\S]*?document\.addEventListener\('click', handleClickOutside\)[\s\S]*?}[\s\S]*?document\.removeEventListener\('click', handleClickOutside\)/)
     assert.doesNotMatch(sessionActionMenuSource, /onMounted\([\s\S]*?document\.addEventListener\('click', handleClickOutside\)/)
+})
+
+
+test('sidebars pass stable prefixed menu ids to session action menus', () => {
+    assert.match(sidebarSource, /:menu-id="`recent:\$\{session\.key\}`"/)
+    assert.match(sessionSidebarSource, /:menu-id="`list:\$\{s\._id\}`"/)
 })
 
 test('sidebar i18n includes archived and more copy in Chinese and English', () => {
