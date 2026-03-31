@@ -12,8 +12,10 @@ test('overlay still keeps the download button visible while gating copy only', (
   assert.match(source, /const isMobileDevice = \/Android\|iPhone\|iPad\|iPod\/i\.test\(navigator\.userAgent\)/)
   assert.match(source, /<button v-if="!isMobileDevice" @click\.stop="copyImageToClipboard\(lightboxSrc\)"/)
 
-  const toolsSectionMatch = source.match(/<!-- Tools -->[\s\S]*?<!-- Close -->/)
+  const toolsSectionMatch = source.match(/<!-- Tools -->\s*<div([^>]*)>[\s\S]*?<!-- Close -->/)
   assert.ok(toolsSectionMatch, 'expected to find the overlay tools section')
+  assert.doesNotMatch(toolsSectionMatch[1], /\bv-if=/)
+  assert.doesNotMatch(toolsSectionMatch[1], /isMobileDevice/)
 
   const downloadButtonMatch = toolsSectionMatch[0].match(/<!-- Download -->\s*<button([^>]*)@click\.stop="downloadImage\(lightboxSrc\)"([^>]*)>/)
   assert.ok(downloadButtonMatch, 'expected the download button to be rendered in the tools section')
