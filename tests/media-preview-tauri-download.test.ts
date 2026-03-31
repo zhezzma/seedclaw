@@ -1,8 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const testDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(testDir, '..')
@@ -10,49 +11,29 @@ const mediaPreviewSource = readFileSync(path.join(repoRoot, 'src/composables/use
 const enSource = readFileSync(path.join(repoRoot, 'src/i18n/en.ts'), 'utf8')
 const zhSource = readFileSync(path.join(repoRoot, 'src/i18n/zh.ts'), 'utf8')
 
-const extractArrowFunction = (source: string, name: string) => {
-  const signature = `const ${name} =`
-  const start = source.indexOf(signature)
-  assert.notEqual(start, -1, `Could not find ${name}`)
+const tempModuleDir = mkdtempSync(path.join(os.tmpdir(), 'media-preview-test-'))
+const tempModulePath = path.join(tempModuleDir, 'useMediaPreview.testable.ts')
+const testableModuleSource = mediaPreviewSource
+  .replace(
+    "import { BaseDirectory, writeFile } from '@tauri-apps/plugin-fs'",
+    "const BaseDirectory = { Download: 'Download' }\nconst writeFile = async () => {}"
+  )
+  .replace(
+    "import { ref } from 'vue'",
+    "const ref = (value: unknown) => ({ value })"
+  )
+  .replace(
+    "import { useToast } from './useToast'",
+    "const useToast = () => ({ success: () => {}, error: () => {} })"
+  )
 
-  const paramsStart = source.indexOf('(', start)
-  const paramsEnd = source.indexOf(')', paramsStart)
-  const bodyStart = source.indexOf('{', paramsEnd)
-  assert.notEqual(paramsStart, -1, `Could not find params for ${name}`)
-  assert.notEqual(paramsEnd, -1, `Could not find params end for ${name}`)
-  assert.notEqual(bodyStart, -1, `Could not find body for ${name}`)
+writeFileSync(tempModulePath, testableModuleSource)
 
-  let depth = 0
-  let bodyEnd = -1
-  for (let i = bodyStart; i < source.length; i += 1) {
-    const char = source[i]
-    if (char === '{') depth += 1
-    if (char === '}') {
-      depth -= 1
-      if (depth === 0) {
-        bodyEnd = i
-        break
-      }
-    }
-  }
-
-  assert.notEqual(bodyEnd, -1, `Could not find body end for ${name}`)
-
-  const params = source
-    .slice(paramsStart + 1, paramsEnd)
-    .replace(/:\s*[^,)=]+/g, '')
-    .trim()
-  const body = source.slice(bodyStart + 1, bodyEnd)
-
-  return new Function(`return (${params}) => {${body}}`)()
-}
-
-const shouldUseWebDownloadFallbackForUserAgent = extractArrowFunction(
-  mediaPreviewSource,
-  'shouldUseWebDownloadFallbackForUserAgent'
-) as (userAgent: string) => boolean
-const getImageExtension = extractArrowFunction(mediaPreviewSource, 'getImageExtension') as (mimeType: string) => string
-const ensureFileExtension = extractArrowFunction(mediaPreviewSource, 'ensureFileExtension') as (fileName: string, extension: string) => string
+const {
+  shouldUseWebDownloadFallbackForUserAgent,
+  getImageExtension,
+  ensureFileExtension
+} = await import(pathToFileURL(tempModulePath).href)
 
 test('media preview writes Tauri downloads to BaseDirectory.Download and keeps browser download logic', () => {
   assert.match(mediaPreviewSource, /from '@tauri-apps\/plugin-fs'/)
@@ -62,6 +43,7 @@ test('media preview writes Tauri downloads to BaseDirectory.Download and keeps b
   assert.match(mediaPreviewSource, /__TAURI_INTERNALS__|__TAURI__/)
   assert.match(mediaPreviewSource, /document\.createElement\('a'\)/)
   assert.match(mediaPreviewSource, /shouldUseWebDownloadFallback/)
+  assert.match(mediaPreviewSource, /hasVersionedSafariSignature/)
   assert.doesNotMatch(mediaPreviewSource, /isTauriApp\(\)[\s\S]{0,300}window\.open/)
 })
 
@@ -78,7 +60,7 @@ test('web download fallback detection handles Android WebView, normal Android Ch
 test('image extension helpers normalize MIME types and preserve existing file extensions', () => {
   assert.equal(getImageExtension('image/jpeg'), 'jpg')
   assert.equal(getImageExtension('image/webp'), 'webp')
-  assert.equal(getImageExtension('image/svg+xml'), 'svg+xml')
+  assert.equal(getImageExtension('image/svg+xml'), 'svg')
   assert.equal(getImageExtension('application/pdf'), 'bin')
 
   assert.equal(ensureFileExtension('photo.png', 'jpg'), 'photo.png')

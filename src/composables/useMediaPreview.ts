@@ -160,30 +160,32 @@ const isTauriApp = () => {
     return !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
 }
 
-const getImageExtension = (mimeType: string) => {
+export const getImageExtension = (mimeType: string) => {
     if (mimeType === 'image/jpeg') return 'jpg'
 
     if (mimeType.startsWith('image/')) {
         const subtype = mimeType.slice('image/'.length).split(';', 1)[0].trim().toLowerCase()
-        if (/^[a-z0-9.+-]+$/i.test(subtype)) {
-            return subtype
+        const normalizedSubtype = subtype.split('+', 1)[0]
+
+        if (/^[a-z0-9.-]+$/i.test(normalizedSubtype) && normalizedSubtype.length > 0) {
+            return normalizedSubtype
         }
     }
 
     return 'bin'
 }
 
-const ensureFileExtension = (fileName: string, extension: string) => {
+export const ensureFileExtension = (fileName: string, extension: string) => {
     return /\.[a-z0-9]+$/i.test(fileName) ? fileName : `${fileName}.${extension}`
 }
 
-const shouldUseWebDownloadFallbackForUserAgent = (userAgent: string) => {
+export const shouldUseWebDownloadFallbackForUserAgent = (userAgent: string) => {
     const isIOS = /iPad|iPhone|iPod/i.test(userAgent)
     const isAndroid = /Android/i.test(userAgent)
     const isAndroidWebView = /; wv\)/i.test(userAgent)
-    const isIOSLikeWebView = /Version\/\d+(?:\.\d+)*.*Safari/i.test(userAgent) && !/CriOS/i.test(userAgent)
+    const hasVersionedSafariSignature = /Version\/\d+(?:\.\d+)*.*Safari/i.test(userAgent) && !/CriOS/i.test(userAgent)
 
-    return isIOS || (isAndroid && (isAndroidWebView || isIOSLikeWebView))
+    return isIOS || (isAndroid && (isAndroidWebView || hasVersionedSafariSignature))
 }
 
 const shouldUseWebDownloadFallback = () => {
