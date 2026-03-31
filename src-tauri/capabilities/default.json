@@ -12,6 +12,14 @@
     "notification:default",
     "notification:allow-register-listener",
     "notification:allow-register-action-types",
-    "log:default"
+    "log:default",
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [
+        {
+          "path": "$DOWNLOAD/*"
+        }
+      ]
+    }
   ]
 }
