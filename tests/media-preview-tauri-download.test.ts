@@ -10,18 +10,20 @@ const mediaPreviewSource = readFileSync(path.join(repoRoot, 'src/composables/use
 const enSource = readFileSync(path.join(repoRoot, 'src/i18n/en.ts'), 'utf8')
 const zhSource = readFileSync(path.join(repoRoot, 'src/i18n/zh.ts'), 'utf8')
 
-test('media preview writes Tauri downloads to BaseDirectory.Download and keeps web anchor fallback', () => {
+test('media preview writes Tauri downloads to BaseDirectory.Download and keeps browser download logic', () => {
   assert.match(mediaPreviewSource, /from '@tauri-apps\/plugin-fs'/)
   assert.match(mediaPreviewSource, /BaseDirectory\.Download/)
-  assert.match(mediaPreviewSource, /await writeFile\(fileName, bytes, \{\s*baseDir: BaseDirectory\.Download\s*\}\)/)
-  assert.match(mediaPreviewSource, /const isTauriApp = !!\(window as any\)\.__TAURI_INTERNALS__ \|\| !!\(window as any\)\.__TAURI__/)
-  assert.match(mediaPreviewSource, /const getImageExtension = \(mimeType: string\)/)
-  assert.match(mediaPreviewSource, /const ensureFileExtension = \(fileName: string, extension: string\)/)
-  assert.match(mediaPreviewSource, /const a = document\.createElement\('a'\)/)
-  assert.doesNotMatch(mediaPreviewSource, /isAndroidWebView/)
+  assert.match(mediaPreviewSource, /writeFile\(fileName, bytes, \{\s*baseDir: BaseDirectory\.Download\s*\}\)/)
+  assert.match(mediaPreviewSource, /typeof window === 'undefined'/)
+  assert.match(mediaPreviewSource, /__TAURI_INTERNALS__|__TAURI__/)
+  assert.match(mediaPreviewSource, /getImageExtension/)
+  assert.match(mediaPreviewSource, /ensureFileExtension/)
+  assert.match(mediaPreviewSource, /document\.createElement\('a'\)/)
+  assert.match(mediaPreviewSource, /shouldUseWebDownloadFallback/)
+  assert.doesNotMatch(mediaPreviewSource, /isTauriApp\(\)[\s\S]{0,300}window\.open/)
 })
 
-test('download toasts mention saving instead of opening a new tab', () => {
-  assert.match(enSource, /downloadImageSuccess: 'Image saved to Downloads'/)
-  assert.match(zhSource, /downloadImageSuccess: '图片已保存到下载目录'/)
+test('download success toasts mention saving the image', () => {
+  assert.match(enSource, /downloadImageSuccess:\s*'Image saved to Downloads'/)
+  assert.match(zhSource, /downloadImageSuccess:\s*'图片已保存到下载目录'/)
 })

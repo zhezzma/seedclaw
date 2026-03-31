@@ -152,17 +152,60 @@ const handleMouseUp = (_e: MouseEvent) => {
     }
 }
 
-const isTauriApp = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
+const isTauriApp = () => {
+    if (typeof window === 'undefined') {
+        return false
+    }
+
+    return !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
+}
 
 const getImageExtension = (mimeType: string) => {
     if (mimeType === 'image/jpeg') return 'jpg'
-    if (mimeType === 'image/webp') return 'webp'
-    if (mimeType === 'image/gif') return 'gif'
-    return 'png'
+
+    if (mimeType.startsWith('image/')) {
+        const subtype = mimeType.slice('image/'.length).split(';', 1)[0].trim().toLowerCase()
+        if (/^[a-z0-9.+-]+$/i.test(subtype)) {
+            return subtype
+        }
+    }
+
+    return 'bin'
 }
 
 const ensureFileExtension = (fileName: string, extension: string) => {
     return /\.[a-z0-9]+$/i.test(fileName) ? fileName : `${fileName}.${extension}`
+}
+
+const shouldUseWebDownloadFallback = () => {
+    if (typeof navigator === 'undefined') {
+        return false
+    }
+
+    const userAgent = navigator.userAgent || ''
+    const isIOS = /iPad|iPhone|iPod/i.test(userAgent)
+    const isAndroid = /Android/i.test(userAgent)
+    const isWebView = /; wv\)|Version\/\d+(?:\.\d+)*.*Safari/i.test(userAgent) && !/Chrome|CriOS/i.test(userAgent)
+
+    return isIOS || (isAndroid && isWebView)
+}
+
+const downloadBlobInBrowser = (blob: Blob, fileName: string) => {
+    const url = window.URL.createObjectURL(blob)
+
+    if (shouldUseWebDownloadFallback()) {
+        window.location.href = url
+        setTimeout(() => window.URL.revokeObjectURL(url), 30000)
+        return
+    }
+
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => window.URL.revokeObjectURL(url), 5000)
 }
 
 const downloadImage = async (src: string, defaultName?: string) => {
@@ -176,21 +219,14 @@ const downloadImage = async (src: string, defaultName?: string) => {
         const extension = getImageExtension(blob.type)
         const fileName = ensureFileExtension(defaultName || `image-${Date.now()}`, extension)
 
-        if (isTauriApp) {
+        if (isTauriApp()) {
             const bytes = new Uint8Array(await blob.arrayBuffer())
             await writeFile(fileName, bytes, { baseDir: BaseDirectory.Download })
             toast.success(_t('chat.downloadImageSuccess'))
             return
         }
 
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = fileName
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        setTimeout(() => window.URL.revokeObjectURL(url), 5000)
+        downloadBlobInBrowser(blob, fileName)
         toast.success(_t('chat.downloadImageSuccess'))
     } catch (error) {
         console.error('Download failed:', error)
