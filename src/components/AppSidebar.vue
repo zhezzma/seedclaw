@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
     MagnifyingGlassIcon,
     Cog6ToothIcon,
@@ -31,6 +31,7 @@ type SessionMenuItem = {
     tone?: 'default' | 'danger'
 }
 
+const route = useRoute()
 const router = useRouter()
 const { confirm } = useConfirm()
 
@@ -39,6 +40,11 @@ const chatState = useChatState()
 const { t } = useI18n()
 const configStore = useUiSettingsStore()
 const weixinLogin = useWeixinLogin()
+
+// Active session key: prefer chatState (reactive), fallback to route param
+const activeSessionKey = computed(() => {
+    return chatState.sessionKey || (route.params.sessionkey as string) || ''
+})
 
 const weixinButtonLabel = computed(() => {
     if (weixinLogin.status.value === 'connected') return t('sidebar.weixinLoginConnectedButton')
@@ -210,7 +216,7 @@ const openWeixinLoginModal = () => {
         <!-- Conversations Header -->
         <div class="shrink-0 px-4 pt-2 pb-2 flex items-center justify-between">
             <span class="text-sm font-medium text-base-content/70 uppercase tracking-wider">{{ $t('sidebar.recentChats')
-                }}</span>
+            }}</span>
             <div class="flex gap-1">
                 <button v-if="displaySessions && displaySessions.length > 0"
                     class="btn btn-ghost btn-circle btn-xs hover:bg-error/20 hover:text-error"
@@ -237,16 +243,16 @@ const openWeixinLoginModal = () => {
             <!-- Sessions list -->
             <div v-else class="space-y-1">
                 <a v-for="session in displaySessions" :key="session.key" @click="selectSession(session.key)"
-                    class="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-base-300 transition-colors group"
-                    :class="{ 'bg-base-300': chatState.sessionKey === session.key }">
-                    <ChatBubbleLeftRightIcon class="h-5 w-5 opacity-50 shrink-0" />
-                    <span class="text-sm truncate flex-1">{{ session.label }}</span>
-                    <SessionActionMenu
-                        :actions="sessionMenuItems"
-                        :menu-id="`recent:${session.key}`"
-                        :title="$t('sidebar.more')"
-                        @select="handleSessionMenuSelect(session, $event)"
-                    />
+                    class="flex items-center gap-3 px-3 py-1.5 rounded-xl cursor-pointer transition-colors group"
+                    :class="activeSessionKey === session.key
+                        ? 'bg-primary/10 dark:bg-primary/15 hover:bg-primary/15 dark:hover:bg-primary/20'
+                        : 'hover:bg-base-300'">
+                    <ChatBubbleLeftRightIcon class="h-5 w-5 shrink-0"
+                        :class="activeSessionKey === session.key ? 'text-primary opacity-80' : 'opacity-50'" />
+                    <span class="text-sm truncate flex-1"
+                        :class="activeSessionKey === session.key ? 'font-semibold text-primary' : ''">{{ session.label }}</span>
+                    <SessionActionMenu :actions="sessionMenuItems" :menu-id="`recent:${session.key}`"
+                        :title="$t('sidebar.more')" @select="handleSessionMenuSelect(session, $event)" />
                 </a>
             </div>
         </div>

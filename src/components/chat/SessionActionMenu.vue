@@ -106,26 +106,17 @@ export default defineComponent({
 <template>
     <div ref="menuRef" class="dropdown dropdown-end" :class="{ 'dropdown-open': isOpen }">
         <button
-            class="btn btn-ghost btn-sm h-8 min-h-0 px-2 rounded-full opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity hover:bg-base-300"
-            :title="title || $t('sidebar.more')"
-            :aria-label="title || $t('sidebar.more')"
-            @click="toggleMenu"
-        >
+            class="btn btn-ghost btn-sm  min-h-0 px-2 rounded-full opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity hover:bg-base-300"
+            :title="title || $t('sidebar.more')" :aria-label="title || $t('sidebar.more')" @click="toggleMenu">
             <EllipsisVerticalIcon class="h-4 w-4" />
         </button>
-        <ul
-            v-if="isOpen"
+        <ul v-if="isOpen"
             class="dropdown-content menu p-2 shadow-xl bg-base-100 rounded-box w-36 border border-base-300 z-[60]"
-            @click.stop
-        >
+            @click.stop>
             <li v-for="action in actions" :key="action.key">
-                <button
-                    class="rounded-lg"
-                    :class="{
-                        'text-error hover:bg-error/10': action.tone === 'danger',
-                    }"
-                    @click="handleSelect(action.key, $event)"
-                >
+                <button class="rounded-lg" :class="{
+                    'text-error hover:bg-error/10': action.tone === 'danger',
+                }" @click="handleSelect(action.key, $event)">
                     {{ action.label }}
                 </button>
             </li>

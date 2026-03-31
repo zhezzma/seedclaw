@@ -24,10 +24,15 @@ export function useNavActive() {
             return true
         }
 
+
+
         // Check if current route is home/chat
         if (currentRoute.name !== 'home' && currentRoute.name !== 'chat') {
             return false
         }
+
+        //如果有sessionkey暂时不激活
+        return false;
 
         const currentKey = chatState.sessionKey
         return !currentKey
