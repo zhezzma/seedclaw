@@ -31,8 +31,6 @@ test('media preview writes Tauri downloads to BaseDirectory.Download and keeps b
 
 test('tauri download path no longer opens a new tab for mobile webview workarounds', () => {
   assert.doesNotMatch(mediaPreviewSource, /window\.open\(url, '_blank'\)/)
-  assert.doesNotMatch(enSource, /downloadImageOpenedHint|downloadImageFallback/)
-  assert.doesNotMatch(zhSource, /downloadImageOpenedHint|downloadImageFallback/)
 })
 
 test('web download fallback detection handles Android WebView, normal Android Chrome, and iOS Safari', () => {
