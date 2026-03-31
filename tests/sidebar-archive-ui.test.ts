@@ -39,17 +39,20 @@ test('session action menu wiring stops row selection click bubbling', () => {
 
 test('session action menu uses icon-only vertical trigger with accessible title and required menu id', () => {
     assert.match(sessionActionMenuSource, /import \{ EllipsisVerticalIcon \} from '@heroicons\/vue\/24\/outline'/)
-    assert.match(sessionActionMenuSource, /menuId: string/)
+    assert.match(sessionActionMenuSource, /menuId:[\s\S]*?type: String,[\s\S]*?required: true/)
     assert.match(sessionActionMenuSource, /:title="title \|\| \$t\('sidebar\.more'\)"/)
     assert.match(sessionActionMenuSource, /:aria-label="title \|\| \$t\('sidebar\.more'\)"/)
     assert.match(sessionActionMenuSource, /<EllipsisVerticalIcon class="h-4 w-4" \/>/)
     assert.doesNotMatch(sessionActionMenuSource, /<span class="text-xs">\{\{ title \|\| \$t\('sidebar\.more'\) \}\}<\/span>/)
 })
 
-test('session action menu coordinates a shared active menu and only binds outside click handler while open', () => {
-    assert.match(sessionActionMenuSource, /const activeMenuId = ref<string \| null>\(null\)/)
-    assert.match(sessionActionMenuSource, /watch\(activeMenuId, \(currentMenuId\) => {[\s\S]*?currentMenuId !== props\.menuId[\s\S]*?isOpen\.value = false/)
-    assert.match(sessionActionMenuSource, /watch\(isOpen, \(open\) => {[\s\S]*?if \(open\) {[\s\S]*?activeMenuId\.value = props\.menuId[\s\S]*?document\.addEventListener\('click', handleClickOutside\)[\s\S]*?}[\s\S]*?document\.removeEventListener\('click', handleClickOutside\)/)
+test('session action menu coordinates a shared module-scoped active menu and only binds outside click handler while open', () => {
+    assert.match(sessionActionMenuSource, /<script lang="ts">[\s\S]*?const sharedActiveMenuId = ref<string \| null>\(null\)/)
+    assert.match(sessionActionMenuSource, /export default defineComponent\([\s\S]*?setup\(props, \{ emit \}\)/)
+    assert.doesNotMatch(sessionActionMenuSource, /<script setup/)
+    assert.match(sessionActionMenuSource, /watch\(sharedActiveMenuId, \(currentMenuId\) => {[\s\S]*?currentMenuId !== props\.menuId[\s\S]*?isOpen\.value = false/)
+    assert.match(sessionActionMenuSource, /watch\(isOpen, \(open\) => {[\s\S]*?if \(open\) {[\s\S]*?sharedActiveMenuId\.value = props\.menuId[\s\S]*?document\.addEventListener\('click', handleClickOutside\)[\s\S]*?}[\s\S]*?document\.removeEventListener\('click', handleClickOutside\)/)
+    assert.doesNotMatch(sessionActionMenuSource, /setup\(props, \{ emit \}\)[\s\S]*?const sharedActiveMenuId = ref<string \| null>\(null\)/)
     assert.doesNotMatch(sessionActionMenuSource, /onMounted\([\s\S]*?document\.addEventListener\('click', handleClickOutside\)/)
 })
 

@@ -1,8 +1,8 @@
-<script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+<script lang="ts">
+import { defineComponent, onBeforeUnmount, ref, watch, type PropType } from 'vue'
 import { EllipsisVerticalIcon } from '@heroicons/vue/24/outline'
 
-const activeMenuId = ref<string | null>(null)
+const sharedActiveMenuId = ref<string | null>(null)
 
 interface SessionActionMenuItem {
     key: string
@@ -10,76 +10,96 @@ interface SessionActionMenuItem {
     tone?: 'default' | 'danger'
 }
 
-const props = defineProps<{
-    actions: SessionActionMenuItem[]
-    menuId: string
-    title?: string
-}>()
+export default defineComponent({
+    name: 'SessionActionMenu',
+    components: {
+        EllipsisVerticalIcon,
+    },
+    props: {
+        actions: {
+            type: Array as PropType<SessionActionMenuItem[]>,
+            required: true,
+        },
+        menuId: {
+            type: String,
+            required: true,
+        },
+        title: {
+            type: String,
+            required: false,
+        },
+    },
+    emits: ['select'],
+    setup(props, { emit }) {
+        const menuRef = ref<HTMLElement | null>(null)
+        const isOpen = ref(false)
 
-const emit = defineEmits<{
-    select: [key: string]
-}>()
+        const closeMenu = () => {
+            if (sharedActiveMenuId.value === props.menuId) {
+                sharedActiveMenuId.value = null
+            }
+            isOpen.value = false
+        }
 
-const menuRef = ref<HTMLElement | null>(null)
-const isOpen = ref(false)
+        const toggleMenu = (event: MouseEvent) => {
+            event.stopPropagation()
 
-const closeMenu = () => {
-    if (activeMenuId.value === props.menuId) {
-        activeMenuId.value = null
-    }
-    isOpen.value = false
-}
+            if (isOpen.value) {
+                closeMenu()
+                return
+            }
 
-const toggleMenu = (event: MouseEvent) => {
-    event.stopPropagation()
+            sharedActiveMenuId.value = props.menuId
+            isOpen.value = true
+        }
 
-    if (isOpen.value) {
-        closeMenu()
-        return
-    }
+        const handleSelect = (key: string, event: MouseEvent) => {
+            event.stopPropagation()
+            closeMenu()
+            emit('select', key)
+        }
 
-    activeMenuId.value = props.menuId
-    isOpen.value = true
-}
+        const handleClickOutside = (event: MouseEvent) => {
+            if (!menuRef.value?.contains(event.target as Node)) {
+                closeMenu()
+            }
+        }
 
-const handleSelect = (key: string, event: MouseEvent) => {
-    event.stopPropagation()
-    closeMenu()
-    emit('select', key)
-}
+        watch(sharedActiveMenuId, (currentMenuId) => {
+            if (currentMenuId !== props.menuId && isOpen.value) {
+                isOpen.value = false
+            }
+        })
 
-const handleClickOutside = (event: MouseEvent) => {
-    if (!menuRef.value?.contains(event.target as Node)) {
-        closeMenu()
-    }
-}
+        watch(isOpen, (open) => {
+            if (open) {
+                sharedActiveMenuId.value = props.menuId
+                document.addEventListener('click', handleClickOutside)
+                return
+            }
 
-watch(activeMenuId, (currentMenuId) => {
-    if (currentMenuId !== props.menuId && isOpen.value) {
-        isOpen.value = false
-    }
-})
+            if (sharedActiveMenuId.value === props.menuId) {
+                sharedActiveMenuId.value = null
+            }
 
-watch(isOpen, (open) => {
-    if (open) {
-        activeMenuId.value = props.menuId
-        document.addEventListener('click', handleClickOutside)
-        return
-    }
+            document.removeEventListener('click', handleClickOutside)
+        })
 
-    if (activeMenuId.value === props.menuId) {
-        activeMenuId.value = null
-    }
+        onBeforeUnmount(() => {
+            if (sharedActiveMenuId.value === props.menuId) {
+                sharedActiveMenuId.value = null
+            }
 
-    document.removeEventListener('click', handleClickOutside)
-})
+            document.removeEventListener('click', handleClickOutside)
+        })
 
-onBeforeUnmount(() => {
-    if (activeMenuId.value === props.menuId) {
-        activeMenuId.value = null
-    }
-
-    document.removeEventListener('click', handleClickOutside)
+        return {
+            menuRef,
+            isOpen,
+            toggleMenu,
+            handleSelect,
+        }
+    },
 })
 </script>
 
@@ -98,7 +118,7 @@ onBeforeUnmount(() => {
             class="dropdown-content menu p-2 shadow-xl bg-base-100 rounded-box w-36 border border-base-300 z-[60]"
             @click.stop
         >
-            <li v-for="action in props.actions" :key="action.key">
+            <li v-for="action in actions" :key="action.key">
                 <button
                     class="rounded-lg"
                     :class="{
