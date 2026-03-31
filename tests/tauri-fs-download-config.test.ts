@@ -22,3 +22,8 @@ test('tauri download stack includes fs plugin, scoped Download permission, and a
   assert.match(manifest, /android\.permission\.READ_EXTERNAL_STORAGE/)
   assert.match(manifest, /android\.permission\.WRITE_EXTERNAL_STORAGE/)
 })
+
+test('tauri config keeps Download scope narrow', () => {
+  assert.doesNotMatch(capability, /\$HOME\/\*\*/)
+  assert.doesNotMatch(capability, /"fs:default"/)
+})
