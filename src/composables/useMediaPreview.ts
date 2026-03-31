@@ -1,3 +1,4 @@
+import { BaseDirectory, writeFile } from '@tauri-apps/plugin-fs'
 import { ref } from 'vue'
 import { useToast } from './useToast'
 
@@ -151,48 +152,49 @@ const handleMouseUp = (_e: MouseEvent) => {
     }
 }
 
+const isTauriApp = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
+
+const getImageExtension = (mimeType: string) => {
+    if (mimeType === 'image/jpeg') return 'jpg'
+    if (mimeType === 'image/webp') return 'webp'
+    if (mimeType === 'image/gif') return 'gif'
+    return 'png'
+}
+
+const ensureFileExtension = (fileName: string, extension: string) => {
+    return /\.[a-z0-9]+$/i.test(fileName) ? fileName : `${fileName}.${extension}`
+}
+
 const downloadImage = async (src: string, defaultName?: string) => {
     const toast = useToast()
     const { i18n } = await import('../i18n')
     const _t = (key: string) => i18n.global.t(key)
-    const fileName = defaultName || `image-${Date.now()}.png`
-
-    const ua = navigator.userAgent
-    const isIOS = /iPad|iPhone|iPod/.test(ua)
-    // Android WebView adds "; wv)" to the UA string; standalone browsers don't
-    const isAndroidWebView = /Android/.test(ua) && /; wv\)/.test(ua)
 
     try {
         const response = await fetch(src)
         const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
+        const extension = getImageExtension(blob.type)
+        const fileName = ensureFileExtension(defaultName || `image-${Date.now()}`, extension)
 
-        if (isIOS || isAndroidWebView) {
-            // iOS Safari and Android WebView both silently ignore <a download>.
-            // Open the blob URL in a new tab so the user can long-press → save.
-            window.open(url, '_blank')
-            setTimeout(() => window.URL.revokeObjectURL(url), 60000)
-            toast.success(_t('chat.downloadImageOpenedHint'))
-        } else {
-            // Desktop & standard mobile browsers: <a download> works.
-            const a = document.createElement('a')
-            a.href = url
-            a.download = fileName
-            document.body.appendChild(a)
-            a.click()
-            document.body.removeChild(a)
-            setTimeout(() => window.URL.revokeObjectURL(url), 5000)
+        if (isTauriApp) {
+            const bytes = new Uint8Array(await blob.arrayBuffer())
+            await writeFile(fileName, bytes, { baseDir: BaseDirectory.Download })
             toast.success(_t('chat.downloadImageSuccess'))
+            return
         }
+
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = fileName
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        setTimeout(() => window.URL.revokeObjectURL(url), 5000)
+        toast.success(_t('chat.downloadImageSuccess'))
     } catch (error) {
         console.error('Download failed:', error)
-        // Fallback: open the original src in a new tab
-        try {
-            window.open(src, '_blank')
-            toast.warning(_t('chat.downloadImageFallback'))
-        } catch {
-            toast.error(_t('chat.downloadImageFailed'))
-        }
+        toast.error(_t('chat.downloadImageFailed'))
     }
 }
 
