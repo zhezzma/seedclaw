@@ -40,6 +40,7 @@ export interface AgentInfo {
     hideThinkingBlock?: boolean
     heartbeat?: {
         every?: string
+        sessionMode?: 'singleSession' | 'newSession'
         deliveryTargets?: DeliveryTarget[]
     }
     sessionId?: string

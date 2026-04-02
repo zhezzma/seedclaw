@@ -338,9 +338,15 @@ const heartbeatModal = ref<HTMLDialogElement | null>(null)
 const heartbeatEditorKey = ref(0)
 const heartbeatError = ref<string | null>(null)
 const heartbeatValidation = ref({ valid: true, errors: [] as string[] })
+const getHeartbeatSessionMode = () => props.agent?.heartbeat?.sessionMode || 'singleSession'
 const heartbeatSettings = ref({
     every: props.agent?.heartbeat?.every || '30m',
+    sessionMode: getHeartbeatSessionMode() as 'singleSession' | 'newSession',
     deliveryTargets: sanitizeDeliveryTargets(props.agent?.heartbeat?.deliveryTargets || defaultHeartbeatDeliveryTargets()),
+})
+
+const heartbeatSessionModeLabel = computed(() => {
+    return t(`agent.heartbeatSessionModeOptions.${getHeartbeatSessionMode()}`)
 })
 
 const heartbeatSummary = computed(() => {
@@ -348,12 +354,17 @@ const heartbeatSummary = computed(() => {
     const targets = props.agent?.heartbeat?.deliveryTargets?.length
         ? props.agent.heartbeat.deliveryTargets
         : defaultHeartbeatDeliveryTargets()
-    return `${every} · ${summarizeDeliveryTargets(targets)}`
+    return t('agent.heartbeatSummary', {
+        every,
+        sessionMode: heartbeatSessionModeLabel.value,
+        deliveryTargets: summarizeDeliveryTargets(targets),
+    })
 })
 
 const openHeartbeatModal = () => {
     heartbeatSettings.value = {
         every: props.agent?.heartbeat?.every || '30m',
+        sessionMode: getHeartbeatSessionMode() as 'singleSession' | 'newSession',
         deliveryTargets: sanitizeDeliveryTargets(props.agent?.heartbeat?.deliveryTargets || defaultHeartbeatDeliveryTargets()),
     }
     heartbeatValidation.value = { valid: true, errors: [] }
@@ -679,6 +690,16 @@ const handleDeleteAgent = async () => {
                             class="input input-bordered w-full"
                             :placeholder="$t('agent.heartbeatEveryPlaceholder')"
                         />
+                    </div>
+
+                    <div class="form-control w-full mb-4">
+                        <label class="label">
+                            <span class="label-text">{{ $t('agent.heartbeatSessionMode') }}</span>
+                        </label>
+                        <select v-model="heartbeatSettings.sessionMode" class="select select-bordered w-full font-sans">
+                            <option value="singleSession">{{ $t('agent.heartbeatSessionModeOptions.singleSession') }}</option>
+                            <option value="newSession">{{ $t('agent.heartbeatSessionModeOptions.newSession') }}</option>
+                        </select>
                     </div>
 
                     <DeliveryTargetsEditor
