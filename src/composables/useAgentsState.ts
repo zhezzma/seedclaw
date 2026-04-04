@@ -113,10 +113,10 @@ export const AGENT_FILE_DEFINITIONS = [
         groupKey: 'agent.memorySettings',
         files: [
             { name: 'MEMORY.md', labelKey: 'agent.files.memory' },
+            { name: 'SCRATCHPAD.md', labelKey: 'agent.files.scratchpad' },
             { name: 'MEMORY_TODAY.md', labelKey: 'agent.files.memoryToday' },
             { name: 'MEMORY_YESTERDAY.md', labelKey: 'agent.files.memoryYesterday' },
-        ]
-    }
+        ]n    }
 ]
 
 const AGENT_FILES = AGENT_FILE_DEFINITIONS.flatMap(g => g.files.map(f => f.name))

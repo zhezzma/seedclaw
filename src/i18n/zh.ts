@@ -140,6 +140,7 @@ export default {
             heartbeat: '心跳配置',
             bootstrap: '引导脚本',
             memory: '记忆存储',
+            scratchpad: '工作待办',
             memoryToday: '今日记忆',
             memoryYesterday: '昨日记忆',
         },

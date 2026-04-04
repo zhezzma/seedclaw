@@ -140,6 +140,7 @@ export default {
             heartbeat: 'Heartbeat Config',
             bootstrap: 'Bootstrap Script',
             memory: 'Memory Storage',
+            scratchpad: 'Scratchpad',
             memoryToday: 'Today\'s Memory',
             memoryYesterday: 'Yesterday\'s Memory',
         },
