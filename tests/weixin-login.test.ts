@@ -48,14 +48,14 @@ test('starts login, stores QR code, and transitions to connected after polling l
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input)
         calls.push(url)
-        if (url.endsWith('/api/weixin-bridge/login/start')) {
+        if (url.endsWith('/api/channels/wechat/login/start')) {
             return jsonResponse({
                 sessionKey: 'session-1',
                 qrcode: 'qr-1',
                 qrcodeUrl: 'https://qr.example/1',
             })
         }
-        if (url.endsWith('/api/weixin-bridge/login/wait')) {
+        if (url.endsWith('/api/channels/wechat/login/wait')) {
             return jsonResponse({
                 status: 'connected',
                 connected: true,
@@ -76,22 +76,22 @@ test('starts login, stores QR code, and transitions to connected after polling l
     assert.equal(weixinLogin.status.value, 'connected')
     assert.equal(weixinLogin.accountId.value, 'acc-1')
     assert.deepEqual(calls, [
-        'http://localhost:3000/api/weixin-bridge/login/start',
-        'http://localhost:3000/api/weixin-bridge/login/wait',
+        'http://localhost:3000/api/channels/wechat/login/start',
+        'http://localhost:3000/api/channels/wechat/login/wait',
     ])
 })
 
 test('openModal auto-starts login from idle state and keeps modal open on success until manually closed', async () => {
     globalThis.fetch = (async (input: RequestInfo | URL) => {
         const url = String(input)
-        if (url.endsWith('/api/weixin-bridge/login/start')) {
+        if (url.endsWith('/api/channels/wechat/login/start')) {
             return jsonResponse({
                 sessionKey: 'session-2',
                 qrcode: 'qr-2',
                 qrcodeUrl: 'https://qr.example/2',
             })
         }
-        if (url.endsWith('/api/weixin-bridge/login/wait')) {
+        if (url.endsWith('/api/channels/wechat/login/wait')) {
             return jsonResponse({
                 status: 'connected',
                 connected: true,
@@ -119,14 +119,14 @@ test('openModal auto-starts login from idle state and keeps modal open on succes
 test('maps expired polling payloads into expired status and error message', async () => {
     globalThis.fetch = (async (input: RequestInfo | URL) => {
         const url = String(input)
-        if (url.endsWith('/api/weixin-bridge/login/start')) {
+        if (url.endsWith('/api/channels/wechat/login/start')) {
             return jsonResponse({
                 sessionKey: 'session-3',
                 qrcode: 'qr-3',
                 qrcodeUrl: 'https://qr.example/3',
             })
         }
-        if (url.endsWith('/api/weixin-bridge/login/wait')) {
+        if (url.endsWith('/api/channels/wechat/login/wait')) {
             return jsonResponse({
                 status: 'expired',
                 connected: false,
@@ -150,7 +150,7 @@ test('closeModal resets visible state so reopening can start a fresh login sessi
     let startCount = 0
     globalThis.fetch = (async (input: RequestInfo | URL) => {
         const url = String(input)
-        if (url.endsWith('/api/weixin-bridge/login/start')) {
+        if (url.endsWith('/api/channels/wechat/login/start')) {
             startCount += 1
             return jsonResponse({
                 sessionKey: `session-reopen-${startCount}`,
@@ -158,7 +158,7 @@ test('closeModal resets visible state so reopening can start a fresh login sessi
                 qrcodeUrl: `https://qr.example/reopen-${startCount}`,
             })
         }
-        if (url.endsWith('/api/weixin-bridge/login/wait')) {
+        if (url.endsWith('/api/channels/wechat/login/wait')) {
             return jsonResponse({
                 status: 'expired',
                 connected: false,
@@ -191,14 +191,14 @@ test('closeModal resets visible state so reopening can start a fresh login sessi
 test('renders a local qr image whose encoded value is qrcodeUrl instead of loading qrcodeUrl directly', async () => {
     globalThis.fetch = (async (input: RequestInfo | URL) => {
         const url = String(input)
-        if (url.endsWith('/api/weixin-bridge/login/start')) {
+        if (url.endsWith('/api/channels/wechat/login/start')) {
             return jsonResponse({
                 sessionKey: 'session-qr-url',
                 qrcode: 'qr-raw-token',
                 qrcodeUrl: 'https://liteapp.weixin.qq.com/q/demo?qrcode=abc&bot_type=3',
             })
         }
-        if (url.endsWith('/api/weixin-bridge/login/wait')) {
+        if (url.endsWith('/api/channels/wechat/login/wait')) {
             return jsonResponse({
                 status: 'pending',
                 connected: false,

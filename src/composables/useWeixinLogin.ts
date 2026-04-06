@@ -138,7 +138,7 @@ function applyWaitState(payload: WeixinLoginWaitPayload) {
 
 async function pollLoginOnce(currentSessionKey = sessionKey.value) {
     if (!currentSessionKey) return
-    const payload = await postJson<WeixinLoginWaitPayload>('/api/weixin-bridge/login/wait', {
+    const payload = await postJson<WeixinLoginWaitPayload>('/api/channels/wechat/login/wait', {
         sessionKey: currentSessionKey,
         timeoutMs: 1000,
     })
@@ -218,7 +218,7 @@ export function useWeixinLogin() {
         qrCodeUrl.value = ''
         qrCodeImageDataUrl.value = ''
         try {
-            const payload = await postJson<WeixinLoginStartPayload>('/api/weixin-bridge/login/start')
+            const payload = await postJson<WeixinLoginStartPayload>('/api/channels/wechat/login/start')
             if (generation !== openGeneration && isModalOpen.value) {
                 return
             }
