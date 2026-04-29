@@ -2,6 +2,7 @@ import { AudioProcessor, AudioProcessorCallbacks } from './audioProcessor';
 import { useUiSettingsStore } from '../../stores/setting';
 import { ASREngine } from './types';
 import { FunASRService } from './fun-asr';
+import { VoiceGatewayASRService } from './voice-gateway';
 
 export interface SpeechRecognitionCallbacks {
     onResult: (text: string, isFinal: boolean) => void;
@@ -17,8 +18,30 @@ export class SpeechRecognitionService {
     private resultCallback: ((text: string, isFinal: boolean) => void) | null = null;
     private audioBuffer: Int16Array[] = [];
 
+    static resolveEngineType(engineType: string | null | undefined): 'fun-asr' | 'voice-gateway' {
+        if (engineType === 'voice-gateway') {
+            return 'voice-gateway';
+        }
+
+        if (engineType && engineType !== 'fun-asr') {
+            console.warn(`Unknown ASR engine: ${engineType}, defaulting to FunASR`);
+        }
+
+        return 'fun-asr';
+    }
+
     constructor() {
         this.audioProcessor = new AudioProcessor();
+    }
+
+    private createEngine(engineType: string | null | undefined): ASREngine {
+        switch (SpeechRecognitionService.resolveEngineType(engineType)) {
+            case 'voice-gateway':
+                return new VoiceGatewayASRService();
+            case 'fun-asr':
+            default:
+                return new FunASRService();
+        }
     }
 
     /**
@@ -63,7 +86,7 @@ export class SpeechRecognitionService {
 
         } catch (error) {
             console.error('Failed to start microphone:', error);
-            this.stop();
+            await this.cleanupPartialStart();
             throw error;
         }
     }
@@ -83,16 +106,9 @@ export class SpeechRecognitionService {
         }
 
         const store = useUiSettingsStore();
-        const engineType = store.asrEngine || 'fun-asr';
 
         try {
-            // Select Engine
-            if (engineType === 'fun-asr') {
-                this.currentEngine = new FunASRService();
-            } else {
-                console.warn(`Unknown ASR engine: ${engineType}, defaulting to FunASR`);
-                this.currentEngine = new FunASRService();
-            }
+            this.currentEngine = this.createEngine(store.asrEngine);
 
             // Start Engine with result callback
             await this.currentEngine.start((text, isFinal) => {
@@ -149,48 +165,50 @@ export class SpeechRecognitionService {
         }
 
         const store = useUiSettingsStore();
-        const engineType = store.asrEngine || 'fun-asr';
 
         try {
-            // Select Engine
-            if (engineType === 'fun-asr') {
-                this.currentEngine = new FunASRService();
-            } else {
-                // Fallback or other engines
-                console.warn(`Unknown ASR engine: ${engineType}, defaulting to FunASR`);
-                this.currentEngine = new FunASRService();
-            }
-
-            // Start Engine
-            await this.currentEngine.start(onResult);
-            this.isRunning = true;
-            this.isASRConnected = true;
-
-            // Start Audio capture and feed to engine
+            // Start Audio capture first so microphone/device errors surface before any remote ASR session is opened.
             await this.audioProcessor.start((pcmData) => {
                 if (this.currentEngine && this.isRunning) {
                     this.currentEngine.sendAudio(pcmData);
                 }
             });
 
+            this.currentEngine = this.createEngine(store.asrEngine);
+
+            // Start Engine after microphone is ready.
+            await this.currentEngine.start(onResult);
+            this.isRunning = true;
+            this.isASRConnected = true;
+
         } catch (error) {
             console.error('Failed to start speech recognition:', error);
-            this.stop();
+            await this.cleanupPartialStart();
             throw error;
         }
     }
 
     async stop(): Promise<void> {
-        if (!this.isRunning) return;
+        if (!this.isRunning && !this.currentEngine) return;
 
         this.isRunning = false;
+        await this.cleanupResources();
+    }
 
-        // Stop Audio first
+    private async cleanupPartialStart(): Promise<void> {
+        this.isRunning = false;
+        await this.cleanupResources();
+    }
+
+    private async cleanupResources(): Promise<void> {
         this.audioProcessor.stop();
 
-        // Stop Engine
         if (this.currentEngine) {
-            await this.currentEngine.stop();
+            try {
+                await this.currentEngine.stop();
+            } catch (error) {
+                console.error('Error stopping ASR engine:', error);
+            }
             this.currentEngine = null;
         }
 

@@ -417,7 +417,7 @@ defineExpose({
                 <!-- Right Actions -->
                 <div class="flex items-center gap-2">
                     <!-- Mic -->
-                    <button v-if="settingsStore.hasAsrToken" @click="handleMicClick"
+                    <button v-if="settingsStore.isCurrentAsrConfigured" @click="handleMicClick"
                         class="btn btn-circle btn-sm transition-all duration-300 relative overflow-hidden"
                         :class="isRecording ? 'btn-success text-success-content scale-110 shadow-[0_0_15px_rgba(var(--sc),0.5)] border-success' : 'btn-ghost bg-base-300/50 hover:bg-base-300'"
                         :title="$t('chat.voiceInput')">

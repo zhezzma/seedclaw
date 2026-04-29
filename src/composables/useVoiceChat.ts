@@ -74,6 +74,7 @@ import { useUiSettingsStore } from '../stores/setting'
 import { cleanTextForTTS, splitText, MAX_TTS_CHARS } from '../utils/textUtils'
 import { takeAudioControl, releaseAudioControl } from '../utils/audioManager'
 import { useToast } from './useToast'
+import { getMicrophoneErrorMessage } from '../utils/microphone-errors'
 
 export type VoiceStatus = 'idle' | 'listening' | 'processing' | 'speaking' | 'error'
 
@@ -102,16 +103,41 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
         audioUrl?: string
         blob?: Blob
         retryCount?: number
+        retryTimerId?: ReturnType<typeof setTimeout>
     }
 
     let playbackQueue: AudioSegment[] = []
     let isPlayingAudio = false
     let currentAudio: HTMLAudioElement | null = null
+    let currentAudioUrl: string | null = null
     let processedTextLength = 0
     let textBuffer = ''
     let silenceTimer: number | null = null;
     let autoRestartListeningTimeout: number | null = null;
     let isASRConnected = false;
+
+    const revokeSegmentAudioUrl = (segment: AudioSegment) => {
+        if (segment.audioUrl && segment.audioUrl !== currentAudioUrl) {
+            URL.revokeObjectURL(segment.audioUrl)
+        }
+        segment.audioUrl = undefined
+        segment.blob = undefined
+    }
+
+    const clearSegmentRetry = (segment: AudioSegment) => {
+        if (segment.retryTimerId) {
+            clearTimeout(segment.retryTimerId)
+            segment.retryTimerId = undefined
+        }
+    }
+
+    const cleanupQueuedPlaybackSegments = () => {
+        for (const segment of playbackQueue) {
+            clearSegmentRetry(segment)
+            revokeSegmentAudioUrl(segment)
+        }
+        playbackQueue = []
+    }
 
     // Helper to stop only audio playback part (compatible with AudioManager)
     const stopAudioOnly = () => {
@@ -119,8 +145,12 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
             currentAudio.pause();
             currentAudio = null;
         }
+        if (currentAudioUrl) {
+            URL.revokeObjectURL(currentAudioUrl)
+            currentAudioUrl = null
+        }
         isPlayingAudio = false
-        playbackQueue = []
+        cleanupQueuedPlaybackSegments()
         currentlySpeakingText.value = ''
         isWaitingForAudio.value = false
         isAudioInterrupted = true
@@ -245,7 +275,7 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
             // Reset streaming state for new turn
             processedTextLength = 0
             textBuffer = ''
-            playbackQueue = []
+            cleanupQueuedPlaybackSegments()
             isPlayingAudio = false
 
         } catch (e) {
@@ -361,7 +391,8 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
                 segment.status = 'pending' // Reset to pending for retry
 
                 // Exponential backoff
-                setTimeout(() => {
+                segment.retryTimerId = setTimeout(() => {
+                    segment.retryTimerId = undefined
                     fetchSegmentAudio(segment, true)
                 }, RETRY_DELAY_MS * segment.retryCount)
             } else {
@@ -379,7 +410,8 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
         if (isPlayingAudio) return
 
         if (isAudioInterrupted) {
-            playbackQueue = []
+            cleanupQueuedPlaybackSegments()
+            releaseAudioControl(stopAudioOnly)
             return
         }
 
@@ -404,6 +436,11 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
         // If error, skip it
         if (segment.status === 'error') {
             playbackQueue.shift() // Remove
+            clearSegmentRetry(segment)
+            revokeSegmentAudioUrl(segment)
+            if (playbackQueue.length === 0) {
+                releaseAudioControl(stopAudioOnly)
+            }
             processPlaybackQueue()
             return
         }
@@ -427,11 +464,15 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
                     currentAudio.pause()
                     currentAudio = null
                 }
+                currentAudioUrl = url
 
                 currentAudio = new Audio(url)
                 currentAudio.onended = () => {
                     URL.revokeObjectURL(url)
+                    currentAudio = null
+                    currentAudioUrl = null
                     isPlayingAudio = false
+                    currentlySpeakingText.value = ''
 
                     if (playbackQueue.length > 0) {
                         processPlaybackQueue()
@@ -455,7 +496,19 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
 
             } catch (e) {
                 console.error('TTS Play Error', e)
+                URL.revokeObjectURL(segment.audioUrl)
+                if (currentAudio) {
+                    currentAudio.pause()
+                    currentAudio = null
+                }
+                currentAudioUrl = null
                 isPlayingAudio = false
+                currentlySpeakingText.value = ''
+
+                if (playbackQueue.length === 0) {
+                    releaseAudioControl(stopAudioOnly)
+                }
+
                 processPlaybackQueue()
             }
         }
@@ -480,8 +533,8 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
         isGenerating = true
         isAudioInterrupted = false
         processedTextLength = 0
+        cleanupQueuedPlaybackSegments()
         textBuffer = ''
-        playbackQueue = []
     }
 
     const finishStream = () => {
@@ -511,6 +564,11 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
                     text: chunk,
                     status: 'pending' as const
                 }))
+
+                pendingItems.forEach(segment => {
+                    clearSegmentRetry(segment)
+                    revokeSegmentAudioUrl(segment)
+                })
 
                 // Keep only non-pending items (ready/fetching) + add new segments
                 const itemsToKeep = playbackQueue.filter(item => item.status !== 'pending')
@@ -545,16 +603,19 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
     }
 
     const start = async () => {
-        if (!store.asrToken || !store.asrModel) {
+        if (!store.isCurrentAsrConfigured) {
             const toast = useToast()
-            toast.error('请先在设置中配置语音识别及模型 (ASR Token & Model)')
+            toast.error('请先在设置中完整配置语音识别')
+            return
+        }
+
+        if (!store.isCurrentTtsConfigured) {
+            const toast = useToast()
+            toast.error('请先在设置中完整配置语音合成')
             return
         }
 
         if (isVoiceChatActive.value) return; // Prevent double start
-
-        // Take control immediately to stop TTS or others
-        takeAudioControl('VoiceChat', stopAudioOnly)
 
         isVoiceChatActive.value = true;
         isAudioInterrupted = false;
@@ -574,8 +635,9 @@ export function useVoiceChat(onRecognizedText: (text: string) => Promise<void>) 
 
         } catch (e: any) {
             console.error('Failed to start voice chat:', e);
+            releaseAudioControl(stopAudioOnly)
             voiceStatus.value = 'error';
-            errorMessage.value = e.message || 'Failed to start microphone';
+            errorMessage.value = getMicrophoneErrorMessage(e);
             isVoiceChatActive.value = false;
         }
     }

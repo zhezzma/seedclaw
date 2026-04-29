@@ -17,6 +17,10 @@ let activeSourceId: string | null = null
  * @param stopFn Callback to execute when this source needs to be stopped
  */
 export function takeAudioControl(sourceId: string, stopFn: StopCallback) {
+    if (activeSourceId === sourceId && currentStopCallback === stopFn) {
+        return
+    }
+
     if (currentStopCallback) {
         // console.log(`[AudioManager] Stopping ${activeSourceId} for ${sourceId}`)
         try {

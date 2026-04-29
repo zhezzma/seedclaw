@@ -27,12 +27,12 @@ export class FunASRService implements ASREngine {
 
     private getApiKey(): string {
         const store = useUiSettingsStore();
-        return store.asrToken;
+        return store.getAsrConfig('fun-asr').token;
     }
 
     private getModel(): string {
         const store = useUiSettingsStore();
-        return store.asrModel || 'fun-asr-realtime';
+        return store.getAsrConfig('fun-asr').model || 'fun-asr-realtime';
     }
 
     async start(onResult: (text: string, isFinal: boolean) => void): Promise<void> {

@@ -12,6 +12,7 @@ type configure = {
 }
 
 class EdgeTTS implements TTSEngine {
+  readonly streamFormat = 'compressed' as const
   private voice: string
   private lang: string
   private outputFormat: string

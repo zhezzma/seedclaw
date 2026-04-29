@@ -3,16 +3,18 @@ import { TTSEngine } from './types'
 import WebSocket from '@tauri-apps/plugin-websocket';
 
 export class QwenTTS implements TTSEngine {
+    readonly streamFormat = 'pcm' as const
+
     constructor() { }
 
     private getApiKey(): string {
         const store = useUiSettingsStore()
-        return store.ttsToken
+        return store.getTtsConfig('qwen').token
     }
 
     private getModel(): string {
         const store = useUiSettingsStore()
-        return store.ttsModel || 'qwen3-tts-flash-realtime'
+        return store.getTtsConfig('qwen').model || 'qwen3-tts-flash-realtime'
     }
 
     private getWebSocketUrl(): string {

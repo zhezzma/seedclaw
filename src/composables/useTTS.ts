@@ -109,11 +109,9 @@ export function useTTS() {
                 if (currentReadingMsgId.value !== msgId || playbackSessionId !== sessionId) break
 
                 let tts: TTSEngine = createTTSEngine()
-                if (store.ttsEngine === 'qwen') {
-                    // Use Qwen TTS (PCM Streaming)
+                if (tts.streamFormat === 'pcm') {
                     await playWithPCM(tts, chunk, msgId, sessionId)
                 } else {
-                    // Use Edge TTS (MSE/Blob)
                     if (window.MediaSource && MediaSource.isTypeSupported('audio/mpeg')) {
                         await playWithMSE(tts, chunk, msgId, sessionId)
                     } else {
@@ -125,10 +123,12 @@ export function useTTS() {
             // Finished all chunks naturally
             if (currentReadingMsgId.value === msgId) {
                 currentReadingMsgId.value = null
+                releaseAudioControl(stopPlayback)
             }
         } catch (error) {
             console.error('TTS Error:', error)
             currentReadingMsgId.value = null
+            releaseAudioControl(stopPlayback)
         }
     }
 

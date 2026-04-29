@@ -8,6 +8,7 @@ import { createRuntimeId } from '../utils/runtime-id.ts'
 import { useCommandState, type CommandInfo } from './useCommandState'
 import { useInputHistoryStore } from '../stores/inputHistory'
 import { decideArrowKeyPriority, shouldOpenCommandSuggestions } from '../utils/chat-input-key-routing.ts'
+import { getMicrophoneErrorMessage } from '../utils/microphone-errors'
 
 export interface CommandItem {
     label: string
@@ -121,9 +122,9 @@ const stopRecording = async () => {
 
 const handleMicClick = async () => {
     const settingsStore = useUiSettingsStore()
-    if (!settingsStore.asrToken || !settingsStore.asrModel) {
+    if (!settingsStore.isCurrentAsrConfigured) {
         const toast = useToast()
-        toast.error('请先在设置中配置语音识别及模型 (ASR Token & Model)')
+        toast.error('请先在设置中完整配置语音识别')
         return
     }
 
@@ -156,10 +157,15 @@ const handleMicClick = async () => {
             const separator = (currentBaseText && !currentBaseText.endsWith('\n') && !currentBaseText.endsWith(' ')) ? ' ' : ''
             inputText.value = currentBaseText + separator + text
         })
-    } catch (error) {
+    } catch (error: any) {
         console.error('Failed to start recording:', error)
         isRecording.value = false
         if (silenceTimer) clearTimeout(silenceTimer)
+
+        releaseAudioControl(stopRecording)
+
+        const toast = useToast()
+        toast.error(getMicrophoneErrorMessage(error))
     }
 }
 

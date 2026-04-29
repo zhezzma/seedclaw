@@ -149,7 +149,7 @@ defineExpose({
 
         <!-- Actions -->
         <template #actions>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center">
                 <!-- Connection Status Indicator -->
                 <div class="tooltip tooltip-bottom flex items-center"
                     :data-tip="isConnected ? $t('common.connected') : $t('common.disconnected')">
@@ -157,12 +157,16 @@ defineExpose({
                         :class="isConnected ? 'bg-success' : 'bg-error/50'"></div>
                 </div>
 
-                <!-- Mobile buttons -->
-                <div class="flex gap-1 lg:hidden">
-                    <button v-if="settingsStore.hasAsrToken && settingsStore.hasTtsToken" @click="startVoiceChat"
+                <!-- Voice button -->
+                <div v-if="settingsStore.isCurrentAsrConfigured && settingsStore.isCurrentTtsConfigured">
+                    <button @click="startVoiceChat"
                         class="btn btn-ghost btn-circle btn-sm" :title="$t('chat.voiceChat')">
                         <PhoneIcon class="h-5 w-5" />
                     </button>
+                </div>
+
+                <!-- Mobile buttons -->
+                <div class="flex lg:hidden">
                     <button @click="refreshPage" class="btn btn-ghost btn-circle btn-sm" :title="$t('common.refresh')">
                         <ArrowPathIcon class="h-5 w-5" />
                     </button>
@@ -173,7 +177,7 @@ defineExpose({
                 </div>
 
                 <!-- PC theme toggle button -->
-                <div class="hidden lg:flex gap-2 items-center">
+                <div class="hidden lg:flex items-center">
                     <button @click="settingsStore.toggleLayout()" class="btn btn-ghost btn-circle btn-sm"
                         :title="settingsStore.isWideMode ? $t('chat.switchToNarrow') : $t('chat.switchToWide')">
                         <ArrowsPointingInIcon v-if="settingsStore.isWideMode" class="h-5 w-5" />

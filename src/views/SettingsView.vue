@@ -2,28 +2,27 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { useUiSettingsStore } from '../stores/setting'
 import {
-    ArrowLeftIcon,
-    XMarkIcon,
+    type ASREngineType,
+    type TTSEngineType,
+    type EngineConfig,
+    useUiSettingsStore,
+} from '../stores/setting'
+import {
     ChevronRightIcon,
     ServerIcon,
     SunIcon,
     MoonIcon,
     QuestionMarkCircleIcon,
-    ChatBubbleLeftEllipsisIcon,
     ArrowRightOnRectangleIcon,
     MicrophoneIcon,
     SpeakerWaveIcon,
     DocumentTextIcon,
     ArrowTopRightOnSquareIcon,
-    ComputerDesktopIcon,
-    ViewColumnsIcon,
     BellIcon,
-    LanguageIcon
+    LanguageIcon,
 } from '@heroicons/vue/24/outline'
 import ViewHeader from '@/components/ViewHeader.vue'
-
 import { useConfirm } from '../composables/useConfirm'
 
 const router = useRouter()
@@ -36,50 +35,54 @@ const editForm = ref({
     token: '',
     sessionsActiveDays: 3,
     silenceDuration: 1500,
-    // ASR
-    asrToken: '',
-    asrEngine: '',
-    asrModel: '',
-    // TTS
-    ttsEngine: 'qwen' as 'qwen' | 'edge',
-    ttsToken: '',
-    ttsModel: '',
+    asrEngine: 'fun-asr' as ASREngineType,
+    ttsEngine: 'edge' as TTSEngineType,
+    asrConfig: {
+        engine: 'fun-asr' as ASREngineType,
+        baseUrl: '',
+        token: '',
+        model: '',
+    },
+    ttsConfig: {
+        engine: 'edge' as TTSEngineType,
+        baseUrl: '',
+        token: '',
+        model: '',
+    },
     homePageBehavior: 'new_session' as 'last_active_session' | 'new_session',
-    // External URL
     externalUrl: '',
-    // Gotify
     gotifyUrl: '',
-    gotifyToken: ''
+    gotifyToken: '',
 })
 
-// ... (existing code)
+const cloneConfig = <T extends string>(config: EngineConfig<T>): EngineConfig<T> => ({ ...config })
+
+const loadAsrFormForEngine = (engine: ASREngineType) => {
+    editForm.value.asrEngine = engine
+    editForm.value.asrConfig = cloneConfig(configStore.getAsrConfig(engine))
+}
+
+const loadTtsFormForEngine = (engine: TTSEngineType) => {
+    editForm.value.ttsEngine = engine
+    editForm.value.ttsConfig = cloneConfig(configStore.getTtsConfig(engine))
+}
 
 const openGotifyModal = () => {
     editForm.value = {
         ...editForm.value,
         gotifyUrl: configStore.gotifyUrl,
-        gotifyToken: configStore.gotifyToken
+        gotifyToken: configStore.gotifyToken,
     }
     const modal = document.getElementById('gotify_settings_modal') as HTMLDialogElement
     if (modal) modal.showModal()
 }
 
-// ... (existing code)
-
 const saveGotify = () => {
     configStore.save({
         gotifyUrl: editForm.value.gotifyUrl,
-        gotifyToken: editForm.value.gotifyToken
+        gotifyToken: editForm.value.gotifyToken,
     })
-
-
 }
-
-// ... (existing code)
-
-
-
-
 
 const openConnectionModal = () => {
     editForm.value = {
@@ -89,32 +92,30 @@ const openConnectionModal = () => {
         sessionsActiveDays: configStore.sessionsActiveDays,
         silenceDuration: configStore.silenceDuration,
         homePageBehavior: configStore.homePageBehavior || 'last_active_session',
-        externalUrl: configStore.externalUrl || ''
+        externalUrl: configStore.externalUrl || '',
     }
     const modal = document.getElementById('basic_settings_modal') as HTMLDialogElement
     if (modal) modal.showModal()
 }
 
 const openAsrModal = () => {
-    editForm.value = {
-        ...editForm.value,
-        asrToken: configStore.asrToken,
-        asrEngine: configStore.asrEngine || 'fun-asr',
-        asrModel: configStore.asrModel
-    }
+    loadAsrFormForEngine(configStore.asrEngine || 'fun-asr')
     const modal = document.getElementById('asr_settings_modal') as HTMLDialogElement
     if (modal) modal.showModal()
 }
 
 const openTtsModal = () => {
-    editForm.value = {
-        ...editForm.value,
-        ttsEngine: configStore.ttsEngine,
-        ttsToken: configStore.ttsToken,
-        ttsModel: configStore.ttsModel
-    }
+    loadTtsFormForEngine(configStore.ttsEngine || 'edge')
     const modal = document.getElementById('tts_settings_modal') as HTMLDialogElement
     if (modal) modal.showModal()
+}
+
+const onAsrEngineChange = (event: Event) => {
+    loadAsrFormForEngine((event.target as HTMLSelectElement).value as ASREngineType)
+}
+
+const onTtsEngineChange = (event: Event) => {
+    loadTtsFormForEngine((event.target as HTMLSelectElement).value as TTSEngineType)
 }
 
 const saveConnection = () => {
@@ -123,8 +124,7 @@ const saveConnection = () => {
         token: editForm.value.token,
         sessionsActiveDays: Number(editForm.value.sessionsActiveDays),
         silenceDuration: Number(editForm.value.silenceDuration),
-        homePageBehavior: editForm.value.homePageBehavior,
-        externalUrl: editForm.value.externalUrl
+        externalUrl: editForm.value.externalUrl,
     })
     if (window.location.protocol !== 'file:') {
         window.location.reload()
@@ -133,22 +133,24 @@ const saveConnection = () => {
 
 const saveAsr = () => {
     configStore.save({
-        asrToken: editForm.value.asrToken,
         asrEngine: editForm.value.asrEngine,
-        asrModel: editForm.value.asrModel
+    })
+    configStore.saveAsrEngineConfig(editForm.value.asrEngine, {
+        baseUrl: editForm.value.asrConfig.baseUrl,
+        token: editForm.value.asrConfig.token,
+        model: editForm.value.asrConfig.model,
     })
 }
 
 const saveTts = () => {
     configStore.save({
         ttsEngine: editForm.value.ttsEngine,
-        ttsToken: editForm.value.ttsToken,
-        ttsModel: editForm.value.ttsModel
     })
-}
-
-const goBack = () => {
-    router.back()
+    configStore.saveTtsEngineConfig(editForm.value.ttsEngine, {
+        baseUrl: editForm.value.ttsConfig.baseUrl,
+        token: editForm.value.ttsConfig.token,
+        model: editForm.value.ttsConfig.model,
+    })
 }
 
 const openHelpDocs = () => {
@@ -159,7 +161,29 @@ const navigateToLogs = () => {
     router.push('/logs')
 }
 
+const getAsrEngineLabel = (engine?: string) => {
+    switch (engine) {
+        case 'fun-asr':
+            return t('settings.asrEngineFunAsr')
+        case 'voice-gateway':
+            return t('settings.asrEngineVoiceGateway')
+        default:
+            return t('settings.notConfigured')
+    }
+}
 
+const getTtsEngineLabel = (engine?: string) => {
+    switch (engine) {
+        case 'qwen':
+            return t('settings.ttsEngineQwen')
+        case 'edge':
+            return t('settings.ttsEngineEdge')
+        case 'voice-gateway':
+            return t('settings.ttsEngineVoiceGateway')
+        default:
+            return t('settings.notConfigured')
+    }
+}
 
 const logout = async () => {
     if (await confirm(t('settings.clearDataConfirm'), t('settings.confirmLogout'))) {
@@ -171,15 +195,11 @@ const logout = async () => {
 
 <template>
     <div class="flex flex-col h-full bg-base-200">
-        <!-- Header - fixed -->
         <ViewHeader :title="$t('settings.title')" :is-main-page="true">
         </ViewHeader>
 
-        <!-- Content - scrollable -->
         <div class="flex-1 overflow-y-auto ">
             <div class="max-w-2xl mx-auto p-4 space-y-6">
-
-
                 <div class="space-y-2">
                     <h4 class="text-sm font-medium text-base-content/60 px-2">{{ $t('settings.basic') }}</h4>
                     <div class="card bg-base-100 shadow-sm">
@@ -230,25 +250,10 @@ const logout = async () => {
                                     </select>
                                 </div>
                             </li>
-
-
-                            <!--
-                            <li class="flex items-center justify-between p-4 lg:hidden">
-                                <div class="flex items-center gap-3">
-                                    <ViewColumnsIcon class="h-5 w-5 text-base-content/60" />
-                                    <span class="font-medium">{{ $t('settings.showBottomNav') }}</span>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <input type="checkbox" class="toggle toggle-primary"
-                                        v-model="configStore.showBottomNav" @change="configStore.persist()" />
-                                </div>
-                            </li>
-                            -->
                         </ul>
                     </div>
                 </div>
 
-                <!-- Notification Settings -->
                 <div class="space-y-2">
                     <h4 class="text-sm font-medium text-base-content/60 px-2">{{ $t('settings.notifications') }}</h4>
                     <div class="card bg-base-100 shadow-sm">
@@ -270,7 +275,6 @@ const logout = async () => {
                     </div>
                 </div>
 
-                <!-- Voice Settings -->
                 <div class="space-y-2">
                     <h4 class="text-sm font-medium text-base-content/60 px-2">{{ $t('settings.voice') }}</h4>
                     <div class="card bg-base-100 shadow-sm">
@@ -281,7 +285,7 @@ const logout = async () => {
                                     <MicrophoneIcon class="h-5 w-5 text-base-content/60" />
                                     <div>
                                         <span class="font-medium">{{ $t('settings.asr') }}</span>
-                                        <p class="text-xs text-base-content/50">{{ configStore.asrEngine || 'Default' }}
+                                        <p class="text-xs text-base-content/50">{{ getAsrEngineLabel(configStore.asrEngine) }}
                                         </p>
                                     </div>
                                 </div>
@@ -293,7 +297,7 @@ const logout = async () => {
                                     <SpeakerWaveIcon class="h-5 w-5 text-base-content/60" />
                                     <div>
                                         <span class="font-medium">{{ $t('settings.tts') }}</span>
-                                        <p class="text-xs text-base-content/50">{{ configStore.ttsEngine }}</p>
+                                        <p class="text-xs text-base-content/50">{{ getTtsEngineLabel(configStore.ttsEngine) }}</p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
@@ -302,14 +306,10 @@ const logout = async () => {
                     </div>
                 </div>
 
-
-
-                <!-- Help & Feedback -->
                 <div class="space-y-2">
                     <h4 class="text-sm font-medium text-base-content/60 px-2">{{ $t('settings.helpFeedback') }}</h4>
                     <div class="card bg-base-100 shadow-sm">
                         <ul class="divide-y divide-base-300">
-                            <!-- 系统日志 -->
                             <li @click="navigateToLogs"
                                 class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors">
                                 <div class="flex items-center gap-3">
@@ -334,7 +334,6 @@ const logout = async () => {
                     </div>
                 </div>
 
-                <!-- Logout Button -->
                 <div class="pt-4">
                     <button @click="logout" class="btn btn-outline btn-error btn-block gap-2">
                         <ArrowRightOnRectangleIcon class="h-5 w-5" />
@@ -342,7 +341,6 @@ const logout = async () => {
                     </button>
                 </div>
 
-                <!-- Version Info -->
                 <div class="text-center py-4">
                     <p class="text-xs text-base-content/40">Seedclaw v0.1.0</p>
                 </div>
@@ -350,7 +348,6 @@ const logout = async () => {
         </div>
     </div>
 
-    <!-- Modals (Basic, ASR, TTS) -->
     <dialog id="basic_settings_modal" class="modal">
         <div class="modal-box">
             <h3 class="font-bold text-lg mb-4">{{ $t('settings.basic') }}</h3>
@@ -399,16 +396,6 @@ const logout = async () => {
                         <span class="label-text-alt opacity-50">{{ $t('settings.silenceDurationDesc') }}</span>
                     </label>
                 </div>
-                <!--<div>
-                    <label class="label">
-                        <span class="label-text">{{ $t('settings.homePageBehavior') }}</span>
-                    </label>
-                    <select v-model="editForm.homePageBehavior" class="select select-bordered w-full">
-                        <option value="last_active_session">{{ $t('settings.loadLastSession') }}</option>
-                        <option value="new_session">{{ $t('settings.createNewSession') }}</option>
-                    </select>
-                </div>
-                -->
                 <div>
                     <label class="label">
                         <span class="label-text">{{ $t('settings.externalUrl') }}</span>
@@ -440,22 +427,32 @@ const logout = async () => {
                     <label class="label">
                         <span class="label-text">{{ $t('settings.asrEngine') }}</span>
                     </label>
-                    <select v-model="editForm.asrEngine" class="select select-bordered w-full">
-                        <option value="fun-asr">FunASR (Aliyun Realtime)</option>
+                    <select v-model="editForm.asrEngine" class="select select-bordered w-full" @change="onAsrEngineChange">
+                        <option value="fun-asr">{{ $t('settings.asrEngineFunAsr') }}</option>
+                        <option value="voice-gateway">{{ $t('settings.asrEngineVoiceGateway') }}</option>
                     </select>
                 </div>
                 <div>
                     <label class="label">
-                        <span class="label-text">{{ $t('settings.apiKey') }}</span>
+                        <span class="label-text">{{ $t('settings.baseUrl') }}</span>
                     </label>
-                    <input type="password" v-model="editForm.asrToken" placeholder="sk-..."
+                    <input type="text" v-model="editForm.asrConfig.baseUrl"
+                        :placeholder="$t('settings.baseUrlPlaceholder')"
+                        class="input input-bordered w-full" />
+                </div>
+                <div>
+                    <label class="label">
+                        <span class="label-text">{{ $t('settings.engineToken') }}</span>
+                    </label>
+                    <input type="password" v-model="editForm.asrConfig.token"
+                        :placeholder="$t('settings.engineTokenPlaceholder')"
                         class="input input-bordered w-full" />
                 </div>
                 <div>
                     <label class="label">
                         <span class="label-text">{{ $t('settings.modelId') }}</span>
                     </label>
-                    <input type="text" v-model="editForm.asrModel" :placeholder="$t('settings.asrModelPlaceholder')"
+                    <input type="text" v-model="editForm.asrConfig.model" :placeholder="$t('settings.asrModelPlaceholder')"
                         class="input input-bordered w-full" />
                 </div>
             </div>
@@ -479,23 +476,33 @@ const logout = async () => {
                     <label class="label">
                         <span class="label-text">{{ $t('settings.ttsEngine') }}</span>
                     </label>
-                    <select v-model="editForm.ttsEngine" class="select select-bordered w-full">
+                    <select v-model="editForm.ttsEngine" class="select select-bordered w-full" @change="onTtsEngineChange">
                         <option value="qwen">{{ $t('settings.ttsEngineQwen') }}</option>
                         <option value="edge">{{ $t('settings.ttsEngineEdge') }}</option>
+                        <option value="voice-gateway">{{ $t('settings.ttsEngineVoiceGateway') }}</option>
                     </select>
                 </div>
-                <div v-if="editForm.ttsEngine === 'qwen'">
+                <div>
                     <label class="label">
-                        <span class="label-text">{{ $t('settings.apiKey') }}</span>
+                        <span class="label-text">{{ $t('settings.baseUrl') }}</span>
                     </label>
-                    <input type="password" v-model="editForm.ttsToken" placeholder="sk-..."
+                    <input type="text" v-model="editForm.ttsConfig.baseUrl"
+                        :placeholder="$t('settings.baseUrlPlaceholder')"
                         class="input input-bordered w-full" />
                 </div>
-                <div v-if="editForm.ttsEngine === 'qwen'">
+                <div>
+                    <label class="label">
+                        <span class="label-text">{{ $t('settings.engineToken') }}</span>
+                    </label>
+                    <input type="password" v-model="editForm.ttsConfig.token"
+                        :placeholder="$t('settings.engineTokenPlaceholder')"
+                        class="input input-bordered w-full" />
+                </div>
+                <div>
                     <label class="label">
                         <span class="label-text">{{ $t('settings.modelId') }}</span>
                     </label>
-                    <input type="text" v-model="editForm.ttsModel" :placeholder="$t('settings.ttsModelPlaceholder')"
+                    <input type="text" v-model="editForm.ttsConfig.model" :placeholder="$t('settings.ttsModelPlaceholder')"
                         class="input input-bordered w-full" />
                 </div>
             </div>

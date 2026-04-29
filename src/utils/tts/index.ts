@@ -1,6 +1,7 @@
 import { TTSEngine } from './types'
 import { QwenTTS } from './qwen-tts'
 import { EdgeTTS } from './edge-tts'
+import { VoiceGatewayTTS } from './voice-gateway'
 import { useUiSettingsStore } from '../../stores/setting'
 
 export function createTTSEngine(): TTSEngine {
@@ -9,8 +10,12 @@ export function createTTSEngine(): TTSEngine {
 
     if (type === 'qwen') {
         return new QwenTTS()
-    } else {
-        // Default to EdgeTTS
-        return new EdgeTTS()
     }
+
+    if (type === 'voice-gateway') {
+        return new VoiceGatewayTTS()
+    }
+
+    // Default to EdgeTTS
+    return new EdgeTTS()
 }
