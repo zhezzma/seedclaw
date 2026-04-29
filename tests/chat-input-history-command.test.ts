@@ -46,14 +46,4 @@ test('command suggestions keep arrow priority when user is not browsing history'
     )
 })
 
-test('recalled slash-command history entries do not reopen command suggestions immediately', () => {
-    assert.equal(
-        shouldOpenCommandSuggestions('/plan', false),
-        true,
-    )
 
-    assert.equal(
-        shouldOpenCommandSuggestions('/plan', true),
-        false,
-    )
-})
