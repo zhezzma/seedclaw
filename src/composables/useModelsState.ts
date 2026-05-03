@@ -20,9 +20,9 @@ export interface AvailableModel {
     reasoning?: boolean
     input?: string[]
 }
-
+//@mariozechner\pi-ai\dist\types.d.ts
 //https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/models.md
-export type KnownApi = "openai-completions" | "openai-responses" | "anthropic-messages" | "google-generative-ai";
+export type KnownApi = "openai-completions" | "mistral-conversations" | "openai-responses" | "azure-openai-responses" | "openai-codex-responses" | "anthropic-messages" | "bedrock-converse-stream" | "google-generative-ai" | "google-gemini-cli" | "google-vertex";
 
 export const OAuthProviders = ['anthropic', 'github-copilot', 'openai-codex', 'google-antigravity', 'google-gemini-cli'];
 

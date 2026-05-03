@@ -146,9 +146,15 @@ const handleSubmit = async () => {
                     <label class="label"><span class="label-text">{{ $t('provider.apiType') }}</span></label>
                     <select v-model="formData.api" class="select select-bordered w-full" :disabled="isReadonly">
                         <option value="openai-completions">{{ $t('provider.apiOpenAI') }}</option>
+                        <option value="mistral-conversations">{{ $t('provider.apiMistral') }}</option>
                         <option value="openai-responses">{{ $t('provider.apiOpenAIResponses') }}</option>
+                        <option value="azure-openai-responses">{{ $t('provider.apiAzureOpenAIResponses') }}</option>
+                        <option value="openai-codex-responses">{{ $t('provider.apiOpenAICodexResponses') }}</option>
                         <option value="anthropic-messages">{{ $t('provider.apiAnthropic') }}</option>
+                        <option value="bedrock-converse-stream">{{ $t('provider.apiBedrock') }}</option>
                         <option value="google-generative-ai">{{ $t('provider.apiGoogle') }}</option>
+                        <option value="google-gemini-cli">{{ $t('provider.apiGoogleGeminiCli') }}</option>
+                        <option value="google-vertex">{{ $t('provider.apiGoogleVertex') }}</option>
                     </select>
                 </div>
 
