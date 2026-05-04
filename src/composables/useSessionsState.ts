@@ -156,8 +156,7 @@ const updateSessionLocal = (key: string, patch: Partial<SessionRow>) => {
     }
 }
 
-const triggerSessionRename = async (targetKey: string, _agentId: string, userText: string) => {
-    if (!userText) return
+const triggerSessionRename = async (targetKey: string, userText: string) => {
     try {
         const result = await apiPost<{ sessionId: string; name: string }>(
             `/api/sessions/${encodeURIComponent(targetKey)}/generate-title`,
@@ -165,9 +164,9 @@ const triggerSessionRename = async (targetKey: string, _agentId: string, userTex
         )
         const name = result?.name
         if (name) {
-            const found = findSessionLocal(targetKey)
-            if (found) {
-                found.name = name
+            const target = findSessionLocal(targetKey)
+            if (target) {
+                target.name = name
             }
         }
     } catch (e) {
@@ -268,11 +267,6 @@ const commitNewSession = async (agentId: string, inputText?: string): Promise<st
     const body = inputText ? { firstMessage: inputText } : undefined
     const session = await apiPost<SessionRow>(`/api/sessions/${agentId}`, body)
     upsertSessionByRouteState(session)
-    if (inputText && session.id) {
-        triggerSessionRename(session.id, agentId, inputText).catch(err => {
-            console.error('Auto-rename failed', err)
-        })
-    }
     return session.id
 }
 
@@ -357,7 +351,9 @@ const _sessionsState = Object.assign(state, {
     deleteSession,
     deleteSessions,
     hasSession,
+    findSessionLocal,
     commitNewSession,
+    triggerSessionRename,
     getSessionById,
     resolveNotificationSessionCategory,
     resolveNotificationSessionRouteState,

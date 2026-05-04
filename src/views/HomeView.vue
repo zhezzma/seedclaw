@@ -215,6 +215,8 @@ const showMobileSessionList = computed(() => {
 // Send message handler
 const handleSend = async () => {
     let inputText = chatInputRef.value?.inputText?.trim() || ''
+    // 用户原始输入快照（不含后续追加的附件文本），用于自动命名判断与生成
+    const originalUserText = inputText
     // Check if there are any attachments
     const rawAttachments = chatInputRef.value?.attachments ?? []
     const hasAttachments = rawAttachments.length > 0
@@ -308,6 +310,18 @@ const handleSend = async () => {
 
     // Send message with explicit sessionKey
     await chatState.sendMessage(inputText, [...imageAttachments], targetSessionKey)
+
+    // 自动命名策略：仅当消息非空、不是 / 或 ! 开头的命令、且 session 还没有 name 时触发
+    const trimmedUserText = originalUserText.trimStart()
+    const isCommand = trimmedUserText.startsWith('/') || trimmedUserText.startsWith('!')
+    const currentSession = targetSessionKey ? sessionsState.findSessionLocal(targetSessionKey) : undefined
+    if (targetSessionKey && originalUserText && !isCommand && !currentSession?.name) {
+        sessionsState
+            .triggerSessionRename(targetSessionKey, originalUserText)
+            .catch(err => {
+                console.error('Auto-rename failed', err)
+            })
+    }
 
     // Navigate to the chat session immediately
     if (isNew) {
