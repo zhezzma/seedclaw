@@ -1,6 +1,8 @@
 // Based on https://github.com/DCsunset/markdown-it-code-copy/blob/master/index.js
 // Enhanced with code collapsing and scroll-to-top functionality
 
+import { writeClipboard } from '../clipboard.ts'
+
 interface Options {
   svg: string
   buttonClass?: string
@@ -28,7 +30,7 @@ const defaultOptions: Options = {
   headerStyle: ''
 }
 
-const sanitizeClipboardText = (text: string) => text.replace(/^\uFEFF/, '')
+const buildClipboardTextPayload = (text: string) => text.replace(/^\uFEFF/, '')
 
 const renderCode = (
   origRule: (...args: RulesArgs) => string,
@@ -49,7 +51,7 @@ const renderCode = (
 
 
     const rawContent = tokens[idx].content
-    const clipboardContent = sanitizeClipboardText(rawContent)
+    const clipboardContent = buildClipboardTextPayload(rawContent)
       .replaceAll('"', '&quot;')
       .replaceAll("'", "&apos;")
 
@@ -129,7 +131,7 @@ export default (md: any, options: Options) => {
     if (!(window as any).copyCodeToClipboard) {
       (window as any).copyCodeToClipboard = (button: HTMLElement) => {
         const code = button.dataset.clipboardText || ''
-        navigator.clipboard.writeText(code).then(function () {
+        writeClipboard(code).then(function () {
           options.onCopySuccess && options.onCopySuccess(code, button)
         }).catch(function (error) {
           options.onCopyError && options.onCopyError(error, button)

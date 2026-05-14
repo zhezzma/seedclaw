@@ -3,6 +3,7 @@ import { nextTick, watch } from 'vue'  // 添加watch以监视变化
 import { useUiSettingsStore } from '../../stores/setting'
 import { useToast } from '../../composables/useToast'
 import { mermaidCache, mermaidState } from './mermaid-cache'
+import { writeClipboard } from '../clipboard.ts'
 
 //该文件不放在./markdown-it-mermaid中因为使用document..不能被works引用
 
@@ -179,7 +180,7 @@ function setupGlobalMermaidEventHandlers() {
                 diagramElement?.getAttribute('data-mermaid') ||
                 ''
             )
-            navigator.clipboard.writeText(originalCode)
+            writeClipboard(originalCode)
                 .then(() => useToast().success("图表代码已复制到剪贴板!"))
                 .catch(() => useToast().error("复制失败，请手动选择并复制。"))
         }

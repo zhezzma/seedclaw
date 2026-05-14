@@ -20,6 +20,7 @@ import AppSidebar from '../components/AppSidebar.vue'
 import MediaPreviewOverlay from '../components/chat/MediaPreviewOverlay.vue'
 
 import { isNewSession, NEW_SESSION_PATH, NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
+import { writeClipboard } from '../utils/clipboard.ts'
 import { useChatState } from '../composables/useChatState'
 import { useChatInput } from '../composables/useChatInput'
 import { useCommandState } from '../composables/useCommandState'
@@ -339,7 +340,7 @@ const copyMessage = (msg: DisplayMessage) => {
         .filter(b => b.type === 'text')
         .map(b => b.text || '')
         .join('\n')
-    navigator.clipboard.writeText(text)
+    writeClipboard(text)
 }
 
 const readAloud = (msg: DisplayMessage) => {

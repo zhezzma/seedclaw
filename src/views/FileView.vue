@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { apiPost } from '../composables/api-client'
 import { useConfirm } from '../composables/useConfirm'
 import hljs from '../utils/markdown/hljs'
+import { writeClipboard } from '../utils/clipboard.ts'
 import {
     ArrowLeftIcon,
     DocumentTextIcon,
@@ -217,7 +218,7 @@ async function saveFile() {
 
 async function copyContent() {
     try {
-        await navigator.clipboard.writeText(content.value)
+        await writeClipboard(content.value)
         copied.value = true
         setTimeout(() => { copied.value = false }, 2000)
     } catch (e) {
