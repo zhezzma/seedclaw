@@ -28,6 +28,8 @@ const defaultOptions: Options = {
   headerStyle: ''
 }
 
+const sanitizeClipboardText = (text: string) => text.replace(/^\uFEFF/, '')
+
 const renderCode = (
   origRule: (...args: RulesArgs) => string,
   options: Options
@@ -46,9 +48,10 @@ const renderCode = (
     }
 
 
-    const content = tokens[idx].content
+    const rawContent = tokens[idx].content
+    const clipboardContent = sanitizeClipboardText(rawContent)
       .replaceAll('"', '&quot;')
-      .replaceAll("'", "&apos;");
+      .replaceAll("'", "&apos;")
 
 
     // Wrap the original rule call in a try-catch to handle language errors
@@ -66,7 +69,7 @@ const renderCode = (
       tokens[idx].info = originalInfo;
     }
 
-    if (content.length === 0) {
+    if (rawContent.length === 0) {
       return origRendered;
     }
     // Get language from token info if available
@@ -93,10 +96,10 @@ const renderCode = (
       <button class="code-preview-button${isSvg ? ' active' : ''}" title="Preview" onclick="toggleCodePreview(this)">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
       </button>` : ''}
-      <button data-clipboard-text="${content}" class="code-fullscreen-button" title="Fullscreen" onclick="fullscreenCodeContent(this)">
+      <button data-clipboard-text="${clipboardContent}" class="code-fullscreen-button" title="Fullscreen" onclick="fullscreenCodeContent(this)">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
       </button>
-      <button data-clipboard-text="${content}" class="code-copy-button ${options.buttonClass}" style="${options.buttonStyle}" title="Copy code" onclick="copyCodeToClipboard(this)">
+      <button data-clipboard-text="${clipboardContent}" class="code-copy-button ${options.buttonClass}" style="${options.buttonStyle}" title="Copy code" onclick="copyCodeToClipboard(this)">
         ${options.svg}
       </button>
     </div>
@@ -104,7 +107,7 @@ const renderCode = (
   <div class="code-preview${isSvg ? '' : ' hidden'}">${isSvg ? tokens[idx].content : ''}</div>
   <div class="code-content${isSvg ? ' hidden' : ''}">
     ${origRendered}
-    <button class="code-scroll-top-button${content.length > 500 ? '' : ' hidden'}" title="Scroll to code header" onclick="scrollToElement('${headerId}')">
+    <button class="code-scroll-top-button${rawContent.length > 500 ? '' : ' hidden'}" title="Scroll to code header" onclick="scrollToElement('${headerId}')">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="18 15 12 9 6 15"></polyline>
       </svg>
