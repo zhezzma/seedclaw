@@ -645,6 +645,15 @@ const steerMessage = async (message: string, sessionKey?: string) => {
     }
 }
 
+const followMessage = async (message: string, sessionKey?: string) => {
+    const targetKey = sessionKey || state.sessionKey
+    if (!targetKey) {
+        console.error('[useChatState] followMessage called without sessionKey')
+        return
+    }
+
+    await sendMessage(`/follow-up ${message}`, undefined, targetKey)
+}
 
 
 // ==================== Delete / Retry / Branch ====================
@@ -838,7 +847,7 @@ type UnwrapComputed<T extends object> = {
 const _methods = {
     chatMessages, chatToolMessages, sessionTree, chatStream,
     chatSending, chatRunId, chatStreamStartedAt, chatLoading, currentAgent,
-    sendMessage, steerMessage, abortChat, loadChatHistory,
+    sendMessage, steerMessage, followMessage, abortChat, loadChatHistory,
     setSessionKey, createNewSession, selectAgent, getSessionData,
     deleteMessage, retryMessage, editMessage, fetchSessionTree, navigateBranch,
 }

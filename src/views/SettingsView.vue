@@ -6,6 +6,7 @@ import {
     type ASREngineType,
     type TTSEngineType,
     type EngineConfig,
+    type BusySendBehavior,
     useUiSettingsStore,
 } from '../stores/setting'
 import {
@@ -50,6 +51,7 @@ const editForm = ref({
         model: '',
     },
     homePageBehavior: 'new_session' as 'last_active_session' | 'new_session',
+    busySendBehavior: 'follow' as BusySendBehavior,
     externalUrl: '',
     gotifyUrl: '',
     gotifyToken: '',
@@ -92,6 +94,7 @@ const openConnectionModal = () => {
         sessionsActiveDays: configStore.sessionsActiveDays,
         silenceDuration: configStore.silenceDuration,
         homePageBehavior: configStore.homePageBehavior || 'last_active_session',
+        busySendBehavior: configStore.busySendBehavior || 'follow',
         externalUrl: configStore.externalUrl || '',
     }
     const modal = document.getElementById('basic_settings_modal') as HTMLDialogElement
@@ -124,6 +127,7 @@ const saveConnection = () => {
         token: editForm.value.token,
         sessionsActiveDays: Number(editForm.value.sessionsActiveDays),
         silenceDuration: Number(editForm.value.silenceDuration),
+        busySendBehavior: editForm.value.busySendBehavior,
         externalUrl: editForm.value.externalUrl,
     })
     if (window.location.protocol !== 'file:') {
@@ -394,6 +398,18 @@ const logout = async () => {
                         placeholder="1500" />
                     <label class="label">
                         <span class="label-text-alt opacity-50">{{ $t('settings.silenceDurationDesc') }}</span>
+                    </label>
+                </div>
+                <div>
+                    <label class="label">
+                        <span class="label-text">{{ $t('settings.busySendBehavior') }}</span>
+                    </label>
+                    <select v-model="editForm.busySendBehavior" class="select select-bordered w-full">
+                        <option value="steer">{{ $t('settings.busySendBehaviorSteer') }}</option>
+                        <option value="follow">{{ $t('settings.busySendBehaviorFollow') }}</option>
+                    </select>
+                    <label class="label">
+                        <span class="label-text-alt opacity-50">{{ $t('settings.busySendBehaviorDesc') }}</span>
                     </label>
                 </div>
                 <div>

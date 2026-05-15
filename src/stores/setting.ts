@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 
 export type ASREngineType = 'fun-asr' | 'voice-gateway'
 export type TTSEngineType = 'edge' | 'qwen' | 'voice-gateway'
+export type BusySendBehavior = 'steer' | 'follow'
 
 export interface EngineConfig<T extends string> {
     engine: T
@@ -26,6 +27,7 @@ export interface UiSettings {
     ttsConfigs: EngineConfig<TTSEngineType>[]
     silenceDuration: number
     autoSendCommands: boolean
+    busySendBehavior: BusySendBehavior
     homePageBehavior: 'new_session' | 'last_active_session'
     gotifyUrl: string
     gotifyToken: string
@@ -124,6 +126,10 @@ const upsertConfigInList = <T extends string>(
     return next
 }
 
+const normalizeBusySendBehavior = (value: unknown): BusySendBehavior => {
+    return value === 'steer' || value === 'follow' ? value : 'follow'
+}
+
 const migrateLegacyVoiceSettings = (parsed: any, next: UiSettings): UiSettings => {
     const asrConfigs = mergeEngineConfigs(defaultAsrConfigs(), parsed?.asrConfigs)
     const ttsConfigs = mergeEngineConfigs(defaultTtsConfigs(), parsed?.ttsConfigs)
@@ -200,6 +206,7 @@ const migrateLegacyVoiceSettings = (parsed: any, next: UiSettings): UiSettings =
         ttsEngine,
         asrConfigs,
         ttsConfigs,
+        busySendBehavior: normalizeBusySendBehavior(next.busySendBehavior),
     }
 }
 
@@ -219,6 +226,7 @@ const getDefaultSettings = (): UiSettings => ({
     ttsConfigs: defaultTtsConfigs(),
     silenceDuration: 2000,
     autoSendCommands: true,
+    busySendBehavior: 'follow',
     homePageBehavior: 'new_session',
     gotifyUrl: '',
     gotifyToken: '',

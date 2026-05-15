@@ -256,8 +256,12 @@ const handleSend = async () => {
             }
             return
         }
-        // 非命令文本 → steer（inject prompt while agent is running）
-        await chatState.steerMessage(inputText)
+        // 非命令文本：根据设置决定 busy 时是 steer 还是 follow-up
+        if (settingsStore.busySendBehavior === 'follow') {
+            await chatState.followMessage(inputText)
+        } else {
+            await chatState.steerMessage(inputText)
+        }
         scrollToBottom(true)
         return
     }
