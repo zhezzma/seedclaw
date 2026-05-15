@@ -87,6 +87,20 @@ const currentModel = computed(() => {
     return ''
 })
 
+const currentModelLabel = computed(() => {
+    const value = currentModel.value
+    if (!value) return ''
+
+    for (const group of availableModels.value) {
+        const matched = group.models.find((model) => `${group.provider}/${model.id}` === value)
+        if (matched) {
+            return matched.name
+        }
+    }
+
+    return value
+})
+
 // 思考级别：优先从 session 获取，否则从 agent 默认值获取
 // 使用 computed 确保 /thinking 命令修改 session.thinkingLevel 后能正确响应
 const thinkingLevel = computed<ThinkingLevel>(() => {
@@ -374,7 +388,8 @@ defineExpose({
                             class="btn btn-ghost btn-sm gap-1 font-normal rounded-full border border-base-content/20 hover:border-base-content/40 hover:bg-base-300 transition-all"
                             :title="$t('chat.models')">
                             <CpuChipIcon class="h-4 w-4 hidden sm:inline" />
-                            <span class="sm:inline">{{ $t('chat.models') }}</span>
+                            <span class="sm:inline">{{ $t('chat.models') }}<span
+                                    v-if="currentModelLabel" class="hidden sm:inline">({{ currentModelLabel }})</span></span>
                             <ChevronUpIcon class="h-3 w-3 ml-0.5 opacity-50" />
                         </button>
                         <div v-if="modelDropdownOpen"
