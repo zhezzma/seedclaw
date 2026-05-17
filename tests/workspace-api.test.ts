@@ -124,6 +124,42 @@ test('saveFile HTTP 错误抛出 WorkspaceApiError', async () => {
     )
 })
 
+test('fetchAgentTree 拼 agent-tree 路径', async () => {
+    let captured = ''
+    globalThis.fetch = (async (url: string) => {
+        captured = url
+        return new Response(JSON.stringify({ ok: true, payload: { root: '/agent', path: '', entries: [] } }), { status: 200 })
+    }) as any
+    await api.fetchAgentTree('coder', '')
+    assert.match(captured, /\/api\/agents\/coder\/workspace\/agent-tree$/)
+})
+
+test('fetchAgentFile 拼 agent-file 路径', async () => {
+    let captured = ''
+    globalThis.fetch = (async (url: string) => {
+        captured = url
+        return new Response(JSON.stringify({
+            ok: true,
+            payload: { path: 'AGENTS.md', binary: false, truncated: false, content: '# x' },
+        }), { status: 200 })
+    }) as any
+    const r = await api.fetchAgentFile('coder', 'AGENTS.md')
+    assert.equal(r.content, '# x')
+    assert.match(captured, /\/agent-file\?path=AGENTS\.md$/)
+})
+
+test('saveAgentFile 发 PUT 到 agent-file', async () => {
+    let captured: { url: string, init?: RequestInit } | null = null
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+        captured = { url, init }
+        return new Response(JSON.stringify({ ok: true, payload: { path: 'AGENTS.md', bytes: 3 } }), { status: 200 })
+    }) as any
+    const r = await api.saveAgentFile('coder', 'AGENTS.md', '# x')
+    assert.equal(r.bytes, 3)
+    assert.equal(captured!.init!.method, 'PUT')
+    assert.match(captured!.url, /\/agent-file\?path=AGENTS\.md$/)
+})
+
 test('fetchFileVersions: untracked 仅传 file', async () => {
     let captured = ''
     globalThis.fetch = (async (url: string) => {

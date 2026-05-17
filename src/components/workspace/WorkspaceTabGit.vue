@@ -1,7 +1,10 @@
 <script setup lang="ts">
 /**
- * Git Tab 容器：
- * - 加载 repos → 选择当前仓库（沿用 panel 持久化的偏好；找不到则回退第一个）
+ * Git Tab 容器（VSCode 风格上下分块）：
+ * - 顶部：RepoSelector + Status (Changes / Staged / Untracked) — flex-1 + 内部滚动
+ * - 底部：可折叠 History 区，固定高度内部滚动；点击 commit 展开 file 列表打开 diff
+ *
+ * - 加载 repos → 选择当前仓库（沿用 panel 持久化偏好；找不到则回退第一个）
  * - 加载选中仓库的 status + log
  * - 把 status 行 / commit 文件的点击转成 viewer.openDiff
  */
@@ -9,6 +12,7 @@ import { onMounted, computed, watch } from 'vue'
 import RepoSelector from './git/RepoSelector.vue'
 import StatusGroup from './git/StatusGroup.vue'
 import HistoryList from './git/HistoryList.vue'
+import CollapsibleSection from './CollapsibleSection.vue'
 import { useWorkspaceGit } from '../../composables/useWorkspaceGit'
 import { useWorkspacePanel } from '../../composables/useWorkspacePanel'
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
@@ -78,32 +82,41 @@ function openCommitDiff(args: { ref: string; file: string }) {
     if (!repo) return
     viewer.openDiff({ repo, mode: 'commit', ref: args.ref, file: args.file })
 }
+
+const commitsCount = computed(() => git.commits.value.length || null)
 </script>
 
 <template>
-    <div>
-        <RepoSelector :selected-repo="selectedRepo" @select="onPickRepo" />
+    <div class="flex flex-col h-full">
+        <!-- 顶部：RepoSelector + 三组 status — flex-1 内部滚动 -->
+        <div class="flex-1 min-h-0 overflow-y-auto">
+            <RepoSelector :selected-repo="selectedRepo" @select="onPickRepo" />
 
-        <div v-if="git.statusLoading.value && !git.status.value" class="px-3 py-2 text-xs text-base-content/50">
-            <span class="loading loading-spinner loading-xs mr-2" />{{ $t('common.loading') }}
-        </div>
-        <div v-else-if="git.statusError.value" class="px-3 py-2 text-xs text-error">
-            {{ git.statusError.value }}
-        </div>
-        <template v-else-if="git.status.value">
-            <StatusGroup :title="$t('workspace.changes')" :changes="git.status.value.unstaged"
-                :on-click="(c) => openDiff('unstaged', c)" />
-            <StatusGroup :title="$t('workspace.staged')" :changes="git.status.value.staged"
-                :on-click="(c) => openDiff('staged', c)" />
-            <StatusGroup :title="$t('workspace.untracked')" :changes="git.status.value.untracked"
-                :default-open="false" :on-click="(c) => openDiff('untracked', c)" />
-            <div v-if="!git.status.value.staged.length && !git.status.value.unstaged.length && !git.status.value.untracked.length"
-                class="px-3 py-3 text-xs text-base-content/50">
-                {{ $t('workspace.workingTreeClean') }}
+            <div v-if="git.statusLoading.value && !git.status.value" class="px-3 py-2 text-xs text-base-content/50">
+                <span class="loading loading-spinner loading-xs mr-2" />{{ $t('common.loading') }}
             </div>
-        </template>
+            <div v-else-if="git.statusError.value" class="px-3 py-2 text-xs text-error">
+                {{ git.statusError.value }}
+            </div>
+            <template v-else-if="git.status.value">
+                <StatusGroup :title="$t('workspace.changes')" :changes="git.status.value.unstaged"
+                    :on-click="(c) => openDiff('unstaged', c)" />
+                <StatusGroup :title="$t('workspace.staged')" :changes="git.status.value.staged"
+                    :on-click="(c) => openDiff('staged', c)" />
+                <StatusGroup :title="$t('workspace.untracked')" :changes="git.status.value.untracked"
+                    :default-open="false" :on-click="(c) => openDiff('untracked', c)" />
+                <div v-if="!git.status.value.staged.length && !git.status.value.unstaged.length && !git.status.value.untracked.length"
+                    class="px-3 py-3 text-xs text-base-content/50">
+                    {{ $t('workspace.workingTreeClean') }}
+                </div>
+            </template>
+        </div>
 
-        <HistoryList v-if="selectedRepo" :agent-id="agentId" :repo="selectedRepo"
-            :on-open-diff="openCommitDiff" />
+        <!-- 底部：History 折叠区 — 固定高度 + 内部滚动 -->
+        <CollapsibleSection v-if="selectedRepo" :title="$t('workspace.history')"
+            :open="panel.bottomSections.value.history" :count="commitsCount"
+            @toggle="(o: boolean) => panel.setBottomSection('history', o)">
+            <HistoryList :agent-id="agentId" :repo="selectedRepo" :on-open-diff="openCommitDiff" />
+        </CollapsibleSection>
     </div>
 </template>

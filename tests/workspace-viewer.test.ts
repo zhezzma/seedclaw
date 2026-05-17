@@ -25,6 +25,13 @@ test('openDiff 设置 current.type=diff', () => {
     assert.deepEqual(v.current.value, { type: 'diff', repo: 'r', mode: 'unstaged', file: 'a.ts', ref: undefined })
 })
 
+test('openAgentFile 设置 current.type=agent-file', () => {
+    const v = useWorkspaceViewer()
+    v.openAgentFile('AGENTS.md')
+    assert.deepEqual(v.current.value, { type: 'agent-file', path: 'AGENTS.md' })
+    assert.equal(v.isActive.value, true)
+})
+
 test('close 清空', () => {
     const v = useWorkspaceViewer()
     v.openFile('/a')

@@ -12,16 +12,27 @@
  */
 import { ref, watch, onMounted, onBeforeUnmount, useTemplateRef, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { fetchFile, saveFile } from '../../composables/workspace-api'
+import {
+    fetchFile, saveFile,
+    fetchAgentFile, saveAgentFile,
+} from '../../composables/workspace-api'
 import { useToast } from '../../composables/useToast'
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
 import { monaco, languageFromPath, monacoThemeFromDaisy } from './monaco-setup'
 
 const props = defineProps<{
     agentId: string
-    /** workspace 相对路径 */
+    /** workspace 相对路径 (scope=workspace) 或 agentDir 相对路径 (scope=agent) */
     path: string
+    /** 默认 workspace；走 /file。agent 走 /agent-file，对应 paths.agentDir(id) 下的配置文件。 */
+    scope?: 'workspace' | 'agent'
 }>()
+
+const scope = computed(() => props.scope ?? 'workspace')
+const fetchByScope = (id: string, p: string) =>
+    scope.value === 'agent' ? fetchAgentFile(id, p) : fetchFile(id, p)
+const saveByScope = (id: string, p: string, content: string) =>
+    scope.value === 'agent' ? saveAgentFile(id, p, content) : saveFile(id, p, content)
 
 const { t } = useI18n()
 const toast = useToast()
@@ -103,7 +114,7 @@ async function loadFile(path: string) {
     isBinary.value = false
     isTruncated.value = false
     try {
-        const data = await fetchFile(props.agentId, path)
+        const data = await fetchByScope(props.agentId, path)
         // path 可能在 await 期间变化，比对最新 props 防过期响应
         if (path !== props.path) return
         ensureEditor()
@@ -151,7 +162,7 @@ async function save(): Promise<boolean> {
     const next = editor.getValue()
     isSaving.value = true
     try {
-        await saveFile(props.agentId, path, next)
+        await saveByScope(props.agentId, path, next)
         // path 可能在 await 期间变化（用户切了别的文件）；只有当前 path 仍是该文件才更新 baseline
         if (path === props.path) {
             baselineContent.value = next
@@ -192,8 +203,8 @@ onMounted(() => {
     loadFile(props.path)
 })
 
-// path / agentId 变化即重拉
-watch(() => [props.agentId, props.path], () => {
+// path / agentId / scope 变化即重拉
+watch(() => [props.agentId, props.path, scope.value], () => {
     loadFile(props.path)
 })
 

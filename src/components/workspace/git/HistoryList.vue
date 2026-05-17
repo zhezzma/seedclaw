@@ -41,9 +41,6 @@ function relativeTime(iso: string): string {
 
 <template>
     <div class="text-xs">
-        <div class="px-2 py-1 font-medium border-b border-base-200">
-            {{ $t('workspace.history') }}
-        </div>
         <div v-if="git.commitsLoading.value && git.commits.value.length === 0"
             class="px-3 py-2 text-base-content/50">
             <span class="loading loading-spinner loading-xs" />

@@ -44,6 +44,7 @@ const breadcrumb = computed(() => {
     const tgt = target.value
     if (!tgt) return ''
     if (tgt.type === 'file') return tgt.path
+    if (tgt.type === 'agent-file') return `agent / ${tgt.path}`
     if (tgt.type === 'diff') {
         const sha = tgt.ref ? ` @ ${tgt.ref.slice(0, 7)}` : ''
         return `${tgt.repo} / ${tgt.file}${sha}`
@@ -52,6 +53,9 @@ const breadcrumb = computed(() => {
 })
 
 // ── file 模式按钮状态：通过 fileViewRef.value 直接读 expose 的 ref ──
+const isFileMode = computed(() =>
+    target.value?.type === 'file' || target.value?.type === 'agent-file',
+)
 const fileIsDirty = computed(() => fileViewRef.value?.isDirty ?? false)
 const fileIsSaving = computed(() => fileViewRef.value?.isSaving ?? false)
 const fileIsReadOnly = computed(() => fileViewRef.value?.isReadOnly ?? false)
@@ -63,7 +67,7 @@ const fileSaveDisabled = computed(() =>
 const diffSideBySide = computed(() => diffViewRef.value?.sideBySide ?? true)
 
 async function confirmDiscardIfDirty(): Promise<boolean> {
-    if (target.value?.type !== 'file') return true
+    if (!isFileMode.value) return true
     if (!fileIsDirty.value) return true
     return await confirm(t('workspace.unsavedChanges'), t('common.confirm'))
 }
@@ -117,11 +121,11 @@ watch(target, () => {
             </button>
             <div class="flex-1 min-w-0 truncate text-sm font-mono text-base-content/70">
                 {{ breadcrumb }}
-                <span v-if="target?.type === 'file' && fileIsDirty" class="text-warning ml-1">●</span>
+                <span v-if="isFileMode && fileIsDirty" class="text-warning ml-1">●</span>
             </div>
 
-            <!-- file 模式：仅 Save 按钮（默认就能编辑，无 toggle） -->
-            <template v-if="target?.type === 'file'">
+            <!-- file 模式：仅 Save 按钮（默认就能编辑，无 toggle）；workspace 与 agent 两种 scope 共用 -->
+            <template v-if="isFileMode">
                 <button class="btn btn-sm gap-1"
                     :class="fileIsDirty && !fileIsReadOnly ? 'btn-primary' : 'btn-ghost'"
                     :disabled="fileSaveDisabled" :title="$t('workspace.save') + ' (Ctrl+S)'"
@@ -148,7 +152,10 @@ watch(target, () => {
         </div>
 
         <div class="flex-1 min-h-0 overflow-hidden">
-            <WorkspaceFileView v-if="target?.type === 'file'" ref="fileViewRef" :agent-id="agentId" :path="target.path" />
+            <WorkspaceFileView v-if="target?.type === 'file'" ref="fileViewRef" :agent-id="agentId"
+                :path="target.path" scope="workspace" />
+            <WorkspaceFileView v-else-if="target?.type === 'agent-file'" ref="fileViewRef" :agent-id="agentId"
+                :path="target.path" scope="agent" />
             <WorkspaceDiffEditor v-else-if="target?.type === 'diff'" ref="diffViewRef" :agent-id="agentId"
                 :repo="target.repo" :mode="target.mode" :file="target.file" :ref-sha="target.ref" />
         </div>

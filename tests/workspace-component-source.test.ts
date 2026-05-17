@@ -26,6 +26,11 @@ test('WorkspaceTabFiles: 调用 tree composable + viewer.openFile', () => {
     assert.match(src, /useWorkspaceViewer/)
     assert.match(src, /openFile\(entry\.path\)/, 'must call viewer.openFile with workspace-relative path')
     assert.match(src, /FileTreeNode/, 'must render recursive FileTreeNode component')
+    // 底部 agent files 可折叠区
+    assert.match(src, /useAgentFiles/, 'must use agent-files composable')
+    assert.match(src, /CollapsibleSection/, 'must use shared CollapsibleSection')
+    assert.match(src, /openAgentFile/, 'must dispatch viewer.openAgentFile for agent entries')
+    assert.match(src, /AgentFileTreeNode/, 'must render AgentFileTreeNode for agent dir')
 })
 
 test('FileTreeNode: 递归、区分 file/dir/symlink、isGitRepo 徽章', () => {
@@ -50,6 +55,26 @@ test('WorkspaceTabGit: 装配 RepoSelector + StatusGroup + HistoryList', () => {
     assert.match(src, /HistoryList/)
     assert.match(src, /useWorkspaceGit/)
     assert.match(src, /openDiff/, 'must call viewer.openDiff for status / commit clicks')
+    // 底部 history 被 CollapsibleSection 包裹
+    assert.match(src, /CollapsibleSection/, 'must wrap HistoryList in CollapsibleSection')
+    assert.match(src, /panel\.bottomSections/, 'must read history open state from panel composable')
+})
+
+test('CollapsibleSection: header + body + maxHeight + count', () => {
+    const src = read('src/components/workspace/CollapsibleSection.vue')
+    assert.match(src, /ChevronRightIcon/, 'must render collapsed chevron')
+    assert.match(src, /ChevronDownIcon/, 'must render expanded chevron')
+    assert.match(src, /maxHeight/, 'must accept maxHeight prop')
+    assert.match(src, /toggle/, 'must emit toggle event')
+    assert.match(src, /overflow-y-auto/, 'body must scroll internally')
+})
+
+test('AgentFileTreeNode: 递归、不渲染 git 徽章', () => {
+    const src = read('src/components/workspace/AgentFileTreeNode.vue')
+    assert.match(src, /defineOptions\(\{ name: 'AgentFileTreeNode'/, 'must declare name for self-recursion')
+    assert.match(src, /<AgentFileTreeNode/, 'must self-recurse in template')
+    assert.match(src, /useAgentFiles/, 'must use agent-files composable, not workspace-tree')
+    assert.doesNotMatch(src, /isGitRepo/, 'must NOT render git badge in agent tree')
 })
 
 test('RepoSelector: 显示分支徽章 + ahead/behind + dropdown', () => {
@@ -94,6 +119,10 @@ test('WorkspaceFileView: 默认可编辑 + 保存 + dirty 追踪，无 view/edit
     // 明确不要 toggle 交互（VSCode 风格：默认就能编辑）
     assert.doesNotMatch(src, /toggleEdit/, 'must NOT expose toggleEdit (no view/edit mode toggle)')
     assert.doesNotMatch(src, /isEditing/, 'must NOT track isEditing flag')
+    // scope=workspace|agent 双模式
+    assert.match(src, /scope/, 'must accept scope prop for workspace/agent file routing')
+    assert.match(src, /fetchAgentFile/, 'must support agent scope')
+    assert.match(src, /saveAgentFile/, 'must save via agent scope endpoint')
 })
 
 test('WorkspaceDiffEditor: monaco diff editor + split/inline 切换', () => {

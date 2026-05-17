@@ -16,6 +16,7 @@ import { XMarkIcon, ArrowPathIcon, FolderIcon, CodeBracketIcon } from '@heroicon
 import { useWorkspacePanel } from '../../composables/useWorkspacePanel'
 import { useWorkspaceTree } from '../../composables/useWorkspaceTree'
 import { useWorkspaceGit } from '../../composables/useWorkspaceGit'
+import { useAgentFiles } from '../../composables/useAgentFiles'
 import WorkspaceTabFiles from './WorkspaceTabFiles.vue'
 import WorkspaceTabGit from './WorkspaceTabGit.vue'
 
@@ -24,6 +25,7 @@ const props = defineProps<{ agentId: string }>()
 const panel = useWorkspacePanel()
 const tree = useWorkspaceTree()
 const git = useWorkspaceGit()
+const agentFiles = useAgentFiles()
 
 // ─── Agent 切换隔离 ──────────────────────────────────────────────
 // agent 改变时清掉 Files / Git 全部缓存；tab 子组件用 :key=agentId 强制 remount，
@@ -32,6 +34,7 @@ const git = useWorkspaceGit()
 watch(() => props.agentId, () => {
     tree.reset()
     git.reset()
+    agentFiles.reset()
 }, { flush: 'pre' })
 
 // ─── splitter 拖动 ───────────────────────────────────────────────
@@ -107,6 +110,13 @@ async function refresh() {
             tree.refresh()
             await tree.loadPath(props.agentId, '')
             await Promise.all(expandedPaths.map(p => tree.loadPath(props.agentId, p)))
+            // 底部 agent 文件区只在展开时才重拉，避免隐式快照过鲜
+            if (panel.bottomSections.value.agentFiles) {
+                const agentExpanded = agentFiles.expandedPaths()
+                agentFiles.refresh()
+                await agentFiles.loadPath(props.agentId, '')
+                await Promise.all(agentExpanded.map(p => agentFiles.loadPath(props.agentId, p)))
+            }
         } else {
             await git.loadRepos(props.agentId)
             let repo = panel.getRepoForAgent(props.agentId)
@@ -139,7 +149,7 @@ async function refresh() {
         <aside class="bg-base-100 border-l border-base-200 flex flex-col shrink-0 overflow-hidden"
             :style="{ width: effectiveWidth + 'px' }">
             <!-- header: tabs + actions -->
-            <div class="flex items-center justify-between border-b border-base-200 px-2 py-1 shrink-0">
+            <div class="flex items-center justify-between border-b border-base-200 px-2 py-2 shrink-0">
                 <div class="tabs tabs-sm">
                     <a class="tab tab-bordered gap-1" :class="{ 'tab-active': panel.activeTab.value === 'files' }"
                         @click="panel.setTab('files')">
@@ -165,8 +175,10 @@ async function refresh() {
 
             <!-- content: tab 切换重新挂载组件，但数据在模块级单例中缓存，
                  子组件 onMounted 会检查缓存后决定是否重拉（spec §6.4 “不刷新”）。
-                 不用 KeepAlive：避免跨 agent reset 后旧实例 reactivate 读到新 agent 数据交叉污染。 -->
-            <div class="flex-1 min-h-0 overflow-y-auto">
+                 不用 KeepAlive：避免跨 agent reset 后旧实例 reactivate 读到新 agent 数据交叉污染。
+                 滑动管控下放到 tab 内部：history / agent-files 等顶底区需要在 tab 内加 sticky，
+                 所以外层不能走 overflow-y-auto。 -->
+            <div class="flex-1 min-h-0 overflow-hidden">
                 <WorkspaceTabFiles v-if="panel.activeTab.value === 'files'" :key="'files-' + agentId"
                     :agent-id="agentId" />
                 <WorkspaceTabGit v-else :key="'git-' + agentId" :agent-id="agentId" />

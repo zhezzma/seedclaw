@@ -12,6 +12,7 @@ import type { DiffMode } from './workspace-api.ts'
 
 export type ViewerTarget =
     | { type: 'file'; path: string }
+    | { type: 'agent-file'; path: string }
     | { type: 'diff'; repo: string; mode: DiffMode; file: string; ref?: string }
 
 const current = ref<ViewerTarget | null>(null)
@@ -29,6 +30,10 @@ const _viewerState = {
     dirty,
     openFile(path: string) {
         current.value = { type: 'file', path }
+    },
+    /** 打开 agent 配置目录下的文件（agent-tree 点击）。 */
+    openAgentFile(path: string) {
+        current.value = { type: 'agent-file', path }
     },
     openDiff(args: { repo: string; mode: DiffMode; file: string; ref?: string }) {
         current.value = { type: 'diff', repo: args.repo, mode: args.mode, file: args.file, ref: args.ref }

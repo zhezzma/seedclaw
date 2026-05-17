@@ -814,6 +814,8 @@ export default {
         diffInline: '内联',
         diffNoChanges: '两侧内容一致',
         discardedDirty: '已丢弃未保存的改动：{path}',
+        agentFiles: 'Agent 配置',
+        noAgentFiles: '暂无可编辑的配置文件',
         noDiff: '此次提交未改动该文件',
         diffTruncated: 'Diff 超过 2 MB 已截断显示。完整内容请用编辑器查看。',
         symlinkBlocked: '符号链接不支持打开',

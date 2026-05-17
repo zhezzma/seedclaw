@@ -220,6 +220,26 @@ export function saveFile(
     return wsPut(`${base(agentId)}/file?path=${encodeURIComponent(path)}`, { content })
 }
 
+/** 读 agent 配置目录子项 (workspace/sessions 在顶层被后端过滤)。 */
+export function fetchAgentTree(agentId: string, path: string): Promise<TreeResult> {
+    const qs = path ? `?path=${encodeURIComponent(path)}` : ''
+    return wsGet<TreeResult>(`${base(agentId)}/agent-tree${qs}`)
+}
+
+/** 读 agent 配置目录下的文件。 */
+export function fetchAgentFile(agentId: string, path: string): Promise<FileContent> {
+    return wsGet<FileContent>(`${base(agentId)}/agent-file?path=${encodeURIComponent(path)}`)
+}
+
+/** 覆写 agent 配置目录下已存在的文件。 */
+export function saveAgentFile(
+    agentId: string,
+    path: string,
+    content: string,
+): Promise<{ path: string; bytes: number }> {
+    return wsPut(`${base(agentId)}/agent-file?path=${encodeURIComponent(path)}`, { content })
+}
+
 /** 拉 diff 两侧完整文本，供 monaco diff editor 使用。 */
 export function fetchFileVersions(agentId: string, args: DiffArgs): Promise<FileVersions> {
     const params = new URLSearchParams({

@@ -40,6 +40,13 @@ export interface UiSettings {
         width: number
         tab: 'files' | 'git'
         repoByAgent: Record<string, string>
+        /** 可折叠区域的展开状态，跨 session 持久化。
+         *  - history: Git tab 的提交历史（默认展开，主要内容）
+         *  - agentFiles: Files tab 的 agent 配置目录（默认折叠，次要内容） */
+        bottomSections: {
+            history: boolean
+            agentFiles: boolean
+        }
     }
 }
 
@@ -245,6 +252,10 @@ const getDefaultSettings = (): UiSettings => ({
         width: 360,
         tab: 'files',
         repoByAgent: {},
+        bottomSections: {
+            history: true,
+            agentFiles: false,
+        },
     },
 })
 
@@ -261,11 +272,23 @@ const loadConfig = (): UiSettings => {
             }
 
             const defaults = getDefaultSettings()
+            // workspacePanel 需要深合并：旧用户保存的子对象可能没有 bottomSections。
+            // 浅拷贝会直接覆盖 defaults.workspacePanel，导致新字段丢失。
+            const parsedWsPanel = parsed?.workspacePanel ?? {}
+            const mergedWsPanel = {
+                ...defaults.workspacePanel,
+                ...parsedWsPanel,
+                bottomSections: {
+                    ...defaults.workspacePanel.bottomSections,
+                    ...(parsedWsPanel.bottomSections ?? {}),
+                },
+            }
             const merged: UiSettings = {
                 ...defaults,
                 ...parsed,
                 asrConfigs: defaults.asrConfigs,
                 ttsConfigs: defaults.ttsConfigs,
+                workspacePanel: mergedWsPanel,
             }
 
             const normalized = migrateLegacyVoiceSettings(parsed, merged)

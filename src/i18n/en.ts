@@ -815,6 +815,8 @@ export default {
         diffInline: 'Inline',
         diffNoChanges: 'Both sides are identical',
         discardedDirty: 'Discarded unsaved changes: {path}',
+        agentFiles: 'Agent Config',
+        noAgentFiles: 'No editable config files',
         noDiff: 'No changes for this file in this commit',
         diffTruncated: 'Diff exceeds 2 MB and was truncated. Open in an editor for full content.',
         symlinkBlocked: 'Symlinks are not supported',

@@ -20,9 +20,19 @@ function persistPanel(patch: Partial<{
     open: boolean
     width: number
     tab: 'files' | 'git'
+    bottomSections: Partial<{ history: boolean; agentFiles: boolean }>
 }>) {
     const store = useUiSettingsStore()
-    const next = { ...store.workspacePanel, ...patch }
+    // 先从 patch 中抽出 bottomSections（Partial），后面才能合并为完整类型。
+    // 避免一句 spread 让 next.bottomSections 被推出为 Partial、赋回 store 时报错。
+    const { bottomSections: bsPatch, ...rest } = patch
+    const next = {
+        ...store.workspacePanel,
+        ...rest,
+        bottomSections: bsPatch
+            ? { ...store.workspacePanel.bottomSections, ...bsPatch }
+            : store.workspacePanel.bottomSections,
+    }
     store.workspacePanel = next
     store.persist()
 }
@@ -56,6 +66,13 @@ export function useWorkspacePanel() {
         },
         getRepoForAgent(agentId: string): string | null {
             return store.workspacePanel.repoByAgent[agentId] ?? null
+        },
+
+        // 跳出可折叠区域的开关状态与 setter，供 WorkspaceTabFiles / WorkspaceTabGit 使用。
+        // 快照为 computed，避免组件直接依赖 store 实例的 reactive proxy。
+        bottomSections: computed(() => store.workspacePanel.bottomSections),
+        setBottomSection(key: 'history' | 'agentFiles', open: boolean) {
+            persistPanel({ bottomSections: { [key]: open } })
         },
     }
 }
