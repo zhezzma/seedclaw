@@ -818,7 +818,8 @@ export default {
         agentFiles: 'Agent Config',
         noAgentFiles: 'No editable config files',
         menu: {
-            copyPath: 'Copy Path',
+            copyAbsolutePath: 'Copy Absolute Path',
+            copyRelativePath: 'Copy Relative Path',
             copyName: 'Copy Name',
             copyMention: "Copy as {'@'}reference",
             sendMention: "Send {'@'}reference to Chat",

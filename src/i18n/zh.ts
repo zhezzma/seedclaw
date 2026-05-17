@@ -817,7 +817,8 @@ export default {
         agentFiles: 'Agent 配置',
         noAgentFiles: '暂无可编辑的配置文件',
         menu: {
-            copyPath: '复制路径',
+            copyAbsolutePath: '复制绝对路径',
+            copyRelativePath: '复制相对路径',
             copyName: '复制文件名',
             copyMention: "复制为 {'@'}引用",
             sendMention: "发送 {'@'}引用到聊天",

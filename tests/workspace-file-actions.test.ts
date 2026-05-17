@@ -84,3 +84,34 @@ test('useFileActions: fenceContent 根据 content 里最长连续反引号自适
         'fenceContent must use longest+1 backticks (≥3) so inner ``` cannot close it',
     )
 })
+
+test('useFileActions: 菜单提供绝对 + 相对两种复制路径', () => {
+    // 拆分是 UX 调整 — 不要回退到单一 copyPath
+    assert.match(src, /workspace\.menu\.copyAbsolutePath/, 'must offer copyAbsolutePath as a distinct item')
+    assert.match(src, /workspace\.menu\.copyRelativePath/, 'must offer copyRelativePath as a distinct item')
+    assert.doesNotMatch(src, /workspace\.menu\.copyPath\b/, 'must NOT keep the legacy copyPath key')
+    // 绝对路径需要拼 root + entry.path，走专用 helper
+    assert.match(src, /buildAbsolutePath\(scope, entry\.path\)/, 'absolute path action must go through buildAbsolutePath')
+})
+
+test('useFileActions.buildAbsolutePath: 跨平台拼接 + 缺省安全退退', () => {
+    // root 拿不到 → 退回 relPath，不会报错丢 "undefined/..."
+    assert.match(src, /if \(!root\) return relPath/, 'must fall back to relPath when root is unavailable')
+    // Windows 路径含反斜杠时，entry.path 的正斜杠要被转为反斜杠，避免混合分隔符
+    assert.match(
+        src,
+        /root\.includes\('\\\\'\)/,
+        'must detect Windows roots by backslash presence',
+    )
+})
+
+test('useFileActions: i18n key 与原 copyPath 不再共存', () => {
+    const en = read('src/i18n/en.ts')
+    const zh = read('src/i18n/zh.ts')
+    assert.match(en, /copyAbsolutePath:/, 'en must define copyAbsolutePath')
+    assert.match(en, /copyRelativePath:/, 'en must define copyRelativePath')
+    assert.match(zh, /copyAbsolutePath:/, 'zh must define copyAbsolutePath')
+    assert.match(zh, /copyRelativePath:/, 'zh must define copyRelativePath')
+    assert.doesNotMatch(en, /copyPath:/, 'en must drop the legacy copyPath key')
+    assert.doesNotMatch(zh, /copyPath:/, 'zh must drop the legacy copyPath key')
+})

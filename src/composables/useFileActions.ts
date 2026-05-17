@@ -12,6 +12,8 @@
  */
 import { useChatInput } from './useChatInput'
 import { useToast } from './useToast'
+import { useWorkspaceTree } from './useWorkspaceTree'
+import { useAgentFiles } from './useAgentFiles'
 import { writeClipboard } from '../utils/clipboard'
 import { fetchFile, fetchAgentFile, type TreeEntry } from './workspace-api'
 import type { ContextMenuItem } from './useContextMenu'
@@ -35,6 +37,23 @@ interface BuildArgs {
 function tr(key: string, params?: Record<string, unknown>): string {
     const g = i18n.global as any
     return params ? g.t(key, params) : g.t(key)
+}
+
+/** 拼出 entry 的绝对路径：root + entry.path。OS-native 分隔符以便于粘贴给本地工具。
+ *  - workspace scope: 拍 useWorkspaceTree.entriesAt('')、仓库根是 workspaceDir
+ *  - agent scope: 拍 useAgentFiles.entriesAt('')、仓库根是 paths.agentDir(id)
+ *  菜单是从树上右键/kebab 触发的，这个调用点上 root 一定已加载。防补丢，拿不到时退回 relPath。 */
+function buildAbsolutePath(scope: FileScope, relPath: string): string {
+    const root = scope === 'agent'
+        ? useAgentFiles().entriesAt('')?.root
+        : useWorkspaceTree().entriesAt('')?.root
+    if (!root) return relPath
+    // OS 检测：服务端返回的 root 使用 Node 的 path.join，Windows 上后偍斜杠 / POSIX 上正斜杠。
+    // entry.path 服务端统一返回正斜杠；Windows 下走 backslash 路径拼接以避免混合分隔符。
+    if (root.includes('\\')) {
+        return root + '\\' + relPath.replace(/\//g, '\\')
+    }
+    return root + '/' + relPath
 }
 
 /** 把文件内容包成 fenced code block。
@@ -74,7 +93,15 @@ export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
 
     return [
         {
-            label: tr('workspace.menu.copyPath'),
+            label: tr('workspace.menu.copyAbsolutePath'),
+            icon: DocumentDuplicateIcon,
+            action: async () => {
+                await writeClipboard(buildAbsolutePath(scope, entry.path))
+                toast.success(tr('workspace.menu.copied'))
+            },
+        },
+        {
+            label: tr('workspace.menu.copyRelativePath'),
             icon: DocumentDuplicateIcon,
             action: async () => {
                 await writeClipboard(entry.path)
