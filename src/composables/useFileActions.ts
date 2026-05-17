@@ -1,19 +1,12 @@
 /**
  * Workspace 文件 / 目录的右键菜单 action 工厂。
  *
- * 第一阶段：仅做「零后端工作量」的复制 + 发送到 chat 系列。
- * - 复制相对路径
- * - 复制文件名
- * - 复制 @引用语法（`@path`，方便 agent 解析）
- * - 发送 @引用 到 ChatInput
- * - 发送文件内容到 ChatInput（fetch 后追加为 fenced code block）
- *
- * 目录上自动禁用「发送内容 / 复制 @引用 / 发送 @引用」，因为这些都只对单文件有意义。
+ * 第一阶段：零后端工作量的「复制 + 发送到 chat」系列。
+ * 共 6 项：复制（绝对 / 相对 / 文件名 / @引用）、发送（@引用 / 文件内容）。
+ * 目录上自动禁用「@引用 / 发送内容」三项，对单文件才有意义。
  */
 import { useChatInput } from './useChatInput'
 import { useToast } from './useToast'
-import { useWorkspaceTree } from './useWorkspaceTree'
-import { useAgentFiles } from './useAgentFiles'
 import { writeClipboard } from '../utils/clipboard'
 import { fetchFile, fetchAgentFile, type TreeEntry } from './workspace-api'
 import type { ContextMenuItem } from './useContextMenu'
@@ -31,24 +24,24 @@ interface BuildArgs {
     agentId: string
     entry: TreeEntry
     scope: FileScope
+    /**
+     * 当前 scope 根目录的绝对路径（workspaceDir 或 agentDir）。
+     * 由调用者从自己的 useWorkspaceTree / useAgentFiles 拿后传入，
+     * 避免 useFileActions 跨模块 import composable 变成独立 singleton 实例。
+     */
+    root: string | null
 }
 
 /** 在不引入对 vue-i18n 的强耦合下取译文；i18n.global 由 main 初始化。 */
-function tr(key: string, params?: Record<string, unknown>): string {
-    const g = i18n.global as any
-    return params ? g.t(key, params) : g.t(key)
+function tr(key: string): string {
+    return (i18n.global as any).t(key)
 }
 
 /** 拼出 entry 的绝对路径：root + entry.path。OS-native 分隔符以便于粘贴给本地工具。
- *  - workspace scope: 拍 useWorkspaceTree.entriesAt('')、仓库根是 workspaceDir
- *  - agent scope: 拍 useAgentFiles.entriesAt('')、仓库根是 paths.agentDir(id)
- *  菜单是从树上右键/kebab 触发的，这个调用点上 root 一定已加载。防补丢，拿不到时退回 relPath。 */
-function buildAbsolutePath(scope: FileScope, relPath: string): string {
-    const root = scope === 'agent'
-        ? useAgentFiles().entriesAt('')?.root
-        : useWorkspaceTree().entriesAt('')?.root
+ *  root 从调用者透入（TreeNode 可以直接拿到），避免跨模块 import composable。 */
+function buildAbsolutePath(root: string | null, relPath: string): string {
     if (!root) return relPath
-    // OS 检测：服务端返回的 root 使用 Node 的 path.join，Windows 上后偍斜杠 / POSIX 上正斜杠。
+    // 服务端返回的 root 使用 Node 的 path.join：Windows 上是反斜杠，POSIX 上是正斜杠。
     // entry.path 服务端统一返回正斜杠；Windows 下走 backslash 路径拼接以避免混合分隔符。
     if (root.includes('\\')) {
         return root + '\\' + relPath.replace(/\//g, '\\')
@@ -78,14 +71,8 @@ function guessLang(path: string): string {
     return map[ext] ?? ''
 }
 
-/** 把文本追加到 ChatInput。内部会同步退出 history 浏览态，
- *  避免用户随后按 ArrowDown 时被 "恢复 savedDraft" 逻辑吃掉追加内容。 */
-function appendToChatInput(text: string) {
-    useChatInput().appendText(text)
-}
-
 export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
-    const { entry, scope, agentId } = args
+    const { entry, scope, agentId, root } = args
     const isFile = entry.type === 'file'
     const toast = useToast()
     // @引用 syntax 区分 scope：agent 配置文件用 @agent: 前缀，避免和 workspace 路径冲突
@@ -96,7 +83,7 @@ export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
             label: tr('workspace.menu.copyAbsolutePath'),
             icon: DocumentDuplicateIcon,
             action: async () => {
-                await writeClipboard(buildAbsolutePath(scope, entry.path))
+                await writeClipboard(buildAbsolutePath(root, entry.path))
                 toast.success(tr('workspace.menu.copied'))
             },
         },
@@ -131,7 +118,7 @@ export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
             separator: true,
             disabled: !isFile,
             action: () => {
-                appendToChatInput(mention)
+                useChatInput().appendText(mention)
                 toast.success(tr('workspace.menu.sentToChat'))
             },
         },
@@ -148,7 +135,7 @@ export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
                         toast.warning(tr('workspace.binaryFile'))
                         return
                     }
-                    appendToChatInput(fenceContent(entry.path, data.content))
+                    useChatInput().appendText(fenceContent(entry.path, data.content))
                     if (data.truncated) {
                         toast.warning(tr('workspace.menu.contentTruncated'))
                     } else {

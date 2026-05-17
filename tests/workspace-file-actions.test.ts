@@ -91,7 +91,20 @@ test('useFileActions: 菜单提供绝对 + 相对两种复制路径', () => {
     assert.match(src, /workspace\.menu\.copyRelativePath/, 'must offer copyRelativePath as a distinct item')
     assert.doesNotMatch(src, /workspace\.menu\.copyPath\b/, 'must NOT keep the legacy copyPath key')
     // 绝对路径需要拼 root + entry.path，走专用 helper
-    assert.match(src, /buildAbsolutePath\(scope, entry\.path\)/, 'absolute path action must go through buildAbsolutePath')
+    assert.match(src, /buildAbsolutePath\(root, entry\.path\)/, 'absolute path action must call buildAbsolutePath with explicit root from caller')
+})
+
+test('useFileActions: 不跨模块 import composable（避免 HMR 下 singleton 分裂）', () => {
+    // 原本该文件 import 了 useWorkspaceTree / useAgentFiles 去拿 root，
+    // 但 Vite HMR 重求值后出现多个独立 singleton，导致 FileTreeNode 读不到
+    // WorkspaceTabFiles 写进去的 expanded 状态 → 目录点不开。
+    // 修复后 root 由调用者从自己的 composable 拿并传入 args。
+    assert.doesNotMatch(src, /from\s+['\"]\.\/useWorkspaceTree['\"]/,
+        'must NOT import useWorkspaceTree (cross-module composable singleton splits under HMR)')
+    assert.doesNotMatch(src, /from\s+['\"]\.\/useAgentFiles['\"]/,
+        'must NOT import useAgentFiles (cross-module composable singleton splits under HMR)')
+    // BuildArgs 必须接受 root，调用者负责传入
+    assert.match(src, /root:\s*string\s*\|\s*null/, 'BuildArgs must require root passed in by caller')
 })
 
 test('useFileActions.buildAbsolutePath: 跨平台拼接 + 缺省安全退退', () => {

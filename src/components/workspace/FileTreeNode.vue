@@ -35,6 +35,9 @@ const ctxMenu = useContextMenu()
 const expanded = computed(() => tree.isExpanded(props.entry.path))
 const children = computed(() => tree.entriesAt(props.entry.path)?.entries || [])
 const isLoadingChildren = computed(() => tree.isLoading(props.entry.path))
+/** root 从本组件使用的 useWorkspaceTree 实例拿，透入菜单工厂。
+ *  不要让 useFileActions 去 cross-module import composable—HMR 下会出现 singleton 分裂。 */
+const rootDir = computed(() => tree.entriesAt('')?.root ?? null)
 
 const padding = computed(() => `${(props.depth ?? 0) * 12 + 8}px`)
 const childPadding = computed(() => `${((props.depth ?? 0) + 1) * 12 + 8}px`)
@@ -47,7 +50,7 @@ function onBadgeClick(e: MouseEvent) {
 function onRowContextMenu(e: MouseEvent) {
     e.preventDefault()
     ctxMenu.openAt(
-        buildFileMenuItems({ agentId: props.agentId, entry: props.entry, scope: 'workspace' }),
+        buildFileMenuItems({ agentId: props.agentId, entry: props.entry, scope: 'workspace', root: rootDir.value }),
         { x: e.clientX, y: e.clientY },
     )
 }
@@ -55,7 +58,7 @@ function onRowContextMenu(e: MouseEvent) {
 function onKebabClick(e: MouseEvent) {
     e.stopPropagation()
     ctxMenu.openAtElement(
-        buildFileMenuItems({ agentId: props.agentId, entry: props.entry, scope: 'workspace' }),
+        buildFileMenuItems({ agentId: props.agentId, entry: props.entry, scope: 'workspace', root: rootDir.value }),
         e.currentTarget as HTMLElement,
     )
 }
