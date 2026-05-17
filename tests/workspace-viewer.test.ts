@@ -49,3 +49,22 @@ test('close 后 git 的 statusRepo 与 statusData 被同时清空（避免 UI �
     assert.equal(git.statusRepo, null)
     assert.equal(git.status.value, null)
 })
+
+test('setDirty/dirty: 默认 null，setDirty 写入后可读、close 会清除', () => {
+    const v = useWorkspaceViewer()
+    assert.equal(v.dirty.value, null)
+    v.setDirty('src/a.ts')
+    assert.deepEqual(v.dirty.value, { path: 'src/a.ts' })
+    v.openFile('src/a.ts')
+    // 打开后 dirty 不变，仅 close() 才会重置
+    assert.deepEqual(v.dirty.value, { path: 'src/a.ts' })
+    v.close()
+    assert.equal(v.dirty.value, null)
+})
+
+test('setDirty(null) 是明确重置', () => {
+    const v = useWorkspaceViewer()
+    v.setDirty('a')
+    v.setDirty(null)
+    assert.equal(v.dirty.value, null)
+})

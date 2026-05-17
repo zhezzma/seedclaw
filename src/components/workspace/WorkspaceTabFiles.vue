@@ -36,10 +36,8 @@ function onClickEntry(entry: TreeEntry) {
             tree.loadPath(props.agentId, entry.path)
         }
     } else {
-        // file → viewer：使用相对 workspace 的 path 拼绝对路径
-        const root = tree.entriesAt('')?.root || ''
-        const abs = root ? `${root}/${entry.path}` : entry.path
-        viewer.openFile(abs)
+        // file → viewer：传递**相对 workspace** 路径，后端 agent-scoped /file 接口 resolveSafe 会负责拼绝对路径
+        viewer.openFile(entry.path)
     }
 }
 

@@ -515,8 +515,15 @@ function handleWorkspaceShortcut(e: KeyboardEvent) {
     }
 }
 
+// Workspace Panel 可见性：
+// - 需要面板已打开且选中了 agent
+// - 主聊天路由：直接可见
+// - tasks / archived split-view 路由：仅在选中 session（= 聊天区已渲染）时可见，
+//   否则只有 session 列表 + 空状态，panel 嵌上去也没意义。
 const showWorkspacePanel = computed(() =>
-    wsPanel.isOpen.value && !!chatState.agentsSelectedId && !isSplitViewRoute.value,
+    wsPanel.isOpen.value
+    && !!chatState.agentsSelectedId
+    && (!isSplitViewRoute.value || !!typeSelectedKey.value),
 )
 const showWorkspaceViewer = computed(() => wsViewer.isActive.value)
 
@@ -529,6 +536,26 @@ watch(() => wsViewer.isActive.value, async (active, prev) => {
         restoreIfSaved()
     }
 })
+
+// Session / Agent 切换时关闭 viewer：
+// - 设计决定（与用户确认）：切 session 一律关 viewer，不区分是否同 agent。
+//   理由是 viewer 全屏占据主区，切换 session 通常意味着想看另一个会话上下文。
+// - 同时监听 agentId：覆盖 /new 路由上用 ChatHeader dropdown 切 agent（sessionKey 不变但
+//   workspace 换了）的场景，避免遗留一个针对旧 workspace 的 viewer 路径。
+// - dirty 提示：有未保存改动 toast 告知，但不阻塞切换（已经发生）。
+// - watch 默认非 immediate，mount 时不会误触发，无需 prev 守卫。
+watch(
+    [() => chatState.sessionKey, () => chatState.agentsSelectedId],
+    ([nextSession, nextAgent], [prevSession, prevAgent]) => {
+        if (nextSession === prevSession && nextAgent === prevAgent) return
+        if (!wsViewer.isActive.value) return
+        const dirty = wsViewer.dirty.value
+        if (dirty) {
+            useToast().warning(t('workspace.discardedDirty', { path: dirty.path }))
+        }
+        wsViewer.close()
+    },
+)
 
 onMounted(async () => {
     document.addEventListener('click', handleClickOutside)

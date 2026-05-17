@@ -24,7 +24,7 @@ test('WorkspaceTabFiles: 调用 tree composable + viewer.openFile', () => {
     const src = read('src/components/workspace/WorkspaceTabFiles.vue')
     assert.match(src, /useWorkspaceTree/)
     assert.match(src, /useWorkspaceViewer/)
-    assert.match(src, /openFile/, 'must call viewer.openFile when clicking a file')
+    assert.match(src, /openFile\(entry\.path\)/, 'must call viewer.openFile with workspace-relative path')
     assert.match(src, /FileTreeNode/, 'must render recursive FileTreeNode component')
 })
 
@@ -79,17 +79,33 @@ test('HistoryList: load more + 展开 commit 文件', () => {
 test('WorkspaceViewer: 通过 type 切换 file vs diff', () => {
     const src = read('src/components/workspace/WorkspaceViewer.vue')
     assert.match(src, /useWorkspaceViewer/)
-    assert.match(src, /FileView/, 'must reuse FileView for file mode')
-    assert.match(src, /DiffViewer/, 'must use DiffViewer for diff mode')
+    assert.match(src, /WorkspaceFileView/, 'must use WorkspaceFileView for file mode')
+    assert.match(src, /WorkspaceDiffEditor/, 'must use WorkspaceDiffEditor for diff mode')
     assert.match(src, /Escape/, 'must support Esc to close')
 })
 
-test('DiffViewer: hljs diff 高亮 + truncated banner + binary 占位', () => {
-    const src = read('src/components/workspace/DiffViewer.vue')
-    assert.match(src, /hljs/, 'must use highlight.js')
-    assert.match(src, /truncated/, 'must show truncated banner')
+test('WorkspaceFileView: 默认可编辑 + 保存 + dirty 追踪，无 view/edit toggle', () => {
+    const src = read('src/components/workspace/WorkspaceFileView.vue')
+    assert.match(src, /fetchFile/, 'must fetch via agent-scoped API')
+    assert.match(src, /saveFile/, 'must call saveFile')
+    assert.match(src, /isDirty/, 'must track dirty state')
+    assert.match(src, /KeyS/, 'must register Ctrl/Cmd+S save shortcut')
+    assert.match(src, /defineExpose/, 'must expose state to parent (WorkspaceViewer)')
+    // 明确不要 toggle 交互（VSCode 风格：默认就能编辑）
+    assert.doesNotMatch(src, /toggleEdit/, 'must NOT expose toggleEdit (no view/edit mode toggle)')
+    assert.doesNotMatch(src, /isEditing/, 'must NOT track isEditing flag')
+})
+
+test('WorkspaceDiffEditor: monaco diff editor + split/inline 切换', () => {
+    const src = read('src/components/workspace/WorkspaceDiffEditor.vue')
+    assert.match(src, /createDiffEditor/, 'must use monaco.editor.createDiffEditor')
+    assert.match(src, /fetchFileVersions/, 'must fetch both sides via file-versions endpoint')
+    assert.match(src, /renderSideBySide/, 'must support side-by-side toggle')
+    assert.match(src, /sideBySide/, 'must expose split/inline state')
     assert.match(src, /binary/, 'must show binary placeholder')
-    assert.match(src, /fetchDiff/, 'must fetch diff via workspace-api')
+    assert.match(src, /truncated/, 'must show truncated banner')
+    // 明确不走 hljs / unified-text fallback
+    assert.doesNotMatch(src, /hljs/, 'must NOT fall back to hljs unified diff')
 })
 
 test('ChatHeader: 包含 RectangleGroupIcon panel toggle (PC only)', () => {
@@ -108,4 +124,19 @@ test('HomeView: 接入 WorkspacePanel + WorkspaceViewer + 快捷键', () => {
     assert.match(src, /useWorkspaceViewer/)
     assert.match(src, /handleWorkspaceShortcut/, 'must register keyboard shortcut handler')
     assert.match(src, /metaKey|ctrlKey/, 'shortcut must accept Ctrl/Meta modifier')
+    // session/agent 切换 → 关闭 viewer（带 dirty toast）
+    assert.match(src, /chatState\.sessionKey/, 'must watch sessionKey')
+    assert.match(src, /chatState\.agentsSelectedId/, 'must also watch agentsSelectedId (for /new agent dropdown)')
+    assert.match(src, /wsViewer\.close\(\)/, 'session/agent switch must close viewer')
+    assert.match(src, /discardedDirty/, 'must toast discardedDirty when closing dirty viewer')
+    // 明确不走 !prev 过滤 —— null→realKey 是合法切换
+    assert.doesNotMatch(src, /if \(!prev\)\s/, 'must NOT skip null→value transition with !prev guard on session watch')
+    // split-view 路由下选中 session 后 panel 仍可见
+    assert.match(src, /typeSelectedKey/, 'showWorkspacePanel must consider typeSelectedKey for split-view routes')
+})
+
+test('WorkspaceFileView: 向 viewer 同步 dirty 状态', () => {
+    const src = read('src/components/workspace/WorkspaceFileView.vue')
+    assert.match(src, /useWorkspaceViewer/, 'must read viewer composable')
+    assert.match(src, /viewer\.setDirty/, 'must propagate dirty state to viewer')
 })

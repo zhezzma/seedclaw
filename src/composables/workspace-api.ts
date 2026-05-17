@@ -37,6 +37,20 @@ function authHeaders(): Record<string, string> {
 async function wsGet<T>(path: string): Promise<T> {
     const url = `${baseUrl()}${path}`
     const response = await fetch(url, { method: 'GET', headers: authHeaders() })
+    return await readResponse<T>(response)
+}
+
+async function wsPut<T>(path: string, body: unknown): Promise<T> {
+    const url = `${baseUrl()}${path}`
+    const response = await fetch(url, {
+        method: 'PUT',
+        headers: { ...authHeaders(), 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+    })
+    return await readResponse<T>(response)
+}
+
+async function readResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
         let msg = `HTTP ${response.status}`
         try {
@@ -124,6 +138,23 @@ export interface CommitFile {
     oldPath?: string
 }
 
+export interface FileContent {
+    path: string
+    binary: boolean
+    truncated: boolean
+    content: string
+}
+
+export interface FileVersions {
+    mode: DiffMode
+    file: string
+    binary: boolean
+    truncated: boolean
+    /** before/after 为 null 表示该侧不存在（新增/删除）。binary=true 时两侧均为 null。 */
+    before: string | null
+    after: string | null
+}
+
 const base = (agentId: string) => `/api/agents/${encodeURIComponent(agentId)}/workspace`
 
 export function fetchTree(agentId: string, path: string): Promise<TreeResult> {
@@ -173,4 +204,29 @@ export function fetchCommitFiles(
     ref: string,
 ): Promise<{ ref: string; files: CommitFile[] }> {
     return wsGet(`${base(agentId)}/repo/commit/files?repo=${encodeURIComponent(repo)}&ref=${encodeURIComponent(ref)}`)
+}
+
+/** 读取单个文件内容（agent-scoped，resolveSafe 保护）。 */
+export function fetchFile(agentId: string, path: string): Promise<FileContent> {
+    return wsGet<FileContent>(`${base(agentId)}/file?path=${encodeURIComponent(path)}`)
+}
+
+/** 覆写已存在的文件（agent-scoped，拒绝创建、拒绝写目录/越界）。 */
+export function saveFile(
+    agentId: string,
+    path: string,
+    content: string,
+): Promise<{ path: string; bytes: number }> {
+    return wsPut(`${base(agentId)}/file?path=${encodeURIComponent(path)}`, { content })
+}
+
+/** 拉 diff 两侧完整文本，供 monaco diff editor 使用。 */
+export function fetchFileVersions(agentId: string, args: DiffArgs): Promise<FileVersions> {
+    const params = new URLSearchParams({
+        repo: args.repo,
+        mode: args.mode,
+        file: args.file,
+    })
+    if (args.ref) params.set('ref', args.ref)
+    return wsGet<FileVersions>(`${base(agentId)}/repo/file-versions?${params.toString()}`)
 }
