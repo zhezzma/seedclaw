@@ -13,15 +13,10 @@
  *   切到 `monaco-editor-vite-plugin`。
  */
 import * as monaco from 'monaco-editor'
-// @ts-expect-error vite ?worker import 的运行时类型 vite/client 不会自动给项目工程
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
-// @ts-expect-error
 import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
-// @ts-expect-error
 import CssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker'
-// @ts-expect-error
 import HtmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker'
-// @ts-expect-error
 import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
 
 declare global {
