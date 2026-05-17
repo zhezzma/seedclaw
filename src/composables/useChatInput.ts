@@ -318,6 +318,30 @@ const removeAttachment = (id: string) => {
     attachments.value = attachments.value.filter(a => a.id !== id)
 }
 
+/**
+ * 外部追加文本到输入区（如文件树右键菜单的“发送 @引用 / 发送内容”）。
+ *
+ * 必须同步退出 history 浏览态：否则用户这一刻正在 ArrowUp 翻历史，
+ * 追加后一旦再 ArrowDown 会被 handleKeydown “恢复到 savedDraft” 吃掉刚推送进来的内容。
+ * 这个重置语义是 useChatInput 内部不变量的一部分，不应由调用方去戍 historyIndex 私有状态。
+ *
+ * 分隔策略：仅在当前文本不以空格/换行结尾 且 追加文本不以空格/换行起头时
+ * 才补一个空格。fenceContent 返回的文本 \n 起头，这里就不会多出 trailing space。
+ */
+const appendText = (text: string) => {
+    if (!text) return
+    historyIndex.value = -1
+    savedDraft.value = ''
+    const current = inputText.value
+    if (!current) {
+        inputText.value = text
+        return
+    }
+    const needsSep = !current.endsWith(' ') && !current.endsWith('\n')
+        && !text.startsWith(' ') && !text.startsWith('\n')
+    inputText.value = current + (needsSep ? ' ' : '') + text
+}
+
 // ==================== Export ====================
 
 const _chatInputState = {
@@ -336,6 +360,7 @@ const _chatInputState = {
     stopRecording,
     addAttachment,
     removeAttachment,
+    appendText,
     commands: COMMANDS,
     commandSuggestionsVisible,
     commandSuggestions,

@@ -47,6 +47,16 @@ test('FileTreeNode: 递归、区分 file/dir/symlink、isGitRepo 徽章', () => 
     assert.match(src, /symlink/, 'must handle symlink type')
     assert.match(src, /<FileTreeNode/, 'must self-recurse in template')
     assert.match(src, /onClick\(entry\)|onClick\(props\.entry\)/, 'must dispatch click to parent')
+    // 上下文菜单 wiring
+    assert.match(src, /scope:\s*'workspace'/, 'must build menu items with workspace scope')
+    assert.match(src, /@contextmenu="onRowContextMenu"/, 'row must register contextmenu handler')
+    assert.match(src, /lg:hidden[\s\S]{0,400}EllipsisVerticalIcon/,
+        'kebab button must be mobile-only (lg:hidden + EllipsisVerticalIcon)')
+    assert.match(src, /e\.stopPropagation\(\)/, 'kebab click must stop propagation to row click')
+    assert.match(src, /e\.preventDefault\(\)/, 'contextmenu handler must preventDefault to suppress native menu')
+    // a11y：kebab 作为菜单触发器必须被读屏器拍到
+    assert.match(src, /aria-label="\$t\('workspace\.menu\.more'\)"/, 'kebab must have aria-label for screen readers')
+    assert.match(src, /aria-haspopup="menu"/, 'kebab must declare aria-haspopup=menu')
 })
 
 test('WorkspaceTabFiles: toggleExpand 与 openFile 在父定义', () => {
@@ -82,6 +92,15 @@ test('AgentFileTreeNode: 递归、不渲染 git 徽章', () => {
     assert.match(src, /<AgentFileTreeNode/, 'must self-recurse in template')
     assert.match(src, /useAgentFiles/, 'must use agent-files composable, not workspace-tree')
     assert.doesNotMatch(src, /isGitRepo/, 'must NOT render git badge in agent tree')
+    // 上下文菜单 wiring：scope=agent
+    assert.match(src, /scope:\s*'agent'/, 'agent tree must build menu items with agent scope')
+    assert.match(src, /@contextmenu="onRowContextMenu"/, 'row must register contextmenu handler')
+    assert.match(src, /lg:hidden[\s\S]{0,400}EllipsisVerticalIcon/, 'kebab button must be mobile-only')
+    assert.match(src, /e\.stopPropagation\(\)/, 'kebab click must stop propagation to row click')
+    assert.match(src, /e\.preventDefault\(\)/, 'contextmenu handler must preventDefault')
+    // a11y：kebab 作为菜单触发器
+    assert.match(src, /aria-label="\$t\('workspace\.menu\.more'\)"/, 'kebab must have aria-label for screen readers')
+    assert.match(src, /aria-haspopup="menu"/, 'kebab must declare aria-haspopup=menu')
 })
 
 test('RepoSelector: 显示分支徽章 + ahead/behind + dropdown', () => {
@@ -204,6 +223,8 @@ test('HomeView: 接入 WorkspacePanel + WorkspaceViewer + 快捷键', () => {
     assert.match(src, /watch\(isMobile/, 'must watch isMobile to force-close drawer when entering mobile breakpoint')
     // 防回归：mobile drawer 内容懒加载，避免未访问者付出 fetch 代价
     assert.match(src, /mobilePanelMounted/, 'mobile drawer body must be lazy-mounted on first open')
+    // 全局 context menu 挂在 HomeView 根，避免被 panel/drawer overflow 裁切
+    assert.match(src, /WorkspaceContextMenu|ContextMenu/, 'must mount global workspace context menu at HomeView root')
 })
 
 test('WorkspaceFileView: 向 viewer 同步 dirty 状态', () => {

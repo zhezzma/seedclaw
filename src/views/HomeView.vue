@@ -21,6 +21,7 @@ import AppSidebar from '../components/AppSidebar.vue'
 import MediaPreviewOverlay from '../components/chat/MediaPreviewOverlay.vue'
 import WorkspacePanel from '../components/workspace/WorkspacePanel.vue'
 import WorkspaceViewer from '../components/workspace/WorkspaceViewer.vue'
+import WorkspaceContextMenu from '../components/workspace/ContextMenu.vue'
 
 import { isNewSession, NEW_SESSION_PATH, NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
 import { writeClipboard } from '../utils/clipboard.ts'
@@ -785,5 +786,8 @@ async function applyDefaultSessionBehavior() {
                 </div>
             </div>
         </div>
+        <!-- Workspace context menu (PC 右键 + 移动端 kebab 共用同一实例，
+             Teleport 到 body 上避免被 panel / drawer 的 overflow-hidden 裁切) -->
+        <WorkspaceContextMenu />
     </div>
 </template>
