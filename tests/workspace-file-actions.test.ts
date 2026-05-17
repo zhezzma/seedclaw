@@ -209,8 +209,14 @@ test('useFileActions: 暴露 runNewFileFlow / runNewDirFlow 入口供 toolbar �
 
 test('useFileActions: BuildArgs 暴露 onDeleted 回调供关闭 viewer 用', () => {
     assert.match(src, /onDeleted\?:/, 'BuildArgs must accept onDeleted callback')
-    // delete action 必须先 mutate 再 onDeleted
-    assert.match(src, /await mutate\(parentOf\(entry\)\)\s*\n\s*if \(onDeleted\) await onDeleted\(entry\.path\)/, 'must call onDeleted after mutate')
+    // delete action 顺序：rm → mutate(parentDir(entry.path)) → onDeleted(entry.path) → toast
+    // 用 parentDir 而不是 parentOf：parentOf(dir) = dir.path 是「在这里建子项」语义，
+    // 删除后这个路径已不存在，必须刷新它的原父。
+    assert.match(
+        src,
+        /await mutate\(parentDir\(entry\.path\)\)\s*\n\s*if \(onDeleted\) await onDeleted\(entry\.path\)/,
+        'delete must invalidate parentDir(entry.path), not parentOf(entry)',
+    )
 })
 
 test('FileTreeNode: 删除后用 viewer.current 检查，路径匹配则关闭 viewer', () => {

@@ -92,11 +92,18 @@ function guessLang(path: string): string {
     return map[ext] ?? ''
 }
 
-/** dir 入口点击 → 父是它自己；file 的父是它所在的目录。根 用 "" 表示。新建、删除都以该路径为错。 */
+/** entry.path 的父目录（去掉最后一段）；根是 ""。与 parentOf 区别：这个始终去掉一段，
+ *  用于删除场景——被删者本身不再存在，只能刷新它的原父。 */
+function parentDir(p: string): string {
+    const i = p.lastIndexOf('/')
+    return i === -1 ? '' : p.slice(0, i)
+}
+
+/** 「在这里创建子项」语义：dir 点击 → 子项放在它里；file 点击 → 子项放在它同级。
+ *  不能用于删除后的刷新（删除 dir 后这个 path 已失效）。 */
 function parentOf(entry: TreeEntry): string {
     if (entry.type === 'dir') return entry.path
-    const i = entry.path.lastIndexOf('/')
-    return i === -1 ? '' : entry.path.slice(0, i)
+    return parentDir(entry.path)
 }
 
 function joinChild(parent: string, child: string): string {
@@ -294,7 +301,9 @@ export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
                 try {
                     if (isDir) await rmDir(agentId, entry.path)
                     else await rmFile(agentId, entry.path)
-                    await mutate(parentOf(entry))
+                    // 关键：删除后需刷新被删者的**原父**，不是 parentOf(entry)。
+                    // 对 dir 来说 parentOf 返回它自己（「在这里建子项」语义），但这个路径已不存在。
+                    await mutate(parentDir(entry.path))
                     if (onDeleted) await onDeleted(entry.path)
                     toast.success(tr('workspace.menu.deleted'))
                 } catch (e: any) {
