@@ -246,4 +246,12 @@ test('WorkspaceTabFiles: 根目录 toolbar 提供 New File / New Dir 按钮', ()
     // toolbar 用图标按钮（DocumentPlus / FolderPlus）
     assert.match(src, /DocumentPlusIcon/, 'toolbar must use DocumentPlusIcon')
     assert.match(src, /FolderPlusIcon/, 'toolbar must use FolderPlusIcon')
+    // Workspace 区顶部肩 header：左侧标题 + 右侧按钮，与底部 CollapsibleSection 风格一致
+    assert.match(src, /workspace\.workspace/, 'workspace section header must use i18n key workspace.workspace')
+    // Agent 区按钮放进 CollapsibleSection 的 #actions slot，不在 body 里
+    assert.match(
+        src,
+        /<template #actions>[\s\S]*?onNewAgentFile[\s\S]*?onNewAgentDir[\s\S]*?<\/template>/,
+        'agent buttons must live inside CollapsibleSection #actions slot, not in body',
+    )
 })

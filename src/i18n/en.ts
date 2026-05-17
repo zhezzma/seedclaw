@@ -792,6 +792,7 @@ export default {
     },
     workspace: {
         toggle: 'Workspace (Ctrl+B)',
+        workspace: 'Workspace',
         tabFiles: 'Files',
         tabGit: 'Git',
         changes: 'Changes',

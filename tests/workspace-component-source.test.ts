@@ -77,13 +77,21 @@ test('WorkspaceTabGit: 装配 RepoSelector + StatusGroup + HistoryList', () => {
     assert.match(src, /panel\.bottomSections/, 'must read history open state from panel composable')
 })
 
-test('CollapsibleSection: header + body + maxHeight + count', () => {
+test('CollapsibleSection: header + body + maxHeight + count + actions slot', () => {
     const src = read('src/components/workspace/CollapsibleSection.vue')
     assert.match(src, /ChevronRightIcon/, 'must render collapsed chevron')
     assert.match(src, /ChevronDownIcon/, 'must render expanded chevron')
     assert.match(src, /maxHeight/, 'must accept maxHeight prop')
     assert.match(src, /toggle/, 'must emit toggle event')
     assert.match(src, /overflow-y-auto/, 'body must scroll internally')
+    // actions slot：header 右侧可放额外按钮（如 + 文件 / + 目录）
+    assert.match(src, /name="actions"/, 'must expose an actions slot for header buttons')
+    // actions 不能嵌在 toggle button 内（否则点子按钮会触发折叠）
+    assert.match(
+        src,
+        /<button[^>]+@click="onHeaderClick"[\s\S]*?<\/button>\s*<div[^>]+v-if="\$slots\.actions"/,
+        'actions slot must be a sibling of the toggle button, not a child',
+    )
 })
 
 test('AgentFileTreeNode: 递归、不渲染 git 徽章', () => {

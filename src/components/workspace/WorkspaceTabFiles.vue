@@ -3,8 +3,9 @@
  * Files Tab：以 workspace 根为树根的懒加载目录树。
  *
  * 布局（VSCode 风格）：
- * - 主区：workspace 目录树（顶部 toolbar + flex-1 + 内部滚动）
- * - 底部：可折叠 "Agent Files" 区，顶部 toolbar；展示 paths.agentDir 下的配置文件
+ * - 顶部 Workspace section header：左侧标题 + 右侧 + 文件 / + 目录
+ * - 主区：workspace 目录树（flex-1 + 内部滚动）
+ * - 底部：可折叠 "Agent Files" 区，header 同样带 + 文件 / + 目录 actions
  *
  * 点击文件 → 进入 Viewer 模式（替换聊天主区）。
  * 点击 git 仓库徽章 → 切到 Git tab 并选中此仓库。
@@ -98,6 +99,7 @@ async function onClickAgentEntry(entry: TreeEntry) {
 const rootResult = computed(() => tree.entriesAt(''))
 const agentRootResult = computed(() => agentFiles.entriesAt(''))
 const agentFilesCount = computed(() => agentRootResult.value?.entries.length ?? null)
+const workspaceFilesCount = computed(() => rootResult.value?.entries.length ?? null)
 
 // ── 根目录 toolbar：runNew* 由 useFileActions 暴露，与右键菜单共用一套流程。
 //    onMutated 在本组件内的 composable 实例上 invalidate + loadPath，避免 HMR singleton 分裂。
@@ -125,18 +127,29 @@ function onNewAgentDir() {
 
 <template>
     <div class="flex flex-col h-full text-sm">
-        <!-- 根目录 toolbar：workspace -->
-        <div class="flex items-center justify-end gap-0.5 px-1 py-1 border-b border-base-200 shrink-0">
-            <button type="button" class="btn btn-ghost btn-xs btn-square"
-                :aria-label="$t('workspace.menu.newFile')" :title="$t('workspace.menu.newFile')"
-                @click="onNewWorkspaceFile">
-                <DocumentPlusIcon class="h-4 w-4" />
-            </button>
-            <button type="button" class="btn btn-ghost btn-xs btn-square"
-                :aria-label="$t('workspace.menu.newDir')" :title="$t('workspace.menu.newDir')"
-                @click="onNewWorkspaceDir">
-                <FolderPlusIcon class="h-4 w-4" />
-            </button>
+        <!-- Workspace section header：左侧标题 + 右侧 + 文件 / + 目录。
+             视觉与底部 CollapsibleSection 的 header 一致，让两块感觉成对。 -->
+        <div class="flex items-stretch bg-base-200/50 border-b border-base-200 shrink-0">
+            <div
+                class="flex-1 flex items-center gap-1 px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/70 select-none">
+                <span class="flex-1 text-left truncate">{{ $t('workspace.workspace') }}</span>
+                <span v-if="workspaceFilesCount !== null && workspaceFilesCount > 0"
+                    class="text-[10px] font-mono normal-case text-base-content/50 shrink-0">
+                    {{ workspaceFilesCount }}
+                </span>
+            </div>
+            <div class="flex items-center gap-0.5 pr-1 shrink-0">
+                <button type="button" class="btn btn-ghost btn-xs btn-square"
+                    :aria-label="$t('workspace.menu.newFile')" :title="$t('workspace.menu.newFile')"
+                    @click="onNewWorkspaceFile">
+                    <DocumentPlusIcon class="h-4 w-4" />
+                </button>
+                <button type="button" class="btn btn-ghost btn-xs btn-square"
+                    :aria-label="$t('workspace.menu.newDir')" :title="$t('workspace.menu.newDir')"
+                    @click="onNewWorkspaceDir">
+                    <FolderPlusIcon class="h-4 w-4" />
+                </button>
+            </div>
         </div>
 
         <!-- 主区：workspace 目录树（flex-1 + 内部滚动） -->
@@ -156,12 +169,11 @@ function onNewAgentDir() {
             </div>
         </div>
 
-        <!-- 底部：Agent 配置目录折叠区 -->
+        <!-- 底部：Agent 配置目录折叠区，actions slot 把 + 文件 / + 目录 放进 header -->
         <CollapsibleSection :title="$t('workspace.agentFiles')"
             :open="panel.bottomSections.value.agentFiles" :count="agentFilesCount"
             @toggle="(o: boolean) => panel.setBottomSection('agentFiles', o)">
-            <!-- 根目录 toolbar：agent -->
-            <div class="flex items-center justify-end gap-0.5 px-1 py-1 border-b border-base-200/60">
+            <template #actions>
                 <button type="button" class="btn btn-ghost btn-xs btn-square"
                     :aria-label="$t('workspace.menu.newFile')" :title="$t('workspace.menu.newFile')"
                     @click="onNewAgentFile">
@@ -172,7 +184,7 @@ function onNewAgentDir() {
                     @click="onNewAgentDir">
                     <FolderPlusIcon class="h-4 w-4" />
                 </button>
-            </div>
+            </template>
 
             <div v-if="agentFiles.isLoading('')" class="p-3 text-base-content/60">
                 <span class="loading loading-spinner loading-xs mr-2" />{{ $t('common.loading') }}
