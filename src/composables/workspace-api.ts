@@ -1,0 +1,176 @@
+/**
+ * Workspace 面板专用的强类型 API wrapper。
+ *
+ * 后端契约见：docs/superpowers/specs/2026-05-17-workspace-panel-design.md
+ *
+ * 设计考量：
+ * - 不复用 ./api-client 是为了让 node:test 跳过测试时不依赖上游的 toast/store 链，
+ *   也避免 workspace 面板的错误会被默认 toast 提醒污染。错误让上层 composable 自己
+ *   决定如何呈现（内联在 panel 区域中）。
+ */
+import { useUiSettingsStore } from '../stores/setting.ts'
+
+class WorkspaceApiError extends Error {
+    code: number
+    constructor(message: string, code: number) {
+        super(message)
+        this.name = 'WorkspaceApiError'
+        this.code = code
+    }
+}
+
+function baseUrl(): string {
+    const settings = useUiSettingsStore()
+    const url = settings.apiBaseUrl?.trim() || ''
+    return url.replace(/\/+$/, '')
+}
+
+function authHeaders(): Record<string, string> {
+    const settings = useUiSettingsStore()
+    const headers: Record<string, string> = {}
+    if (settings.token?.trim()) {
+        headers['Authorization'] = `Bearer ${settings.token.trim()}`
+    }
+    return headers
+}
+
+async function wsGet<T>(path: string): Promise<T> {
+    const url = `${baseUrl()}${path}`
+    const response = await fetch(url, { method: 'GET', headers: authHeaders() })
+    if (!response.ok) {
+        let msg = `HTTP ${response.status}`
+        try {
+            const body = await response.json()
+            if (body?.error) msg = body.error
+        } catch { /* ignore */ }
+        throw new WorkspaceApiError(msg, response.status)
+    }
+    const body = await response.json()
+    if (body.ok === false) {
+        throw new WorkspaceApiError(body.error || 'Unknown error', body.code || 500)
+    }
+    return body.payload as T
+}
+
+export type EntryType = 'dir' | 'file' | 'symlink'
+
+export interface TreeEntry {
+    name: string
+    path: string
+    type: EntryType
+    size: number
+    mtimeMs: number
+    isGitRepo?: boolean
+}
+
+export interface TreeResult {
+    root: string
+    path: string
+    entries: TreeEntry[]
+    truncated?: true
+}
+
+export interface RepoSummary {
+    name: string
+    path: string
+    branch: string | null
+    head: string | null
+    dirty: number
+    ahead: number
+    behind: number
+    error?: string
+}
+
+export type FileStatus = 'M' | 'A' | 'D' | 'R' | 'C' | 'U' | 'T' | '?'
+
+export interface FileChange {
+    path: string
+    status: FileStatus
+    oldPath?: string
+}
+
+export interface RepoStatus {
+    branch: string | null
+    upstream: string | null
+    head: string | null
+    ahead: number
+    behind: number
+    staged: FileChange[]
+    unstaged: FileChange[]
+    untracked: FileChange[]
+}
+
+export interface CommitMeta {
+    sha: string
+    shortSha: string
+    author: string
+    authorDate: string
+    subject: string
+}
+
+export type DiffMode = 'unstaged' | 'staged' | 'commit' | 'untracked'
+
+export interface DiffResult {
+    mode: DiffMode
+    file: string
+    binary: boolean
+    truncated: boolean
+    diff: string
+}
+
+export interface CommitFile {
+    path: string
+    status: 'M' | 'A' | 'D' | 'R' | 'C' | 'T'
+    oldPath?: string
+}
+
+const base = (agentId: string) => `/api/agents/${encodeURIComponent(agentId)}/workspace`
+
+export function fetchTree(agentId: string, path: string): Promise<TreeResult> {
+    const qs = path ? `?path=${encodeURIComponent(path)}` : ''
+    return wsGet<TreeResult>(`${base(agentId)}/tree${qs}`)
+}
+
+export function fetchRepos(agentId: string): Promise<{ repos: RepoSummary[] }> {
+    return wsGet(`${base(agentId)}/repos`)
+}
+
+export function fetchStatus(agentId: string, repo: string): Promise<RepoStatus> {
+    return wsGet(`${base(agentId)}/repo/status?repo=${encodeURIComponent(repo)}`)
+}
+
+export function fetchLog(
+    agentId: string,
+    repo: string,
+    opts?: { limit?: number; skip?: number },
+): Promise<{ commits: CommitMeta[] }> {
+    const params = new URLSearchParams({ repo })
+    if (opts?.limit !== undefined) params.set('limit', String(opts.limit))
+    if (opts?.skip !== undefined) params.set('skip', String(opts.skip))
+    return wsGet(`${base(agentId)}/repo/log?${params.toString()}`)
+}
+
+export interface DiffArgs {
+    repo: string
+    mode: DiffMode
+    file: string
+    ref?: string
+}
+
+export function fetchDiff(agentId: string, args: DiffArgs): Promise<DiffResult> {
+    const params = new URLSearchParams({
+        repo: args.repo,
+        mode: args.mode,
+        file: args.file,
+    })
+    if (args.ref) params.set('ref', args.ref)
+    return wsGet(`${base(agentId)}/repo/diff?${params.toString()}`)
+}
+
+export function fetchCommitFiles(
+    agentId: string,
+    repo: string,
+    ref: string,
+): Promise<{ ref: string; files: CommitFile[] }> {
+    return wsGet(`${base(agentId)}/repo/commit/files?repo=${encodeURIComponent(repo)}&ref=${encodeURIComponent(ref)}`)
+}

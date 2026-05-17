@@ -33,8 +33,14 @@ export interface UiSettings {
     gotifyToken: string
     assistantMsgMerge: boolean
     language: 'zh' | 'en'
-    showAllProviders: boolean
-    externalUrl: string
+    showAllProviders: boolean  // 是否显示没有 apiKey 的提供商
+    externalUrl: string  // 外部链接地址（侧边栏跳转按钮）
+    workspacePanel: {
+        open: boolean
+        width: number
+        tab: 'files' | 'git'
+        repoByAgent: Record<string, string>
+    }
 }
 
 const CONFIG_KEY = 'openclaw_config'
@@ -234,6 +240,12 @@ const getDefaultSettings = (): UiSettings => ({
     language: 'zh',
     showAllProviders: true,
     externalUrl: '',
+    workspacePanel: {
+        open: false,
+        width: 360,
+        tab: 'files',
+        repoByAgent: {},
+    },
 })
 
 const loadConfig = (): UiSettings => {

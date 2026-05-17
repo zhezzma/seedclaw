@@ -29,6 +29,7 @@
     "markdown-it-highlightjs": "^4.2.0",
     "markdown-it-link-attributes": "^4.0.1",
     "mermaid": "^11.12.2",
+    "monaco-editor": "^0.55.1",
     "pdfjs-dist": "^5.4.624",
     "pinia": "^3.0.4",
     "qrcode": "^1.5.4",

@@ -18,6 +18,8 @@ import VoiceChatOverlay from '../components/chat/VoiceChatOverlay.vue'
 import SessionSidebar from '../components/chat/SessionSidebar.vue'
 import AppSidebar from '../components/AppSidebar.vue'
 import MediaPreviewOverlay from '../components/chat/MediaPreviewOverlay.vue'
+import WorkspacePanel from '../components/workspace/WorkspacePanel.vue'
+import WorkspaceViewer from '../components/workspace/WorkspaceViewer.vue'
 
 import { isNewSession, NEW_SESSION_PATH, NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
 import { writeClipboard } from '../utils/clipboard.ts'
@@ -27,6 +29,8 @@ import { useCommandState } from '../composables/useCommandState'
 import { SessionRow, useSessionsState, type SessionsResult } from '../composables/useSessionsState'
 import { useAgentsState } from '../composables/useAgentsState'
 import { useToast } from '../composables/useToast'
+import { useWorkspacePanel } from '../composables/useWorkspacePanel'
+import { useWorkspaceViewer } from '../composables/useWorkspaceViewer'
 import { truncateText } from '../utils/format'
 import { buildBranchIndexes, findLeafId as findBranchLeafId, getBranchInfo as resolveBranchInfo } from '../utils/chatBranchNavigation'
 
@@ -42,6 +46,9 @@ setSessionKeyResolver(() => chatState.sessionKey)
 const sessionsState = useSessionsState()
 const agentsState = useAgentsState()
 const { loadCommands, setCurrentAgent } = useCommandState()
+
+const wsPanel = useWorkspacePanel()
+const wsViewer = useWorkspaceViewer()
 
 const busyAllowedCommands = ['steer', 'follow-up', 'autocontinue']
 const busyAllowedCommandPattern = new RegExp(`^\\/(${busyAllowedCommands
@@ -480,9 +487,52 @@ const handleClickOutside = (event: MouseEvent) => {
     chatInputRef.value?.handleToolbarClickOutside(event)
 }
 
+// Workspace panel 快捷键：
+// - Ctrl/Cmd+B 切换面板
+// - Ctrl/Cmd+Shift+G 打开面板并切到 Git tab
+// - Ctrl/Cmd+Shift+E 打开面板并切到 Files tab
+// 在输入框 / contentEditable / IME 输入中不拦截，避免冲突用户编辑。
+function handleWorkspaceShortcut(e: KeyboardEvent) {
+    if (e.isComposing) return
+    const tag = (e.target as HTMLElement | null)?.tagName
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement | null)?.isContentEditable) return
+    if (!(e.ctrlKey || e.metaKey)) return
+    if (!e.shiftKey && (e.key === 'b' || e.key === 'B')) {
+        e.preventDefault()
+        wsPanel.toggle()
+        return
+    }
+    if (e.shiftKey && (e.key === 'g' || e.key === 'G')) {
+        e.preventDefault()
+        wsPanel.open()
+        wsPanel.setTab('git')
+        return
+    }
+    if (e.shiftKey && (e.key === 'e' || e.key === 'E')) {
+        e.preventDefault()
+        wsPanel.open()
+        wsPanel.setTab('files')
+    }
+}
+
+const showWorkspacePanel = computed(() =>
+    wsPanel.isOpen.value && !!chatState.agentsSelectedId && !isSplitViewRoute.value,
+)
+const showWorkspaceViewer = computed(() => wsViewer.isActive.value)
+
+// Viewer 关闭后恢复聊天区滚动位置：viewer 打开时 messagesContainerRef 对应的 div 会被 v-else-if
+// 卸载，关闭后重新挂载，但 useScrollManager 的 watch 只重新绑 listener、不会主动调 restore。
+// 手动控制一下，让用户从 viewer 返回聊天后位置不丢。
+watch(() => wsViewer.isActive.value, async (active, prev) => {
+    if (prev && !active) {
+        await nextTick()
+        restoreIfSaved()
+    }
+})
 
 onMounted(async () => {
     document.addEventListener('click', handleClickOutside)
+    window.addEventListener('keydown', handleWorkspaceShortcut)
     setupScrollWatchers()
     // 重新挂载时恢复滚动位置（从智能体等非 HomeView 路由返回时需要）
     // 路由 watcher (immediate) 在 setup 阶段触发时 session 切换 watcher 尚未注册，
@@ -492,6 +542,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside)
+    window.removeEventListener('keydown', handleWorkspaceShortcut)
 })
 
 
@@ -593,28 +644,27 @@ async function applyDefaultSessionBehavior() {
                 </div>
             </div>
         </div>
-        <!-- Chat Area -->
+        <!-- Chat Area: 始终保留 ChatHeader + ChatInput；Main 区域在 viewer 打开时被替换 -->
         <div v-else class="flex-1 flex flex-col h-full min-w-0"
             :class="{ 'hidden lg:flex': isSplitViewRoute && showMobileSessionList }">
 
-            <!-- Header -->
+            <!-- Header 始终可见：agent dropdown / panel toggle / 主题 / wide mode 都依赖它 -->
             <ChatHeader ref="chatHeaderRef" :selected-agent="selectedAgent" :agents="agentsState.agentsList"
                 @start-voice-chat="startVoiceChat" :session-name="currentSessionName" />
 
-            <!-- Main content area -->
+            <!-- Main content area: chat messages OR viewer -->
             <div class="flex-1 flex flex-col min-h-0">
+                <!-- Workspace Viewer（仅替换主消息区，不动 ChatHeader / ChatInput） -->
+                <WorkspaceViewer v-if="showWorkspaceViewer" :agent-id="chatState.agentsSelectedId || ''" />
+
                 <!-- Loading state -->
-                <div v-if="isLoading" class="flex-1 flex items-center justify-center">
+                <div v-else-if="isLoading" class="flex-1 flex items-center justify-center">
                     <span class="loading loading-spinner loading-lg"></span>
                 </div>
 
                 <!-- Welcome message when no messages -->
                 <div v-else-if="isNewSession(route) || isCreatingSession"
                     class="flex-1 flex flex-col items-center justify-center p-4">
-                    <!-- <div v-if="isCreatingSession" class="flex flex-col items-center gap-4 animate-pulse">
-                        <div class="loading loading-spinner loading-lg opacity-50"></div>
-                        <p class="text-base-content/60 text-sm font-medium">创建会话...</p>
-                    </div> -->
                     <div class="text-center">
                         <h1 class="text-3xl font-bold mb-2">{{ $t('home.welcomeTitle') }}</h1>
                         <p class="text-base-content/60">{{ $t('home.welcomeDesc') }}</p>
@@ -642,7 +692,7 @@ async function applyDefaultSessionBehavior() {
                 </div>
             </div>
 
-            <!-- Input area -->
+            <!-- ChatInput 始终可见：viewer 打开时用户仍可与 agent 讨论 diff/文件内容 -->
             <ChatInput ref="chatInputRef" :is-busy="isBusy" :disabled="false" @send="handleSend" />
 
             <!-- Voice Chat Overlay -->
@@ -652,5 +702,9 @@ async function applyDefaultSessionBehavior() {
             <!-- Media Preview Overlay (shared image lightbox & file viewer) -->
             <MediaPreviewOverlay />
         </div>
+
+        <!-- Workspace Panel (PC 右侧侧栏，可拖宽) -->
+        <WorkspacePanel v-if="showWorkspacePanel" :agent-id="chatState.agentsSelectedId || ''"
+            class="hidden lg:contents" />
     </div>
 </template>

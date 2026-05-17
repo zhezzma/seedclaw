@@ -12,10 +12,12 @@ import {
     PlusIcon,
     PhoneIcon,
     ChevronLeftIcon,
-    ArrowPathIcon
+    ArrowPathIcon,
+    RectangleGroupIcon
 } from '@heroicons/vue/24/outline'
 import { useUiSettingsStore } from '../../stores/setting'
 import { isConnected } from '../../composables/notify-server-connection'
+import { useWorkspacePanel } from '../../composables/useWorkspacePanel'
 
 import ViewHeader from '../ViewHeader.vue'
 import { isNewSession, NEW_SESSION_ROUTE_NAME } from '../../utils/route-helpers'
@@ -54,6 +56,7 @@ const handleBack = () => {
     router.back()
 }
 const settingsStore = useUiSettingsStore()
+const panel = useWorkspacePanel()
 
 
 const dropdownRef = ref<HTMLDetailsElement | null>(null)
@@ -178,6 +181,11 @@ defineExpose({
 
                 <!-- PC theme toggle button -->
                 <div class="hidden lg:flex items-center">
+                    <button @click="panel.toggle()" class="btn btn-ghost btn-circle btn-sm hidden lg:inline-flex"
+                        :class="{ 'text-primary': panel.isOpen.value }"
+                        :title="$t('workspace.toggle')">
+                        <RectangleGroupIcon class="h-5 w-5" />
+                    </button>
                     <button @click="settingsStore.toggleLayout()" class="btn btn-ghost btn-circle btn-sm"
                         :title="settingsStore.isWideMode ? $t('chat.switchToNarrow') : $t('chat.switchToWide')">
                         <ArrowsPointingInIcon v-if="settingsStore.isWideMode" class="h-5 w-5" />
