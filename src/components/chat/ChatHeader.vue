@@ -168,15 +168,7 @@ defineExpose({
                     </button>
                 </div> -->
 
-                <!-- Workspace panel toggle: PC 与移动端共用（移动端在 ChatHeader
-                     按钮区开 right-drawer，与左侧 sidebar drawer 对称）。
-                     无 agent 选中时隐藏，避免点开个空 drawer。 -->
-                <button v-if="chatState.agentsSelectedId" @click="panel.toggle()"
-                    class="btn btn-ghost btn-circle btn-sm"
-                    :class="{ 'text-primary': panel.isOpen.value }"
-                    :title="$t('workspace.toggle')">
-                    <RectangleGroupIcon class="h-5 w-5" />
-                </button>
+         
 
                 <!-- Mobile buttons -->
                 <div class="flex lg:hidden">
@@ -201,6 +193,16 @@ defineExpose({
                         <MoonIcon v-else class="h-5 w-5" />
                     </button>
                 </div>
+
+                <!-- Workspace panel toggle: PC 与移动端共用（移动端在 ChatHeader
+                     按钮区开 right-drawer，与左侧 sidebar drawer 对称）。
+                     无 agent 选中时隐藏，避免点开个空 drawer。 -->
+                <button v-if="chatState.agentsSelectedId" @click="panel.toggle()"
+                    class="btn btn-ghost btn-circle btn-sm"
+                    :class="{ 'text-primary': panel.isOpen.value }"
+                    :title="$t('workspace.toggle')">
+                    <RectangleGroupIcon class="h-5 w-5" />
+                </button>
             </div>
         </template>
     </ViewHeader>
