@@ -161,12 +161,12 @@ defineExpose({
                 </div>
 
                 <!-- Voice button -->
-                <div v-if="settingsStore.isCurrentAsrConfigured && settingsStore.isCurrentTtsConfigured">
+                <!-- <div v-if="settingsStore.isCurrentAsrConfigured && settingsStore.isCurrentTtsConfigured">
                     <button @click="startVoiceChat"
                         class="btn btn-ghost btn-circle btn-sm" :title="$t('chat.voiceChat')">
                         <PhoneIcon class="h-5 w-5" />
                     </button>
-                </div>
+                </div> -->
 
                 <!-- Workspace panel toggle: PC 与移动端共用（移动端在 ChatHeader
                      按钮区开 right-drawer，与左侧 sidebar drawer 对称）。
