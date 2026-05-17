@@ -1,14 +1,21 @@
 /**
  * Workspace 文件 / 目录的右键菜单 action 工厂。
  *
- * 第一阶段：零后端工作量的「复制 + 发送到 chat」系列。
- * 共 6 项：复制（绝对 / 相对 / 文件名 / @引用）、发送（@引用 / 文件内容）。
+ * 两类 action：
+ * - 零后端：复制（绝对 / 相对 / 文件名 / @引用）、发送（@引用 / 文件内容）
+ * - mutation：新建文件 / 新建目录 / 删除（走 useConfirm 确认）
  * 目录上自动禁用「@引用 / 发送内容」三项，对单文件才有意义。
  */
 import { useChatInput } from './useChatInput'
 import { useToast } from './useToast'
+import { useConfirm } from './useConfirm'
 import { writeClipboard } from '../utils/clipboard'
-import { fetchFile, fetchAgentFile, type TreeEntry } from './workspace-api'
+import {
+    fetchFile, fetchAgentFile,
+    createFile, createDir, deleteFile, deleteDir,
+    createAgentFile, createAgentDir, deleteAgentFile, deleteAgentDir,
+    type TreeEntry,
+} from './workspace-api'
 import type { ContextMenuItem } from './useContextMenu'
 import { i18n } from '../i18n'
 import {
@@ -16,6 +23,9 @@ import {
     AtSymbolIcon,
     PaperAirplaneIcon,
     DocumentTextIcon,
+    DocumentPlusIcon,
+    FolderPlusIcon,
+    TrashIcon,
 } from '@heroicons/vue/24/outline'
 
 export type FileScope = 'workspace' | 'agent'
@@ -30,6 +40,12 @@ interface BuildArgs {
      * 避免 useFileActions 跨模块 import composable 变成独立 singleton 实例。
      */
     root: string | null
+    /**
+     * mutation 后的刷新 callback，传入受影响的父目录路径（相对 root，根是 ""）。
+     * 调用者负责 invalidate + loadPath；同样为了避免 HMR singleton 分裂，
+     * useFileActions 不跨模块 import tree composable。
+     */
+    onMutated?: (parentPath: string) => void | Promise<void>
 }
 
 /** 在不引入对 vue-i18n 的强耦合下取译文；i18n.global 由 main 初始化。 */
@@ -71,12 +87,52 @@ function guessLang(path: string): string {
     return map[ext] ?? ''
 }
 
+/** dir 入口点击 → 父是它自己；file 的父是它所在的目录。根 用 "" 表示。新建、删除都以该路径为错。 */
+function parentOf(entry: TreeEntry): string {
+    if (entry.type === 'dir') return entry.path
+    const i = entry.path.lastIndexOf('/')
+    return i === -1 ? '' : entry.path.slice(0, i)
+}
+
+function joinChild(parent: string, child: string): string {
+    return parent ? `${parent}/${child}` : child
+}
+
+/** 检验 prompt() 收到的名字：不能是绝对路径、不能含 .. / 。返回规范后的 POSIX-style
+ *  路径段（可能含中间 /，让用户能一口气输 sub/foo.md）；非法返回 null。
+ *  调用者需区分 prompt 取消（原始 null）与非法输入（本函数返回 null）两种状态。 */
+function validateChildName(raw: string | null): string | null {
+    if (raw === null) return null
+    const trimmed = raw.trim()
+    if (!trimmed) return null
+    if (trimmed.startsWith('/') || trimmed.startsWith('\\')) return null
+    // Windows 盘符绝对路径：C:\foo / D:/bar 也要拦。后端有 canonicalization 兑底，
+    // 这里拍是为了让“不能是绝对路径”语义与 Windows 用户直觉一致。
+    if (/^[a-zA-Z]:[\\/]/.test(trimmed)) return null
+    const normalized = trimmed.replace(/\\/g, '/')
+    if (normalized.split('/').some(seg => seg === '..' || seg === '.' || seg === '')) return null
+    return normalized
+}
+
 export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
-    const { entry, scope, agentId, root } = args
+    const { entry, scope, agentId, root, onMutated } = args
     const isFile = entry.type === 'file'
+    const isDir = entry.type === 'dir'
     const toast = useToast()
+    const { confirm } = useConfirm()
     // @引用 syntax 区分 scope：agent 配置文件用 @agent: 前缀，避免和 workspace 路径冲突
     const mention = scope === 'agent' ? `@agent:${entry.path}` : `@${entry.path}`
+
+    /** mutation 完成后的刷新动作：调用者负责 invalidate + loadPath。
+     *  parent 不会为 undefined —— 新建、删除都以 entry 的父为错。 */
+    const mutate = async (parent: string) => {
+        if (onMutated) await onMutated(parent)
+    }
+
+    const create = scope === 'agent' ? createAgentFile : createFile
+    const mkdir = scope === 'agent' ? createAgentDir : createDir
+    const rmFile = scope === 'agent' ? deleteAgentFile : deleteFile
+    const rmDir = scope === 'agent' ? deleteAgentDir : deleteDir
 
     return [
         {
@@ -144,6 +200,75 @@ export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
                 } catch (e: any) {
                     // 封上动作语义：裸 "Network Error" 用户不知道是哪步失败
                     toast.error(`${tr('workspace.menu.sendContent')}: ${e?.message || String(e)}`)
+                }
+            },
+        },
+        // ── mutation：新建文件 / 新建目录（仅 dir entry） + 删除（所有 entry） ──
+        {
+            label: tr('workspace.menu.newFile'),
+            icon: DocumentPlusIcon,
+            separator: true,
+            disabled: !isDir,
+            action: async () => {
+                const raw = window.prompt(tr('workspace.menu.newFilePrompt'))
+                if (raw === null) return // 取消
+                const name = validateChildName(raw)
+                if (!name) {
+                    toast.error(tr('workspace.menu.invalidName'))
+                    return
+                }
+                const parent = parentOf(entry)
+                const childPath = joinChild(parent, name)
+                try {
+                    await create(agentId, childPath)
+                    await mutate(parent)
+                    toast.success(tr('workspace.menu.created'))
+                } catch (e: any) {
+                    toast.error(`${tr('workspace.menu.newFile')}: ${e?.message || String(e)}`)
+                }
+            },
+        },
+        {
+            label: tr('workspace.menu.newDir'),
+            icon: FolderPlusIcon,
+            disabled: !isDir,
+            action: async () => {
+                const raw = window.prompt(tr('workspace.menu.newDirPrompt'))
+                if (raw === null) return // 取消
+                const name = validateChildName(raw)
+                if (!name) {
+                    toast.error(tr('workspace.menu.invalidName'))
+                    return
+                }
+                const parent = parentOf(entry)
+                const childPath = joinChild(parent, name)
+                try {
+                    await mkdir(agentId, childPath)
+                    await mutate(parent)
+                    toast.success(tr('workspace.menu.created'))
+                } catch (e: any) {
+                    toast.error(`${tr('workspace.menu.newDir')}: ${e?.message || String(e)}`)
+                }
+            },
+        },
+        {
+            label: tr('workspace.menu.delete'),
+            icon: TrashIcon,
+            separator: true,
+            danger: true,
+            action: async () => {
+                const msg = isDir
+                    ? tr('workspace.menu.deleteDirConfirm')
+                    : tr('workspace.menu.deleteFileConfirm')
+                const ok = await confirm(`${msg}\n\n${entry.path}`, tr('workspace.menu.delete'))
+                if (!ok) return
+                try {
+                    if (isDir) await rmDir(agentId, entry.path)
+                    else await rmFile(agentId, entry.path)
+                    await mutate(parentOf(entry))
+                    toast.success(tr('workspace.menu.deleted'))
+                } catch (e: any) {
+                    toast.error(`${tr('workspace.menu.delete')}: ${e?.message || String(e)}`)
                 }
             },
         },

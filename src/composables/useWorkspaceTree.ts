@@ -51,6 +51,11 @@ const _methods = {
     errorAt(path: string): string | null {
         return state.cache[path]?.error ?? null
     },
+    /** 删除单条 path 的缓存。mutation（创建/删除）之后由调用者调用，
+     *  让下一次 loadPath 能重拉。不走全量 refresh 是为了保留其他已展开路径的缓存。 */
+    invalidate(path: string) {
+        delete state.cache[path]
+    },
     async loadPath(agentId: string, path: string): Promise<void> {
         if (state.cache[path]?.result) return
         state.cache[path] = { loading: true, error: null, result: null }

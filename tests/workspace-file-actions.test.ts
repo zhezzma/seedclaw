@@ -128,3 +128,73 @@ test('useFileActions: i18n key 与原 copyPath 不再共存', () => {
     assert.doesNotMatch(en, /copyPath:/, 'en must drop the legacy copyPath key')
     assert.doesNotMatch(zh, /copyPath:/, 'zh must drop the legacy copyPath key')
 })
+
+test('useFileActions: mutation 三件套（newFile / newDir / delete）均存在', () => {
+    assert.match(src, /workspace\.menu\.newFile/, 'menu must include newFile')
+    assert.match(src, /workspace\.menu\.newDir/, 'menu must include newDir')
+    assert.match(src, /workspace\.menu\.delete\b/, 'menu must include delete')
+    // newFile / newDir 仅在 dir entry 上启用
+    assert.match(src, /disabled: !isDir/, 'newFile/newDir must require directory entry')
+    // delete 必须走 useConfirm 弹 confirm
+    assert.match(src, /useConfirm/, 'delete must require explicit user confirmation')
+    assert.match(src, /confirm\(/, 'delete must call confirm()')
+    // delete 必须 danger 样式
+    assert.match(src, /danger: true/, 'delete must be marked danger')
+})
+
+test('useFileActions: validateChildName 拒绝绝对路径 / .. / 空段', () => {
+    // 关键安全：用户从 prompt 输入的内容必须先校验
+    assert.match(src, /trimmed\.startsWith\('\/'\)/, 'must reject absolute paths starting with /')
+    assert.match(src, /trimmed\.startsWith\('\\\\'\)/, 'must reject absolute paths starting with backslash')
+    assert.match(src, /seg === '\.\.'|seg === "\.\."/g, 'must reject .. segments')
+    assert.match(src, /seg === '\.'|seg === "\."/g, 'must reject . segments')
+})
+
+test('useFileActions: mutation 用 onMutated 回调刷新树（不跨模块 import composable）', () => {
+    // 与 root 一样的设计：actions 不直接调 useWorkspaceTree.invalidate，
+    // 由 TreeNode 透入 onMutated callback，避免 HMR 下 singleton 分裂。
+    assert.match(src, /onMutated\?:/, 'BuildArgs must accept optional onMutated callback')
+    // 不能 import tree composable
+    assert.doesNotMatch(src, /from\s+['"]\.\/useWorkspaceTree['"]/, 'must NOT import useWorkspaceTree')
+    assert.doesNotMatch(src, /from\s+['"]\.\/useAgentFiles['"]/, 'must NOT import useAgentFiles')
+})
+
+test('useFileActions: parentOf — dir entry 取自身，file entry 取父目录', () => {
+    // dir 上的菜单点击 = 在该 dir 下创建；file 上的菜单 = 在 file 同级创建。
+    assert.match(src, /entry\.type === 'dir'.*?return entry\.path/s, 'parentOf: dir returns its own path')
+    assert.match(src, /lastIndexOf\('\/'\)/, 'parentOf: file extracts parent via lastIndexOf')
+})
+
+test('useFileActions: scope 路由 mutation API（workspace vs agent）', () => {
+    // 与现有 fetchFile/fetchAgentFile 同样的 scope 三元
+    assert.match(src, /scope === 'agent' \? createAgentFile : createFile/, 'create file picks scope-specific API')
+    assert.match(src, /scope === 'agent' \? createAgentDir : createDir/, 'create dir picks scope-specific API')
+    assert.match(src, /scope === 'agent' \? deleteAgentFile : deleteFile/, 'delete file picks scope-specific API')
+    assert.match(src, /scope === 'agent' \? deleteAgentDir : deleteDir/, 'delete dir picks scope-specific API')
+})
+
+test('useWorkspaceTree / useAgentFiles: 暴露 invalidate(path) 用于精准刷新', () => {
+    const ws = read('src/composables/useWorkspaceTree.ts')
+    const af = read('src/composables/useAgentFiles.ts')
+    assert.match(ws, /invalidate\(path: string\)/, 'workspace tree must expose invalidate')
+    assert.match(af, /invalidate\(path: string\)/, 'agent files must expose invalidate')
+    // invalidate 删单条而非全 reset
+    assert.match(ws, /delete state\.cache\[path\]/, 'invalidate must delete single cache entry, not reset all')
+    assert.match(af, /delete state\.cache\[path\]/, 'invalidate must delete single cache entry, not reset all')
+})
+
+test('useFileActions: 非法名 vs prompt 取消必须区分（非法要 toast）', () => {
+    // reviewer Major: ../boom 不能和取消等价静默
+    assert.match(src, /if \(raw === null\) return/, 'must early-return on prompt cancel BEFORE validation')
+    assert.match(src, /workspace\.menu\.invalidName/, 'invalid input must use invalidName toast key')
+    // i18n 双侧
+    const en = read('src/i18n/en.ts')
+    const zh = read('src/i18n/zh.ts')
+    assert.match(en, /invalidName:/, 'en must define invalidName')
+    assert.match(zh, /invalidName:/, 'zh must define invalidName')
+})
+
+test('useFileActions: validateChildName 拦截 Windows 盘符绝对路径', () => {
+    // reviewer Nit: C:\foo / D:/bar 也要拦，与 “不能是绝对路径” 语义一致
+    assert.match(src, /\^\[a-zA-Z\]:\[\\\\\/\]/, 'must reject Windows drive-letter absolute paths')
+})

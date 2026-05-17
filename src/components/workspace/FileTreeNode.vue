@@ -50,7 +50,10 @@ function onBadgeClick(e: MouseEvent) {
 function onRowContextMenu(e: MouseEvent) {
     e.preventDefault()
     ctxMenu.openAt(
-        buildFileMenuItems({ agentId: props.agentId, entry: props.entry, scope: 'workspace', root: rootDir.value }),
+        buildFileMenuItems({
+            agentId: props.agentId, entry: props.entry, scope: 'workspace',
+            root: rootDir.value, onMutated,
+        }),
         { x: e.clientX, y: e.clientY },
     )
 }
@@ -58,9 +61,19 @@ function onRowContextMenu(e: MouseEvent) {
 function onKebabClick(e: MouseEvent) {
     e.stopPropagation()
     ctxMenu.openAtElement(
-        buildFileMenuItems({ agentId: props.agentId, entry: props.entry, scope: 'workspace', root: rootDir.value }),
+        buildFileMenuItems({
+            agentId: props.agentId, entry: props.entry, scope: 'workspace',
+            root: rootDir.value, onMutated,
+        }),
         e.currentTarget as HTMLElement,
     )
+}
+
+/** mutation 后重拉受影响的父目录。root='' 代表根。
+ *  走 invalidate + loadPath、不走全量 refresh，保留其他已展开路径的缓存。 */
+async function onMutated(parent: string) {
+    tree.invalidate(parent)
+    await tree.loadPath(props.agentId, parent)
 }
 </script>
 

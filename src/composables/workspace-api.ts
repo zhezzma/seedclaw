@@ -50,6 +50,23 @@ async function wsPut<T>(path: string, body: unknown): Promise<T> {
     return await readResponse<T>(response)
 }
 
+async function wsPost<T>(path: string, body?: unknown): Promise<T> {
+    const url = `${baseUrl()}${path}`
+    const init: RequestInit = { method: 'POST', headers: { ...authHeaders() } }
+    if (body !== undefined) {
+        init.headers = { ...init.headers, 'content-type': 'application/json' }
+        init.body = JSON.stringify(body)
+    }
+    const response = await fetch(url, init)
+    return await readResponse<T>(response)
+}
+
+async function wsDelete<T>(path: string): Promise<T> {
+    const url = `${baseUrl()}${path}`
+    const response = await fetch(url, { method: 'DELETE', headers: authHeaders() })
+    return await readResponse<T>(response)
+}
+
 async function readResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
         let msg = `HTTP ${response.status}`
@@ -220,6 +237,33 @@ export function saveFile(
     return wsPut(`${base(agentId)}/file?path=${encodeURIComponent(path)}`, { content })
 }
 
+/** 创建新文件（workspace scope）。content 默认 ""，路径已存在 → 409。 */
+export function createFile(
+    agentId: string,
+    path: string,
+    content?: string,
+): Promise<{ path: string; bytes: number }> {
+    return wsPost(`${base(agentId)}/file?path=${encodeURIComponent(path)}`, { content: content ?? '' })
+}
+
+/** 创建目录（workspace scope）。mkdir -p 语义，已存在 idempotent。 */
+export function createDir(
+    agentId: string,
+    path: string,
+): Promise<{ path: string; alreadyExists: boolean }> {
+    return wsPost(`${base(agentId)}/dir?path=${encodeURIComponent(path)}`)
+}
+
+/** 删除普通文件（workspace scope）。 */
+export function deleteFile(agentId: string, path: string): Promise<{ path: string }> {
+    return wsDelete(`${base(agentId)}/file?path=${encodeURIComponent(path)}`)
+}
+
+/** 递归删除目录（workspace scope）。 */
+export function deleteDir(agentId: string, path: string): Promise<{ path: string }> {
+    return wsDelete(`${base(agentId)}/dir?path=${encodeURIComponent(path)}`)
+}
+
 /** 读 agent 配置目录子项 (workspace/sessions 在顶层被后端过滤)。 */
 export function fetchAgentTree(agentId: string, path: string): Promise<TreeResult> {
     const qs = path ? `?path=${encodeURIComponent(path)}` : ''
@@ -238,6 +282,33 @@ export function saveAgentFile(
     content: string,
 ): Promise<{ path: string; bytes: number }> {
     return wsPut(`${base(agentId)}/agent-file?path=${encodeURIComponent(path)}`, { content })
+}
+
+/** 创建新文件（agent scope）。顶层拒 workspace/ 与 sessions/。 */
+export function createAgentFile(
+    agentId: string,
+    path: string,
+    content?: string,
+): Promise<{ path: string; bytes: number }> {
+    return wsPost(`${base(agentId)}/agent-file?path=${encodeURIComponent(path)}`, { content: content ?? '' })
+}
+
+/** 创建目录（agent scope）。 */
+export function createAgentDir(
+    agentId: string,
+    path: string,
+): Promise<{ path: string; alreadyExists: boolean }> {
+    return wsPost(`${base(agentId)}/agent-dir?path=${encodeURIComponent(path)}`)
+}
+
+/** 删除普通文件（agent scope）。 */
+export function deleteAgentFile(agentId: string, path: string): Promise<{ path: string }> {
+    return wsDelete(`${base(agentId)}/agent-file?path=${encodeURIComponent(path)}`)
+}
+
+/** 递归删除目录（agent scope）。 */
+export function deleteAgentDir(agentId: string, path: string): Promise<{ path: string }> {
+    return wsDelete(`${base(agentId)}/agent-dir?path=${encodeURIComponent(path)}`)
 }
 
 /** 拉 diff 两侧完整文本，供 monaco diff editor 使用。 */

@@ -42,7 +42,10 @@ const childPadding = computed(() => `${((props.depth ?? 0) + 1) * 12 + 8}px`)
 function onRowContextMenu(e: MouseEvent) {
     e.preventDefault()
     ctxMenu.openAt(
-        buildFileMenuItems({ agentId: props.agentId, entry: props.entry, scope: 'agent', root: rootDir.value }),
+        buildFileMenuItems({
+            agentId: props.agentId, entry: props.entry, scope: 'agent',
+            root: rootDir.value, onMutated,
+        }),
         { x: e.clientX, y: e.clientY },
     )
 }
@@ -50,9 +53,18 @@ function onRowContextMenu(e: MouseEvent) {
 function onKebabClick(e: MouseEvent) {
     e.stopPropagation()
     ctxMenu.openAtElement(
-        buildFileMenuItems({ agentId: props.agentId, entry: props.entry, scope: 'agent', root: rootDir.value }),
+        buildFileMenuItems({
+            agentId: props.agentId, entry: props.entry, scope: 'agent',
+            root: rootDir.value, onMutated,
+        }),
         e.currentTarget as HTMLElement,
     )
+}
+
+/** mutation 后重拉受影响的父目录。 */
+async function onMutated(parent: string) {
+    tree.invalidate(parent)
+    await tree.loadPath(props.agentId, parent)
 }
 </script>
 
