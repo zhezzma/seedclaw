@@ -168,6 +168,16 @@ defineExpose({
                     </button>
                 </div>
 
+                <!-- Workspace panel toggle: PC 与移动端共用（移动端在 ChatHeader
+                     按钮区开 right-drawer，与左侧 sidebar drawer 对称）。
+                     无 agent 选中时隐藏，避免点开个空 drawer。 -->
+                <button v-if="chatState.agentsSelectedId" @click="panel.toggle()"
+                    class="btn btn-ghost btn-circle btn-sm"
+                    :class="{ 'text-primary': panel.isOpen.value }"
+                    :title="$t('workspace.toggle')">
+                    <RectangleGroupIcon class="h-5 w-5" />
+                </button>
+
                 <!-- Mobile buttons -->
                 <div class="flex lg:hidden">
                     <button @click="refreshPage" class="btn btn-ghost btn-circle btn-sm" :title="$t('common.refresh')">
@@ -181,11 +191,6 @@ defineExpose({
 
                 <!-- PC theme toggle button -->
                 <div class="hidden lg:flex items-center">
-                    <button @click="panel.toggle()" class="btn btn-ghost btn-circle btn-sm hidden lg:inline-flex"
-                        :class="{ 'text-primary': panel.isOpen.value }"
-                        :title="$t('workspace.toggle')">
-                        <RectangleGroupIcon class="h-5 w-5" />
-                    </button>
                     <button @click="settingsStore.toggleLayout()" class="btn btn-ghost btn-circle btn-sm"
                         :title="settingsStore.isWideMode ? $t('chat.switchToNarrow') : $t('chat.switchToWide')">
                         <ArrowsPointingInIcon v-if="settingsStore.isWideMode" class="h-5 w-5" />

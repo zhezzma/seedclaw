@@ -20,7 +20,7 @@ import { useAgentFiles } from '../../composables/useAgentFiles'
 import WorkspaceTabFiles from './WorkspaceTabFiles.vue'
 import WorkspaceTabGit from './WorkspaceTabGit.vue'
 
-const props = defineProps<{ agentId: string }>()
+const props = defineProps<{ agentId: string; mobile?: boolean }>()
 
 const panel = useWorkspacePanel()
 const tree = useWorkspaceTree()
@@ -139,15 +139,17 @@ async function refresh() {
 
 <template>
     <!-- 单根 contents wrapper：让外部 class（如 hidden lg:flex）能正确 fallthrough，
-         同时不破坏父级 flex 布局——splitter 与 aside 仍直接是 flex item -->
-    <div class="contents">
-        <!-- splitter -->
-        <div class="w-1 cursor-col-resize hover:bg-primary/40 transition-colors shrink-0"
+         同时不破坏父级 flex 布局——splitter 与 aside 仍直接是 flex item。
+         移动端 (mobile=true) 在 daisyUI drawer-side 内嵌套：不需 splitter，宽度由 drawer 控制。 -->
+    <div :class="mobile ? 'flex h-full w-full bg-base-100' : 'contents'">
+        <!-- splitter：仅 PC 布局需要 -->
+        <div v-if="!mobile" class="w-1 cursor-col-resize hover:bg-primary/40 transition-colors shrink-0"
             :class="{ 'bg-primary/40': isDragging }" @mousedown="onSplitterMouseDown" @dblclick="onSplitterDblClick" />
 
         <!-- panel -->
-        <aside class="bg-base-100 border-l border-base-200 flex flex-col shrink-0 overflow-hidden"
-            :style="{ width: effectiveWidth + 'px' }">
+        <aside class="bg-base-100 flex flex-col shrink-0 overflow-hidden"
+            :class="mobile ? 'flex-1 w-full' : 'border-l border-base-200'"
+            :style="mobile ? undefined : { width: effectiveWidth + 'px' }">
             <!-- header: tabs + actions -->
             <div class="flex items-center justify-between border-b border-base-200 px-2 py-2 shrink-0">
                 <div class="tabs tabs-sm">

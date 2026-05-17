@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onActivated, watch, reactive, toRef, nextTick } from 'vue'
+import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
@@ -520,11 +521,19 @@ function handleWorkspaceShortcut(e: KeyboardEvent) {
 // - 主聊天路由：直接可见
 // - tasks / archived split-view 路由：仅在选中 session（= 聊天区已渲染）时可见，
 //   否则只有 session 列表 + 空状态，panel 嵌上去也没意义。
-const showWorkspacePanel = computed(() =>
-    wsPanel.isOpen.value
-    && !!chatState.agentsSelectedId
+//
+// canShow 不含 isOpen：供移动端 drawer DOM 始终挂载，让 daisyUI drawer-toggle
+// 动画能走；isOpen 仅影响 PC 内联 panel 是否 mount。
+const canShowWorkspacePanel = computed(() =>
+    !!chatState.agentsSelectedId
     && (!isSplitViewRoute.value || !!typeSelectedKey.value),
 )
+const showWorkspacePanel = computed(() =>
+    wsPanel.isOpen.value && canShowWorkspacePanel.value,
+)
+
+// 移动端判断与 tailwind lg 断点一致（1024px）
+const isMobile = useMediaQuery('(max-width: 1023px)')
 const showWorkspaceViewer = computed(() => wsViewer.isActive.value)
 
 // Viewer 关闭后恢复聊天区滚动位置：viewer 打开时 messagesContainerRef 对应的 div 会被 v-else-if
@@ -536,6 +545,33 @@ watch(() => wsViewer.isActive.value, async (active, prev) => {
         restoreIfSaved()
     }
 })
+
+// 移动端：viewer 打开 / 切换 target 时自动关 drawer。
+// drawer 是从右侧滑出占满屏的，viewer 也是全屏替代主区，不关会被 drawer 盖不可见。
+// 这里 watch viewer.current（而非 isActive）以便同样在从一个文件切到另一个时也生效。
+watch(() => wsViewer.current.value, (curr) => {
+    if (curr && isMobile.value) {
+        wsPanel.close()
+    }
+})
+
+// 移动端进入时强制收起 drawer：
+// store.workspacePanel.open 是跨会话持久化的，适合 PC 记忆侧栏布局，
+// 但移动端不应该在加载 / 视口变窄时默认展开盖住全屏。
+// 规则：只要 isMobile 由 false→true（含初始）且 drawer 是开的 → close 一次。
+watch(isMobile, (mobile) => {
+    if (mobile && wsPanel.isOpen.value) {
+        wsPanel.close()
+    }
+}, { immediate: true })
+
+// 移动端 drawer 内容懒加载：只有用户第一次打开过（isOpen 变 true）才挂载 WorkspacePanel，
+// 之后保持挂载利用缓存。这样未访问过 drawer 的用户不会付出任何 tree/repos 请求代价。
+// daisyUI 的动画作用于 drawer-side > *:first-child，包一层 v-if 不影响滑入动画。
+const mobilePanelMounted = ref(false)
+watch(() => wsPanel.isOpen.value, (open) => {
+    if (open) mobilePanelMounted.value = true
+}, { immediate: true })
 
 // Session / Agent 切换时关闭 viewer：
 // - 设计决定（与用户确认）：切 session 一律关 viewer，不区分是否同 agent。
@@ -733,5 +769,21 @@ async function applyDefaultSessionBehavior() {
         <!-- Workspace Panel (PC 右侧侧栏，可拖宽) -->
         <WorkspacePanel v-if="showWorkspacePanel" :agent-id="chatState.agentsSelectedId || ''"
             class="hidden lg:contents" />
+
+        <!-- Workspace Panel (移动端右侧 drawer，与 AppSidebar 左侧 drawer 的模式一致)
+             drawer-end 让它从右侧滑出。canShow 不含 isOpen： DOM 常驻才能走 daisyUI 动画。
+             :checked 反映 store 状态、@change 接住点击 overlay 隐含的 toggle。
+             内层 v-if="mobilePanelMounted" 实现懒加载：未访问过 drawer 的用户不走任何 fetch。 -->
+        <div v-if="canShowWorkspacePanel" class="drawer drawer-end lg:hidden absolute inset-0 pointer-events-none z-[100]">
+            <input id="workspace-drawer" type="checkbox" class="drawer-toggle pointer-events-auto"
+                :checked="wsPanel.isOpen.value"
+                @change="(e: Event) => (e.target as HTMLInputElement).checked ? wsPanel.open() : wsPanel.close()" />
+            <div class="drawer-side pointer-events-auto h-full">
+                <label for="workspace-drawer" :aria-label="$t('common.close')" class="drawer-overlay"></label>
+                <div class="h-full bg-base-100" style="width: min(85vw, 400px)">
+                    <WorkspacePanel v-if="mobilePanelMounted" :agent-id="chatState.agentsSelectedId || ''" :mobile="true" />
+                </div>
+            </div>
+        </div>
     </div>
 </template>

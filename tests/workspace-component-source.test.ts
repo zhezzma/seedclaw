@@ -18,6 +18,9 @@ test('WorkspacePanel: 包含 tab 切换、splitter、close 与 width 应用', ()
     assert.match(src, /role="tab"|tab-group|tab tab-/, 'must have tab UI')
     assert.match(src, /col-resize/, 'splitter must use col-resize cursor')
     assert.match(src, /:style=".*width/, 'panel width must bind from composable')
+    // 移动端：接受 mobile prop，在移动模式下隐藏 splitter / 不用像素宽度
+    assert.match(src, /mobile\??:\s*boolean/, 'must accept mobile prop')
+    assert.match(src, /v-if="!mobile"/, 'splitter must be hidden in mobile drawer mode')
 })
 
 test('WorkspaceTabFiles: 调用 tree composable + viewer.openFile', () => {
@@ -157,12 +160,22 @@ test('WorkspaceDiffEditor: monaco diff editor + split/inline 切换', () => {
     assert.doesNotMatch(src, /hljs/, 'must NOT fall back to hljs unified diff')
 })
 
-test('ChatHeader: 包含 RectangleGroupIcon panel toggle (PC only)', () => {
+test('ChatHeader: 包含 RectangleGroupIcon panel toggle，PC 与移动端共用', () => {
     const src = read('src/components/chat/ChatHeader.vue')
     assert.match(src, /RectangleGroupIcon/, 'must import RectangleGroupIcon for workspace toggle')
     assert.match(src, /useWorkspacePanel/, 'must call useWorkspacePanel')
     assert.match(src, /panel\.toggle/, 'toggle button must call panel.toggle')
-    assert.match(src, /hidden lg:flex|hidden lg:inline-flex/, 'toggle must be PC only')
+    // 防回归：panel toggle 不能被限定为 PC only，移动端也需要能打开 right-drawer
+    assert.match(src, /v-if="chatState\.agentsSelectedId"\s+@click="panel\.toggle\(\)"/,
+        'panel toggle must live outside the PC-only `hidden lg:flex` block')
+    // 该按钮在选中 agent 时才显示，避免点开空 drawer
+    assert.match(src, /chatState\.agentsSelectedId/, 'must hide toggle when no agent selected')
+    // 负向断言：该按钮不能再携 hidden lg:inline-flex（那是之前的 PC-only 状态）
+    assert.doesNotMatch(
+        src,
+        /hidden lg:inline-flex[^"]*"[^>]*workspace\.toggle/,
+        'workspace toggle must NOT carry the PC-only `hidden lg:inline-flex` class anymore'
+    )
 })
 
 test('HomeView: 接入 WorkspacePanel + WorkspaceViewer + 快捷键', () => {
@@ -178,10 +191,19 @@ test('HomeView: 接入 WorkspacePanel + WorkspaceViewer + 快捷键', () => {
     assert.match(src, /chatState\.agentsSelectedId/, 'must also watch agentsSelectedId (for /new agent dropdown)')
     assert.match(src, /wsViewer\.close\(\)/, 'session/agent switch must close viewer')
     assert.match(src, /discardedDirty/, 'must toast discardedDirty when closing dirty viewer')
-    // 明确不走 !prev 过滤 —— null→realKey 是合法切换
     assert.doesNotMatch(src, /if \(!prev\)\s/, 'must NOT skip null→value transition with !prev guard on session watch')
     // split-view 路由下选中 session 后 panel 仍可见
     assert.match(src, /typeSelectedKey/, 'showWorkspacePanel must consider typeSelectedKey for split-view routes')
+    // 移动端 drawer
+    assert.match(src, /workspace-drawer/, 'must mount mobile right-drawer (id=workspace-drawer)')
+    assert.match(src, /drawer-end/, 'mobile workspace drawer must slide from the right')
+    assert.match(src, /:mobile="true"/, 'mobile WorkspacePanel must receive mobile prop')
+    assert.match(src, /useMediaQuery/, 'must use useMediaQuery to gate viewer-auto-close behaviour')
+    assert.match(src, /wsViewer\.current/, 'must watch viewer.current to auto-close drawer on mobile')
+    // 防回归：isMobile 进入时强制 wsPanel.close，避免跨会话持久化的 isOpen 在 mobile 上默认盖屏
+    assert.match(src, /watch\(isMobile/, 'must watch isMobile to force-close drawer when entering mobile breakpoint')
+    // 防回归：mobile drawer 内容懒加载，避免未访问者付出 fetch 代价
+    assert.match(src, /mobilePanelMounted/, 'mobile drawer body must be lazy-mounted on first open')
 })
 
 test('WorkspaceFileView: 向 viewer 同步 dirty 状态', () => {
