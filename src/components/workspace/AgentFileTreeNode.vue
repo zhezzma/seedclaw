@@ -16,6 +16,7 @@ import {
 import { useAgentFiles } from '../../composables/useAgentFiles'
 import { useContextMenu } from '../../composables/useContextMenu'
 import { buildFileMenuItems } from '../../composables/useFileActions'
+import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
 import type { TreeEntry } from '../../composables/workspace-api'
 
 defineOptions({ name: 'AgentFileTreeNode' })
@@ -29,6 +30,7 @@ const props = defineProps<{
 
 const tree = useAgentFiles()
 const ctxMenu = useContextMenu()
+const viewer = useWorkspaceViewer()
 const expanded = computed(() => tree.isExpanded(props.entry.path))
 const children = computed(() => tree.entriesAt(props.entry.path)?.entries || [])
 const isLoadingChildren = computed(() => tree.isLoading(props.entry.path))
@@ -44,7 +46,7 @@ function onRowContextMenu(e: MouseEvent) {
     ctxMenu.openAt(
         buildFileMenuItems({
             agentId: props.agentId, entry: props.entry, scope: 'agent',
-            root: rootDir.value, onMutated,
+            root: rootDir.value, onMutated, onDeleted,
         }),
         { x: e.clientX, y: e.clientY },
     )
@@ -55,7 +57,7 @@ function onKebabClick(e: MouseEvent) {
     ctxMenu.openAtElement(
         buildFileMenuItems({
             agentId: props.agentId, entry: props.entry, scope: 'agent',
-            root: rootDir.value, onMutated,
+            root: rootDir.value, onMutated, onDeleted,
         }),
         e.currentTarget as HTMLElement,
     )
@@ -65,6 +67,16 @@ function onKebabClick(e: MouseEvent) {
 async function onMutated(parent: string) {
     tree.invalidate(parent)
     await tree.loadPath(props.agentId, parent)
+}
+
+/** 删除后如果 viewer 正在看这个 agent 配置文件（或其父目录被删）就关闭 viewer。
+ *  仅 viewer.current.type='agent-file' 才处理。 */
+function onDeleted(deletedPath: string) {
+    const cur = viewer.current.value
+    if (!cur || cur.type !== 'agent-file') return
+    if (cur.path === deletedPath || cur.path.startsWith(deletedPath + '/')) {
+        viewer.close()
+    }
 }
 </script>
 

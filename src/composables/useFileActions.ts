@@ -46,6 +46,11 @@ interface BuildArgs {
      * useFileActions 不跨模块 import tree composable。
      */
     onMutated?: (parentPath: string) => void | Promise<void>
+    /**
+     * 删除完成后的额外回调，传入被删路径。TreeNode 负责检查
+     * viewer.current?.path === deletedPath 则关闭 viewer（避免查看已不存在的文件）。
+     */
+    onDeleted?: (deletedPath: string) => void | Promise<void>
 }
 
 /** 在不引入对 vue-i18n 的强耦合下取译文；i18n.global 由 main 初始化。 */
@@ -98,6 +103,59 @@ function joinChild(parent: string, child: string): string {
     return parent ? `${parent}/${child}` : child
 }
 
+export interface RootMutationArgs {
+    agentId: string
+    scope: FileScope
+    /** 该能为""（根）或任意已存在目录的相对路径。 */
+    parentPath: string
+    onMutated?: (parentPath: string) => void | Promise<void>
+}
+
+/**
+ * 在 parentPath 下 prompt 创建新文件。菜单 entry-context 与根目录 toolbar 共用这个入口。
+ */
+export async function runNewFileFlow(args: RootMutationArgs): Promise<void> {
+    const { agentId, scope, parentPath, onMutated } = args
+    const toast = useToast()
+    const raw = window.prompt(tr('workspace.menu.newFilePrompt'))
+    if (raw === null) return
+    const name = validateChildName(raw)
+    if (!name) {
+        toast.error(tr('workspace.menu.invalidName'))
+        return
+    }
+    const childPath = joinChild(parentPath, name)
+    const create = scope === 'agent' ? createAgentFile : createFile
+    try {
+        await create(agentId, childPath)
+        if (onMutated) await onMutated(parentPath)
+        toast.success(tr('workspace.menu.created'))
+    } catch (e: any) {
+        toast.error(`${tr('workspace.menu.newFile')}: ${e?.message || String(e)}`)
+    }
+}
+
+export async function runNewDirFlow(args: RootMutationArgs): Promise<void> {
+    const { agentId, scope, parentPath, onMutated } = args
+    const toast = useToast()
+    const raw = window.prompt(tr('workspace.menu.newDirPrompt'))
+    if (raw === null) return
+    const name = validateChildName(raw)
+    if (!name) {
+        toast.error(tr('workspace.menu.invalidName'))
+        return
+    }
+    const childPath = joinChild(parentPath, name)
+    const mkdir = scope === 'agent' ? createAgentDir : createDir
+    try {
+        await mkdir(agentId, childPath)
+        if (onMutated) await onMutated(parentPath)
+        toast.success(tr('workspace.menu.created'))
+    } catch (e: any) {
+        toast.error(`${tr('workspace.menu.newDir')}: ${e?.message || String(e)}`)
+    }
+}
+
 /** 检验 prompt() 收到的名字：不能是绝对路径、不能含 .. / 。返回规范后的 POSIX-style
  *  路径段（可能含中间 /，让用户能一口气输 sub/foo.md）；非法返回 null。
  *  调用者需区分 prompt 取消（原始 null）与非法输入（本函数返回 null）两种状态。 */
@@ -115,7 +173,7 @@ function validateChildName(raw: string | null): string | null {
 }
 
 export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
-    const { entry, scope, agentId, root, onMutated } = args
+    const { entry, scope, agentId, root, onMutated, onDeleted } = args
     const isFile = entry.type === 'file'
     const isDir = entry.type === 'dir'
     const toast = useToast()
@@ -123,14 +181,11 @@ export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
     // @引用 syntax 区分 scope：agent 配置文件用 @agent: 前缀，避免和 workspace 路径冲突
     const mention = scope === 'agent' ? `@agent:${entry.path}` : `@${entry.path}`
 
-    /** mutation 完成后的刷新动作：调用者负责 invalidate + loadPath。
-     *  parent 不会为 undefined —— 新建、删除都以 entry 的父为错。 */
+    /** mutation 完成后的刷新动作：调用者负责 invalidate + loadPath。 */
     const mutate = async (parent: string) => {
         if (onMutated) await onMutated(parent)
     }
 
-    const create = scope === 'agent' ? createAgentFile : createFile
-    const mkdir = scope === 'agent' ? createAgentDir : createDir
     const rmFile = scope === 'agent' ? deleteAgentFile : deleteFile
     const rmDir = scope === 'agent' ? deleteAgentDir : deleteDir
 
@@ -209,47 +264,21 @@ export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
             icon: DocumentPlusIcon,
             separator: true,
             disabled: !isDir,
-            action: async () => {
-                const raw = window.prompt(tr('workspace.menu.newFilePrompt'))
-                if (raw === null) return // 取消
-                const name = validateChildName(raw)
-                if (!name) {
-                    toast.error(tr('workspace.menu.invalidName'))
-                    return
-                }
-                const parent = parentOf(entry)
-                const childPath = joinChild(parent, name)
-                try {
-                    await create(agentId, childPath)
-                    await mutate(parent)
-                    toast.success(tr('workspace.menu.created'))
-                } catch (e: any) {
-                    toast.error(`${tr('workspace.menu.newFile')}: ${e?.message || String(e)}`)
-                }
-            },
+            action: () => runNewFileFlow({
+                agentId, scope,
+                parentPath: parentOf(entry),
+                onMutated,
+            }),
         },
         {
             label: tr('workspace.menu.newDir'),
             icon: FolderPlusIcon,
             disabled: !isDir,
-            action: async () => {
-                const raw = window.prompt(tr('workspace.menu.newDirPrompt'))
-                if (raw === null) return // 取消
-                const name = validateChildName(raw)
-                if (!name) {
-                    toast.error(tr('workspace.menu.invalidName'))
-                    return
-                }
-                const parent = parentOf(entry)
-                const childPath = joinChild(parent, name)
-                try {
-                    await mkdir(agentId, childPath)
-                    await mutate(parent)
-                    toast.success(tr('workspace.menu.created'))
-                } catch (e: any) {
-                    toast.error(`${tr('workspace.menu.newDir')}: ${e?.message || String(e)}`)
-                }
-            },
+            action: () => runNewDirFlow({
+                agentId, scope,
+                parentPath: parentOf(entry),
+                onMutated,
+            }),
         },
         {
             label: tr('workspace.menu.delete'),
@@ -266,6 +295,7 @@ export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
                     if (isDir) await rmDir(agentId, entry.path)
                     else await rmFile(agentId, entry.path)
                     await mutate(parentOf(entry))
+                    if (onDeleted) await onDeleted(entry.path)
                     toast.success(tr('workspace.menu.deleted'))
                 } catch (e: any) {
                     toast.error(`${tr('workspace.menu.delete')}: ${e?.message || String(e)}`)

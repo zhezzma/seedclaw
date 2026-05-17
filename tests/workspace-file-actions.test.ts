@@ -198,3 +198,46 @@ test('useFileActions: validateChildName 拦截 Windows 盘符绝对路径', () =
     // reviewer Nit: C:\foo / D:/bar 也要拦，与 “不能是绝对路径” 语义一致
     assert.match(src, /\^\[a-zA-Z\]:\[\\\\\/\]/, 'must reject Windows drive-letter absolute paths')
 })
+
+test('useFileActions: 暴露 runNewFileFlow / runNewDirFlow 入口供 toolbar 共用', () => {
+    // 根目录工具栏与右键菜单共用同一组流程，避免 prompt + validate + create 逻辑两边走样
+    assert.match(src, /export async function runNewFileFlow/, 'must export runNewFileFlow')
+    assert.match(src, /export async function runNewDirFlow/, 'must export runNewDirFlow')
+    // 接受 parentPath 作为入参，可为 ""（根）或任意已存在目录
+    assert.match(src, /parentPath: string/, 'RootMutationArgs must accept parentPath')
+})
+
+test('useFileActions: BuildArgs 暴露 onDeleted 回调供关闭 viewer 用', () => {
+    assert.match(src, /onDeleted\?:/, 'BuildArgs must accept onDeleted callback')
+    // delete action 必须先 mutate 再 onDeleted
+    assert.match(src, /await mutate\(parentOf\(entry\)\)\s*\n\s*if \(onDeleted\) await onDeleted\(entry\.path\)/, 'must call onDeleted after mutate')
+})
+
+test('FileTreeNode: 删除后用 viewer.current 检查，路径匹配则关闭 viewer', () => {
+    const src = read('src/components/workspace/FileTreeNode.vue')
+    assert.match(src, /useWorkspaceViewer/, 'must read viewer composable')
+    assert.match(src, /function onDeleted\(deletedPath: string\)/, 'must implement onDeleted')
+    // 必须比较 viewer.current.path === deletedPath（或被删的目录是当前文件的父）
+    assert.match(src, /cur\.path === deletedPath/, 'must close viewer when current file is deleted')
+    assert.match(src, /cur\.path\.startsWith\(deletedPath \+ '\/'\)/, 'must close viewer when ancestor dir is deleted')
+})
+
+test('AgentFileTreeNode: 删除后用 viewer.current 检查，类型为 agent-file 才处理', () => {
+    const src = read('src/components/workspace/AgentFileTreeNode.vue')
+    assert.match(src, /useWorkspaceViewer/, 'must read viewer composable')
+    assert.match(src, /cur\.type !== 'agent-file'/, 'agent-file scope must check type=agent-file')
+})
+
+test('WorkspaceTabFiles: 根目录 toolbar 提供 New File / New Dir 按钮', () => {
+    const src = read('src/components/workspace/WorkspaceTabFiles.vue')
+    // 工具栏调用 runNewFileFlow / runNewDirFlow，parentPath: ''
+    assert.match(src, /runNewFileFlow/, 'toolbar must call runNewFileFlow')
+    assert.match(src, /runNewDirFlow/, 'toolbar must call runNewDirFlow')
+    assert.match(src, /parentPath: ''/, 'root toolbar must pass parentPath: \'\'')
+    // workspace 与 agent 各自一组（onMutated 也分两个，避免串台）
+    assert.match(src, /onMutatedWorkspace/, 'must define separate onMutated for workspace tree')
+    assert.match(src, /onMutatedAgent/, 'must define separate onMutated for agent files tree')
+    // toolbar 用图标按钮（DocumentPlus / FolderPlus）
+    assert.match(src, /DocumentPlusIcon/, 'toolbar must use DocumentPlusIcon')
+    assert.match(src, /FolderPlusIcon/, 'toolbar must use FolderPlusIcon')
+})

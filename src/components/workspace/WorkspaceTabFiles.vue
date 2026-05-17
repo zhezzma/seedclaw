@@ -3,20 +3,24 @@
  * Files Tab：以 workspace 根为树根的懒加载目录树。
  *
  * 布局（VSCode 风格）：
- * - 主区：workspace 目录树，flex-1 + 内部滚动
- * - 底部：可折叠 "Agent Files" 区，固定高度内部滚动；展示 paths.agentDir 下的配置文件
+ * - 主区：workspace 目录树（顶部 toolbar + flex-1 + 内部滚动）
+ * - 底部：可折叠 "Agent Files" 区，顶部 toolbar；展示 paths.agentDir 下的配置文件
  *
  * 点击文件 → 进入 Viewer 模式（替换聊天主区）。
  * 点击 git 仓库徽章 → 切到 Git tab 并选中此仓库。
+ *
+ * Toolbar 提供根目录下的「新建文件 / 新建目录」入口，与右键菜单走同一组 runNew* 流程。
  */
 import { onMounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { DocumentPlusIcon, FolderPlusIcon } from '@heroicons/vue/24/outline'
 import { useWorkspaceTree } from '../../composables/useWorkspaceTree'
 import { useAgentFiles } from '../../composables/useAgentFiles'
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
 import { useWorkspacePanel } from '../../composables/useWorkspacePanel'
 import { useToast } from '../../composables/useToast'
 import { useConfirm } from '../../composables/useConfirm'
+import { runNewFileFlow, runNewDirFlow } from '../../composables/useFileActions'
 import type { TreeEntry } from '../../composables/workspace-api'
 import FileTreeNode from './FileTreeNode.vue'
 import AgentFileTreeNode from './AgentFileTreeNode.vue'
@@ -94,10 +98,47 @@ async function onClickAgentEntry(entry: TreeEntry) {
 const rootResult = computed(() => tree.entriesAt(''))
 const agentRootResult = computed(() => agentFiles.entriesAt(''))
 const agentFilesCount = computed(() => agentRootResult.value?.entries.length ?? null)
+
+// ── 根目录 toolbar：runNew* 由 useFileActions 暴露，与右键菜单共用一套流程。
+//    onMutated 在本组件内的 composable 实例上 invalidate + loadPath，避免 HMR singleton 分裂。
+async function onMutatedWorkspace(parent: string) {
+    tree.invalidate(parent)
+    await tree.loadPath(props.agentId, parent)
+}
+async function onMutatedAgent(parent: string) {
+    agentFiles.invalidate(parent)
+    await agentFiles.loadPath(props.agentId, parent)
+}
+function onNewWorkspaceFile() {
+    runNewFileFlow({ agentId: props.agentId, scope: 'workspace', parentPath: '', onMutated: onMutatedWorkspace })
+}
+function onNewWorkspaceDir() {
+    runNewDirFlow({ agentId: props.agentId, scope: 'workspace', parentPath: '', onMutated: onMutatedWorkspace })
+}
+function onNewAgentFile() {
+    runNewFileFlow({ agentId: props.agentId, scope: 'agent', parentPath: '', onMutated: onMutatedAgent })
+}
+function onNewAgentDir() {
+    runNewDirFlow({ agentId: props.agentId, scope: 'agent', parentPath: '', onMutated: onMutatedAgent })
+}
 </script>
 
 <template>
     <div class="flex flex-col h-full text-sm">
+        <!-- 根目录 toolbar：workspace -->
+        <div class="flex items-center justify-end gap-0.5 px-1 py-1 border-b border-base-200 shrink-0">
+            <button type="button" class="btn btn-ghost btn-xs btn-square"
+                :aria-label="$t('workspace.menu.newFile')" :title="$t('workspace.menu.newFile')"
+                @click="onNewWorkspaceFile">
+                <DocumentPlusIcon class="h-4 w-4" />
+            </button>
+            <button type="button" class="btn btn-ghost btn-xs btn-square"
+                :aria-label="$t('workspace.menu.newDir')" :title="$t('workspace.menu.newDir')"
+                @click="onNewWorkspaceDir">
+                <FolderPlusIcon class="h-4 w-4" />
+            </button>
+        </div>
+
         <!-- 主区：workspace 目录树（flex-1 + 内部滚动） -->
         <div class="flex-1 min-h-0 overflow-y-auto">
             <div v-if="tree.isLoading('')" class="p-3 text-base-content/60">
@@ -119,6 +160,20 @@ const agentFilesCount = computed(() => agentRootResult.value?.entries.length ?? 
         <CollapsibleSection :title="$t('workspace.agentFiles')"
             :open="panel.bottomSections.value.agentFiles" :count="agentFilesCount"
             @toggle="(o: boolean) => panel.setBottomSection('agentFiles', o)">
+            <!-- 根目录 toolbar：agent -->
+            <div class="flex items-center justify-end gap-0.5 px-1 py-1 border-b border-base-200/60">
+                <button type="button" class="btn btn-ghost btn-xs btn-square"
+                    :aria-label="$t('workspace.menu.newFile')" :title="$t('workspace.menu.newFile')"
+                    @click="onNewAgentFile">
+                    <DocumentPlusIcon class="h-4 w-4" />
+                </button>
+                <button type="button" class="btn btn-ghost btn-xs btn-square"
+                    :aria-label="$t('workspace.menu.newDir')" :title="$t('workspace.menu.newDir')"
+                    @click="onNewAgentDir">
+                    <FolderPlusIcon class="h-4 w-4" />
+                </button>
+            </div>
+
             <div v-if="agentFiles.isLoading('')" class="p-3 text-base-content/60">
                 <span class="loading loading-spinner loading-xs mr-2" />{{ $t('common.loading') }}
             </div>
