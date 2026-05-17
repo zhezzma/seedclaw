@@ -16,6 +16,7 @@ import { useAgentFiles } from '../../composables/useAgentFiles'
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
 import { useWorkspacePanel } from '../../composables/useWorkspacePanel'
 import { useToast } from '../../composables/useToast'
+import { useConfirm } from '../../composables/useConfirm'
 import type { TreeEntry } from '../../composables/workspace-api'
 import FileTreeNode from './FileTreeNode.vue'
 import AgentFileTreeNode from './AgentFileTreeNode.vue'
@@ -27,6 +28,7 @@ const agentFiles = useAgentFiles()
 const viewer = useWorkspaceViewer()
 const panel = useWorkspacePanel()
 const toast = useToast()
+const { confirm } = useConfirm()
 const { t } = useI18n()
 
 onMounted(() => {
@@ -44,7 +46,13 @@ watch(
     { immediate: true },
 )
 
-function onClickEntry(entry: TreeEntry) {
+/** 切文件前统一拦截：仅在 viewer 为该文件有未保存改动时拦 confirm。 */
+async function confirmIfDirty(): Promise<boolean> {
+    if (!viewer.dirty.value) return true
+    return await confirm(t('workspace.unsavedChanges'), t('common.confirm'))
+}
+
+async function onClickEntry(entry: TreeEntry) {
     if (entry.type === 'symlink') {
         toast.warning(t('workspace.symlinkBlocked'))
         return
@@ -54,10 +62,12 @@ function onClickEntry(entry: TreeEntry) {
         if (tree.isExpanded(entry.path)) {
             tree.loadPath(props.agentId, entry.path)
         }
-    } else {
-        // file → viewer：传递**相对 workspace** 路径，后端 agent-scoped /file 接口 resolveSafe 会负责拼绝对路径
-        viewer.openFile(entry.path)
+        return
     }
+    // file → viewer：切文件前询问丢弃（WorkspaceViewer.close 只拦 back/Esc，这里补充 tree 路径）。
+    // 传递相对 workspace 路径，后端 agent-scoped /file 接口 resolveSafe 负责拼绝对路径。
+    if (!await confirmIfDirty()) return
+    viewer.openFile(entry.path)
 }
 
 function onClickRepoBadge(entry: TreeEntry) {
@@ -65,7 +75,7 @@ function onClickRepoBadge(entry: TreeEntry) {
     panel.setRepoForAgent(props.agentId, entry.path)
 }
 
-function onClickAgentEntry(entry: TreeEntry) {
+async function onClickAgentEntry(entry: TreeEntry) {
     if (entry.type === 'symlink') {
         toast.warning(t('workspace.symlinkBlocked'))
         return
@@ -75,9 +85,10 @@ function onClickAgentEntry(entry: TreeEntry) {
         if (agentFiles.isExpanded(entry.path)) {
             agentFiles.loadPath(props.agentId, entry.path)
         }
-    } else {
-        viewer.openAgentFile(entry.path)
+        return
     }
+    if (!await confirmIfDirty()) return
+    viewer.openAgentFile(entry.path)
 }
 
 const rootResult = computed(() => tree.entriesAt(''))

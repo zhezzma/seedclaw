@@ -31,6 +31,10 @@ test('WorkspaceTabFiles: 调用 tree composable + viewer.openFile', () => {
     assert.match(src, /CollapsibleSection/, 'must use shared CollapsibleSection')
     assert.match(src, /openAgentFile/, 'must dispatch viewer.openAgentFile for agent entries')
     assert.match(src, /AgentFileTreeNode/, 'must render AgentFileTreeNode for agent dir')
+    // 防回归：点击 tree 切文件前需要 dirty 确认
+    assert.match(src, /useConfirm/, 'must import useConfirm to gate file switching when viewer is dirty')
+    assert.match(src, /viewer\.dirty/, 'must read viewer.dirty before switching files')
+    assert.match(src, /confirmIfDirty/, 'must guard openFile / openAgentFile with confirmIfDirty')
 })
 
 test('FileTreeNode: 递归、区分 file/dir/symlink、isGitRepo 徽章', () => {
@@ -107,6 +111,11 @@ test('WorkspaceViewer: 通过 type 切换 file vs diff', () => {
     assert.match(src, /WorkspaceFileView/, 'must use WorkspaceFileView for file mode')
     assert.match(src, /WorkspaceDiffEditor/, 'must use WorkspaceDiffEditor for diff mode')
     assert.match(src, /Escape/, 'must support Esc to close')
+    // 防回归：全局 Ctrl/Cmd+S 快捷键（monaco addCommand 仅在编辑器获焦时生效，
+    // 这里补充 viewer 范围内任意焦点都能响应）
+    assert.match(src, /onSaveShortcut|ctrlKey.*metaKey|metaKey.*ctrlKey/,
+        'must register a viewer-scoped Ctrl/Cmd+S handler')
+    assert.match(src, /'keydown'/, 'must register keydown listener for shortcuts')
 })
 
 test('WorkspaceFileView: 默认可编辑 + 保存 + dirty 追踪，无 view/edit toggle', () => {
@@ -123,6 +132,17 @@ test('WorkspaceFileView: 默认可编辑 + 保存 + dirty 追踪，无 view/edit
     assert.match(src, /scope/, 'must accept scope prop for workspace/agent file routing')
     assert.match(src, /fetchAgentFile/, 'must support agent scope')
     assert.match(src, /saveAgentFile/, 'must save via agent scope endpoint')
+    // 防回归：save() 必须带 loading guard，避免 load 窗口内写旧内容到新路径
+    assert.match(src, /loading\.value/, 'save() must guard against in-flight load')
+    // 防回归：props 变化必须同步重置 content/baseline，避免 viewer.dirty 错挂新路径
+    assert.match(
+        src,
+        /watch\(\(\) => \[props\.agentId, props\.path[^]+?content\.value = ''[^]+?baselineContent\.value = ''/,
+        'switching props must reset content/baseline before loadFile'
+    )
+    // 防回归：fetch 期间 editor 临时只读（避免输入被 setValue 覆盖）
+    assert.match(src, /editor\?\.updateOptions\(\{ readOnly: true \}\)/,
+        'must temporarily set readOnly during load to avoid losing edits')
 })
 
 test('WorkspaceDiffEditor: monaco diff editor + split/inline 切换', () => {

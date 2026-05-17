@@ -95,6 +95,18 @@ async function onEscape(e: KeyboardEvent) {
     await close()
 }
 
+/** 全局 Ctrl/Cmd+S：monaco 的 addCommand 仅在 editor 获焦时生效，
+ *  用户点过面包屑 / Save 按钮区 / 刚切完 tree 等场景下焦点不在 editor，
+ *  默认 Ctrl+S 会被浏览器吃授成“保存网页”，这里在 viewer 范围内兼负。 */
+async function onSaveShortcut(e: KeyboardEvent) {
+    if (!(e.ctrlKey || e.metaKey)) return
+    if (e.key !== 's' && e.key !== 'S') return
+    if (e.isComposing) return
+    if (!isFileMode.value) return
+    e.preventDefault()
+    await fileViewRef.value?.save()
+}
+
 async function focusRoot() {
     await nextTick()
     rootRef.value?.focus()
@@ -102,9 +114,13 @@ async function focusRoot() {
 
 onMounted(() => {
     document.addEventListener('keydown', onEscape)
+    document.addEventListener('keydown', onSaveShortcut)
     focusRoot()
 })
-onUnmounted(() => document.removeEventListener('keydown', onEscape))
+onUnmounted(() => {
+    document.removeEventListener('keydown', onEscape)
+    document.removeEventListener('keydown', onSaveShortcut)
+})
 
 // 切换 target 时重新 focus，避免中途用户点过 ChatInput textarea 导致 Esc 被 textarea 吞掉。
 watch(target, () => {

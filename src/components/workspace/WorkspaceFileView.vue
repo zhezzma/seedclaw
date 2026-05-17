@@ -113,6 +113,9 @@ async function loadFile(path: string) {
     error.value = null
     isBinary.value = false
     isTruncated.value = false
+    // 在 fetch 期间临时强制只读：避免用户在 await 窗口内的输入被随后的 setValue 打丢。
+    // load 末尾会按 isReadOnly.value 恢复。
+    editor?.updateOptions({ readOnly: true })
     try {
         const data = await fetchByScope(props.agentId, path)
         // path 可能在 await 期间变化，比对最新 props 防过期响应
@@ -155,16 +158,24 @@ async function loadFile(path: string) {
 }
 
 async function save(): Promise<boolean> {
-    if (!editor || isSaving.value) return false
+    // load 期间拒绝 save：此时 content/baseline 还是上一个文件的，但 props.path 已是新文件，
+    // 直接取 editor.getValue() 写出去会把旧内容覆到新路径 → 静默数据损坏。
+    if (!editor || isSaving.value || loading.value) return false
     if (isReadOnly.value) return false
     if (!isDirty.value) return true
-    const path = props.path
+    // 三联快照：仅当 await 后 props 未变，才可以把中途的 next 记录为新 baseline。
+    const pathAtStart = props.path
+    const agentAtStart = props.agentId
+    const scopeAtStart = scope.value
     const next = editor.getValue()
     isSaving.value = true
     try {
-        await saveByScope(props.agentId, path, next)
-        // path 可能在 await 期间变化（用户切了别的文件）；只有当前 path 仍是该文件才更新 baseline
-        if (path === props.path) {
+        await saveByScope(agentAtStart, pathAtStart, next)
+        if (
+            pathAtStart === props.path
+            && agentAtStart === props.agentId
+            && scopeAtStart === scope.value
+        ) {
             baselineContent.value = next
             content.value = next
         }
@@ -204,7 +215,11 @@ onMounted(() => {
 })
 
 // path / agentId / scope 变化即重拉
+// 同步重置 content/baseline：避免上一个文件的 dirty 状态在 fetch await 窗口内被
+// `[isDirty, props.path]` watcher 误认为新文件的 dirty → viewer.dirty 错挂。
 watch(() => [props.agentId, props.path, scope.value], () => {
+    content.value = ''
+    baselineContent.value = ''
     loadFile(props.path)
 })
 
