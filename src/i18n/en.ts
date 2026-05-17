@@ -820,8 +820,8 @@ export default {
         menu: {
             copyPath: 'Copy Path',
             copyName: 'Copy Name',
-            copyMention: 'Copy as @reference',
-            sendMention: 'Send @reference to Chat',
+            copyMention: "Copy as {'@'}reference",
+            sendMention: "Send {'@'}reference to Chat",
             sendContent: 'Send Content to Chat',
             copied: 'Copied',
             sentToChat: 'Sent to Chat',

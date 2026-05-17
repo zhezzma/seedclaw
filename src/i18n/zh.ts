@@ -819,8 +819,8 @@ export default {
         menu: {
             copyPath: '复制路径',
             copyName: '复制文件名',
-            copyMention: '复制为 @引用',
-            sendMention: '发送 @引用到聊天',
+            copyMention: "复制为 {'@'}引用",
+            sendMention: "发送 {'@'}引用到聊天",
             sendContent: '发送文件内容到聊天',
             copied: '已复制',
             sentToChat: '已发送到聊天',
