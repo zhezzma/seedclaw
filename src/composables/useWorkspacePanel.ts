@@ -21,17 +21,20 @@ function persistPanel(patch: Partial<{
     width: number
     tab: 'files' | 'git'
     bottomSections: Partial<{ history: boolean; agentFiles: boolean }>
+    statusGroups: Partial<{ staged: boolean; unstaged: boolean }>
 }>) {
     const store = useUiSettingsStore()
-    // 先从 patch 中抽出 bottomSections（Partial），后面才能合并为完整类型。
-    // 避免一句 spread 让 next.bottomSections 被推出为 Partial、赋回 store 时报错。
-    const { bottomSections: bsPatch, ...rest } = patch
+    // 先从 patch 中抽出子对象（Partial），才能合并为完整类型。
+    const { bottomSections: bsPatch, statusGroups: sgPatch, ...rest } = patch
     const next = {
         ...store.workspacePanel,
         ...rest,
         bottomSections: bsPatch
             ? { ...store.workspacePanel.bottomSections, ...bsPatch }
             : store.workspacePanel.bottomSections,
+        statusGroups: sgPatch
+            ? { ...store.workspacePanel.statusGroups, ...sgPatch }
+            : store.workspacePanel.statusGroups,
     }
     store.workspacePanel = next
     store.persist()
@@ -73,6 +76,11 @@ export function useWorkspacePanel() {
         bottomSections: computed(() => store.workspacePanel.bottomSections),
         setBottomSection(key: 'history' | 'agentFiles', open: boolean) {
             persistPanel({ bottomSections: { [key]: open } })
+        },
+
+        statusGroups: computed(() => store.workspacePanel.statusGroups),
+        setStatusGroup(key: 'staged' | 'unstaged', open: boolean) {
+            persistPanel({ statusGroups: { [key]: open } })
         },
     }
 }

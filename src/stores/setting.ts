@@ -47,6 +47,10 @@ export interface UiSettings {
             history: boolean
             agentFiles: boolean
         }
+        statusGroups: {
+            staged: boolean
+            unstaged: boolean
+        }
     }
 }
 
@@ -256,6 +260,10 @@ const getDefaultSettings = (): UiSettings => ({
             history: true,
             agentFiles: false,
         },
+        statusGroups: {
+            staged: true,
+            unstaged: true,
+        },
     },
 })
 
@@ -281,6 +289,10 @@ const loadConfig = (): UiSettings => {
                 bottomSections: {
                     ...defaults.workspacePanel.bottomSections,
                     ...(parsedWsPanel.bottomSections ?? {}),
+                },
+                statusGroups: {
+                    ...defaults.workspacePanel.statusGroups,
+                    ...(parsedWsPanel.statusGroups ?? {}),
                 },
             }
             const merged: UiSettings = {

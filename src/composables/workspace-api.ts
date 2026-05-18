@@ -311,6 +311,45 @@ export function deleteAgentDir(agentId: string, path: string): Promise<{ path: s
     return wsDelete(`${base(agentId)}/agent-dir?path=${encodeURIComponent(path)}`)
 }
 
+// ── Git 仓库 mutation: stage / unstage / discard / commit ──
+// files 缺省 = 全部；discard 是危险操作，调用者负责 confirm。
+
+/** git add -A。files 为空指全部（unstaged + untracked + deleted）。 */
+export function stageFiles(agentId: string, repo: string, files?: string[]): Promise<{ ok: true }> {
+    return wsPost(
+        `${base(agentId)}/repo/stage?repo=${encodeURIComponent(repo)}`,
+        files === undefined ? undefined : { files },
+    )
+}
+
+/** git reset HEAD --。files 为空指取消全部暂存。 */
+export function unstageFiles(agentId: string, repo: string, files?: string[]): Promise<{ ok: true }> {
+    return wsPost(
+        `${base(agentId)}/repo/unstage?repo=${encodeURIComponent(repo)}`,
+        files === undefined ? undefined : { files },
+    )
+}
+
+/** 丢弃修改。全部：chekout -- . + clean -fd；指定：tracked 走 restore，untracked 删文件。 */
+export function discardFiles(agentId: string, repo: string, files?: string[]): Promise<{ ok: true }> {
+    return wsPost(
+        `${base(agentId)}/repo/discard?repo=${encodeURIComponent(repo)}`,
+        files === undefined ? undefined : { files },
+    )
+}
+
+/** git commit -m。message 为空 / 空白 → 400；nothing-to-commit 等错误 → 400 + 消息透明。 */
+export function commitChanges(
+    agentId: string,
+    repo: string,
+    message: string,
+): Promise<{ ok: true; head: string | null; output: string }> {
+    return wsPost(
+        `${base(agentId)}/repo/commit?repo=${encodeURIComponent(repo)}`,
+        { message },
+    )
+}
+
 /** 拉 diff 两侧完整文本，供 monaco diff editor 使用。 */
 export function fetchFileVersions(agentId: string, args: DiffArgs): Promise<FileVersions> {
     const params = new URLSearchParams({

@@ -21,6 +21,8 @@
 import { reactive } from 'vue'
 import {
     fetchRepos, fetchStatus, fetchLog, fetchCommitFiles,
+    stageFiles as apiStage, unstageFiles as apiUnstage,
+    discardFiles as apiDiscard, commitChanges as apiCommit,
     type RepoSummary, type RepoStatus, type CommitMeta, type CommitFile,
 } from './workspace-api.ts'
 
@@ -44,6 +46,12 @@ interface GitState {
 
     commitFilesData: Record<string, CommitFile[]>
     commitFilesLoading: Record<string, boolean>
+
+    /** 每 repo 独立记忆的 commit message，在 viewer / tab 切换间保留，agent 切换时重置。 */
+    commitMessages: Record<string, string>
+    /** 正在进行中的 mutation（stage / unstage / discard / commit）标记；
+     *  UI 按钮 过期间禁用，避免重复点击并发 git 命令。 */
+    _mutating: boolean
 }
 
 const state = reactive<GitState>({
@@ -61,6 +69,8 @@ const state = reactive<GitState>({
     _commitsHasMore: true,
     commitFilesData: {},
     commitFilesLoading: {},
+    commitMessages: {},
+    _mutating: false,
 })
 
 // agent 级 epoch：每次 reset() 自增；异步 load 通过比对 epoch 丢弃跨 agent 的旧响应
@@ -88,6 +98,17 @@ const _methods = {
 
     commitFiles: { get value() { return state.commitFilesData } },
 
+    mutating: { get value() { return state._mutating } },
+
+    /** 获取指定 repo 的 commit message（不存在返回空串）。 */
+    getCommitMessage(repo: string): string {
+        return state.commitMessages[repo] ?? ''
+    },
+    /** 写入指定 repo 的 commit message。 */
+    setCommitMessage(repo: string, msg: string) {
+        state.commitMessages[repo] = msg
+    },
+
     reset() {
         agentEpoch++
         state.reposData = []
@@ -104,6 +125,8 @@ const _methods = {
         state._commitsHasMore = true
         state.commitFilesData = {}
         state.commitFilesLoading = {}
+        state.commitMessages = {}
+        state._mutating = false
     },
 
     /**
@@ -214,6 +237,69 @@ const _methods = {
 
     isCommitFilesLoading(ref: string): boolean {
         return state.commitFilesLoading[ref] === true
+    },
+
+    // ── Mutation：stage / unstage / discard / commit ──
+    // 所有 mutation 退出后重拉 status；commit 额外重拉 log。
+    // 错误上抛让调用者决定怎么处理（toast / 保留输入等）。
+    //
+    // Epoch 护栏：跟 loadStatus 同样的模式 — 起手记 myEpoch，api await 后比对；
+    // 不匹配（agent 中途切换 → reset() 走过）则不会再走后续重拉，避免把旧 agent
+    // 的 status 写进新 agent 的 reactive state（两个 agent 同名 repo 同路径时会发生）。
+    async stage(agentId: string, repo: string, files?: string[]): Promise<void> {
+        if (state._mutating) return
+        const myEpoch = agentEpoch
+        state._mutating = true
+        try {
+            await apiStage(agentId, repo, files)
+            if (myEpoch !== agentEpoch) return
+            await _gitState.loadStatus(agentId, repo)
+        } finally {
+            if (myEpoch === agentEpoch) state._mutating = false
+        }
+    },
+    async unstage(agentId: string, repo: string, files?: string[]): Promise<void> {
+        if (state._mutating) return
+        const myEpoch = agentEpoch
+        state._mutating = true
+        try {
+            await apiUnstage(agentId, repo, files)
+            if (myEpoch !== agentEpoch) return
+            await _gitState.loadStatus(agentId, repo)
+        } finally {
+            if (myEpoch === agentEpoch) state._mutating = false
+        }
+    },
+    async discard(agentId: string, repo: string, files?: string[]): Promise<void> {
+        if (state._mutating) return
+        const myEpoch = agentEpoch
+        state._mutating = true
+        try {
+            await apiDiscard(agentId, repo, files)
+            if (myEpoch !== agentEpoch) return
+            await _gitState.loadStatus(agentId, repo)
+        } finally {
+            if (myEpoch === agentEpoch) state._mutating = false
+        }
+    },
+    async commit(agentId: string, repo: string, message: string): Promise<{ head: string | null }> {
+        if (state._mutating) throw new Error('mutation in progress')
+        const myEpoch = agentEpoch
+        state._mutating = true
+        try {
+            const r = await apiCommit(agentId, repo, message)
+            // commit 在服务端已成功，返回 head 让 caller toast。但 agent 变了不要写 reactive state。
+            if (myEpoch !== agentEpoch) return { head: r.head }
+            // 提交成功：清 message + 重拉 status + 重拉 log（顶部出现新提交）
+            delete state.commitMessages[repo]
+            await Promise.all([
+                _gitState.loadStatus(agentId, repo),
+                _gitState.loadLog(agentId, repo),
+            ])
+            return { head: r.head }
+        } finally {
+            if (myEpoch === agentEpoch) state._mutating = false
+        }
     },
 }
 

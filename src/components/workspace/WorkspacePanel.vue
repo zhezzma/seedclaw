@@ -35,7 +35,7 @@ watch(() => props.agentId, () => {
     tree.reset()
     git.reset()
     agentFiles.reset()
-}, { flush: 'pre' })
+}, { flush: 'pre', immediate: true })
 
 // ─── splitter 拖动 ───────────────────────────────────────────────
 // 拖动期间用 dragWidth 驱动 UI，避免每帧 persist 到 localStorage。

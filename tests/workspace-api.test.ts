@@ -189,3 +189,50 @@ test('fetchFileVersions: commit 模式带 ref', async () => {
     await api.fetchFileVersions('coder', { repo: 'r', mode: 'commit', ref: 'abc123', file: 'a' })
     assert.match(captured, /ref=abc123/)
 })
+
+test('stageFiles: 不传 files 时不带 body', async () => {
+    let captured: { url: string, init?: RequestInit } | null = null
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+        captured = { url, init }
+        return new Response(JSON.stringify({ ok: true, payload: { ok: true } }), { status: 200 })
+    }) as any
+    await api.stageFiles('coder', 'r')
+    assert.match(captured!.url, /\/repo\/stage\?repo=r/)
+    assert.equal(captured!.init!.method, 'POST')
+    assert.equal(captured!.init!.body, undefined)
+})
+
+test('stageFiles: 传 files 时 POST {files}', async () => {
+    let captured: { url: string, init?: RequestInit } | null = null
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+        captured = { url, init }
+        return new Response(JSON.stringify({ ok: true, payload: { ok: true } }), { status: 200 })
+    }) as any
+    await api.stageFiles('coder', 'r', ['a.ts', 'b.ts'])
+    assert.equal(captured!.init!.body, JSON.stringify({ files: ['a.ts', 'b.ts'] }))
+})
+
+test('unstageFiles / discardFiles: 同 stageFiles 形态', async () => {
+    let urls: string[] = []
+    globalThis.fetch = (async (url: string) => {
+        urls.push(url)
+        return new Response(JSON.stringify({ ok: true, payload: { ok: true } }), { status: 200 })
+    }) as any
+    await api.unstageFiles('coder', 'r')
+    await api.discardFiles('coder', 'r', ['x'])
+    assert.match(urls[0], /\/repo\/unstage\?repo=r/)
+    assert.match(urls[1], /\/repo\/discard\?repo=r/)
+})
+
+test('commitChanges: POST 带 message body, 返回 head', async () => {
+    let captured: { url: string, init?: RequestInit } | null = null
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+        captured = { url, init }
+        return new Response(JSON.stringify({ ok: true, payload: { ok: true, head: 'abc1234', output: '[main abc1234] msg' } }), { status: 200 })
+    }) as any
+    const r = await api.commitChanges('coder', 'r', 'fix: x')
+    assert.equal(r.head, 'abc1234')
+    assert.equal(captured!.init!.method, 'POST')
+    assert.equal(captured!.init!.body, JSON.stringify({ message: 'fix: x' }))
+    assert.match(captured!.url, /\/repo\/commit\?repo=r/)
+})

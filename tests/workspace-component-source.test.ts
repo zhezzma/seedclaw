@@ -65,7 +65,7 @@ test('WorkspaceTabFiles: toggleExpand 与 openFile 在父定义', () => {
     assert.match(src, /openFile/, 'parent owns viewer dispatch')
 })
 
-test('WorkspaceTabGit: 装配 RepoSelector + StatusGroup + HistoryList', () => {
+test('WorkspaceTabGit: 装配 RepoSelector + StatusGroup + HistoryList + Commit Bar', () => {
     const src = read('src/components/workspace/WorkspaceTabGit.vue')
     assert.match(src, /RepoSelector/)
     assert.match(src, /StatusGroup/)
@@ -75,6 +75,25 @@ test('WorkspaceTabGit: 装配 RepoSelector + StatusGroup + HistoryList', () => {
     // 底部 history 被 CollapsibleSection 包裹
     assert.match(src, /CollapsibleSection/, 'must wrap HistoryList in CollapsibleSection')
     assert.match(src, /panel\.bottomSections/, 'must read history open state from panel composable')
+    // 新增：Commit Bar + 4 个 mutation
+    assert.match(src, /commitMessage/, 'must bind a commit message via getCommitMessage/setCommitMessage')
+    assert.match(src, /git\.commit\(/, 'must call git.commit')
+    assert.match(src, /git\.stage\(/, 'must call git.stage for stage / stage all')
+    assert.match(src, /git\.unstage\(/, 'must call git.unstage')
+    assert.match(src, /git\.discard\(/, 'must call git.discard')
+    // Ctrl/Cmd+Enter 提交
+    assert.match(src, /ctrlKey \|\| e\.metaKey/, 'must support Ctrl/Cmd+Enter to commit')
+    // canCommit 门：需要 message + staged > 0 + 不在 mutation 中
+    assert.match(src, /canCommit/, 'must compute canCommit gating')
+    assert.match(src, /stagedCount/, 'must reflect staged count in UI')
+    // 各组顶部 actions
+    assert.match(src, /onStageAllChanges/, 'must expose stage-all for merged Changes group')
+    assert.match(src, /onUnstageAll/, 'must expose unstage-all for staged group')
+    assert.match(src, /onDiscardAllChanges/, 'must expose discard-all for merged Changes group')
+    // 反面锁定：合并后不应再出现 untracked 专用的 handler
+    assert.doesNotMatch(src, /onDiscardAllUntracked/, 'untracked-only handler removed after merge')
+    // 行右键菜单工厂
+    assert.match(src, /buildGitFileMenuItems/, 'must use buildGitFileMenuItems for per-row menus')
 })
 
 test('CollapsibleSection: header + body + maxHeight + count + actions slot', () => {
@@ -126,6 +145,15 @@ test('StatusGroup: 三组渲染 + 状态字符 colorMap', () => {
     assert.match(src, /text-warning|text-error|text-success/, 'must use semantic color classes')
     assert.match(src, /onClick/, 'click row should dispatch back to parent')
     assert.match(src, /oldPath/, 'must render rename arrow')
+    // header actions slot + 行右键菜单
+    assert.match(src, /name="actions"/, 'must expose actions slot for group-level buttons')
+    assert.match(src, /buildItems/, 'must accept buildItems factory for per-row context menu')
+    assert.match(src, /useContextMenu/, 'must wire contextmenu through useContextMenu')
+    // 行内按钮：PC hover / mobile 始终可见（代替之前的 kebab）
+    assert.match(src, /buildInlineActions/, 'must accept buildInlineActions factory for hover buttons')
+    assert.match(src, /lg:invisible lg:group-hover:visible/, 'inline buttons must use invisible/visible (no row jitter)')
+    // 明确不再使用 kebab + EllipsisVerticalIcon
+    assert.doesNotMatch(src, /EllipsisVerticalIcon/, 'must NOT use kebab anymore (replaced by inline action buttons)')
 })
 
 test('HistoryList: load more + 展开 commit 文件', () => {
