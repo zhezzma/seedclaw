@@ -153,7 +153,6 @@ const handleSubmit = async () => {
                         <option value="anthropic-messages">{{ $t('provider.apiAnthropic') }}</option>
                         <option value="bedrock-converse-stream">{{ $t('provider.apiBedrock') }}</option>
                         <option value="google-generative-ai">{{ $t('provider.apiGoogle') }}</option>
-                        <option value="google-gemini-cli">{{ $t('provider.apiGoogleGeminiCli') }}</option>
                         <option value="google-vertex">{{ $t('provider.apiGoogleVertex') }}</option>
                     </select>
                 </div>

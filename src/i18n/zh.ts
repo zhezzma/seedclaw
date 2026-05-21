@@ -430,7 +430,6 @@ export default {
         apiAnthropic: 'Anthropic',
         apiBedrock: 'Bedrock Converse Stream',
         apiGoogle: 'Google Generative AI',
-        apiGoogleGeminiCli: 'Google Gemini CLI',
         apiGoogleVertex: 'Google Vertex',
         authTypeApiKey: 'API Key',
         authTypeOAuth: 'OAuth',
