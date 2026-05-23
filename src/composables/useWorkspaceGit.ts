@@ -46,6 +46,14 @@ interface GitState {
 
     commitFilesData: Record<string, CommitFile[]>
     commitFilesLoading: Record<string, boolean>
+    /** History 面板中每个 commit 是否展开（显示改动文件列表）。
+     *  提升到 store 是为了跨 panel 关闭/重开与 PC v-if 卸载重挂之后还能恢复。 */
+    commitExpandedData: Record<string, boolean>
+
+    /** 当前 cache 归属的 agentId。跨 agent 访问时由 ensureAgent 检查并主动清理。
+     *  不另外包 getter；**约定仅 ensureAgent 写入**（事实上通过 Object.assign 后外部可读写，
+     *  但任何其他写入都会破坏 INV-3（reset 不动 currentAgentId）的完整性。） */
+    currentAgentId: string | null
 
     /** 每 repo 独立记忆的 commit message，在 viewer / tab 切换间保留，agent 切换时重置。 */
     commitMessages: Record<string, string>
@@ -69,6 +77,8 @@ const state = reactive<GitState>({
     _commitsHasMore: true,
     commitFilesData: {},
     commitFilesLoading: {},
+    commitExpandedData: {},
+    currentAgentId: null,
     commitMessages: {},
     _mutating: false,
 })
@@ -97,6 +107,14 @@ const _methods = {
     commitsHasMore: { get value() { return state._commitsHasMore } },
 
     commitFiles: { get value() { return state.commitFilesData } },
+    commitExpanded: { get value() { return state.commitExpandedData } },
+
+    /** 切换指定 commit 的展开状态。返回切换后是否为展开（调用方据此决定是否要 loadCommitFiles）。 */
+    toggleCommitExpanded(sha: string): boolean {
+        const next = !state.commitExpandedData[sha]
+        state.commitExpandedData[sha] = next
+        return next
+    },
 
     mutating: { get value() { return state._mutating } },
 
@@ -125,8 +143,18 @@ const _methods = {
         state._commitsHasMore = true
         state.commitFilesData = {}
         state.commitFilesLoading = {}
+        state.commitExpandedData = {}
         state.commitMessages = {}
         state._mutating = false
+    },
+
+    /** 按 agentId 守护 store 数据归属：不匹配则 reset 并记录新 agentId。
+     *  调用点：WorkspacePanel setup 同步调用 + agentId watch 回调。
+     *  这里是唯一会写 currentAgentId 的地方：reset() 不动它，避免外部调用 reset 后状态脱同步。 */
+    ensureAgent(agentId: string) {
+        if (state.currentAgentId === agentId) return
+        this.reset()
+        state.currentAgentId = agentId
     },
 
     /**
@@ -305,7 +333,7 @@ const _methods = {
 
 // 状态与接口合并；getter 对象不是 ref，Vue 不会对其 unwrap。
 // 不会冲突的字段（`statusRepo` / `commitsRepo` / `reposData` / `statusData` / `commitsData` /
-// `commitFilesData` / `commitFilesLoading`）保持原名直接通过 _gitState 访问。
+// `commitFilesData` / `commitFilesLoading` / `commitExpandedData` / `currentAgentId`）保持原名直接通过 _gitState 访问。
 const _gitState = Object.assign(state, _methods)
 
 export const useWorkspaceGit = () => _gitState

@@ -5,7 +5,6 @@
  * - 点击 commit 行 → 就地展开列出此 commit 改动的文件，再点击文件打开 diff
  * - 底部 "load more" 翻页
  */
-import { ref } from 'vue'
 import {
     ChevronDownIcon, ChevronRightIcon, DocumentIcon,
 } from '@heroicons/vue/24/outline'
@@ -18,11 +17,13 @@ const props = defineProps<{
 }>()
 
 const git = useWorkspaceGit()
-const expanded = ref<Record<string, boolean>>({})
+
+// expanded 状态提升到 store（commitExpandedData）：PC v-if 卸载重挂与移动端 drawer 关闭/重开
+// 之后，之前点开的 commit 及其文件列表保持显示。agent 切换时由 git.reset() 统一清理。
 
 async function toggleCommit(sha: string) {
-    expanded.value[sha] = !expanded.value[sha]
-    if (expanded.value[sha] && !git.commitFiles.value[sha]) {
+    const opened = git.toggleCommitExpanded(sha)
+    if (opened && !git.commitFiles.value[sha]) {
         await git.loadCommitFiles(props.agentId, props.repo, sha)
     }
 }
@@ -52,14 +53,14 @@ function relativeTime(iso: string): string {
             <div v-for="commit in git.commits.value" :key="commit.sha">
                 <button class="flex items-center gap-2 w-full text-left px-2 py-1 hover:bg-base-200"
                     :title="commit.subject" @click="toggleCommit(commit.sha)">
-                    <ChevronDownIcon v-if="expanded[commit.sha]" class="h-3 w-3 shrink-0" />
+                    <ChevronDownIcon v-if="git.commitExpanded.value[commit.sha]" class="h-3 w-3 shrink-0" />
                     <ChevronRightIcon v-else class="h-3 w-3 shrink-0" />
                     <span class="font-mono text-base-content/60">●</span>
                     <span class="font-mono text-base-content/60 shrink-0">{{ commit.shortSha }}</span>
                     <span class="truncate flex-1">{{ commit.subject }}</span>
                     <span class="text-base-content/40 shrink-0">{{ relativeTime(commit.authorDate) }}</span>
                 </button>
-                <div v-if="expanded[commit.sha]" class="pl-8 pb-1">
+                <div v-if="git.commitExpanded.value[commit.sha]" class="pl-8 pb-1">
                     <div v-if="git.isCommitFilesLoading(commit.sha)" class="text-base-content/40">
                         <span class="loading loading-spinner loading-xs" />
                     </div>

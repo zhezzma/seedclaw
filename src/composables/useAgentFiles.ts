@@ -19,17 +19,26 @@ interface CacheEntry {
 interface AgentFilesState {
     cache: Record<string, CacheEntry>
     expanded: Record<string, boolean>
+    /** 当前 cache 归属的 agentId；跨 agent 访问时由 ensureAgent 主动清理。 */
+    currentAgentId: string | null
 }
 
 const state = reactive<AgentFilesState>({
     cache: {},
     expanded: {},
+    currentAgentId: null,
 })
 
 const _methods = {
     reset() {
         state.cache = {}
         state.expanded = {}
+    },
+    /** 按 agentId 守护 store 数据归属：不匹配则 reset 并记录新 agentId。 */
+    ensureAgent(agentId: string) {
+        if (state.currentAgentId === agentId) return
+        this.reset()
+        state.currentAgentId = agentId
     },
     refresh() {
         state.cache = {}

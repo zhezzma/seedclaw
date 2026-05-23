@@ -5,7 +5,7 @@
  * - 左侧 splitter 拖动调整宽度（240～600）；拖动时用本地 ref 实时刷新视觉，
  *   仅 mouseup 时一次性 persist 到 settings store，避免每像素一次 localStorage 写
  * - 顶部刷新按钮真正重拉数据（清缓存 + 立即 reload）
- * - Agent 切换时 reset 所有缓存
+ * - Agent 切换时通过 ensureAgent 守护各 store 归属（条件 reset，同 agent 重挂不清 cache）
  *
  * 模板用单根 `<div class="contents">` 包裹 splitter + aside：Vue 3 多根 SFC 不会
  * fallthrough class 到子节点，外部传入的 `class="hidden lg:flex"` 会静默丢失。
@@ -28,14 +28,22 @@ const git = useWorkspaceGit()
 const agentFiles = useAgentFiles()
 
 // ─── Agent 切换隔离 ──────────────────────────────────────────────
-// agent 改变时清掉 Files / Git 全部缓存；tab 子组件用 :key=agentId 强制 remount，
-// 让其 onMounted 重新拉数据。flush:'pre' 让 reset 在子组件 remount 之前完成，
-// 避免新组件 onMounted 拉的数据被随后的 reset 清掉。
-watch(() => props.agentId, () => {
-    tree.reset()
-    git.reset()
-    agentFiles.reset()
-}, { flush: 'pre', immediate: true })
+// 数据所有权显式化：三个 store 各自记录 currentAgentId，调用 ensureAgent(id) 在跨 agent 访问
+// 时主动 reset，不依赖 watch immediate / 其它实例。——这是唯一的清理路径。
+//
+// setup 同步调用：在子组件（:key=agentId）创建之前完成，子组件 onMounted 看到的总是属于
+// 当前 agent 的 cache。这覆盖了“panel 关闭期间切 agent 后重开”场景（watch 未在场不会触发）。
+tree.ensureAgent(props.agentId)
+git.ensureAgent(props.agentId)
+agentFiles.ensureAgent(props.agentId)
+
+// agent 切换（panel 仍挂载）时走同一路径。flush:'pre' 让 ensureAgent 在子组件 :key 驱动的
+// remount 之前完成，避免新组件 onMounted 拉的数据被随后的 reset 清掉。
+watch(() => props.agentId, (id) => {
+    tree.ensureAgent(id)
+    git.ensureAgent(id)
+    agentFiles.ensureAgent(id)
+}, { flush: 'pre' })
 
 // ─── splitter 拖动 ───────────────────────────────────────────────
 // 拖动期间用 dragWidth 驱动 UI，避免每帧 persist 到 localStorage。
@@ -92,10 +100,6 @@ onUnmounted(() => {
 })
 
 // ─── 顶部刷新 ────────────────────────────────────────────────────
-// 真正重拉，而不是只清缓存。spec §6.4: 顶部 🔄 = 全部刷新。
-// - Files tab 下：保留 expanded 路径，refresh 后并发重拉，避免用户辛苦展开的深层目录折叠回去
-// - Git tab 下：先 await loadRepos 拿最新列表，再决定当前 repo 是否还有效（避免对外部已删除的 repo 拉数据）
-// ─── 顶部刷新 ───────────────────────────────────────
 // 真正重拉，而不是只清缓存。spec §6.4: 顶部 🔄 = 全部刷新。
 // - Files tab 下：保留 expanded 路径，refresh 后并发重拉，避免用户辛苦展开的深层目录折叠回去
 // - Git tab 下：先 await loadRepos 拿最新列表，再决定当前 repo 是否还有效（避免对外部已删除的 repo 拉数据）
