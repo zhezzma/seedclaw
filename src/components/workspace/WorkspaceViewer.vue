@@ -97,8 +97,8 @@ async function onClickSave() {
 }
 
 function onClickPreview() {
-    // .md 点击无反应（占位）；HTML 切换 previewMode。
-    if (previewKind.value !== 'html') return
+    // .html / .md 都可切换；子组件根据当前文件选渲染分支。
+    if (previewKind.value === null) return
     fileViewRef.value?.togglePreview()
 }
 

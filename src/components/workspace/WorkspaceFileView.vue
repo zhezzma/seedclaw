@@ -9,6 +9,10 @@
  * - 二进制 / 截断的文件强制 readOnly（编辑后保存会写入损坏 / 截断数据 → 安全约束，不是 UX 选项）
  * - 图片文件走 /workspace/raw 拿 blob 后用 <img> 渲染，不走 monaco
  * - HTML 预览（previewMode）用 iframe srcdoc 盖在编辑器之上，内容跟 dirty buffer
+ * - Markdown 预览（previewMode）复用 chat 的 MarkdownRenderer，与其共享同一个
+ *   agent-output 信任边界：markdown-it 默认 html=false 转义裸 HTML / 禁 javascript: scheme，
+ *   但 mermaid securityLevel:'loose'、v-html 渲染到主文档是已知风险点（跟 chat 等价）；
+ *   相对路径图片不支持（显示破图）
  *
  * defineExpose 给父组件用：
  *   isDirty / isSaving / isBinary / isTruncated / isReadOnly / isImage
@@ -24,6 +28,7 @@ import {
 import { useToast } from '../../composables/useToast'
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
 import { monaco, languageFromPath, monacoThemeFromDaisy } from './monaco-setup'
+import MarkdownRenderer from '../chat/MarkdownRenderer.vue'
 
 const props = defineProps<{
     agentId: string
@@ -241,9 +246,10 @@ function setupThemeObserver() {
 }
 
 // 预览切换：父组件 Preview 按钮调用。
-// 仅在 HTML 文件生效；Markdown 暂为占位，点击无反应。
+// .html / .md 都可切换；渲染分支由模板按 previewKind 选择。
+const previewKind = computed(() => previewableExt(props.path))
 function togglePreview() {
-    if (previewableExt(props.path) !== 'html') return
+    if (previewKind.value === null) return
     previewMode.value = !previewMode.value
 }
 
@@ -329,9 +335,15 @@ defineExpose({
             </div>
 
             <!-- HTML 预览：用当前 dirty buffer 走 iframe srcdoc，allow-scripts 但不允许同源 -->
-            <iframe v-else-if="previewMode" :srcdoc="content" sandbox="allow-scripts"
+            <iframe v-else-if="previewMode && previewKind === 'html'" :srcdoc="content" sandbox="allow-scripts"
                 class="absolute inset-0 h-full w-full bg-white border-0"
                 :title="path" />
+
+            <!-- Markdown 预览：复用 chat 的 MarkdownRenderer；v-html 渲染但 markdown-it 默认转义 inline HTML -->
+            <div v-else-if="previewMode && previewKind === 'md'"
+                class="absolute inset-0 overflow-auto bg-base-100 p-6">
+                <MarkdownRenderer :content="content" />
+            </div>
 
             <!-- 编辑器：默认容器；isImage / previewMode 时隐藏，不卸载以避免重创建成本 -->
             <div ref="containerRef" class="h-full w-full"
