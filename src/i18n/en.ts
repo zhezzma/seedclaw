@@ -828,6 +828,8 @@ export default {
         save: 'Save',
         saving: 'Saving...',
         fileSaved: 'Saved',
+        preview: 'Preview',
+        previewExit: 'Exit preview',
         unsavedChanges: 'You have unsaved changes. Discard them?',
         diffSplit: 'Split',
         diffInline: 'Inline',

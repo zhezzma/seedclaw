@@ -827,6 +827,8 @@ export default {
         save: '保存',
         saving: '保存中...',
         fileSaved: '已保存',
+        preview: '预览',
+        previewExit: '退出预览',
         unsavedChanges: '有未保存的改动，确定要离开吗？',
         diffSplit: '并排',
         diffInline: '内联',

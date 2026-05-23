@@ -15,6 +15,7 @@ import { useI18n } from 'vue-i18n'
 import {
     fetchFile, saveFile,
     fetchAgentFile, saveAgentFile,
+    fetchRawFile, isImagePath,
 } from '../../composables/workspace-api'
 import { useToast } from '../../composables/useToast'
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
@@ -46,13 +47,19 @@ const error = ref<string | null>(null)
 const isSaving = ref(false)
 const isBinary = ref(false)
 const isTruncated = ref(false)
+/** 图片预览：workspace scope + 图片扩展名 → 走 raw 获取 blob URL 渲染 <img>。 */
+const isImage = ref(false)
+const imageObjectUrl = ref<string | null>(null)
+/** 预览模式（HTML）—— true 时用 iframe 渲染当前 buffer，替换编辑器。
+ *  父组件通过 togglePreview() / setPreviewMode(false) 控制。 */
+const previewMode = ref(false)
 /** 当前 model 的内容（响应式跟随 monaco onDidChangeModelContent 同步） */
 const content = ref('')
 /** 上一次 load/save 后的原始内容；用于 dirty 比对 */
 const baselineContent = ref('')
 const isDirty = computed(() => content.value !== baselineContent.value)
-/** 只读条件：二进制 / 截断 / load 失败 */
-const isReadOnly = computed(() => isBinary.value || isTruncated.value || error.value !== null)
+/** 只读条件：二进制 / 截断 / load 失败 / 图片 */
+const isReadOnly = computed(() => isBinary.value || isTruncated.value || isImage.value || error.value !== null)
 
 let editor: monaco.editor.IStandaloneCodeEditor | null = null
 let modelChangeDisposer: monaco.IDisposable | null = null
@@ -113,9 +120,38 @@ async function loadFile(path: string) {
     error.value = null
     isBinary.value = false
     isTruncated.value = false
+    // 重置图片状态：切文件时上一张的 object URL 要释放，避免泄露。
+    isImage.value = false
+    if (imageObjectUrl.value) {
+        URL.revokeObjectURL(imageObjectUrl.value)
+        imageObjectUrl.value = null
+    }
     // 在 fetch 期间临时强制只读：避免用户在 await 窗口内的输入被随后的 setValue 打丢。
     // load 末尾会按 isReadOnly.value 恢复。
     editor?.updateOptions({ readOnly: true })
+
+    // 图片分支：仅 workspace scope，且扩展名命中。agent-file 不走这里，
+    // 避免 /raw 端点拓展到 agentDir（目前后端也只提供了 workspace/raw）。
+    if (scope.value === 'workspace' && isImagePath(path)) {
+        try {
+            const blob = await fetchRawFile(props.agentId, path)
+            if (path !== props.path) return
+            isImage.value = true
+            imageObjectUrl.value = URL.createObjectURL(blob)
+            // 图片不过 monaco；baseline/content 置空以免误报 dirty。
+            content.value = ''
+            baselineContent.value = ''
+            editor?.updateOptions({ readOnly: true })
+            return
+        } catch (e: any) {
+            if (path !== props.path) return
+            error.value = e?.message || String(e)
+            return
+        } finally {
+            if (path === props.path) loading.value = false
+        }
+    }
+
     try {
         const data = await fetchByScope(props.agentId, path)
         // path 可能在 await 期间变化，比对最新 props 防过期响应
@@ -200,6 +236,16 @@ function setupThemeObserver() {
     })
 }
 
+// 预览切换：父组件 Preview 按钮调用。
+// 仅在 HTML 文件生效；Markdown 暂为占位，点击无反应。
+function togglePreview() {
+    if (!isPreviewableHtml(props.path)) return
+    previewMode.value = !previewMode.value
+}
+function isPreviewableHtml(path: string): boolean {
+    return /\.html?$/i.test(path)
+}
+
 // 容器尺寸变化时（splitter 拖动 / 父级 flex 变化）通知 monaco 重排
 function setupResizeObserver() {
     if (!containerRef.value) return
@@ -217,9 +263,11 @@ onMounted(() => {
 // path / agentId / scope 变化即重拉
 // 同步重置 content/baseline：避免上一个文件的 dirty 状态在 fetch await 窗口内被
 // `[isDirty, props.path]` watcher 误认为新文件的 dirty → viewer.dirty 错挂。
+// 预览模式也重置：避免从 html 切到别的文件后 Preview 按钮消失但 iframe 残留。
 watch(() => [props.agentId, props.path, scope.value], () => {
     content.value = ''
     baselineContent.value = ''
+    previewMode.value = false
     loadFile(props.path)
 })
 
@@ -239,6 +287,10 @@ onBeforeUnmount(() => {
     viewer.setDirty(null)
     resizeObserver?.disconnect()
     themeObserver?.disconnect()
+    if (imageObjectUrl.value) {
+        URL.revokeObjectURL(imageObjectUrl.value)
+        imageObjectUrl.value = null
+    }
     disposeEditor()
 })
 
@@ -248,6 +300,10 @@ defineExpose({
     isBinary,
     isTruncated,
     isReadOnly,
+    isImage,
+    previewMode,
+    togglePreview,
+    isPreviewableHtml,
     content,
     save,
 })
@@ -255,8 +311,8 @@ defineExpose({
 
 <template>
     <div class="relative h-full w-full flex flex-col">
-        <!-- 截断 / 二进制 banner -->
-        <div v-if="isBinary" class="bg-warning/10 text-warning text-xs px-3 py-2 border-b border-warning/30 shrink-0">
+        <!-- 截断 / 二进制 banner：图片不展示 banner（图片需要走专用分支） -->
+        <div v-if="isBinary && !isImage" class="bg-warning/10 text-warning text-xs px-3 py-2 border-b border-warning/30 shrink-0">
             ⚠ {{ $t('workspace.binaryFile') }}
         </div>
         <div v-else-if="isTruncated"
@@ -265,7 +321,21 @@ defineExpose({
         </div>
 
         <div class="relative flex-1 min-h-0">
-            <div ref="containerRef" class="h-full w-full" :class="{ hidden: isBinary }" />
+            <!-- 图片：独占容器，居中、等比缩放 -->
+            <div v-if="isImage && imageObjectUrl"
+                class="absolute inset-0 flex items-center justify-center overflow-auto bg-base-200/40 p-4">
+                <img :src="imageObjectUrl" :alt="path"
+                    class="max-w-full max-h-full object-contain" />
+            </div>
+
+            <!-- HTML 预览：用当前 dirty buffer 走 iframe srcdoc，allow-scripts 但不允许同源 -->
+            <iframe v-else-if="previewMode" :srcdoc="content" sandbox="allow-scripts"
+                class="absolute inset-0 h-full w-full bg-white border-0"
+                :title="path" />
+
+            <!-- 编辑器：默认容器；isImage / previewMode 时隐藏，不卸载以避免重创建成本 -->
+            <div ref="containerRef" class="h-full w-full"
+                :class="{ hidden: isBinary || isImage || previewMode }" />
 
             <!-- loading 半透明覆盖（不卸载 editor 容器，避免 layout 抖动）-->
             <div v-if="loading"

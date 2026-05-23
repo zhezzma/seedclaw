@@ -21,6 +21,8 @@ import { useI18n } from 'vue-i18n'
 import {
     ArrowLeftIcon,
     DocumentCheckIcon,
+    EyeIcon,
+    EyeSlashIcon,
     ViewColumnsIcon,
     Bars3Icon,
 } from '@heroicons/vue/24/outline'
@@ -63,6 +65,21 @@ const fileSaveDisabled = computed(() =>
     fileIsReadOnly.value || fileIsSaving.value || !fileIsDirty.value,
 )
 
+// 预览按钮：仅在当前文件是 .html/.htm/.md/.markdown 时显示。
+// 避免按钮常驻 disable 造成视觉噪音。
+function previewableExt(path: string): 'html' | 'md' | null {
+    if (/\.html?$/i.test(path)) return 'html'
+    if (/\.(md|markdown)$/i.test(path)) return 'md'
+    return null
+}
+const previewKind = computed(() => {
+    const tgt = target.value
+    if (!tgt || (tgt.type !== 'file' && tgt.type !== 'agent-file')) return null
+    return previewableExt(tgt.path)
+})
+const showPreviewButton = computed(() => previewKind.value !== null)
+const filePreviewMode = computed(() => fileViewRef.value?.previewMode ?? false)
+
 // ── diff 模式按钮状态 ──
 const diffSideBySide = computed(() => diffViewRef.value?.sideBySide ?? true)
 
@@ -80,6 +97,12 @@ async function close() {
 async function onClickSave() {
     if (!fileViewRef.value) return
     await fileViewRef.value.save()
+}
+
+function onClickPreview() {
+    // .md 点击无反应（占位）；HTML 切换 previewMode。
+    if (previewKind.value !== 'html') return
+    fileViewRef.value?.togglePreview()
 }
 
 function onClickToggleSplit() {
@@ -140,8 +163,18 @@ watch(target, () => {
                 <span v-if="isFileMode && fileIsDirty" class="text-warning ml-1">●</span>
             </div>
 
-            <!-- file 模式：仅 Save 按钮（默认就能编辑，无 toggle）；workspace 与 agent 两种 scope 共用 -->
+            <!-- file 模式：Save + （按需）Preview；workspace 与 agent 两种 scope 共用 -->
             <template v-if="isFileMode">
+                <button v-if="showPreviewButton" class="btn btn-sm gap-1"
+                    :class="filePreviewMode ? 'btn-primary' : 'btn-ghost'"
+                    :title="filePreviewMode ? $t('workspace.previewExit') : $t('workspace.preview')"
+                    @click="onClickPreview">
+                    <EyeSlashIcon v-if="filePreviewMode" class="h-4 w-4" />
+                    <EyeIcon v-else class="h-4 w-4" />
+                    <span class="hidden md:inline text-xs">
+                        {{ filePreviewMode ? $t('workspace.previewExit') : $t('workspace.preview') }}
+                    </span>
+                </button>
                 <button class="btn btn-sm gap-1"
                     :class="fileIsDirty && !fileIsReadOnly ? 'btn-primary' : 'btn-ghost'"
                     :disabled="fileSaveDisabled" :title="$t('workspace.save') + ' (Ctrl+S)'"

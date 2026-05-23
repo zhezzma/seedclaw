@@ -228,6 +228,33 @@ export function fetchFile(agentId: string, path: string): Promise<FileContent> {
     return wsGet<FileContent>(`${base(agentId)}/file?path=${encodeURIComponent(path)}`)
 }
 
+/** 拉取 workspace 下文件的原始字节（仅服务端白名单内的图片扩展名）。
+ *  返回 Blob，调用方负责转为 object URL 并在不用时 revokeObjectURL。 */
+export async function fetchRawFile(agentId: string, path: string): Promise<Blob> {
+    const url = `${baseUrl()}${base(agentId)}/raw?path=${encodeURIComponent(path)}`
+    const response = await fetch(url, { method: 'GET', headers: authHeaders() })
+    if (!response.ok) {
+        let msg = `HTTP ${response.status}`
+        try {
+            const body = await response.json()
+            if (body?.error) msg = body.error
+        } catch { /* 二进制响应不是 JSON，忽略 */ }
+        throw new WorkspaceApiError(msg, response.status)
+    }
+    return await response.blob()
+}
+
+/** 按扩展名判断是否为可渲染的图片。需与后端 /workspace/raw 的白名单保持一致。
+ *  SVG 不在名单：避免含脚本的 SVG 在同源下被执行。 */
+export function isImagePath(path: string): boolean {
+    const i = path.lastIndexOf('.')
+    if (i < 0) return false
+    const ext = path.slice(i + 1).toLowerCase()
+    return ext === 'png' || ext === 'jpg' || ext === 'jpeg'
+        || ext === 'gif' || ext === 'webp'
+        || ext === 'bmp' || ext === 'ico'
+}
+
 /** 覆写已存在的文件（agent-scoped，拒绝创建、拒绝写目录/越界）。 */
 export function saveFile(
     agentId: string,
