@@ -255,6 +255,14 @@ export function isImagePath(path: string): boolean {
         || ext === 'bmp' || ext === 'ico'
 }
 
+/** 按扩展名判断是否为可预览文件。返回类型供调用方区分 html / md 两种预览分支；
+ *  null 表示不可预览。父子组件共同的唯一权威源，避免两边各写一份正则失同。 */
+export function previewableExt(path: string): 'html' | 'md' | null {
+    if (/\.html?$/i.test(path)) return 'html'
+    if (/\.(md|markdown)$/i.test(path)) return 'md'
+    return null
+}
+
 /** 覆写已存在的文件（agent-scoped，拒绝创建、拒绝写目录/越界）。 */
 export function saveFile(
     agentId: string,

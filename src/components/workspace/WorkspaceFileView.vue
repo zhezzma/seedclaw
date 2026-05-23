@@ -7,15 +7,19 @@
  * - Ctrl/Cmd+S 保存；父组件头部也提供 Save 按钮
  * - dirty 追踪：内容 vs baseline 比对，关闭/切换文件前由父组件 confirm
  * - 二进制 / 截断的文件强制 readOnly（编辑后保存会写入损坏 / 截断数据 → 安全约束，不是 UX 选项）
+ * - 图片文件走 /workspace/raw 拿 blob 后用 <img> 渲染，不走 monaco
+ * - HTML 预览（previewMode）用 iframe srcdoc 盖在编辑器之上，内容跟 dirty buffer
  *
- * defineExpose 给父组件用：isDirty / isSaving / isBinary / isTruncated / save
+ * defineExpose 给父组件用：
+ *   isDirty / isSaving / isBinary / isTruncated / isReadOnly / isImage
+ *   previewMode / togglePreview / content / save
  */
 import { ref, watch, onMounted, onBeforeUnmount, useTemplateRef, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
     fetchFile, saveFile,
     fetchAgentFile, saveAgentFile,
-    fetchRawFile, isImagePath,
+    fetchRawFile, isImagePath, previewableExt,
 } from '../../composables/workspace-api'
 import { useToast } from '../../composables/useToast'
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
@@ -239,11 +243,8 @@ function setupThemeObserver() {
 // 预览切换：父组件 Preview 按钮调用。
 // 仅在 HTML 文件生效；Markdown 暂为占位，点击无反应。
 function togglePreview() {
-    if (!isPreviewableHtml(props.path)) return
+    if (previewableExt(props.path) !== 'html') return
     previewMode.value = !previewMode.value
-}
-function isPreviewableHtml(path: string): boolean {
-    return /\.html?$/i.test(path)
 }
 
 // 容器尺寸变化时（splitter 拖动 / 父级 flex 变化）通知 monaco 重排
@@ -303,7 +304,6 @@ defineExpose({
     isImage,
     previewMode,
     togglePreview,
-    isPreviewableHtml,
     content,
     save,
 })

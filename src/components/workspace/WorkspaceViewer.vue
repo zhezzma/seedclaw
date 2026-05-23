@@ -28,6 +28,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import WorkspaceFileView from './WorkspaceFileView.vue'
 import WorkspaceDiffEditor from './WorkspaceDiffEditor.vue'
+import { previewableExt } from '../../composables/workspace-api'
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
 import { useConfirm } from '../../composables/useConfirm'
 
@@ -67,11 +68,7 @@ const fileSaveDisabled = computed(() =>
 
 // 预览按钮：仅在当前文件是 .html/.htm/.md/.markdown 时显示。
 // 避免按钮常驻 disable 造成视觉噪音。
-function previewableExt(path: string): 'html' | 'md' | null {
-    if (/\.html?$/i.test(path)) return 'html'
-    if (/\.(md|markdown)$/i.test(path)) return 'md'
-    return null
-}
+// previewableExt 从 workspace-api 导入，与子组件 togglePreview 共用同一仰仰。
 const previewKind = computed(() => {
     const tgt = target.value
     if (!tgt || (tgt.type !== 'file' && tgt.type !== 'agent-file')) return null
