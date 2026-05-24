@@ -216,19 +216,68 @@ test('reset 后跸 agent 旧 in-flight 请求被丢弃（epoch 防护）', async
     assert.equal(git.repos.value[0].name, 'B-repo')
 })
 
-test('markStatusStale 重置 statusRepo 为 null（viewer 关闭后让下次 onMounted 重拉）', async () => {
-    await setupSettings()
-    mockRoutes({
-        '/workspace/repo/status': () => ({
-            branch: 'main', upstream: null, head: 'abc', ahead: 0, behind: 0,
-            staged: [], unstaged: [], untracked: [],
-        }),
-    })
+test('markStatusStale 已删除：close viewer 不会刷 git（契约变更的回归点）', async () => {
     const { useWorkspaceGit } = await import('../src/composables/useWorkspaceGit.ts')
     const git = useWorkspaceGit()
+    // 新契约：store 不再暴露 markStatusStale。如果有人加回来，请重新考虑是否倒退了
+    // “仅磁盘变更才刷新”这个设计。
+    assert.equal(typeof (git as any).markStatusStale, 'undefined')
+})
+
+test('save 后在 statusRepo 匹配时重拉 status（新契约：只有磁盘变更才刷新）', async () => {
+    await setupSettings()
+    let saveCalls = 0
+    let statusCalls = 0
+    mockRoutes({
+        '/workspace/file?': () => { saveCalls++; return { ok: true } },
+        '/workspace/repo/status': () => {
+            statusCalls++
+            return { branch: 'main', upstream: null, head: 'h', ahead: 0, behind: 0, staged: [], unstaged: [], untracked: [] }
+        },
+    })
+    const { useWorkspaceGit } = await import('../src/composables/useWorkspaceGit.ts')
+    const { saveFile } = await import('../src/composables/workspace-api.ts')
+    const git = useWorkspaceGit()
     git.reset()
-    await git.loadStatus('coder', 'r1')
-    assert.equal(git.statusRepo, 'r1')
-    git.markStatusStale()
-    assert.equal(git.statusRepo, null)
+
+    // 先 loadStatus 设上 statusRepo='repoA'，模拟用户看过 Git tab
+    await git.loadStatus('coder', 'repoA')
+    assert.equal(git.statusRepo, 'repoA')
+    const statusBefore = statusCalls
+
+    // 模拟 WorkspaceFileView.save 的关键逻辑：save -> 判断归属 -> loadStatus
+    // 这里直接封装判断逻辑以隔离 monaco 依赖
+    await saveFile('coder', 'repoA/src/a.ts', 'new content')
+    assert.equal(saveCalls, 1)
+
+    // 应用属于 repoA 的归属判断逻辑，主动走一次 loadStatus
+    const repo = git.statusRepo!
+    const path = 'repoA/src/a.ts'
+    const belongs = repo === '' || path === repo || path.startsWith(repo + '/')
+    assert.equal(belongs, true)
+    if (belongs) await git.loadStatus('coder', repo)
+
+    assert.equal(statusCalls, statusBefore + 1)
+})
+
+test('save 归属判断：root repo / prefix-collision / 跨仓 覆盖', () => {
+    // 这是 WorkspaceFileView.save 里归属判断的纯逻辑回归点。
+    // 与实现必须严格一致，避免 'foo' 误匹 'foobar' 之类 bug。
+    const belongs = (repo: string, path: string) =>
+        repo === '' || path === repo || path.startsWith(repo + '/')
+
+    // 1) root repo：workspace 根本身是 repo，任何 workspace 路径都属于它
+    assert.equal(belongs('', 'any/path.ts'), true)
+    assert.equal(belongs('', 'a.ts'), true)
+
+    // 2) 正常嵌套
+    assert.equal(belongs('foo', 'foo/a.ts'), true)
+    assert.equal(belongs('foo', 'foo/sub/a.ts'), true)
+
+    // 3) prefix collision：foo 仓不能误匹 foobar/* 路径
+    assert.equal(belongs('foo', 'foobar/a.ts'), false)
+    assert.equal(belongs('foo', 'foobar'), false)
+
+    // 4) 跨仓：bar 仓不能匹 foo/* 路径
+    assert.equal(belongs('bar', 'foo/a.ts'), false)
 })

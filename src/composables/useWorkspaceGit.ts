@@ -157,19 +157,6 @@ const _methods = {
         state.currentAgentId = agentId
     },
 
-    /**
-     * 标记 status 为"过期"：
-     * - statusRepo 置 null 让消费方（WorkspaceTabGit watch / onMounted 检查）触发重拉
-     * - statusData 同时置 null 避免 UI 在重拉期间闪现旧数据；重拉会把 statusLoading 置 true，
-     *   用户看到的是 loading spinner 而不是错位上一次的 status。
-     * 用于 viewer 关闭后强制刷新（spec §6.4）。不直接 loadStatus 是因为调用方可能
-     * 不知道当前 agentId/repo。
-     */
-    markStatusStale() {
-        state.statusRepo = null
-        state.statusData = null
-    },
-
     async loadRepos(agentId: string) {
         const myEpoch = agentEpoch
         state._reposLoading = true

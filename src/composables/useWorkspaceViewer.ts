@@ -7,7 +7,6 @@
  * WorkspaceViewer 组件 props 接入，不编码进 target。
  */
 import { computed, ref } from 'vue'
-import { useWorkspaceGit } from './useWorkspaceGit.ts'
 import type { DiffMode } from './workspace-api.ts'
 
 export type ViewerTarget =
@@ -43,15 +42,10 @@ const _viewerState = {
         dirty.value = path ? { path } : null
     },
     close() {
-        const wasActive = current.value !== null
+        // 关闭仅清状态，不刷 git status：单纯查看（含 diff / agent-file）不会改磁盘，
+        // 重拉是纯浪费。真正会改磁盘的入口（WorkspaceFileView.save）自己负责通知 git store。
         current.value = null
         dirty.value = null
-        // spec §6.4: Viewer 关闭后仅刷新 status。
-        // 实现上只标“过期”，下次 WorkspaceTabGit onMounted 的缓存检查会触发重拉。
-        // 这样不论 Git tab 是否当前挂载，下次返回 Git tab 都会拿到新数据。
-        if (wasActive) {
-            useWorkspaceGit().markStatusStale()
-        }
     },
 }
 

@@ -27,6 +27,7 @@ import {
 } from '../../composables/workspace-api'
 import { useToast } from '../../composables/useToast'
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
+import { useWorkspaceGit } from '../../composables/useWorkspaceGit'
 import { monaco, languageFromPath, monacoThemeFromDaisy } from './monaco-setup'
 import MarkdownRenderer from '../chat/MarkdownRenderer.vue'
 
@@ -47,6 +48,7 @@ const saveByScope = (id: string, p: string, content: string) =>
 const { t } = useI18n()
 const toast = useToast()
 const viewer = useWorkspaceViewer()
+const git = useWorkspaceGit()
 
 const containerRef = useTemplateRef<HTMLDivElement>('containerRef')
 const loading = ref(false)
@@ -223,6 +225,22 @@ async function save(): Promise<boolean> {
         ) {
             baselineContent.value = next
             content.value = next
+            // 通知 git store：保存改了 worktree → status 可能变。
+            // 守门：仅 workspace scope（agent scope 与 git 无关）+ 当前文件归属 git.statusRepo。
+            // statusRepo 为 null 时不主动拉 —— 用户没看 Git tab 就不付出代价，
+            // 下次打开 Git tab 的 onMounted 检查会自然走 loadAll。
+            // fire-and-forget：save 的语义是"保存成功"，不被 status reload 阻塞。
+            if (scopeAtStart === 'workspace' && git.statusRepo !== null) {
+                const repo = git.statusRepo
+                // repo === '' 表示 workspace 根本身是个 repo → 任何 workspace 文件都属于它。
+                // 严格前缀匹配避免 'foo' 误匹 'foobar'；path === repo 作为防御性分支保留。
+                const belongs = repo === ''
+                    || pathAtStart === repo
+                    || pathAtStart.startsWith(repo + '/')
+                if (belongs) {
+                    git.loadStatus(agentAtStart, repo)
+                }
+            }
         }
         toast.success(t('workspace.fileSaved'))
         return true

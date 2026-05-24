@@ -6,7 +6,7 @@
  *         每行有 hover 行内按钮 (PC) / 始终可见 (mobile)，右键弹完整菜单
  * - 底部：可折叠 History 区
  */
-import { onMounted, computed, watch, ref, nextTick } from 'vue'
+import { onMounted, computed, ref, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
     PlusIcon, MinusIcon, CheckIcon,
@@ -59,15 +59,8 @@ onMounted(async () => {
     }
 })
 
-// 响应 markStatusStale：viewer.close() 后 status 重拉
-watch(
-    [() => git.statusRepo, selectedRepo],
-    ([statusRepo, repo]) => {
-        if (statusRepo === null && repo && !git.statusLoading.value) {
-            git.loadStatus(props.agentId, repo)
-        }
-    },
-)
+// 注意：viewer.close() 不再触发 status 重拉。真正会改动磁盘的入口
+//   （WorkspaceFileView.save / stage / unstage / discard / commit）自己重拉。
 
 function onPickRepo(repo: string) {
     panel.setRepoForAgent(props.agentId, repo)

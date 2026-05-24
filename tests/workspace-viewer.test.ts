@@ -39,22 +39,20 @@ test('close 清空', () => {
     assert.equal(v.current.value, null)
 })
 
-test('close 后 git 的 statusRepo 与 statusData 被同时清空（避免 UI 闪现陈旧数据）', async () => {
+test('viewer.close() 不再触发 git status 重拉（spec: 仅保存/mutation 才刷新）', async () => {
     const { useWorkspaceGit } = await import('../src/composables/useWorkspaceGit.ts')
     const git = useWorkspaceGit()
     git.reset()
-    // 手动设上 status 模拟“已加载”
     ;(git as any).statusRepo = 'repoX'
     ;(git as any).statusData = { branch: 'main', upstream: null, head: 'h', ahead: 0, behind: 0, staged: [], unstaged: [], untracked: [] }
-    assert.equal(git.statusRepo, 'repoX')
-    assert.notEqual(git.status.value, null)
 
     const v = useWorkspaceViewer()
     v.openFile('/x')
     v.close()
 
-    assert.equal(git.statusRepo, null)
-    assert.equal(git.status.value, null)
+    // 新契约：close 不动 git store。刷新由 WorkspaceFileView.save / stage / unstage / discard / commit 负责。
+    assert.equal(git.statusRepo, 'repoX')
+    assert.notEqual(git.status.value, null)
 })
 
 test('setDirty/dirty: 默认 null，setDirty 写入后可读、close 会清除', () => {
