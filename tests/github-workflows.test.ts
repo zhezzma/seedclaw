@@ -18,7 +18,10 @@ test('ci workflow rebuilds seedagent on every push and publishes all artifacts t
     assert.match(content, /branches:\s*[\s\S]*- seedagent/)
     assert.match(content, /workflow_dispatch:/)
     assert.match(content, /concurrency:\s*[\s\S]*group:\s*seedagent-build-latest/)
-    assert.match(content, /gh release delete seedagent-build-latest --yes --cleanup-tag \|\| true/)
+    // 单行匹配：允许中间出现额外 flag（如 --repo "$GITHUB_REPOSITORY"），
+    // 但不跨行，避免误伤别处的命令。
+    // 核心要素：删的是指定 tag + 自动确认 + 清理 tag + 容忍不存在。
+    assert.match(content, /gh release delete seedagent-build-latest[^\n]*--yes --cleanup-tag \|\| true/)
     assert.match(content, /gh release create seedagent-build-latest/)
     assert.match(content, /--target \$\{\{ github\.sha \}\}/)
     assert.match(content, /actions\/setup-node@v4/)
