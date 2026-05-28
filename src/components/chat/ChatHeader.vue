@@ -64,7 +64,6 @@ const panel = useWorkspacePanel()
 
 const dropdownRef = ref<HTMLDetailsElement | null>(null)
 const showUsageTip = ref(false)
-const usageTipTriggerRef = ref<HTMLElement | null>(null)
 
 const showAgentDropdown = computed(() => isNewSession(route))
 
@@ -101,9 +100,7 @@ const handleClickOutside = (event: MouseEvent) => {
     if (dropdownRef.value && !dropdownRef.value.contains(event.target as Node)) {
         dropdownRef.value.open = false
     }
-    if (showUsageTip.value && usageTipTriggerRef.value && !usageTipTriggerRef.value.contains(event.target as Node)) {
-        showUsageTip.value = false
-    }
+    showUsageTip.value = false
 }
 
 // ---- Token usage formatting (mirrors TUI footer logic) ----
@@ -219,7 +216,7 @@ defineExpose({
         <template #actions>
             <div class="flex items-center">
                 <!-- Connection Status Indicator -->
-                <div ref="usageTipTriggerRef" class="relative group flex items-center" @click="showUsageTip = !showUsageTip">
+                <div class="relative group flex items-center" @click.stop="showUsageTip = !showUsageTip">
                     <div class="w-3 h-3 rounded-full transition-colors duration-300 cursor-pointer"
                         :class="isConnected ? 'bg-success' : 'bg-error/50'"></div>
                     <!-- Multi-line tooltip: hover (PC) + click (mobile) -->
