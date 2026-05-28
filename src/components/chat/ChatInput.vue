@@ -94,7 +94,7 @@ const currentModelLabel = computed(() => {
     for (const group of availableModels.value) {
         const matched = group.models.find((model) => `${group.provider}/${model.id}` === value)
         if (matched) {
-            return matched.name
+            return `${group.name}/${matched.name}`
         }
     }
 

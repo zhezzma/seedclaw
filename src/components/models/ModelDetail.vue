@@ -11,6 +11,11 @@ const props = defineProps<{
     providerId: string
 }>()
 
+// 删除提供商后通知父组件切换选中项
+const emit = defineEmits<{
+    (e: 'deleted'): void
+}>()
+
 const { t } = useI18n()
 const {
     providers,
@@ -85,6 +90,7 @@ const deleteProvider = async () => {
 
     try {
         await deleteProviderAction(props.providerId)
+        emit('deleted')
     } catch (e: any) {
         alert(e.message || t('provider.deleteFailed'))
     }

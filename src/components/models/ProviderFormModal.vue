@@ -65,20 +65,31 @@ watch(() => props.show, (newVal) => {
     }
 })
 
-const isFormValid = computed(() => {
-    if (!formData.id) return false
-    // 自定义提供商或新增时，baseUrl 必填；非自定义编辑时不要求
-    if ((props.custom || props.mode === 'add') && !formData.baseUrl) return false
-    // Headers JSON validation
+// 各字段的验证错误信息
+const validationErrors = computed(() => {
+    const errors: Record<string, string> = {}
+    if (!formData.id.trim()) {
+        errors.id = t('provider.validation.idRequired')
+    }
+    // 非 OAuth 时，baseUrl 和 apiKey 必填
+    if (formData.type !== 'oauth' && (props.custom || props.mode === 'add') && !formData.baseUrl.trim()) {
+        errors.baseUrl = t('provider.validation.baseUrlRequired')
+    }
+    if (formData.type !== 'oauth' && !formData.apiKey.trim()) {
+        errors.apiKey = t('provider.validation.apiKeyRequired')
+    }
+    // Headers JSON 格式验证
     if (formData.headers) {
         try {
             JSON.parse(formData.headers)
         } catch (e) {
-            return false
+            errors.headers = t('provider.invalidJson')
         }
     }
-    return true
+    return errors
 })
+
+const isFormValid = computed(() => Object.keys(validationErrors.value).length === 0)
 
 const modalTitle = computed(() => {
     return props.mode === 'add' ? t('provider.addTitle') : t('provider.editTitle')
@@ -132,14 +143,16 @@ const handleSubmit = async () => {
                     <label class="label"><span class="label-text">{{ $t('provider.id') }} <span
                                 class="text-error">*</span></span></label>
                     <input v-model="formData.id" type="text" placeholder="e.g. openai, anthropic"
-                        class="input input-bordered w-full font-mono" />
+                        class="input input-bordered w-full font-mono" :class="{ 'input-error': validationErrors.id && formData.id !== '' }" />
                 </div>
 
                 <div class="form-control ">
-                    <label class="label"><span class="label-text">{{ $t('provider.baseUrl') }} <span
-                                class="text-error">*</span></span></label>
+                    <label class="label"><span class="label-text">{{ $t('provider.baseUrl') }}
+                        <span v-if="formData.type !== 'oauth'" class="text-error">*</span>
+                    </span></label>
                     <input v-model="formData.baseUrl" type="text" placeholder="https://...com/v1"
-                        class="input input-bordered w-full" :disabled="isReadonly" />
+                        class="input input-bordered w-full" :disabled="isReadonly"
+                        :class="{ 'input-error': validationErrors.baseUrl && formData.baseUrl !== '' }" />
                 </div>
 
                 <div class="form-control">
@@ -167,10 +180,13 @@ const handleSubmit = async () => {
                 </div>
 
                 <div class="form-control">
-                    <label class="label"><span class="label-text">{{ $t('settings.apiKey') }}</span></label>
+                    <label class="label"><span class="label-text">{{ $t('settings.apiKey') }}
+                        <span v-if="formData.type !== 'oauth'" class="text-error">*</span>
+                    </span></label>
                     <div class="join w-full">
                         <input v-model="formData.apiKey" :type="showApiKey ? 'text' : 'password'" placeholder="sk-..."
-                            class="input input-bordered join-item flex-1" />
+                            class="input input-bordered join-item flex-1"
+                            :class="{ 'input-error': validationErrors.apiKey && formData.apiKey !== '' }" />
                         <button type="button" @click="showApiKey = !showApiKey" class="btn btn-ghost join-item"
                             tabindex="-1">
                             <EyeSlashIcon v-if="showApiKey" class="w-4 h-4" />

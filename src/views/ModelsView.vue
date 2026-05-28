@@ -42,12 +42,20 @@ const clearSelection = () => {
     router.replace({ query })
 }
 
-// Default selection logic for Desktop
+// 删除提供商后清除选中，桌面端由 watch 自动选中第一个，移动端回到列表页
+const handleProviderDeleted = () => {
+    clearSelection()
+}
+
+// 桌面端自动选中逻辑：无选中或选中的提供商已不存在时，自动选中第一个
 watch(() => [providerIds.value, route.query.providerId], ([providerList, currentId]) => {
     const isDesktop = window.matchMedia('(min-width: 1024px)').matches
-    if (isDesktop && !currentId && providerList && (providerList as string[]).length > 0) {
-        const firstId = (providerList as string[])[0]
-        router.replace({ query: { ...route.query, providerId: firstId } })
+    if (!isDesktop) return
+    const ids = providerList as string[]
+    if (!ids || ids.length === 0) return
+    // 无选中或当前选中的 id 已不在列表中（如被删除），自动选中第一个
+    if (!currentId || !ids.includes(currentId as string)) {
+        router.replace({ query: { ...route.query, providerId: ids[0] } })
     }
 }, { immediate: true })
 
@@ -74,7 +82,7 @@ watch(() => [providerIds.value, route.query.providerId], ([providerList, current
                 <ViewHeader :title="selectedProviderName"></ViewHeader>
             </div>
 
-            <ModelDetail v-if="selectedProviderId" :provider-id="selectedProviderId" class="flex-1 overflow-hidden" />
+            <ModelDetail v-if="selectedProviderId" :provider-id="selectedProviderId" class="flex-1 overflow-hidden" @deleted="handleProviderDeleted" />
 
             <!-- Empty State for Desktop -->
             <div v-else class="hidden lg:flex flex-1 items-center justify-center text-base-content/40">
