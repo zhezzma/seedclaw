@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import type { SessionUsage } from '../../composables/useChatState'
 import {
     Bars3Icon,
     ChevronDownIcon,
@@ -39,6 +41,7 @@ const emit = defineEmits<{
 const router = useRouter()
 const route = useRoute()
 const chatState = useChatState()
+const { t } = useI18n()
 const { loadCommands, setCurrentAgent } = useCommandState()
 const splitRouteNames = ['tasks', 'archived'] as const
 const handleBack = () => {
@@ -98,6 +101,63 @@ const handleClickOutside = (event: MouseEvent) => {
     }
 }
 
+// ---- Token usage formatting (mirrors TUI footer logic) ----
+function formatTokens(count: number): string {
+    if (count < 1000) return count.toString()
+    if (count < 10000) return `${(count / 1000).toFixed(1)}k`
+    if (count < 1000000) return `${Math.round(count / 1000)}k`
+    if (count < 10000000) return `${(count / 1000000).toFixed(1)}M`
+    return `${Math.round(count / 1000000)}M`
+}
+
+function buildUsageTip(usage: SessionUsage): string {
+    const parts: string[] = []
+    if (usage.input) parts.push(`↑${formatTokens(usage.input)}`)
+    if (usage.output) parts.push(`↓${formatTokens(usage.output)}`)
+    if (usage.cacheRead) parts.push(`R${formatTokens(usage.cacheRead)}`)
+    if (usage.cacheWrite) parts.push(`W${formatTokens(usage.cacheWrite)}`)
+    if (usage.cost) parts.push(`$${usage.cost.toFixed(3)}`)
+
+    // Context window usage
+    const auto = usage.autoCompactEnabled ? ` (${t('common.autoCompact')})` : ''
+    if (usage.percent !== null) {
+        parts.push(`${usage.percent.toFixed(1)}%/${formatTokens(usage.contextWindow)}${auto}`)
+    } else if (usage.contextWindow > 0) {
+        parts.push(`?/${formatTokens(usage.contextWindow)}${auto}`)
+    }
+    return parts.join(' ')
+}
+
+/** Tooltip 各行内容（空数组 = 只显示连接状态） */
+const usageTipLines = computed<string[]>(() => {
+    const usage = chatState.sessionUsage
+    if (!usage) return []
+
+    const lines: string[] = []
+
+    // 第一行：token 统计
+    const usageLine = buildUsageTip(usage)
+    if (usageLine) lines.push(usageLine)
+
+    // 第二行：提供商/模型 + 思考级别
+    const session = chatState.currentSession
+    const provider = session?.modelProvider || ''
+    const model = session?.model || ''
+    const thinking = session?.thinkingLevel
+    const modelLabel = provider && model ? `${provider}/${model}` : model || provider
+    if (modelLabel) {
+        if (thinking && thinking !== 'off') {
+            lines.push(`${modelLabel} · ${thinking}`)
+        } else if (thinking === 'off') {
+            lines.push(`${modelLabel} · thinking off`)
+        } else {
+            lines.push(modelLabel)
+        }
+    }
+
+    return lines
+})
+
 defineExpose({
     handleClickOutside
 })
@@ -154,10 +214,18 @@ defineExpose({
         <template #actions>
             <div class="flex items-center">
                 <!-- Connection Status Indicator -->
-                <div class="tooltip tooltip-bottom flex items-center"
-                    :data-tip="isConnected ? $t('common.connected') : $t('common.disconnected')">
-                    <div class="w-3 h-3 rounded-full transition-colors duration-300"
+                <div class="relative group flex items-center">
+                    <div class="w-3 h-3 rounded-full transition-colors duration-300 cursor-default"
                         :class="isConnected ? 'bg-success' : 'bg-error/50'"></div>
+                    <!-- Multi-line tooltip -->
+                    <div class="pointer-events-none absolute top-full mt-2 right-0
+                                opacity-0 group-hover:opacity-100 transition-opacity duration-200
+                                bg-neutral text-neutral-content text-xs rounded-lg px-3 py-2
+                                shadow-lg whitespace-nowrap z-50">
+                        <div>{{ isConnected ? $t('common.connected') : $t('common.disconnected') }}</div>
+                        <div v-for="(line, i) in usageTipLines" :key="i"
+                            class="text-neutral-content/70">{{ line }}</div>
+                    </div>
                 </div>
 
                 <!-- Voice button -->

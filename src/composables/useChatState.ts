@@ -37,6 +37,18 @@ export interface ChatAttachment {
     content?: string
 }
 
+export interface SessionUsage {
+    input: number
+    output: number
+    cacheRead: number
+    cacheWrite: number
+    cost: number
+    contextTokens: number | null
+    contextWindow: number
+    percent: number | null
+    autoCompactEnabled: boolean
+}
+
 export interface ChatSessionData {
     chatMessages: ChatMessage[]
     chatToolMessages: ChatMessage[]
@@ -47,6 +59,7 @@ export interface ChatSessionData {
     chatSending: boolean
     chatRunId: string | null
     chatLoading: boolean
+    sessionUsage: SessionUsage | null
 }
 
 export interface ChatState {
@@ -135,6 +148,7 @@ function getSessionData(key: string): ChatSessionData {
             chatSending: false,
             chatRunId: null,
             chatLoading: false,
+            sessionUsage: null,
         })
         state.sessionsMap.set(key, data)
     }
@@ -495,6 +509,8 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
                     fetchSessionTree(targetKey)
                 }
             }).catch(() => { /* 静默失败不影响使用 */ })
+            // 刷新 usage 统计（消息结束后上下文占比可能已变化）
+            fetchSessionUsage(targetKey)
             break
     }
 }
@@ -554,10 +570,10 @@ const loadChatHistory = async (sessionKey?: string) => {
     } finally {
         // Only set loading to false, don't touch chatSending if we are streaming
         sd.chatLoading = false
-        // Finally, load the tree structure for this session
-        // This ensures the UI has branching info once history is loaded
+        // Finally, load the tree structure and usage stats for this session
         if (targetKey) {
             fetchSessionTree(targetKey)
+            fetchSessionUsage(targetKey)
         }
     }
 }
@@ -779,6 +795,20 @@ export interface SessionTreeEntry {
     timestamp?: string
 }
 
+const fetchSessionUsage = async (sessionKey?: string) => {
+    const targetKey = sessionKey || state.sessionKey
+    if (!targetKey) return
+
+    try {
+        const result = await apiGet<SessionUsage>(`/api/chat/${targetKey}/usage`)
+        if (result) {
+            getSessionData(targetKey).sessionUsage = result
+        }
+    } catch {
+        // 静默失败：usage 是辅助信息，不影响核心功能
+    }
+}
+
 const fetchSessionTree = async (sessionKey?: string): Promise<SessionTreeEntry[] | null> => {
     const targetKey = sessionKey || state.sessionKey
     if (!targetKey) return null
@@ -829,6 +859,7 @@ const chatSending = computed(() => getSessionData(state.sessionKey).chatSending)
 const chatRunId = computed(() => getSessionData(state.sessionKey).chatRunId)
 const chatStreamStartedAt = computed(() => getSessionData(state.sessionKey).chatStreamStartedAt)
 const chatLoading = computed(() => getSessionData(state.sessionKey).chatLoading)
+const sessionUsage = computed(() => getSessionData(state.sessionKey).sessionUsage)
 const currentAgent = computed(() => {
     const agentsState = useAgentsState()
     return agentsState.agentsList?.find(a => a.id === state.agentsSelectedId) || null
@@ -846,10 +877,10 @@ type UnwrapComputed<T extends object> = {
 // 预组装单例（模块加载时执行一次，避免每次调用 useChatState 重复创建 computed）
 const _methods = {
     chatMessages, chatToolMessages, sessionTree, chatStream,
-    chatSending, chatRunId, chatStreamStartedAt, chatLoading, currentAgent,
+    chatSending, chatRunId, chatStreamStartedAt, chatLoading, sessionUsage, currentAgent,
     sendMessage, steerMessage, followMessage, abortChat, loadChatHistory,
     setSessionKey, createNewSession, selectAgent, getSessionData,
-    deleteMessage, retryMessage, editMessage, fetchSessionTree, navigateBranch,
+    deleteMessage, retryMessage, editMessage, fetchSessionTree, fetchSessionUsage, navigateBranch,
 }
 const _chatState = Object.assign(state, _methods) as unknown as typeof state & UnwrapComputed<typeof _methods>
 

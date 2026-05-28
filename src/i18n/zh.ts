@@ -68,6 +68,7 @@ export default {
         system: '系统',
         connected: '已连接',
         disconnected: '未连接',
+        autoCompact: '自动',
         processing: '处理中...',
     },
     sidebar: {
@@ -392,6 +393,11 @@ export default {
         editTitle: '编辑提供商',
         invalidJson: '自定义请求头 JSON 格式无效',
         idExists: '提供商 ID 已存在，请使用其他 ID',
+        validation: {
+            idRequired: '提供商 ID 不能为空',
+            baseUrlRequired: 'Base URL 不能为空',
+            apiKeyRequired: 'API Key 不能为空',
+        },
         id: '提供商 ID',
         apiType: 'API 类型',
         authType: '认证方式',
