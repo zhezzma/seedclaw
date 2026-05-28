@@ -36,7 +36,6 @@ export interface ProviderConfig {
     headers?: Record<string, string>
     models: AvailableModel[]
     custom: boolean
-    toolCallBridge?: boolean
 }
 
 /** Shape of the API response payload for /api/models */
@@ -121,7 +120,7 @@ const loadModels = async () => {
     }
 }
 
-const saveProvider = async (providerData: { id: string, baseUrl: string, type?: 'api_key' | 'oauth', apiKey?: string, api: KnownApi, headers?: Record<string, string>, toolCallBridge?: boolean }) => {
+const saveProvider = async (providerData: { id: string, baseUrl: string, type?: 'api_key' | 'oauth', apiKey?: string, api: KnownApi, headers?: Record<string, string> }) => {
     const existing = state.providers[providerData.id]
     if (existing) {
         await apiPatch(`/api/models/providers/${providerData.id}`, {
@@ -130,16 +129,14 @@ const saveProvider = async (providerData: { id: string, baseUrl: string, type?: 
             apiKey: providerData.apiKey,
             api: providerData.api,
             headers: providerData.headers,
-            toolCallBridge: providerData.toolCallBridge,
         })
         state.providers[providerData.id] = {
             ...existing,
             baseUrl: providerData.baseUrl,
             type: providerData.type,
-            apiKey: providerData.apiKey,
+            ...(providerData.apiKey !== undefined ? { apiKey: providerData.apiKey } : {}),
             api: providerData.api,
             headers: providerData.headers,
-            toolCallBridge: providerData.toolCallBridge,
         }
     } else {
         const newProvider: ProviderConfig = {
@@ -149,8 +146,7 @@ const saveProvider = async (providerData: { id: string, baseUrl: string, type?: 
             api: providerData.api,
             headers: providerData.headers,
             models: [],
-            custom: true,
-            toolCallBridge: providerData.toolCallBridge
+            custom: true
         }
         await apiPost('/api/models/providers', { id: providerData.id, ...newProvider })
         state.providers[providerData.id] = newProvider

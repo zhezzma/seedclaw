@@ -69,6 +69,7 @@ export default {
         connected: '已连接',
         disconnected: '未连接',
         autoCompact: '自动',
+        thinkingOff: '关闭思考',
         processing: '处理中...',
     },
     sidebar: {
@@ -416,8 +417,6 @@ export default {
         notFound: '提供商未找到',
         notFoundDesc: '无法找到 ID 为 {id} 的提供商',
         confirmDelete: '确定要删除提供商 "{id}" 吗？',
-        toolCallBridge: '工具调用桥接',
-        toolCallBridgeDesc: '为此提供商启用工具调用桥接。',
         showAll: '显示全部',
         showConfigured: '仅已配置',
         login: '登录',

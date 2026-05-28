@@ -277,8 +277,7 @@ const handleClearModels = async () => {
             api: provider.api,
             type: provider.type,
             apiKey: provider.apiKey,
-            headers: provider.headers,
-            toolCallBridge: provider.toolCallBridge
+            headers: provider.headers
         } : undefined" @close="showEditProviderModal = false" @saved="handleProviderSaved" />
 
         <ModelFormModal :show="showModelModal" :mode="modelModalMode" :provider-id="providerId"

@@ -43,6 +43,7 @@ export interface SessionUsage {
     cacheRead: number
     cacheWrite: number
     cost: number
+    /** 当前上下文占用的 token 数（预留字段，前端暂未使用，后端在 compaction 后可能返回 null） */
     contextTokens: number | null
     contextWindow: number
     percent: number | null

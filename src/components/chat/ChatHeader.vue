@@ -151,7 +151,7 @@ const usageTipLines = computed<string[]>(() => {
         if (thinking && thinking !== 'off') {
             lines.push(`${modelLabel} · ${thinking}`)
         } else if (thinking === 'off') {
-            lines.push(`${modelLabel} · thinking off`)
+            lines.push(`${modelLabel} · ${t('common.thinkingOff')}`)
         } else {
             lines.push(modelLabel)
         }
@@ -216,15 +216,21 @@ defineExpose({
         <template #actions>
             <div class="flex items-center">
                 <!-- Connection Status Indicator -->
-                <div class="relative group flex items-center" @click.stop="showUsageTip = !showUsageTip">
+                <div class="relative group flex items-center" @click.stop="showUsageTip = !showUsageTip"
+                    role="button" tabindex="0" :aria-expanded="showUsageTip"
+                    :aria-label="isConnected ? $t('common.connected') : $t('common.disconnected')"
+                    @keydown.enter.prevent.stop="showUsageTip = !showUsageTip"
+                    @keydown.space.prevent.stop="showUsageTip = !showUsageTip"
+                    @keydown.escape="showUsageTip = false">
                     <div class="w-3 h-3 rounded-full transition-colors duration-300 cursor-pointer"
+                        aria-hidden="true"
                         :class="isConnected ? 'bg-success' : 'bg-error/50'"></div>
                     <!-- Multi-line tooltip: hover (PC) + click (mobile) -->
-                    <div class="pointer-events-none absolute top-full mt-2 right-0
+                    <div role="tooltip" class="absolute top-full mt-2 right-0
                                 transition-opacity duration-200
                                 bg-neutral text-neutral-content text-xs rounded-lg px-3 py-2
                                 shadow-lg whitespace-nowrap z-50"
-                        :class="showUsageTip ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'">
+                        :class="showUsageTip ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 pointer-events-none'">
                         <div>{{ isConnected ? $t('common.connected') : $t('common.disconnected') }}</div>
                         <div v-for="(line, i) in usageTipLines" :key="i"
                             class="text-neutral-content/70">{{ line }}</div>

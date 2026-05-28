@@ -15,7 +15,6 @@ const props = defineProps<{
         api: KnownApi
         apiKey?: string
         headers?: Record<string, string>
-        toolCallBridge?: boolean
     }
 }>()
 
@@ -35,8 +34,7 @@ const formData = reactive({
     type: 'api_key' as 'api_key' | 'oauth',
     apiKey: '',
     api: 'openai-completions' as KnownApi,
-    headers: '',
-    toolCallBridge: false
+    headers: ''
 })
 const showApiKey = ref(false)
 const isSubmitting = ref(false)
@@ -51,7 +49,6 @@ watch(() => props.show, (newVal) => {
             formData.api = props.initialData.api as KnownApi
             formData.apiKey = props.initialData.apiKey || ''
             formData.headers = props.initialData.headers ? JSON.stringify(props.initialData.headers, null, 2) : ''
-            formData.toolCallBridge = props.initialData.toolCallBridge || false
         } else {
             // Reset for add
             formData.id = ''
@@ -60,12 +57,17 @@ watch(() => props.show, (newVal) => {
             formData.apiKey = ''
             formData.api = 'openai-completions'
             formData.headers = ''
-            formData.toolCallBridge = false
         }
+        hasAttemptedSubmit.value = false
     }
 })
 
-// 各字段的验证错误信息
+const hasAttemptedSubmit = ref(false)
+
+const isApiKeyRequired = computed(() => formData.type !== 'oauth' && (
+    props.mode === 'add' || (props.mode === 'edit' && props.initialData?.apiKey !== undefined)
+))
+
 const validationErrors = computed(() => {
     const errors: Record<string, string> = {}
     if (!formData.id.trim()) {
@@ -75,7 +77,7 @@ const validationErrors = computed(() => {
     if (formData.type !== 'oauth' && (props.custom || props.mode === 'add') && !formData.baseUrl.trim()) {
         errors.baseUrl = t('provider.validation.baseUrlRequired')
     }
-    if (formData.type !== 'oauth' && !formData.apiKey.trim()) {
+    if (isApiKeyRequired.value && !formData.apiKey.trim()) {
         errors.apiKey = t('provider.validation.apiKeyRequired')
     }
     // Headers JSON 格式验证
@@ -91,6 +93,12 @@ const validationErrors = computed(() => {
 
 const isFormValid = computed(() => Object.keys(validationErrors.value).length === 0)
 
+type ValidationField = 'id' | 'baseUrl' | 'apiKey' | 'headers'
+
+function shouldShowError(field: ValidationField): boolean {
+    return !!validationErrors.value[field] && (hasAttemptedSubmit.value || formData[field] !== '')
+}
+
 const modalTitle = computed(() => {
     return props.mode === 'add' ? t('provider.addTitle') : t('provider.editTitle')
 })
@@ -104,6 +112,7 @@ const handleClose = () => {
 }
 
 const handleSubmit = async () => {
+    hasAttemptedSubmit.value = true
     if (!isFormValid.value) return
 
     isSubmitting.value = true
@@ -113,14 +122,15 @@ const handleSubmit = async () => {
             parsedHeaders = JSON.parse(formData.headers)
         }
 
+        const shouldSendApiKey = !!formData.apiKey.trim() || props.mode === 'add' || props.initialData?.apiKey !== undefined
+
         await saveProvider({
             id: formData.id,
             baseUrl: formData.baseUrl,
             type: formData.type,
-            apiKey: formData.apiKey,
+            apiKey: shouldSendApiKey ? formData.apiKey : undefined,
             api: formData.api,
-            headers: parsedHeaders,
-            toolCallBridge: formData.toolCallBridge
+            headers: parsedHeaders
         })
 
         emit('saved', formData.id)
@@ -143,7 +153,7 @@ const handleSubmit = async () => {
                     <label class="label"><span class="label-text">{{ $t('provider.id') }} <span
                                 class="text-error">*</span></span></label>
                     <input v-model="formData.id" type="text" placeholder="e.g. openai, anthropic"
-                        class="input input-bordered w-full font-mono" :class="{ 'input-error': validationErrors.id && formData.id !== '' }" />
+                        class="input input-bordered w-full font-mono" :class="{ 'input-error': shouldShowError('id') }" />
                 </div>
 
                 <div class="form-control ">
@@ -152,7 +162,7 @@ const handleSubmit = async () => {
                     </span></label>
                     <input v-model="formData.baseUrl" type="text" placeholder="https://...com/v1"
                         class="input input-bordered w-full" :disabled="isReadonly"
-                        :class="{ 'input-error': validationErrors.baseUrl && formData.baseUrl !== '' }" />
+                        :class="{ 'input-error': shouldShowError('baseUrl') }" />
                 </div>
 
                 <div class="form-control">
@@ -181,12 +191,12 @@ const handleSubmit = async () => {
 
                 <div class="form-control">
                     <label class="label"><span class="label-text">{{ $t('settings.apiKey') }}
-                        <span v-if="formData.type !== 'oauth'" class="text-error">*</span>
+                        <span v-if="isApiKeyRequired" class="text-error">*</span>
                     </span></label>
                     <div class="join w-full">
                         <input v-model="formData.apiKey" :type="showApiKey ? 'text' : 'password'" placeholder="sk-..."
                             class="input input-bordered join-item flex-1"
-                            :class="{ 'input-error': validationErrors.apiKey && formData.apiKey !== '' }" />
+                            :class="{ 'input-error': shouldShowError('apiKey') }" />
                         <button type="button" @click="showApiKey = !showApiKey" class="btn btn-ghost join-item"
                             tabindex="-1">
                             <EyeSlashIcon v-if="showApiKey" class="w-4 h-4" />
@@ -195,16 +205,6 @@ const handleSubmit = async () => {
                     </div>
                 </div>
 
-
-                <!-- <div v-if="custom" class="form-control md:col-span-2">
-                    <label class="label cursor-pointer justify-start gap-4">
-                        <span class="label-text">{{ $t('provider.toolCallBridge') }}</span>
-                        <input type="checkbox" v-model="formData.toolCallBridge" class="checkbox"
-                            :disabled="isReadonly" />
-                    </label>
-                    <div class="text-xs opacity-50 px-1">{{ $t('provider.toolCallBridgeDesc') }}</div>
-                </div> -->
-
                 <div class="form-control md:col-span-2">
                     <label class="label">
                         <span class="label-text">{{ $t('provider.customHeaders') }}</span>
@@ -212,13 +212,17 @@ const handleSubmit = async () => {
                     </label>
                     <textarea v-model="formData.headers" rows="3"
                         class="textarea textarea-bordered w-full font-mono text-sm"
+                        :class="{ 'textarea-error': shouldShowError('headers') }"
                         placeholder='{"X-Proxy-Region": "us-west"}' :disabled="isReadonly"></textarea>
+                    <p v-if="shouldShowError('headers')" class="text-error text-xs mt-1">
+                        {{ validationErrors.headers }}
+                    </p>
                 </div>
             </div>
 
             <div class="modal-action">
                 <button @click="handleClose" class="btn">{{ $t('common.cancel') }}</button>
-                <button @click="handleSubmit" class="btn btn-primary" :disabled="!isFormValid || isSubmitting">{{
+                <button @click="handleSubmit" class="btn btn-primary" :disabled="isSubmitting">{{
                     submitLabel
                     }}</button>
             </div>
