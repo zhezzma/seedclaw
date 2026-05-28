@@ -63,6 +63,7 @@ const panel = useWorkspacePanel()
 
 
 const dropdownRef = ref<HTMLDetailsElement | null>(null)
+const showUsageTip = ref(false)
 
 const showAgentDropdown = computed(() => isNewSession(route))
 
@@ -94,11 +95,13 @@ const refreshPage = () => {
     window.location.reload()
 }
 
-// Close dropdown when clicking outside
+// Close dropdown / tooltip when clicking outside
 const handleClickOutside = (event: MouseEvent) => {
     if (dropdownRef.value && !dropdownRef.value.contains(event.target as Node)) {
         dropdownRef.value.open = false
     }
+    // 点击 tooltip 外部时关闭
+    showUsageTip.value = false
 }
 
 // ---- Token usage formatting (mirrors TUI footer logic) ----
@@ -214,14 +217,15 @@ defineExpose({
         <template #actions>
             <div class="flex items-center">
                 <!-- Connection Status Indicator -->
-                <div class="relative group flex items-center">
-                    <div class="w-3 h-3 rounded-full transition-colors duration-300 cursor-default"
+                <div class="relative group flex items-center" @click="showUsageTip = !showUsageTip">
+                    <div class="w-3 h-3 rounded-full transition-colors duration-300 cursor-pointer"
                         :class="isConnected ? 'bg-success' : 'bg-error/50'"></div>
-                    <!-- Multi-line tooltip -->
+                    <!-- Multi-line tooltip: hover (PC) + click (mobile) -->
                     <div class="pointer-events-none absolute top-full mt-2 right-0
-                                opacity-0 group-hover:opacity-100 transition-opacity duration-200
+                                transition-opacity duration-200
                                 bg-neutral text-neutral-content text-xs rounded-lg px-3 py-2
-                                shadow-lg whitespace-nowrap z-50">
+                                shadow-lg whitespace-nowrap z-50"
+                        :class="showUsageTip ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'">
                         <div>{{ isConnected ? $t('common.connected') : $t('common.disconnected') }}</div>
                         <div v-for="(line, i) in usageTipLines" :key="i"
                             class="text-neutral-content/70">{{ line }}</div>
