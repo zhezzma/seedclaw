@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import type { SessionUsage } from '../../composables/useChatState'
@@ -13,6 +13,8 @@ import {
     ArrowsPointingInIcon,
     PlusIcon,
     PhoneIcon,
+    BellIcon,
+    BellSlashIcon,
     ChevronLeftIcon,
     ArrowPathIcon,
     RectangleGroupIcon
@@ -26,6 +28,7 @@ import { isNewSession, NEW_SESSION_ROUTE_NAME } from '../../utils/route-helpers'
 import { useChatState } from '../../composables/useChatState'
 import { AgentInfo, useAgentsState } from '~/src/composables/useAgentsState'
 import { useCommandState } from '../../composables/useCommandState'
+import { apiGet, apiPost } from '../../composables/api-client'
 
 const props = defineProps<{
     sessionName?: string
@@ -64,12 +67,67 @@ const panel = useWorkspacePanel()
 
 const dropdownRef = ref<HTMLDetailsElement | null>(null)
 const showUsageTip = ref(false)
+const notifyEnabled = ref(false)
+const notifyLoading = ref(false)
 
 const showAgentDropdown = computed(() => isNewSession(route))
 
 const selectedAgentId = computed(() => props.selectedAgent?.id || '')
+const canToggleNotify = computed(() => Boolean(chatState.sessionKey))
 
+const buildNotifyAgentQuery = (agentId: string) => {
+    return agentId ? `?agentId=${encodeURIComponent(agentId)}` : ''
+}
 
+const loadNotifyStatus = async () => {
+    const sessionId = chatState.sessionKey
+    const agentId = chatState.agentsSelectedId
+    if (!sessionId) {
+        notifyEnabled.value = false
+        return
+    }
+
+    try {
+        const result = await apiGet<{ enabled: boolean }>(
+            `/api/extensions/notify/settings/sessions/${encodeURIComponent(sessionId)}${buildNotifyAgentQuery(agentId)}`
+        )
+        if (chatState.sessionKey === sessionId && chatState.agentsSelectedId === agentId) {
+            notifyEnabled.value = Boolean(result?.enabled)
+        }
+    } catch {
+        if (chatState.sessionKey === sessionId && chatState.agentsSelectedId === agentId) {
+            notifyEnabled.value = false
+        }
+    }
+}
+
+const toggleNotify = async () => {
+    const sessionId = chatState.sessionKey
+    const agentId = chatState.agentsSelectedId
+    if (!sessionId || notifyLoading.value) return
+
+    const nextEnabled = !notifyEnabled.value
+    notifyLoading.value = true
+    try {
+        const result = await apiPost<{ enabled: boolean }>(
+            `/api/extensions/notify/settings/sessions/${encodeURIComponent(sessionId)}${buildNotifyAgentQuery(agentId)}`,
+            { enabled: nextEnabled }
+        )
+        if (chatState.sessionKey === sessionId && chatState.agentsSelectedId === agentId) {
+            notifyEnabled.value = Boolean(result?.enabled)
+        }
+    } catch {
+        await loadNotifyStatus()
+    } finally {
+        notifyLoading.value = false
+    }
+}
+
+watch(
+    () => [chatState.sessionKey, chatState.agentsSelectedId],
+    () => loadNotifyStatus(),
+    { immediate: true }
+)
 
 // 选择 Agent（新会话下拉菜单）→ 通过 chatState.selectAgent 统一管理
 const selectAgent = async (agentId: string) => {
@@ -247,24 +305,32 @@ defineExpose({
 
          
 
+                <!-- Session notify toggle -->
+                <button v-if="canToggleNotify" @click="toggleNotify" class="btn btn-ghost btn-circle btn-sm"
+                    :class="{ 'text-primary': notifyEnabled }" :disabled="notifyLoading"
+                    :title="`${$t('settings.notifications')}: ${notifyEnabled ? $t('common.enabled') : $t('common.disabled')}`">
+                    <BellIcon v-if="notifyEnabled" class="h-5 w-5" />
+                    <BellSlashIcon v-else class="h-5 w-5" />
+                </button>
+
                 <!-- Mobile buttons -->
                 <div class="flex lg:hidden">
                     <button @click="refreshPage" class="btn btn-ghost btn-circle btn-sm" :title="$t('common.refresh')">
                         <ArrowPathIcon class="h-5 w-5" />
                     </button>
-                    <button @click="createNewSession" class="btn btn-ghost btn-circle btn-sm"
+                    <!-- <button @click="createNewSession" class="btn btn-ghost btn-circle btn-sm"
                         :title="$t('chat.newChat')">
                         <PlusIcon class="h-5 w-5" />
-                    </button>
+                    </button> -->
                 </div>
 
                 <!-- PC theme toggle button -->
                 <div class="hidden lg:flex items-center">
-                    <button @click="settingsStore.toggleLayout()" class="btn btn-ghost btn-circle btn-sm"
+                    <!-- <button @click="settingsStore.toggleLayout()" class="btn btn-ghost btn-circle btn-sm"
                         :title="settingsStore.isWideMode ? $t('chat.switchToNarrow') : $t('chat.switchToWide')">
                         <ArrowsPointingInIcon v-if="settingsStore.isWideMode" class="h-5 w-5" />
                         <ArrowsPointingOutIcon v-else class="h-5 w-5" />
-                    </button>
+                    </button> -->
                     <button @click="settingsStore.toggleTheme()" class="btn btn-ghost btn-circle btn-sm">
                         <SunIcon v-if="settingsStore.isDark" class="h-5 w-5" />
                         <MoonIcon v-else class="h-5 w-5" />
