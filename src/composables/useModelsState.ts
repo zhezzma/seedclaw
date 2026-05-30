@@ -128,7 +128,7 @@ const saveProvider = async (providerData: { id: string, baseUrl: string, type?: 
             type: providerData.type,
             apiKey: providerData.apiKey,
             api: providerData.api,
-            headers: providerData.headers,
+            headers: providerData.headers ?? {},
         })
         state.providers[providerData.id] = {
             ...existing,
@@ -136,7 +136,7 @@ const saveProvider = async (providerData: { id: string, baseUrl: string, type?: 
             type: providerData.type,
             ...(providerData.apiKey !== undefined ? { apiKey: providerData.apiKey } : {}),
             api: providerData.api,
-            headers: providerData.headers,
+            headers: providerData.headers ?? {},
         }
     } else {
         const newProvider: ProviderConfig = {
