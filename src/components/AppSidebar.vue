@@ -9,6 +9,8 @@ import {
     TrashIcon,
     ArrowTopRightOnSquareIcon,
     QrCodeIcon,
+    ChevronDoubleLeftIcon,
+    ChevronDoubleRightIcon,
 } from '@heroicons/vue/24/outline'
 import { SIDEBAR_ITEMS } from '../config/navigation'
 import SessionActionMenu from './chat/SessionActionMenu.vue'
@@ -40,6 +42,12 @@ const chatState = useChatState()
 const { t } = useI18n()
 const configStore = useUiSettingsStore()
 const weixinLogin = useWeixinLogin()
+
+const isCollapsed = computed(() => configStore.isSidebarCollapsed)
+
+const toggleCollapsed = () => {
+    configStore.toggleSidebarCollapsed()
+}
 
 // Active session key: prefer chatState (reactive), fallback to route param
 const activeSessionKey = computed(() => {
@@ -155,12 +163,13 @@ const openWeixinLoginModal = () => {
 <template>
     <div class="flex flex-col h-full bg-base-200/50 pt-[env(safe-area-inset-top)]">
         <!-- Header -->
-        <div class="shrink-0 px-5 py-3 flex items-center justify-between">
+        <div class="shrink-0 px-5 py-3 flex items-center justify-between"
+            :class="isCollapsed && 'lg:px-0 lg:justify-center'">
             <div class="flex items-center gap-2">
                 <span class="text-2xl">🦀</span>
-                <span class="text-lg font-bold tracking-tight">SeedClaw</span>
+                <span class="text-lg font-bold tracking-tight" :class="isCollapsed && 'lg:hidden'">SeedClaw</span>
             </div>
-            <div class="flex gap-1">
+            <div class="flex gap-1" :class="isCollapsed && 'lg:hidden'">
                 <a v-if="configStore.externalUrl" :href="configStore.externalUrl" target="_blank"
                     rel="noopener noreferrer" class="btn btn-ghost btn-circle btn-sm hover:bg-base-300">
                     <ArrowTopRightOnSquareIcon class="h-5 w-5" />
@@ -176,11 +185,12 @@ const openWeixinLoginModal = () => {
         </div>
 
         <!-- New Chat Button -->
-        <div class="shrink-0 px-4">
+        <div class="shrink-0 px-4" :class="isCollapsed && 'lg:px-2'">
             <button @click="createNewSession"
-                class="btn btn-primary btn-block gap-2 shadow-md hover:shadow-lg transition-shadow rounded-xl h-11">
+                class="btn btn-primary btn-block gap-2 shadow-md hover:shadow-lg transition-shadow rounded-xl h-11"
+                :title="$t('sidebar.newChat')">
                 <PlusIcon class="h-5 w-5" />
-                <span class="font-medium">{{ $t('sidebar.newChat') }}</span>
+                <span class="font-medium" :class="isCollapsed && 'lg:hidden'">{{ $t('sidebar.newChat') }}</span>
             </button>
         </div>
 
@@ -194,13 +204,19 @@ const openWeixinLoginModal = () => {
         <div class="shrink-0 px-3 flex flex-col gap-1.5">
             <button v-for="item in navItems" :key="item.label" @click="handleNavClick(item)"
                 class="group flex items-center gap-3  p-1 w-full rounded-2xl text-left transition-all duration-200 hover:bg-base-300/90 hover:border-base-300 hover:shadow-sm border border-transparent  active:scale-[0.98] cursor-pointer"
-                :class="{ 'bg-base-300 dark:bg-primary/20  shadow-sm': isItemActive(item) }">
+                :class="[
+                    { 'bg-base-300 dark:bg-primary/20  shadow-sm': isItemActive(item) },
+                    isCollapsed && 'lg:justify-center',
+                ]" :title="$t(item.label)">
                 <div class="p-1 rounded-xl transition-colors duration-200 group-hover:bg-primary/10 group-hover:text-primary text-base-content/60"
                     :class="{ 'bg-primary/10 text-primary': isItemActive(item) }">
                     <component :is="item.icon" class="h-5 w-5" />
                 </div>
                 <span class="font-medium text-sm text-base-content/70 group-hover:text-base-content transition-colors"
-                    :class="{ 'text-base-content font-semibold': isItemActive(item) }">
+                    :class="[
+                        { 'text-base-content font-semibold': isItemActive(item) },
+                        isCollapsed && 'lg:hidden',
+                    ]">
                     {{ $t(item.label) }}
                 </span>
             </button>
@@ -214,7 +230,8 @@ const openWeixinLoginModal = () => {
         </div>
 
         <!-- Conversations Header -->
-        <div class="shrink-0 px-4 pt-2 pb-2 flex items-center justify-between">
+        <div class="shrink-0 px-4 pt-2 pb-2 flex items-center justify-between"
+            :class="isCollapsed && 'lg:hidden'">
             <span class="text-sm font-medium text-base-content/70 uppercase tracking-wider">{{ $t('sidebar.recentChats')
             }}</span>
             <div class="flex gap-1">
@@ -230,7 +247,7 @@ const openWeixinLoginModal = () => {
         </div>
 
         <!-- Conversations List - scrollable -->
-        <div class="flex-1 overflow-y-auto px-3 pb-4 min-h-0">
+        <div class="flex-1 overflow-y-auto px-3 pb-4 min-h-0" :class="isCollapsed && 'lg:hidden'">
             <!-- Loading state -->
             <!-- <div v-if="sessionsState.sessionsLoading" class="flex items-center justify-center py-4">
                 <span class="loading loading-spinner loading-sm"></span>
@@ -255,6 +272,18 @@ const openWeixinLoginModal = () => {
                         :title="$t('sidebar.more')" @select="handleSessionMenuSelect(session, $event)" />
                 </a>
             </div>
+        </div>
+
+        <!-- Collapse toggle (Desktop only) -->
+        <div class="shrink-0 mt-auto hidden lg:block border-t border-base-300 p-2">
+            <button @click="toggleCollapsed"
+                class="btn btn-ghost btn-sm w-full gap-2 hover:bg-base-300"
+                :class="isCollapsed && 'px-0'"
+                :title="isCollapsed ? $t('sidebar.expand') : $t('sidebar.collapse')">
+                <ChevronDoubleRightIcon v-if="isCollapsed" class="h-5 w-5" />
+                <ChevronDoubleLeftIcon v-else class="h-5 w-5" />
+                <span class="font-medium text-sm" :class="isCollapsed && 'hidden'">{{ $t('sidebar.collapse') }}</span>
+            </button>
         </div>
     </div>
 </template>

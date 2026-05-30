@@ -75,6 +75,8 @@ export default {
     sidebar: {
         newChat: '新对话',
         recentChats: '最近对话',
+        collapse: '收起侧边栏',
+        expand: '展开侧边栏',
         clearAll: '清空所有',
         noChats: '暂无对话',
         deleteChatConfirm: '确定要删除对话 "{key}" 吗？',

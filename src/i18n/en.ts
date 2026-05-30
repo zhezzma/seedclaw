@@ -75,6 +75,8 @@ export default {
     sidebar: {
         newChat: 'New Chat',
         recentChats: 'Recent Chats',
+        collapse: 'Collapse sidebar',
+        expand: 'Expand sidebar',
         clearAll: 'Clear All',
         noChats: 'No chats',
         deleteChatConfirm: 'Are you sure you want to delete chat "{key}"?',

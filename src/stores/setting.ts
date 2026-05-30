@@ -18,6 +18,7 @@ export interface UiSettings {
     lastActiveSessionKey: string
     theme: 'light' | 'dark'
     isSidebarOpen: boolean
+    isSidebarCollapsed: boolean
     isWideMode: boolean
     showBottomNav: boolean
     sessionsActiveDays: number
@@ -234,6 +235,7 @@ const getDefaultSettings = (): UiSettings => ({
     lastActiveSessionKey: '',
     theme: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
     isSidebarOpen: false,
+    isSidebarCollapsed: false,
     isWideMode: true,
     showBottomNav: false,
     sessionsActiveDays: 3,
@@ -428,6 +430,11 @@ export const useUiSettingsStore = defineStore('ui-settings', {
 
         closeSidebar() {
             this.isSidebarOpen = false
+            this.persist()
+        },
+
+        toggleSidebarCollapsed() {
+            this.isSidebarCollapsed = !this.isSidebarCollapsed
             this.persist()
         },
 
