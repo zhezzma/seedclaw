@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useSubAgents, SubagentConfig } from '@/composables/useSubAgents'
 import { useAgentsState } from '@/composables/useAgentsState'
 import { useModelsState } from '@/composables/useModelsState'
 import { useSkillsState } from '@/composables/useSkillsState'
 import { useToast } from '@/composables/useToast'
 import { useI18n } from 'vue-i18n'
-import { PlusIcon, PencilIcon, TrashIcon, UserGroupIcon, CommandLineIcon } from '@heroicons/vue/24/outline'
+import { PlusIcon, PencilIcon, TrashIcon, UserGroupIcon, CommandLineIcon, CpuChipIcon, ChevronUpIcon } from '@heroicons/vue/24/outline'
+import ModelSelectMenuContent from '@/components/models/ModelSelectMenuContent.vue'
 
 const props = defineProps<{
     agent: any
@@ -54,6 +55,97 @@ const selectedModelValue = computed({
             formData.value.provider = ''
         }
     }
+})
+
+const modelDropdownOpen = ref(false)
+const modelTriggerRef = ref<HTMLElement | null>(null)
+const modelPanelRef = ref<HTMLElement | null>(null)
+const modelDropdownStyle = ref<Record<string, string>>({})
+
+const updateModelDropdownPosition = () => {
+    const rect = modelTriggerRef.value?.getBoundingClientRect()
+    if (!rect) return
+
+    const margin = 8
+    const spaceBelow = window.innerHeight - rect.bottom
+    const spaceAbove = rect.top
+    const openUpward = spaceBelow < 240 && spaceAbove > spaceBelow
+    const maxHeight = Math.max(160, Math.min(320, (openUpward ? spaceAbove : spaceBelow) - margin * 2))
+
+    const style: Record<string, string> = {
+        position: 'fixed',
+        left: `${rect.left}px`,
+        width: `${rect.width}px`,
+        maxHeight: `${maxHeight}px`,
+    }
+    if (openUpward) {
+        style.bottom = `${window.innerHeight - rect.top + 4}px`
+    } else {
+        style.top = `${rect.bottom + 4}px`
+    }
+    modelDropdownStyle.value = style
+}
+
+const toggleModelDropdown = () => {
+    modelDropdownOpen.value = !modelDropdownOpen.value
+    if (modelDropdownOpen.value) {
+        nextTick(updateModelDropdownPosition)
+    }
+}
+
+const isCurrentModelAvailable = computed(() => {
+    const val = selectedModelValue.value
+    if (!val) return false
+    return availableModelGroups.value.some((group: any) =>
+        group.models.some((m: any) => `${group.provider}/${m.id}` === val)
+    )
+})
+
+const currentModelLabel = computed(() => {
+    const val = selectedModelValue.value
+    if (!val) return t('agent.form.modelPlaceholder') || 'Inherit Parent Model'
+
+    for (const group of availableModelGroups.value) {
+        const matched = group.models.find((m: any) => `${group.provider}/${m.id}` === val)
+        if (matched) return matched.name
+    }
+    return `${val} (${t('agent.unknownModel')})`
+})
+
+const handleModelSelect = (modelId: string) => {
+    selectedModelValue.value = modelId
+    modelDropdownOpen.value = false
+}
+
+const clearModelSelection = () => {
+    selectedModelValue.value = ''
+    modelDropdownOpen.value = false
+}
+
+const handleModelDocumentClick = (event: MouseEvent) => {
+    const target = event.target as Node | null
+    if (!modelDropdownOpen.value || !target) return
+    if (modelTriggerRef.value?.contains(target)) return
+    if (modelPanelRef.value?.contains(target)) return
+    modelDropdownOpen.value = false
+}
+
+const handleModelViewportChange = () => {
+    if (modelDropdownOpen.value) {
+        updateModelDropdownPosition()
+    }
+}
+
+onMounted(() => {
+    document.addEventListener('click', handleModelDocumentClick)
+    window.addEventListener('resize', handleModelViewportChange)
+    window.addEventListener('scroll', handleModelViewportChange, true)
+})
+
+onBeforeUnmount(() => {
+    document.removeEventListener('click', handleModelDocumentClick)
+    window.removeEventListener('resize', handleModelViewportChange)
+    window.removeEventListener('scroll', handleModelViewportChange, true)
 })
 
 // Form Data
@@ -112,6 +204,7 @@ const openAddModal = () => {
     formData.value = initFormData()
     selectedTools.value = []
     selectedSkills.value = []
+    modelDropdownOpen.value = false
     showModal.value = true
 }
 
@@ -146,11 +239,13 @@ const openEditModal = (subagent: SubagentConfig) => {
     } else {
         selectedSkills.value = []
     }
+    modelDropdownOpen.value = false
     showModal.value = true
 }
 
 const closeModal = () => {
     showModal.value = false
+    modelDropdownOpen.value = false
     formData.value = initFormData()
 }
 
@@ -383,17 +478,34 @@ const toggleAllSkills = () => {
                             <span class="label-text-alt text-base-content/50">{{ $t('agent.subagents.modelOverride') ||
                                 'Overrides agent\'s default model' }}</span>
                         </label>
-                        <select v-model="selectedModelValue" class="select select-bordered w-full">
-                            <option value="">{{ $t('agent.form.modelPlaceholder') || 'Inherit Parent Model' }}</option>
-                            <optgroup v-for="group in availableModelGroups" :key="group.provider"
-                                :label="group.provider">
-                                <option v-for="model in group.models" :key="model.id"
-                                    :value="`${group.provider}/${model.id}`">
-                                    {{ model.name }}
-                                </option>
-                            </optgroup>
-                        </select>
+                        <div class="relative w-full">
+                            <button ref="modelTriggerRef" type="button" @click.stop="toggleModelDropdown"
+                                class="btn btn-ghost btn-sm gap-2 font-normal rounded-lg border border-base-content/20 hover:border-base-content/40 hover:bg-base-300 transition-all w-full justify-between h-12"
+                                :title="$t('provider.selectModel')">
+                                <span class="flex items-center gap-2 min-w-0 flex-1">
+                                    <CpuChipIcon class="h-4 w-4 shrink-0" />
+                                    <span class="truncate">{{ currentModelLabel }}</span>
+                                </span>
+                                <ChevronUpIcon class="h-3 w-3 shrink-0 opacity-50 transition-transform"
+                                    :class="{ 'rotate-180': modelDropdownOpen }" />
+                            </button>
+                        </div>
                     </div>
+
+                    <Teleport to="body">
+                        <div v-if="modelDropdownOpen" ref="modelPanelRef" :style="modelDropdownStyle"
+                            class="z-[200] bg-base-100 rounded-box border border-base-300 shadow-xl overflow-hidden flex flex-col">
+                            <button type="button" @click="clearModelSelection"
+                                class="flex items-center gap-2 px-4 py-2 text-left text-xs hover:bg-base-200 transition-colors border-b border-base-200 shrink-0"
+                                :class="{ 'bg-primary/10 text-primary': !selectedModelValue }">
+                                {{ $t('agent.form.modelPlaceholder') || 'Inherit Parent Model' }}
+                            </button>
+                            <ModelSelectMenuContent :available-models="availableModelGroups"
+                                :current-model="selectedModelValue"
+                                :show-unknown-current="!isCurrentModelAvailable && !!selectedModelValue"
+                                @select="handleModelSelect" />
+                        </div>
+                    </Teleport>
 
                     <!-- System Prompt -->
                     <div class="form-control w-full">

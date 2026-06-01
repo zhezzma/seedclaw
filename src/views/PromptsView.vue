@@ -6,11 +6,10 @@ import { useConfirm } from '../composables/useConfirm'
 import { useI18n } from 'vue-i18n'
 import ViewHeader from '../components/ViewHeader.vue'
 import PromptEditorModal from '../components/prompts/PromptEditorModal.vue'
+import PromptCard from '../components/prompts/PromptCard.vue'
 import {
     DocumentTextIcon,
     PlusIcon,
-    PencilSquareIcon,
-    TrashIcon,
     LockClosedIcon,
     GlobeAltIcon,
 } from '@heroicons/vue/24/outline'
@@ -115,36 +114,9 @@ const toggleExpand = (id: string) => {
                         <p class="text-sm">{{ $t('prompt.noSystemPrompts') }}</p>
                     </div>
                     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div v-for="prompt in systemPrompts" :key="prompt.id"
-                            class="card bg-base-100 border border-base-200 shadow-sm">
-                            <div class="card-body p-4">
-                                <div class="flex items-start justify-between mb-2">
-                                    <div class="flex items-center gap-2 min-w-0">
-                                        <div
-                                            class="w-8 h-8 rounded-lg bg-warning/10 flex items-center justify-center shrink-0">
-                                            <LockClosedIcon class="w-4 h-4 text-warning" />
-                                        </div>
-                                        <div class="min-w-0">
-                                            <h3 class="font-bold text-sm truncate">{{ prompt.name }}</h3>
-                                            <p class="text-xs text-base-content/50 font-mono">/ {{ prompt.id }}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <p v-if="prompt.description" class="text-sm text-base-content/70 line-clamp-2 mb-2">
-                                    {{ prompt.description }}
-                                </p>
-                                <div class="mt-auto pt-2 border-t border-base-200">
-                                    <button class="btn btn-ghost btn-xs w-full" @click="toggleExpand(prompt.id)">
-                                        {{ expandedPromptId === prompt.id ? $t('common.close') :
-                                            $t('common.clickToView') }}
-                                    </button>
-                                    <div v-if="expandedPromptId === prompt.id"
-                                        class="mt-2 p-3 bg-base-200 rounded-lg text-xs font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">
-                                        {{ prompt.content }}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        <PromptCard v-for="prompt in systemPrompts" :key="prompt.id" :prompt="prompt"
+                            :icon="LockClosedIcon" variant="warning" readonly
+                            :expanded="expandedPromptId === prompt.id" @toggle="toggleExpand(prompt.id)" />
                     </div>
                 </section>
 
@@ -166,43 +138,10 @@ const toggleExpand = (id: string) => {
                         <p class="text-sm">{{ $t('prompt.noGlobalPrompts') }}</p>
                     </div>
                     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div v-for="prompt in globalPrompts" :key="prompt.id"
-                            class="card bg-base-100 border border-base-200 shadow-sm hover:shadow-md transition-shadow">
-                            <div class="card-body p-4">
-                                <div class="flex items-start justify-between mb-2">
-                                    <div class="flex items-center gap-2 min-w-0">
-                                        <div
-                                            class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                                            <GlobeAltIcon class="w-4 h-4 text-primary" />
-                                        </div>
-                                        <div class="min-w-0">
-                                            <h3 class="font-bold text-sm truncate">{{ prompt.name }}</h3>
-                                            <p class="text-xs text-base-content/50 font-mono">/ {{ prompt.id }}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <p v-if="prompt.description" class="text-sm text-base-content/70 line-clamp-2 mb-2">
-                                    {{ prompt.description }}
-                                </p>
-                                <div class="flex items-center gap-1 mt-auto pt-2 border-t border-base-200">
-                                    <button class="btn btn-ghost btn-xs flex-1" @click="toggleExpand(prompt.id)">
-                                        {{ expandedPromptId === prompt.id ? $t('common.close') :
-                                            $t('common.clickToView') }}
-                                    </button>
-                                    <button class="btn btn-ghost btn-xs btn-square" @click="openEditEditor(prompt)">
-                                        <PencilSquareIcon class="w-4 h-4" />
-                                    </button>
-                                    <button class="btn btn-ghost btn-xs btn-square text-error"
-                                        @click="handleDelete(prompt)">
-                                        <TrashIcon class="w-4 h-4" />
-                                    </button>
-                                </div>
-                                <div v-if="expandedPromptId === prompt.id"
-                                    class="mt-2 p-3 bg-base-200 rounded-lg text-xs font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">
-                                    {{ prompt.content }}
-                                </div>
-                            </div>
-                        </div>
+                        <PromptCard v-for="prompt in globalPrompts" :key="prompt.id" :prompt="prompt"
+                            :icon="GlobeAltIcon" variant="primary" :expanded="expandedPromptId === prompt.id"
+                            @toggle="toggleExpand(prompt.id)" @edit="openEditEditor(prompt)"
+                            @delete="handleDelete(prompt)" />
                     </div>
                 </section>
             </template>

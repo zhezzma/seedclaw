@@ -36,18 +36,31 @@ const resolvedTitle = computed(() => props.title || t('provider.selectModel'))
 const resolvedSearchPlaceholder = computed(() => props.searchPlaceholder || t('provider.searchModels'))
 const resolvedUnknownCurrentLabel = computed(() => props.unknownCurrentLabel || t('agent.unknownModel'))
 
+const currentModelLabel = computed(() => {
+    if (!props.currentModel) return ''
+    for (const group of props.availableModels) {
+        const matched = group.models.find((m) => `${group.provider}/${m.id}` === props.currentModel)
+        if (matched) return `${group.provider} / ${matched.name}`
+    }
+    return props.currentModel
+})
+
 const normalizedQuery = computed(() => searchText.value.trim().toLowerCase())
 const filteredGroups = computed(() => {
     const query = normalizedQuery.value
+    if (!query) return props.availableModels
 
     return props.availableModels
-        .map((group) => ({
-            provider: group.provider,
-            models: group.models.filter((m) => {
-                if (!query) return true
-                return m.name.toLowerCase().includes(query) || m.id.toLowerCase().includes(query)
-            })
-        }))
+        .map((group) => {
+            const providerLower = group.provider.toLowerCase()
+            return {
+                provider: group.provider,
+                models: group.models.filter((m) => {
+                    const fullId = `${providerLower}/${m.id.toLowerCase()}`
+                    return fullId.includes(query) || m.name.toLowerCase().includes(query)
+                })
+            }
+        })
         .filter((group) => group.models.length > 0)
 })
 
@@ -74,8 +87,12 @@ const emitSelect = (provider: string, modelId: string) => emit('select', `${prov
 <template>
     <div class="flex max-h-full min-h-0 flex-col">
         <div class="sticky top-0 z-20 bg-base-100">
-            <div class="px-4 py-2 text-xs opacity-50 font-bold uppercase tracking-wider block">
-                {{ resolvedTitle }}
+            <div class="px-4 pt-2 pb-1 flex items-center justify-between gap-2">
+                <span class="text-xs opacity-50 font-bold uppercase tracking-wider shrink-0">{{ resolvedTitle }}</span>
+                <span v-if="currentModelLabel" class="text-xs text-primary font-medium truncate min-w-0 text-right"
+                    :title="currentModelLabel">
+                    {{ currentModelLabel }}
+                </span>
             </div>
 
             <div class="px-2 pb-2">
