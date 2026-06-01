@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, type Component } from 'vue'
+import { ref, onBeforeUnmount, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '../../composables/useToast'
 import { writeClipboard } from '../../utils/clipboard'
@@ -41,6 +41,10 @@ const handleCopy = async () => {
         toast.error(t('common.error'))
     }
 }
+
+onBeforeUnmount(() => {
+    if (copiedTimer) clearTimeout(copiedTimer)
+})
 </script>
 
 <template>
@@ -66,16 +70,18 @@ const handleCopy = async () => {
                 <button class="btn btn-ghost btn-xs flex-1" @click="emit('toggle')">
                     {{ expanded ? $t('common.close') : $t('common.clickToView') }}
                 </button>
-                <button class="btn btn-ghost btn-xs btn-square" :title="$t('common.copy')" @click="handleCopy">
+                <button class="btn btn-ghost btn-xs btn-square" :title="$t('common.copy')"
+                    :aria-label="$t('common.copy')" @click="handleCopy">
                     <CheckIcon v-if="copied" class="w-4 h-4 text-success" />
                     <ClipboardDocumentIcon v-else class="w-4 h-4" />
                 </button>
                 <template v-if="!readonly">
-                    <button class="btn btn-ghost btn-xs btn-square" :title="$t('common.edit')" @click="emit('edit')">
+                    <button class="btn btn-ghost btn-xs btn-square" :title="$t('common.edit')"
+                        :aria-label="$t('common.edit')" @click="emit('edit')">
                         <PencilSquareIcon class="w-4 h-4" />
                     </button>
                     <button class="btn btn-ghost btn-xs btn-square text-error" :title="$t('common.delete')"
-                        @click="emit('delete')">
+                        :aria-label="$t('common.delete')" @click="emit('delete')">
                         <TrashIcon class="w-4 h-4" />
                     </button>
                 </template>
