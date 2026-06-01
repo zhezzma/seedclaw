@@ -408,7 +408,7 @@ const toggleAllSkills = () => {
 
                     <div class="flex flex-wrap gap-2 mt-auto">
                         <div v-if="agent.model" class="badge badge-outline badge-sm text-xs opacity-70">
-                            {{ agent.model }}
+                            {{ `${agent.provider}/${agent.model}` }}
                         </div>
                         <div v-if="agent.tools?.type === 'custom'"
                             class="badge badge-primary badge-outline badge-sm text-xs gap-1">
