@@ -4,6 +4,17 @@ import { apiGet, apiPost, apiPatch, apiDelete } from './api-client'
 
 // ==================== Types ====================
 
+/** pi thinking levels. `off` 也是合法 key（用于标记模型不可关闭思考）。 */
+export type ThinkingLevelKey = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+
+/**
+ * 三态：
+ *  - 字段缺省       → 该级别支持，用 provider 默认映射
+ *  - string         → 该级别支持，把此值发给 provider（如 reasoning_effort）
+ *  - null           → 该级别不支持，UI 隐藏 / clamp 掉
+ */
+export type ThinkingLevelMap = Partial<Record<ThinkingLevelKey, string | null>>
+
 /** A single model entry returned by the API */
 export interface AvailableModel {
     id: string
@@ -19,6 +30,9 @@ export interface AvailableModel {
     }
     reasoning?: boolean
     input?: string[]
+    /** null 仅用于 PATCH 时显式删除后端已存的 map（后端 merge 语义下省略无法清除）。 */
+    thinkingLevelMap?: ThinkingLevelMap | null
+    compat?: OpenAICompletionsCompat | AnthropicMessagesCompat
 }
 //https://github.com/earendil-works/pi/blob/main/packages/ai/src/types.ts
 //https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/models.md
@@ -36,6 +50,7 @@ export interface ProviderConfig {
     headers?: Record<string, string>
     models: AvailableModel[]
     custom: boolean
+    compat?: OpenAICompletionsCompat | AnthropicMessagesCompat
 }
 
 /** Shape of the API response payload for /api/models */
@@ -61,8 +76,19 @@ export interface OpenAICompletionsCompat {
     requiresAssistantAfterToolResult?: boolean;
     requiresThinkingAsText?: boolean;
     requiresMistralToolIds?: boolean;
-    thinkingFormat?: "openai" | "zai" | "qwen";
+    thinkingFormat?: "openai" | "openrouter" | "deepseek" | "together" | "zai" | "qwen" | "qwen-chat-template" | "string-thinking";
     supportsStrictMode?: boolean;
+    supportsLongCacheRetention?: boolean;
+}
+
+/** api: "anthropic-messages" 专用 compat 字段。 */
+export interface AnthropicMessagesCompat {
+    supportsEagerToolInputStreaming?: boolean;
+    supportsLongCacheRetention?: boolean;
+    sendSessionAffinityHeaders?: boolean;
+    supportsCacheControlOnTools?: boolean;
+    forceAdaptiveThinking?: boolean;
+    allowEmptySignature?: boolean;
 }
 
 
@@ -120,7 +146,7 @@ const loadModels = async () => {
     }
 }
 
-const saveProvider = async (providerData: { id: string, baseUrl: string, type?: 'api_key' | 'oauth', apiKey?: string, api: KnownApi, headers?: Record<string, string> }) => {
+const saveProvider = async (providerData: { id: string, baseUrl: string, type?: 'api_key' | 'oauth', apiKey?: string, api: KnownApi, headers?: Record<string, string>, compat?: OpenAICompletionsCompat | AnthropicMessagesCompat }) => {
     const existing = state.providers[providerData.id]
     if (existing) {
         await apiPatch(`/api/models/providers/${providerData.id}`, {
@@ -129,7 +155,9 @@ const saveProvider = async (providerData: { id: string, baseUrl: string, type?: 
             apiKey: providerData.apiKey,
             api: providerData.api,
             headers: providerData.headers ?? {},
+            compat: providerData.compat ?? {},
         })
+        const hasCompat = !!providerData.compat && Object.keys(providerData.compat).length > 0
         state.providers[providerData.id] = {
             ...existing,
             baseUrl: providerData.baseUrl,
@@ -137,6 +165,8 @@ const saveProvider = async (providerData: { id: string, baseUrl: string, type?: 
             ...(providerData.apiKey !== undefined ? { apiKey: providerData.apiKey } : {}),
             api: providerData.api,
             headers: providerData.headers ?? {},
+            // compat 空时后端会删字段，本地 state 同步剔除，避免遗留 {}。
+            ...(hasCompat ? { compat: providerData.compat } : { compat: undefined }),
         }
     } else {
         const newProvider: ProviderConfig = {
@@ -145,6 +175,7 @@ const saveProvider = async (providerData: { id: string, baseUrl: string, type?: 
             apiKey: providerData.apiKey,
             api: providerData.api,
             headers: providerData.headers,
+            compat: providerData.compat,
             models: [],
             custom: true
         }
@@ -164,7 +195,13 @@ const saveModel = async (providerId: string, model: AvailableModel) => {
     const existingModelIndex = provider.models.findIndex(m => m.id === model.id)
     if (existingModelIndex !== -1) {
         await apiPatch(`/api/models/providers/${providerId}/models/${encodeURIComponent(model.id)}`, model)
-        provider.models[existingModelIndex] = model
+        // null 是发给后端的“删除”信号；本地 state 同步为剔除该字段，与后端保持一致。
+        if (model.thinkingLevelMap === null) {
+            const { thinkingLevelMap: _omit, ...rest } = model
+            provider.models[existingModelIndex] = rest
+        } else {
+            provider.models[existingModelIndex] = model
+        }
     } else {
         await apiPost(`/api/models/providers/${providerId}/models`, model)
         provider.models.push(model)

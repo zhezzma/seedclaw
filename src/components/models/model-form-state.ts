@@ -1,4 +1,7 @@
-import type { AvailableModel } from '../../composables/useModelsState'
+import type {
+    AvailableModel,
+    ThinkingLevelMap,
+} from '../../composables/useModelsState'
 
 export interface ModelFormState {
     id: string
@@ -13,6 +16,7 @@ export interface ModelFormState {
     }
     reasoning: boolean
     input: string[]
+    thinkingLevelMap: ThinkingLevelMap
 }
 
 export function createDefaultModelFormData(): ModelFormState {
@@ -29,6 +33,7 @@ export function createDefaultModelFormData(): ModelFormState {
         },
         reasoning: false,
         input: ['text', 'image'],
+        thinkingLevelMap: {},
     }
 }
 
@@ -50,6 +55,8 @@ export function applyModelFormData(target: ModelFormState, initialData?: Availab
     target.input = initialData
         ? [...(initialData.input?.length ? initialData.input : ['text'])]
         : [...defaults.input]
+    // 深拷避免表单编辑直接窜改到 state.providers 里的原始对象。
+    target.thinkingLevelMap = { ...(initialData?.thinkingLevelMap ?? {}) }
 
     return target
 }

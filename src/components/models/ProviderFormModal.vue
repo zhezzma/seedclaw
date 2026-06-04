@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue'
-import { KnownApi, useModelsState, OAuthProviders } from '../../composables/useModelsState'
+import { KnownApi, useModelsState, OAuthProviders, OpenAICompletionsCompat, AnthropicMessagesCompat } from '../../composables/useModelsState'
 import { useI18n } from 'vue-i18n'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline'
 
@@ -15,6 +15,7 @@ const props = defineProps<{
         api: KnownApi
         apiKey?: string
         headers?: Record<string, string>
+        compat?: OpenAICompletionsCompat | AnthropicMessagesCompat
     }
 }>()
 
@@ -34,10 +35,70 @@ const formData = reactive({
     type: 'api_key' as 'api_key' | 'oauth',
     apiKey: '',
     api: 'openai-completions' as KnownApi,
-    headers: ''
+    headers: '',
+    compat: {} as Record<string, unknown>,
 })
 const showApiKey = ref(false)
 const isSubmitting = ref(false)
+
+// ── Compat 字段定义（按 provider api 类型区分） ──
+// compat 是 provider 级设置：pi 文档明确“provider 级设一次对该 provider 下所有模型生效”。
+type CompatFieldDef =
+    | { kind: 'bool'; name: string; labelKey: string }
+    | { kind: 'enum'; name: string; labelKey: string; options: string[] }
+
+const OPENAI_COMPAT_FIELDS: CompatFieldDef[] = [
+    { kind: 'bool', name: 'supportsReasoningEffort', labelKey: 'provider.compat.supportsReasoningEffort' },
+    { kind: 'bool', name: 'supportsDeveloperRole', labelKey: 'provider.compat.supportsDeveloperRole' },
+    { kind: 'bool', name: 'supportsStore', labelKey: 'provider.compat.supportsStore' },
+    { kind: 'bool', name: 'supportsUsageInStreaming', labelKey: 'provider.compat.supportsUsageInStreaming' },
+    { kind: 'bool', name: 'supportsStrictMode', labelKey: 'provider.compat.supportsStrictMode' },
+    { kind: 'bool', name: 'requiresToolResultName', labelKey: 'provider.compat.requiresToolResultName' },
+    { kind: 'bool', name: 'requiresAssistantAfterToolResult', labelKey: 'provider.compat.requiresAssistantAfterToolResult' },
+    { kind: 'bool', name: 'requiresThinkingAsText', labelKey: 'provider.compat.requiresThinkingAsText' },
+    { kind: 'enum', name: 'maxTokensField', labelKey: 'provider.compat.maxTokensField', options: ['max_completion_tokens', 'max_tokens'] },
+    { kind: 'enum', name: 'thinkingFormat', labelKey: 'provider.compat.thinkingFormat', options: ['openai', 'openrouter', 'deepseek', 'together', 'zai', 'qwen', 'qwen-chat-template', 'string-thinking'] },
+]
+
+const ANTHROPIC_COMPAT_FIELDS: CompatFieldDef[] = [
+    { kind: 'bool', name: 'forceAdaptiveThinking', labelKey: 'provider.compat.forceAdaptiveThinking' },
+    { kind: 'bool', name: 'allowEmptySignature', labelKey: 'provider.compat.allowEmptySignature' },
+    { kind: 'bool', name: 'supportsEagerToolInputStreaming', labelKey: 'provider.compat.supportsEagerToolInputStreaming' },
+    { kind: 'bool', name: 'supportsCacheControlOnTools', labelKey: 'provider.compat.supportsCacheControlOnTools' },
+    { kind: 'bool', name: 'supportsLongCacheRetention', labelKey: 'provider.compat.supportsLongCacheRetention' },
+    { kind: 'bool', name: 'sendSessionAffinityHeaders', labelKey: 'provider.compat.sendSessionAffinityHeaders' },
+]
+
+const compatFields = computed<CompatFieldDef[]>(() => {
+    if (formData.api === 'anthropic-messages') return ANTHROPIC_COMPAT_FIELDS
+    if (formData.api === 'openai-completions') return OPENAI_COMPAT_FIELDS
+    return []
+})
+
+const hasCompatFields = computed(() => compatFields.value.length > 0)
+
+// bool 字段的三态 select：'' = 默认(不写) / 'true' / 'false'。
+function getBoolCompat(name: string): string {
+    const v = formData.compat[name]
+    if (v === true) return 'true'
+    if (v === false) return 'false'
+    return ''
+}
+function setBoolCompat(name: string, next: string) {
+    if (next === 'true') formData.compat[name] = true
+    else if (next === 'false') formData.compat[name] = false
+    else delete formData.compat[name]
+}
+
+// enum 字段的 select：'' = 默认(不写) / 具体值。
+function getEnumCompat(name: string): string {
+    const v = formData.compat[name]
+    return typeof v === 'string' ? v : ''
+}
+function setEnumCompat(name: string, next: string) {
+    if (next) formData.compat[name] = next
+    else delete formData.compat[name]
+}
 
 // Watch for initial data
 watch(() => props.show, (newVal) => {
@@ -49,6 +110,8 @@ watch(() => props.show, (newVal) => {
             formData.api = props.initialData.api as KnownApi
             formData.apiKey = props.initialData.apiKey || ''
             formData.headers = props.initialData.headers ? JSON.stringify(props.initialData.headers, null, 2) : ''
+            // 深拷避免表单编辑直接窜改到 state.providers 里的原始对象。
+            formData.compat = { ...((props.initialData.compat as object) ?? {}) }
         } else {
             // Reset for add
             formData.id = ''
@@ -57,6 +120,7 @@ watch(() => props.show, (newVal) => {
             formData.apiKey = ''
             formData.api = 'openai-completions'
             formData.headers = ''
+            formData.compat = {}
         }
         hasAttemptedSubmit.value = false
     }
@@ -124,13 +188,21 @@ const handleSubmit = async () => {
 
         const shouldSendApiKey = !!formData.apiKey.trim() || props.mode === 'add' || props.initialData?.apiKey !== undefined
 
+        // compat 只保留当前 api 类型下的字段，避免切换 api 后残留无关项。
+        const allowedNames = new Set(compatFields.value.map((f) => f.name))
+        const compat: Record<string, unknown> = {}
+        for (const [k, v] of Object.entries(formData.compat)) {
+            if (allowedNames.has(k)) compat[k] = v
+        }
+
         await saveProvider({
             id: formData.id,
             baseUrl: formData.baseUrl,
             type: formData.type,
             apiKey: shouldSendApiKey ? formData.apiKey : undefined,
             api: formData.api,
-            headers: parsedHeaders
+            headers: parsedHeaders,
+            compat: Object.keys(compat).length > 0 ? (compat as OpenAICompletionsCompat | AnthropicMessagesCompat) : undefined,
         })
 
         emit('saved', formData.id)
@@ -145,7 +217,7 @@ const handleSubmit = async () => {
 
 <template>
     <dialog :class="{ 'modal modal-open': show, 'modal': !show }">
-        <div class="modal-box max-w-xl">
+        <div class="modal-box w-11/12 max-w-3xl">
             <h3 class="font-bold text-lg mb-6">{{ modalTitle }}</h3>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -217,6 +289,35 @@ const handleSubmit = async () => {
                     <p v-if="shouldShowError('headers')" class="text-error text-xs mt-1">
                         {{ validationErrors.headers }}
                     </p>
+                </div>
+
+                <!-- Provider Compatibility (按 api 类型区分) -->
+                <div v-if="hasCompatFields" class="form-control md:col-span-2 mt-2">
+                    <label class="label">
+                        <span class="label-text font-semibold">{{ $t('provider.compat.title') }}</span>
+                    </label>
+                    <p class="text-xs text-base-content/60 mb-2">{{ $t('provider.compat.hint') }}</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div v-for="field in compatFields" :key="field.name"
+                            class="flex items-center justify-between gap-3">
+                            <span class="text-sm flex-1 min-w-0" :title="field.name">{{ $t(field.labelKey) }}</span>
+                            <select v-if="field.kind === 'bool'"
+                                :value="getBoolCompat(field.name)"
+                                @change="setBoolCompat(field.name, ($event.target as HTMLSelectElement).value)"
+                                class="select select-bordered select-sm w-32 shrink-0" :disabled="isReadonly">
+                                <option value="">{{ $t('provider.compat.default') }}</option>
+                                <option value="true">{{ $t('provider.compat.yes') }}</option>
+                                <option value="false">{{ $t('provider.compat.no') }}</option>
+                            </select>
+                            <select v-else
+                                :value="getEnumCompat(field.name)"
+                                @change="setEnumCompat(field.name, ($event.target as HTMLSelectElement).value)"
+                                class="select select-bordered select-sm w-44 shrink-0 font-mono" :disabled="isReadonly">
+                                <option value="">{{ $t('provider.compat.default') }}</option>
+                                <option v-for="opt in field.options" :key="opt" :value="opt">{{ opt }}</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
             </div>
 
