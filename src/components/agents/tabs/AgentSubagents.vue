@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { useSubAgents, SubagentConfig } from '@/composables/useSubAgents'
+import { useSubAgents, SubagentConfig, SubagentThinkingLevel, SubagentSaveInput } from '@/composables/useSubAgents'
 import { useAgentsState } from '@/composables/useAgentsState'
 import { useModelsState } from '@/composables/useModelsState'
 import { useSkillsState } from '@/composables/useSkillsState'
@@ -149,17 +149,23 @@ onBeforeUnmount(() => {
 })
 
 // Form Data
-const initFormData = (): Partial<SubagentConfig> => ({
+// 表单层用 '' 表示 "继承父 agent"（令 <select> 选中占位 option）；保存时转为服务端的 null/undefined。
+type SubagentFormData = Omit<Partial<SubagentConfig>, 'thinkingLevel'> & {
+    thinkingLevel?: SubagentThinkingLevel | ''
+}
+
+const initFormData = (): SubagentFormData => ({
     id: '',
     name: '',
     description: '',
     systemPrompt: '',
     model: '',
+    thinkingLevel: '',
     tools: { type: 'inherit' },
     skills: { type: 'none' }
 })
 
-const formData = ref<Partial<SubagentConfig>>(initFormData())
+const formData = ref<SubagentFormData>(initFormData())
 const isEditing = ref(false)
 const editingId = ref('')
 const selectedTools = ref<string[]>([])
@@ -222,6 +228,11 @@ const openEditModal = (subagent: SubagentConfig) => {
         formData.value.skills = { type: 'none' }
     }
 
+    // select 需要 '' 才能选中 "继承父" 选项
+    if (!formData.value.thinkingLevel) {
+        formData.value.thinkingLevel = ''
+    }
+
     if (formData.value.tools.type === 'custom') {
         const denied = formData.value.tools.deniedTools || []
         selectedTools.value = availableTools.value
@@ -263,6 +274,13 @@ const saveSubagent = async () => {
 
     isSubmitting.value = true
     try {
+        // 创建模式：重复 ID 预检查提前到 mutate 之前，避免状态污染或语义反转。
+        if (!isEditing.value && subagents.value.some(s => s.id === formData.value.id)) {
+            toast.error(t('agent.subagents.nameExists', { name: formData.value.id }) || `Subagent with id ${formData.value.id} already exists.`)
+            isSubmitting.value = false
+            return
+        }
+
         // Convert selectedTools to deniedTools when using 'custom'
         if (formData.value.tools?.type === 'custom') {
             const selected = selectedTools.value
@@ -285,16 +303,19 @@ const saveSubagent = async () => {
             delete formData.value.skills.disabledSkills
         }
 
+        // 构造 wire payload：不 mutate reactive formData（避免错误路径下 select 被 null 污染为空白态）。
+        // form '' → wire null：服务端 PUT 路由依靠 "thinkingLevel" in body 区分未传/清空，
+        // JSON.stringify 会丢掉 undefined 但保留 null，所以这里必须是 null。
+        const payload: SubagentSaveInput = {
+            ...formData.value,
+            thinkingLevel: formData.value.thinkingLevel || null,
+        }
+
         if (isEditing.value) {
-            await subAgentsState.updateSubagent(props.agent.id, editingId.value, formData.value)
+            await subAgentsState.updateSubagent(props.agent.id, editingId.value, payload)
             toast.success(t('common.savedSuccess'))
         } else {
-            // Check if id already exists in UI
-            if (subagents.value.some(s => s.id === formData.value.id)) {
-                toast.error(t('agent.subagents.nameExists', { name: formData.value.id }) || `Subagent with id ${formData.value.id} already exists.`)
-                return
-            }
-            await subAgentsState.createSubagent(props.agent.id, formData.value)
+            await subAgentsState.createSubagent(props.agent.id, payload)
             toast.success(t('common.savedSuccess'))
         }
         closeModal()
@@ -410,6 +431,11 @@ const toggleAllSkills = () => {
                         <div v-if="agent.model" class="badge badge-outline badge-sm text-xs opacity-70">
                             {{ `${agent.provider}/${agent.model}` }}
                         </div>
+                        <div v-if="agent.thinkingLevel"
+                            class="badge badge-outline badge-sm text-xs opacity-70"
+                            :title="$t('chat.thinkingLevel')">
+                            {{ $t('chat.thinking') }}: {{ $t(`chat.thinkingLevels.${agent.thinkingLevel}`) }}
+                        </div>
                         <div v-if="agent.tools?.type === 'custom'"
                             class="badge badge-primary badge-outline badge-sm text-xs gap-1">
                             <CommandLineIcon class="w-3 h-3" />
@@ -506,6 +532,24 @@ const toggleAllSkills = () => {
                                 @select="handleModelSelect" />
                         </div>
                     </Teleport>
+
+                    <!-- Thinking Level -->
+                    <div class="form-control w-full">
+                        <label class="label">
+                            <span class="label-text font-medium">{{ $t('chat.thinkingLevel') }}
+                                <span class="text-base-content/50 font-normal">({{ $t('common.optional') }})</span></span>
+                            <span class="label-text-alt text-base-content/50">{{ $t('agent.subagents.thinkingLevelHint') }}</span>
+                        </label>
+                        <select v-model="formData.thinkingLevel" class="select select-bordered w-full font-sans">
+                            <option value="">{{ $t('agent.subagents.inheritThinkingLevel') }}</option>
+                            <option value="off">{{ $t('chat.thinkingLevels.off') }}</option>
+                            <option value="minimal">{{ $t('chat.thinkingLevels.minimal') }}</option>
+                            <option value="low">{{ $t('chat.thinkingLevels.low') }}</option>
+                            <option value="medium">{{ $t('chat.thinkingLevels.medium') }}</option>
+                            <option value="high">{{ $t('chat.thinkingLevels.high') }}</option>
+                            <option value="xhigh">{{ $t('chat.thinkingLevels.xhigh') }}</option>
+                        </select>
+                    </div>
 
                     <!-- System Prompt -->
                     <div class="form-control w-full">

@@ -269,6 +269,8 @@ export default {
             descPlaceholder: '简要描述此子代理的用途',
             modelOverride: "覆盖父智能体的默认模型",
             modelPlaceholder: '如：openai/gpt-4o',
+            thinkingLevelHint: '覆盖父智能体的默认思考程度',
+            inheritThinkingLevel: '继承父智能体的思考程度',
             systemPrompt: '系统提示词',
             promptPlaceholder: '你是一个有用的助手...'
         }

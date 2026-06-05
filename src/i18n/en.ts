@@ -269,6 +269,8 @@ export default {
             descPlaceholder: 'Brief description of what this subagent does',
             modelOverride: "Overrides agent's default model",
             modelPlaceholder: 'e.g. openai/gpt-4o',
+            thinkingLevelHint: "Overrides agent's default thinking level",
+            inheritThinkingLevel: 'Inherit Parent Thinking Level',
             systemPrompt: 'System Prompt',
             promptPlaceholder: 'You are a helpful assistant...'
         }

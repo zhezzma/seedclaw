@@ -12,16 +12,34 @@ export interface SubagentSkillsConfig {
     disabledSkills?: string[]
 }
 
+export type SubagentThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+
 export interface SubagentConfig {
     id: string
     name: string
     description: string
     provider?: string
     model?: string
+    /**
+     * 思考程度；undefined = 继承父 agent/session。
+     * 服务端返回不会出现 null；null 仅出现在 SubagentSaveInput 中用于显式清空。
+     */
+    thinkingLevel?: SubagentThinkingLevel
     tools?: SubagentToolsConfig
     skills?: SubagentSkillsConfig
     systemPrompt: string
     filePath?: string
+}
+
+/**
+ * 创建/更新子代理的 wire 层输入。
+ * thinkingLevel 允许三态：
+ *   - 具体等级 -> 设置/覆盖
+ *   - null         -> 显式清空（服务端 PUT 路由用 "in body" 检测区分未传/清空）
+ *   - undefined    -> 未传，服务端保留 existing
+ */
+export type SubagentSaveInput = Omit<Partial<SubagentConfig>, 'thinkingLevel'> & {
+    thinkingLevel?: SubagentThinkingLevel | null
 }
 
 export interface SubagentsState {
@@ -61,7 +79,7 @@ const getSubagent = async (agentId: string, id: string) => {
     }
 }
 
-const createSubagent = async (agentId: string, data: Partial<SubagentConfig>) => {
+const createSubagent = async (agentId: string, data: SubagentSaveInput) => {
     try {
         const result = await apiPost<SubagentConfig>(`/api/subagents/${agentId}`, data)
         state.list.push(result)
@@ -72,7 +90,7 @@ const createSubagent = async (agentId: string, data: Partial<SubagentConfig>) =>
     }
 }
 
-const updateSubagent = async (agentId: string, id: string, data: Partial<SubagentConfig>) => {
+const updateSubagent = async (agentId: string, id: string, data: SubagentSaveInput) => {
     try {
         const result = await apiPut<SubagentConfig>(`/api/subagents/${agentId}/${id}`, data)
         const index = state.list.findIndex(s => s.id === id)
