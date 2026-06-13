@@ -13,7 +13,7 @@
  */
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import { XMarkIcon, ArrowPathIcon, FolderIcon, CodeBracketIcon } from '@heroicons/vue/24/outline'
-import { useWorkspacePanel } from '../../composables/useWorkspacePanel'
+import { useWorkspacePanel, PANEL_MIN_WIDTH, PANEL_MAX_WIDTH } from '../../composables/useWorkspacePanel'
 import { useWorkspaceTree } from '../../composables/useWorkspaceTree'
 import { useWorkspaceGit } from '../../composables/useWorkspaceGit'
 import { useAgentFiles } from '../../composables/useAgentFiles'
@@ -56,7 +56,7 @@ let dragStartWidth = 0
 const effectiveWidth = computed(() => dragWidth.value ?? panel.width.value)
 
 function clamp(w: number): number {
-    return Math.max(240, Math.min(600, Math.round(w)))
+    return Math.max(PANEL_MIN_WIDTH, Math.min(PANEL_MAX_WIDTH, Math.round(w)))
 }
 
 function onSplitterMouseDown(e: MouseEvent) {

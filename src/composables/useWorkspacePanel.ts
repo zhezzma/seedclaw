@@ -12,9 +12,9 @@
 import { computed } from 'vue'
 import { useUiSettingsStore } from '../stores/setting.ts'
 
-const MIN_WIDTH = 240
-const MAX_WIDTH = 600
-const DEFAULT_WIDTH = 360
+export const PANEL_MIN_WIDTH = 240
+export const PANEL_MAX_WIDTH = 1000
+export const PANEL_DEFAULT_WIDTH = 360
 
 function persistPanel(patch: Partial<{
     open: boolean
@@ -46,7 +46,7 @@ export function useWorkspacePanel() {
         isOpen: computed(() => store.workspacePanel.open),
         width: computed(() => {
             const w = store.workspacePanel.width
-            return Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, w))
+            return Math.max(PANEL_MIN_WIDTH, Math.min(PANEL_MAX_WIDTH, w))
         }),
         activeTab: computed(() => store.workspacePanel.tab),
 
@@ -55,10 +55,10 @@ export function useWorkspacePanel() {
         toggle() { persistPanel({ open: !store.workspacePanel.open }) },
 
         setWidth(w: number) {
-            const clamped = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, Math.round(w)))
+            const clamped = Math.max(PANEL_MIN_WIDTH, Math.min(PANEL_MAX_WIDTH, Math.round(w)))
             persistPanel({ width: clamped })
         },
-        resetWidth() { persistPanel({ width: DEFAULT_WIDTH }) },
+        resetWidth() { persistPanel({ width: PANEL_DEFAULT_WIDTH }) },
 
         setTab(tab: 'files' | 'git') { persistPanel({ tab }) },
 
