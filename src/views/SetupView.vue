@@ -176,7 +176,7 @@ const handleModelSubmit = async () => {
     const isCustom = modelProviderId.value === 'custom'
     const finalProviderId = isCustom ? customProviderId.value : modelProviderId.value
 
-    if (!finalProviderId || !modelBaseUrl.value || !modelApiKey.value) {
+    if (!finalProviderId || !modelBaseUrl.value) {
         error.value = t('setup.modelStep.errorMissingFields')
         return
     }

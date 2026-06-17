@@ -128,21 +128,14 @@ watch(() => props.show, (newVal) => {
 
 const hasAttemptedSubmit = ref(false)
 
-const isApiKeyRequired = computed(() => formData.type !== 'oauth' && (
-    props.mode === 'add' || (props.mode === 'edit' && props.initialData?.apiKey !== undefined)
-))
-
 const validationErrors = computed(() => {
     const errors: Record<string, string> = {}
     if (!formData.id.trim()) {
         errors.id = t('provider.validation.idRequired')
     }
-    // 非 OAuth 时，baseUrl 和 apiKey 必填
+    // 非 OAuth 时，baseUrl 必填；apiKey 允许留空以支持无密钥或后续补填的提供商。
     if (formData.type !== 'oauth' && (props.custom || props.mode === 'add') && !formData.baseUrl.trim()) {
         errors.baseUrl = t('provider.validation.baseUrlRequired')
-    }
-    if (isApiKeyRequired.value && !formData.apiKey.trim()) {
-        errors.apiKey = t('provider.validation.apiKeyRequired')
     }
     // Headers JSON 格式验证
     if (formData.headers) {
@@ -157,7 +150,7 @@ const validationErrors = computed(() => {
 
 const isFormValid = computed(() => Object.keys(validationErrors.value).length === 0)
 
-type ValidationField = 'id' | 'baseUrl' | 'apiKey' | 'headers'
+type ValidationField = 'id' | 'baseUrl' | 'headers'
 
 function shouldShowError(field: ValidationField): boolean {
     return !!validationErrors.value[field] && (hasAttemptedSubmit.value || formData[field] !== '')
@@ -262,13 +255,10 @@ const handleSubmit = async () => {
                 </div>
 
                 <div class="form-control">
-                    <label class="label"><span class="label-text">{{ $t('settings.apiKey') }}
-                        <span v-if="isApiKeyRequired" class="text-error">*</span>
-                    </span></label>
+                    <label class="label"><span class="label-text">{{ $t('settings.apiKey') }}</span></label>
                     <div class="join w-full">
                         <input v-model="formData.apiKey" :type="showApiKey ? 'text' : 'password'" placeholder="sk-..."
-                            class="input input-bordered join-item flex-1"
-                            :class="{ 'input-error': shouldShowError('apiKey') }" />
+                            class="input input-bordered join-item flex-1" />
                         <button type="button" @click="showApiKey = !showApiKey" class="btn btn-ghost join-item"
                             tabindex="-1">
                             <EyeSlashIcon v-if="showApiKey" class="w-4 h-4" />
