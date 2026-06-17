@@ -66,13 +66,16 @@ export function useChatMessages(state: ChatStateShape) {
         // 工具调用注册表: map toolCallId -> { messageIndex, blockIndex }
         // 用于快速查找并更新 Tool Call 状态
         const toolCallRegistry = new Map<string, { msgIdx: number, blockIdx: number }>()
+        // 跨所有消息共享：记录已生成过面板气泡的 surfaceId，同一 surface 只出一个气泡，
+        // 后续重渲染只走 updateDataModel 就地更新，不重复出面板。
+        const renderedSurfaceIds = new Set<string>()
         const settings = useUiSettingsStore()
 
         // 辅助函数：将API返回的内容项转换为显示 Block
         /**
          * 解析文本中的 <a2ui> 标签，将其拆分为文本 block 和 a2ui block
          */
-        const parseA2UIFromText = (rawText: string): DisplayBlock[] => {
+        const parseA2UIFromText = (rawText: string, renderedSurfaceIds: Set<string>): DisplayBlock[] => {
             // 预处理1：去掉包裹完整 <a2ui>...</a2ui> 的 markdown 代码块围栏（已闭合）
             let text = rawText.replace(/```[^\n]*\n\s*(<a2ui>[\s\S]*?<\/a2ui>)\s*\n?```/g, '$1')
 
@@ -153,30 +156,39 @@ export function useChatMessages(state: ChatStateShape) {
                     }
 
                     if (components.length > 0 && surfaceId) {
-                        // 有组件 → 生成 a2ui block（引用 Surface 注册表中的 reactive 数据模型）
-                        const surface = getOrCreateSurface(surfaceId)
+                        // 同一个 surfaceId 只生成一次面板气泡：A2UI 协议中 surface 是有状态生命周期对象，
+                        // 后续带相同 surfaceId 的渲染（例如 Agent 回填 result 后重新渲染整块）只需让其
+                        // updateDataModel 生效（已通过 Surface 注册表更新到原面板的 reactive 数据上），
+                        // 不应再产生第二个面板气泡。组件结构相同，原面板会就地更新显示。
+                        if (renderedSurfaceIds.has(surfaceId)) {
+                            // 跳过重复气泡；数据更新已在上面的 updateDataModel 分支生效。
+                        } else {
+                            renderedSurfaceIds.add(surfaceId)
+                            // 有组件 → 生成 a2ui block（引用 Surface 注册表中的 reactive 数据模型）
+                            getOrCreateSurface(surfaceId)
 
-                        // 计算根组件 ID
-                        const childIds = new Set<string>()
-                        for (const comp of components) {
-                            if (comp.children && Array.isArray(comp.children)) {
-                                comp.children.forEach((id: string) => childIds.add(id))
+                            // 计算根组件 ID
+                            const childIds = new Set<string>()
+                            for (const comp of components) {
+                                if (comp.children && Array.isArray(comp.children)) {
+                                    comp.children.forEach((id: string) => childIds.add(id))
+                                }
+                                if (comp.child && typeof comp.child === 'string') childIds.add(comp.child)
+                                if (comp.trigger && typeof comp.trigger === 'string') childIds.add(comp.trigger)
+                                if (comp.content && typeof comp.content === 'string') childIds.add(comp.content)
+                                if (comp.tabs && Array.isArray(comp.tabs)) {
+                                    comp.tabs.forEach((tab: any) => { if (tab.child) childIds.add(tab.child) })
+                                }
                             }
-                            if (comp.child && typeof comp.child === 'string') childIds.add(comp.child)
-                            if (comp.trigger && typeof comp.trigger === 'string') childIds.add(comp.trigger)
-                            if (comp.content && typeof comp.content === 'string') childIds.add(comp.content)
-                            if (comp.tabs && Array.isArray(comp.tabs)) {
-                                comp.tabs.forEach((tab: any) => { if (tab.child) childIds.add(tab.child) })
-                            }
+                            const rootIds = components.filter(c => c.id && !childIds.has(c.id)).map(c => c.id!)
+
+                            blocks.push({
+                                type: 'a2ui',
+                                a2uiComponents: components,
+                                a2uiSurfaceId: surfaceId,
+                                a2uiRootIds: rootIds,
+                            })
                         }
-                        const rootIds = components.filter(c => c.id && !childIds.has(c.id)).map(c => c.id!)
-
-                        blocks.push({
-                            type: 'a2ui',
-                            a2uiComponents: components,
-                            a2uiSurfaceId: surfaceId,
-                            a2uiRootIds: rootIds,
-                        })
                     } else if (parseErrorMsg && !surfaceId) {
                         // 如果连 surfaceId 都没有并且发生了错误，说明整体 JSON 结构崩溃
                         blocks.push({
@@ -262,7 +274,7 @@ export function useChatMessages(state: ChatStateShape) {
                             }
                             // 检测是否包含 <a2ui> 标签
                             if (item.text.includes('<a2ui>')) {
-                                blocks.push(...parseA2UIFromText(item.text))
+                                blocks.push(...parseA2UIFromText(item.text, renderedSurfaceIds))
                             } else {
                                 blocks.push({ type: 'text', text: item.text })
                             }
@@ -309,7 +321,7 @@ export function useChatMessages(state: ChatStateShape) {
                 // 纯字符串内容 - 也检测 <a2ui> 等特殊指令
                 if (!processTextWithA2UIEvent(content)) {
                     if (content.includes('<a2ui>')) {
-                        blocks.push(...parseA2UIFromText(content))
+                        blocks.push(...parseA2UIFromText(content, renderedSurfaceIds))
                     } else {
                         blocks.push({ type: 'text', text: content })
                     }
