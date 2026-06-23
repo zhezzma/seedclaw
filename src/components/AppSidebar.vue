@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
     MagnifyingGlassIcon,
@@ -14,6 +14,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import { SIDEBAR_ITEMS } from '../config/navigation'
 import SessionActionMenu from './chat/SessionActionMenu.vue'
+import SessionInfoModal from './chat/SessionInfoModal.vue'
 
 import { useConfirm } from '../composables/useConfirm'
 import { NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
@@ -39,6 +40,20 @@ const { confirm } = useConfirm()
 
 const sessionsState = useSessionsState()
 const chatState = useChatState()
+
+// 行内重命名状态
+const renamingKey = ref<string | null>(null)
+const renameText = ref('')
+const renameOriginal = ref('')
+const renameInputRef = ref<HTMLInputElement | null>(null)
+const setRenameInput = (el: unknown) => {
+    renameInputRef.value = (el as HTMLInputElement) || null
+}
+
+// 会话信息弹窗状态
+const infoModalOpen = ref(false)
+const infoLoading = ref(false)
+const infoSession = ref<SessionRow | null>(null)
 const { t } = useI18n()
 const configStore = useUiSettingsStore()
 const weixinLogin = useWeixinLogin()
@@ -107,6 +122,14 @@ const handleArchiveSession = async (session: { key: string, label: string }) => 
 
 const sessionMenuItems = computed<SessionMenuItem[]>(() => [
     {
+        key: 'rename',
+        label: t('sidebar.rename'),
+    },
+    {
+        key: 'info',
+        label: t('sidebar.viewInfo'),
+    },
+    {
         key: 'archive',
         label: t('sidebar.archive'),
     },
@@ -117,7 +140,61 @@ const sessionMenuItems = computed<SessionMenuItem[]>(() => [
     },
 ])
 
+const startRename = async (session: { key: string, label: string }) => {
+    renamingKey.value = session.key
+    renameText.value = session.label
+    renameOriginal.value = session.label
+    await nextTick()
+    renameInputRef.value?.focus()
+    renameInputRef.value?.select()
+}
+
+const cancelRename = () => {
+    renamingKey.value = null
+    renameText.value = ''
+    renameOriginal.value = ''
+}
+
+const confirmRename = async () => {
+    const key = renamingKey.value
+    if (!key) return
+
+    const next = renameText.value.trim()
+    const original = renameOriginal.value.trim()
+    cancelRename()
+    // 空值或未变化时不发请求
+    if (!next || next === original) return
+
+    try {
+        await sessionsState.patchSession(key, { label: next })
+    } catch {
+        // patchSession 内部已记录错误
+    }
+}
+
+const openSessionInfo = async (session: { key: string, label: string }) => {
+    infoModalOpen.value = true
+    infoLoading.value = true
+    infoSession.value = sessionsState.findSessionLocal(session.key) || null
+    try {
+        const detail = await sessionsState.getSessionById(session.key, undefined, { forceRefresh: true })
+        if (detail) infoSession.value = detail
+    } finally {
+        infoLoading.value = false
+    }
+}
+
 const handleSessionMenuSelect = async (session: { key: string, label: string }, action: string) => {
+    if (action === 'rename') {
+        await startRename(session)
+        return
+    }
+
+    if (action === 'info') {
+        await openSessionInfo(session)
+        return
+    }
+
     if (action === 'archive') {
         await handleArchiveSession(session)
         return
@@ -266,10 +343,17 @@ const openWeixinLoginModal = () => {
                         : 'hover:bg-base-300'">
                     <ChatBubbleLeftRightIcon class="h-5 w-5 shrink-0"
                         :class="activeSessionKey === session.key ? 'text-primary opacity-80' : 'opacity-50'" />
-                    <span class="text-sm truncate flex-1"
-                        :class="activeSessionKey === session.key ? 'font-semibold text-primary' : ''">{{ session.label }}</span>
-                    <SessionActionMenu :actions="sessionMenuItems" :menu-id="`recent:${session.key}`"
-                        :title="$t('sidebar.more')" @select="handleSessionMenuSelect(session, $event)" />
+                    <input v-if="renamingKey === session.key" :ref="setRenameInput" v-model="renameText"
+                        type="text"
+                        class="input input-xs input-bordered flex-1 min-w-0 h-7 rounded-lg"
+                        @click.stop @keydown.enter.prevent="confirmRename" @keydown.esc.prevent="cancelRename"
+                        @blur="confirmRename" />
+                    <template v-else>
+                        <span class="text-sm truncate flex-1"
+                            :class="activeSessionKey === session.key ? 'font-semibold text-primary' : ''">{{ session.label }}</span>
+                        <SessionActionMenu :actions="sessionMenuItems" :menu-id="`recent:${session.key}`"
+                            :title="$t('sidebar.more')" @select="handleSessionMenuSelect(session, $event)" />
+                    </template>
                 </a>
             </div>
         </div>
@@ -286,6 +370,9 @@ const openWeixinLoginModal = () => {
             </button>
         </div>
     </div>
+
+    <SessionInfoModal :open="infoModalOpen" :session="infoSession" :loading="infoLoading"
+        @close="infoModalOpen = false" />
 </template>
 
 <style scoped>
