@@ -230,11 +230,11 @@ defineExpose({
         <!-- Back Button or Hamburger -->
         <template #left>
             <button v-if="splitRouteNames.includes(route.name as typeof splitRouteNames[number])" @click="handleBack"
-                class="btn btn-ghost btn-sm btn-circle  lg:hidden">
+                class="btn btn-ghost btn-xs btn-circle  lg:hidden">
                 <ChevronLeftIcon class="h-5 w-5" />
             </button>
             <div v-else class="flex-none lg:hidden">
-                <label for="sidebar-drawer" class="btn btn-ghost btn-sm btn-circle drawer-button">
+                <label for="sidebar-drawer" class="btn btn-ghost btn-xs btn-circle drawer-button">
                     <Bars3Icon class="h-5 w-5" />
                 </label>
             </div>
@@ -300,7 +300,7 @@ defineExpose({
                 <!-- Voice button -->
                 <!-- <div v-if="settingsStore.isCurrentAsrConfigured && settingsStore.isCurrentTtsConfigured">
                     <button @click="startVoiceChat"
-                        class="btn btn-ghost btn-circle btn-sm" :title="$t('chat.voiceChat')">
+                        class="btn btn-ghost btn-circle btn-xs" :title="$t('chat.voiceChat')">
                         <PhoneIcon class="h-5 w-5" />
                     </button>
                 </div> -->
@@ -309,12 +309,12 @@ defineExpose({
 
                 <!-- Session tree -->
                 <button v-if="canToggleNotify" @click="emit('open-session-tree')"
-                    class="btn btn-ghost btn-circle btn-sm" :title="$t('chat.openSessionTree')">
+                    class="btn btn-ghost btn-circle btn-xs" :title="$t('chat.openSessionTree')">
                     <QueueListIcon class="h-5 w-5" />
                 </button>
 
                 <!-- Session notify toggle -->
-                <button v-if="canToggleNotify" @click="toggleNotify" class="btn btn-ghost btn-circle btn-sm"
+                <button v-if="canToggleNotify" @click="toggleNotify" class="btn btn-ghost btn-circle btn-xs"
                     :class="{ 'text-primary': notifyEnabled }" :disabled="notifyLoading"
                     :title="`${$t('settings.notifications')}: ${notifyEnabled ? $t('common.enabled') : $t('common.disabled')}`">
                     <BellIcon v-if="notifyEnabled" class="h-5 w-5" />
@@ -323,10 +323,10 @@ defineExpose({
 
                 <!-- Mobile buttons -->
                 <div class="flex lg:hidden">
-                    <button @click="refreshPage" class="btn btn-ghost btn-circle btn-sm" :title="$t('common.refresh')">
+                    <button @click="refreshPage" class="btn btn-ghost btn-circle btn-xs" :title="$t('common.refresh')">
                         <ArrowPathIcon class="h-5 w-5" />
                     </button>
-                    <!-- <button @click="createNewSession" class="btn btn-ghost btn-circle btn-sm"
+                    <!-- <button @click="createNewSession" class="btn btn-ghost btn-circle btn-xs"
                         :title="$t('chat.newChat')">
                         <PlusIcon class="h-5 w-5" />
                     </button> -->
@@ -334,12 +334,12 @@ defineExpose({
 
                 <!-- PC theme toggle button -->
                 <div class="hidden lg:flex items-center">
-                    <!-- <button @click="settingsStore.toggleLayout()" class="btn btn-ghost btn-circle btn-sm"
+                    <!-- <button @click="settingsStore.toggleLayout()" class="btn btn-ghost btn-circle btn-xs"
                         :title="settingsStore.isWideMode ? $t('chat.switchToNarrow') : $t('chat.switchToWide')">
                         <ArrowsPointingInIcon v-if="settingsStore.isWideMode" class="h-5 w-5" />
                         <ArrowsPointingOutIcon v-else class="h-5 w-5" />
                     </button> -->
-                    <button @click="settingsStore.toggleTheme()" class="btn btn-ghost btn-circle btn-sm">
+                    <button @click="settingsStore.toggleTheme()" class="btn btn-ghost btn-circle btn-xs">
                         <SunIcon v-if="settingsStore.isDark" class="h-5 w-5" />
                         <MoonIcon v-else class="h-5 w-5" />
                     </button>
@@ -349,7 +349,7 @@ defineExpose({
                      按钮区开 right-drawer，与左侧 sidebar drawer 对称）。
                      无 agent 选中时隐藏，避免点开个空 drawer。 -->
                 <button v-if="chatState.agentsSelectedId" @click="panel.toggle()"
-                    class="btn btn-ghost btn-circle btn-sm"
+                    class="btn btn-ghost btn-circle btn-xs"
                     :class="{ 'text-primary': panel.isOpen.value }"
                     :title="$t('workspace.toggle')">
                     <RectangleGroupIcon class="h-5 w-5" />
