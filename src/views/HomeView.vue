@@ -15,6 +15,7 @@ import ChatHeader from '../components/chat/ChatHeader.vue'
 import MessageBubble from '../components/chat/MessageBubble.vue'
 import VirtualMessageList from '../components/chat/VirtualMessageList.vue'
 import ChatInput from '../components/chat/ChatInput.vue'
+import SessionTreeModal from '../components/chat/SessionTreeModal.vue'
 import VoiceChatOverlay from '../components/chat/VoiceChatOverlay.vue'
 import SessionSidebar from '../components/chat/SessionSidebar.vue'
 import AppSidebar from '../components/AppSidebar.vue'
@@ -61,6 +62,7 @@ const busyAllowedCommandPattern = new RegExp(`^\\/(${busyAllowedCommands
 const messagesContainerRef = ref<HTMLDivElement | null>(null)
 const chatHeaderRef = ref<InstanceType<typeof ChatHeader> | null>(null)
 const chatInputRef = ref<InstanceType<typeof ChatInput> | null>(null)
+const virtualMessageListRef = ref<InstanceType<typeof VirtualMessageList> | null>(null)
 
 // Chat messages composable
 const {
@@ -201,6 +203,38 @@ const handleSplitSessionRowAction = async ({ key, action }: { key: string, actio
 
 const typeSelectedKey = ref("")
 const isCreatingSession = ref(false)
+const showSessionTreeModal = ref(false)
+const sessionTreeBusy = ref(false)
+
+const openSessionTree = async () => {
+    if (!chatState.sessionKey) return
+    await chatState.fetchSessionTree()
+    showSessionTreeModal.value = true
+}
+
+const handleJumpToTreeEntry = async (entryId: string) => {
+    if (sessionTreeBusy.value) return
+
+    sessionTreeBusy.value = true
+    try {
+        const inCurrentBranch = processedMessages.value.some(message => message.entryId === entryId)
+        if (!inCurrentBranch) {
+            if (isBusy.value) {
+                useToast().warning(t('chat.waitMessage'))
+                return
+            }
+            const leafId = findBranchLeafId(entryId, branchIndexes.value)
+            const navigated = await chatState.navigateBranch(leafId)
+            if (!navigated) return
+            await nextTick()
+        }
+
+        const jumped = await virtualMessageListRef.value?.scrollToEntry(entryId)
+        if (jumped) showSessionTreeModal.value = false
+    } finally {
+        sessionTreeBusy.value = false
+    }
+}
 
 // Auto-select first session
 watch(() => [route.name, currentSessions.value, route.params.sessionkey], (values) => {
@@ -232,6 +266,19 @@ const handleSend = async () => {
     const hasAttachments = rawAttachments.length > 0
 
     if (!inputText && !hasAttachments && !isBusy.value) return
+
+    const isTreeCommand = inputText.trim() === '/tree'
+    if (isTreeCommand && !hasAttachments) {
+        if (isBusy.value) {
+            useToast().warning(t('home.commandNotAvailableWhileBusy'))
+            return
+        }
+        if (chatInputRef.value) {
+            chatInputRef.value.inputText = ''
+        }
+        await openSessionTree()
+        return
+    }
 
     const { pushInputHistory } = useChatInput()
 
@@ -714,7 +761,8 @@ async function applyDefaultSessionBehavior() {
 
             <!-- Header 始终可见：agent dropdown / panel toggle / 主题 / wide mode 都依赖它 -->
             <ChatHeader ref="chatHeaderRef" :selected-agent="selectedAgent" :agents="agentsState.agentsList"
-                @start-voice-chat="startVoiceChat" :session-name="currentSessionName" />
+                @start-voice-chat="startVoiceChat" @open-session-tree="openSessionTree"
+                :session-name="currentSessionName" />
 
             <!-- Main content area: chat messages OR viewer -->
             <div class="flex-1 flex flex-col min-h-0">
@@ -738,7 +786,7 @@ async function applyDefaultSessionBehavior() {
                 <!-- Chat messages - only this area scrolls -->
                 <div v-else ref="messagesContainerRef" class="flex-1 overflow-y-auto p-2 md:p-4 relative">
                     <div class="mx-auto w-full" :class="{ 'max-w-3xl': !settingsStore.isWideMode }">
-                        <VirtualMessageList :messages="processedMessages" :is-busy="isBusy"
+                        <VirtualMessageList ref="virtualMessageListRef" :messages="processedMessages" :is-busy="isBusy"
                             :scroll-container="messagesContainerRef" :is-wide-mode="settingsStore.isWideMode"
                             :get-branch-info="getBranchInfo" @copy="copyMessage" @read-aloud="readAloud"
                             @delete="deleteMessage" @retry="retryMessage" @edit="editMessage"
@@ -765,6 +813,10 @@ async function applyDefaultSessionBehavior() {
 
             <!-- Media Preview Overlay (shared image lightbox & file viewer) -->
             <MediaPreviewOverlay />
+
+            <SessionTreeModal :open="showSessionTreeModal" :entries="chatState.sessionTree"
+                :leaf-id="chatState.sessionLeafId" :busy="sessionTreeBusy"
+                @close="showSessionTreeModal = false" @jump-to-entry="handleJumpToTreeEntry" />
         </div>
 
         <!-- Workspace Panel (PC 右侧侧栏，可拖宽) -->

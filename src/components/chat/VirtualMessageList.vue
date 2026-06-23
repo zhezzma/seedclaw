@@ -77,6 +77,15 @@ const itemKey = (msg: DisplayMessage, index: number) =>
 const getHeight = (key: string): number =>
     heights.value[key] ?? ESTIMATED_HEIGHT
 
+const estimateTopForKey = (targetKey: string): number => {
+    let top = 0
+    for (const item of enrichedItems.value) {
+        if (item.key === targetKey) return top
+        top += getHeight(item.key)
+    }
+    return -1
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // 增强后的消息列表
 // ──────────────────────────────────────────────────────────────────────────
@@ -234,6 +243,30 @@ onMounted(() => {
     attachScroll(props.scrollContainer)
     nextTick(updateVisibleRange)
 })
+
+const scrollToEntry = async (entryId: string): Promise<boolean> => {
+    const container = props.scrollContainer
+    if (!container) return false
+
+    const item = enrichedItems.value.find(item => item.msg.entryId === entryId)
+    if (!item) return false
+
+    const estimatedTop = estimateTopForKey(item.key)
+    if (estimatedTop < 0) return false
+
+    container.scrollTop = Math.max(0, estimatedTop - container.clientHeight / 2 + getHeight(item.key) / 2)
+    updateVisibleRange()
+    await nextTick()
+
+    const mountedRows = Array.from(container.querySelectorAll<HTMLElement>('[data-key]'))
+    const row = rowEls.get(item.key) ?? mountedRows.find(el => el.dataset.key === item.key)
+    if (!row) return true
+
+    row.scrollIntoView({ block: 'center', inline: 'nearest' })
+    return true
+}
+
+defineExpose({ scrollToEntry })
 
 onBeforeUnmount(() => {
     ro?.disconnect()

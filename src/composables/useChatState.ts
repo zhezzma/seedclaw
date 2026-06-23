@@ -55,6 +55,7 @@ export interface ChatSessionData {
     chatToolMessages: ChatMessage[]
     // Branch navigation uses a flat entry list, not a nested tree payload.
     sessionTree: SessionTreeEntry[] | null
+    sessionLeafId: string | null
     chatStream: any[] | null
     chatStreamStartedAt: number | null
     chatSending: boolean
@@ -144,6 +145,7 @@ function getSessionData(key: string): ChatSessionData {
             chatMessages: [],
             chatToolMessages: [],
             sessionTree: null,
+            sessionLeafId: null,
             chatStream: null,
             chatStreamStartedAt: null,
             chatSending: false,
@@ -794,6 +796,7 @@ export interface SessionTreeEntry {
     type: string
     role?: string
     timestamp?: string
+    preview?: string
 }
 
 const fetchSessionUsage = async (sessionKey?: string) => {
@@ -824,6 +827,7 @@ const fetchSessionTree = async (sessionKey?: string): Promise<SessionTreeEntry[]
         // Update store state
         const sd = getSessionData(targetKey)
         sd.sessionTree = entries
+        sd.sessionLeafId = Array.isArray(result) ? null : (result?.leafId ?? null)
 
         return entries
     } catch (err: any) {
@@ -832,22 +836,25 @@ const fetchSessionTree = async (sessionKey?: string): Promise<SessionTreeEntry[]
     }
 }
 
-const navigateBranch = async (targetEntryId: string, sessionKey?: string) => {
+const navigateBranch = async (targetEntryId: string, sessionKey?: string): Promise<boolean> => {
     const targetKey = sessionKey || state.sessionKey
-    if (!targetKey) return
+    if (!targetKey) return false
 
     try {
         const result = await apiPost<{ messages: ChatMessage[], navigated: boolean }>(
             `/api/chat/${targetKey}/navigate`,
             { entryId: targetEntryId }
         )
-        // 直接用后端返回的消息列表更新 chatMessages
-        if (result?.messages) {
-            const sd = getSessionData(targetKey)
-            sd.chatMessages = result.messages
-        }
+        if (!result?.messages) return false
+
+        // 直接用后端返回的消息列表更新 chatMessages；targetEntryId 是已解析出的分支 leaf。
+        const sd = getSessionData(targetKey)
+        sd.chatMessages = result.messages
+        sd.sessionLeafId = targetEntryId
+        return true
     } catch (err: any) {
         console.error('[useChatState] navigateBranch failed:', err)
+        return false
     }
 }
 
@@ -855,6 +862,7 @@ const navigateBranch = async (targetEntryId: string, sessionKey?: string) => {
 const chatMessages = computed(() => getSessionData(state.sessionKey).chatMessages)
 const chatToolMessages = computed(() => getSessionData(state.sessionKey).chatToolMessages)
 const sessionTree = computed(() => getSessionData(state.sessionKey).sessionTree)
+const sessionLeafId = computed(() => getSessionData(state.sessionKey).sessionLeafId)
 const chatStream = computed(() => getSessionData(state.sessionKey).chatStream)
 const chatSending = computed(() => getSessionData(state.sessionKey).chatSending)
 const chatRunId = computed(() => getSessionData(state.sessionKey).chatRunId)
@@ -877,7 +885,7 @@ type UnwrapComputed<T extends object> = {
 
 // 预组装单例（模块加载时执行一次，避免每次调用 useChatState 重复创建 computed）
 const _methods = {
-    chatMessages, chatToolMessages, sessionTree, chatStream,
+    chatMessages, chatToolMessages, sessionTree, sessionLeafId, chatStream,
     chatSending, chatRunId, chatStreamStartedAt, chatLoading, sessionUsage, currentAgent,
     sendMessage, steerMessage, followMessage, abortChat, loadChatHistory,
     setSessionKey, createNewSession, selectAgent, getSessionData,

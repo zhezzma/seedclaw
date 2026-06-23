@@ -17,7 +17,8 @@ import {
     BellSlashIcon,
     ChevronLeftIcon,
     ArrowPathIcon,
-    RectangleGroupIcon
+    RectangleGroupIcon,
+    QueueListIcon
 } from '@heroicons/vue/24/outline'
 import { useUiSettingsStore } from '../../stores/setting'
 import { isConnected } from '../../composables/notify-server-connection'
@@ -39,6 +40,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     (e: 'start-voice-chat'): void
+    (e: 'open-session-tree'): void
 }>()
 
 const router = useRouter()
@@ -304,6 +306,12 @@ defineExpose({
                 </div> -->
 
          
+
+                <!-- Session tree -->
+                <button v-if="canToggleNotify" @click="emit('open-session-tree')"
+                    class="btn btn-ghost btn-circle btn-sm" :title="$t('chat.openSessionTree')">
+                    <QueueListIcon class="h-5 w-5" />
+                </button>
 
                 <!-- Session notify toggle -->
                 <button v-if="canToggleNotify" @click="toggleNotify" class="btn btn-ghost btn-circle btn-sm"

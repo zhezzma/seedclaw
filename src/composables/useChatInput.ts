@@ -29,6 +29,7 @@ export const COMMANDS: CommandItem[] = [
     { label: '/follow-up (排队后续消息)', value: '/follow-up', autoSend: false },
     { label: '/tools (工具列表)', value: '/tools' },
     { label: '/session (会话信息)', value: '/session' },
+    { label: '/tree (会话树)', value: '/tree' },
     { label: '/debug (调试信息)', value: '/debug' },
     { label: '/help (帮助)', value: '/help' }
 ]
