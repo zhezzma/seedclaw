@@ -217,20 +217,52 @@ const handleJumpToTreeEntry = async (entryId: string) => {
 
     sessionTreeBusy.value = true
     try {
-        const inCurrentBranch = processedMessages.value.some(message => message.entryId === entryId)
-        if (!inCurrentBranch) {
+        const entries = chatState.sessionTree ?? []
+        const entryById = new Map(entries.map(entry => [entry.id, entry]))
+
+        // 1. 是否在当前分支：用 leaf→root 的真实路径判断。
+        //    不能用 processedMessages，因为被合并 / 空内容 / 工具结果的 entry 不会出现在可见气泡里，
+        //    否则这些节点会被误判为「别的分支」而错误触发 navigate。
+        const currentPathIds = new Set<string>()
+        let cursor: string | null = chatState.sessionLeafId
+        while (cursor) {
+            currentPathIds.add(cursor)
+            cursor = entryById.get(cursor)?.parentId ?? null
+        }
+
+        // 2. 不在当前分支 → 先切到目标所在分支的叶子，让虚拟列表真正渲染出这条消息。
+        if (!currentPathIds.has(entryId)) {
             if (isBusy.value) {
                 useToast().warning(t('chat.waitMessage'))
                 return
             }
             const leafId = findBranchLeafId(entryId, branchIndexes.value)
             const navigated = await chatState.navigateBranch(leafId)
-            if (!navigated) return
+            // 切分支失败（网络错误 / 后端未返回 messages）时早退：保留弹窗与提示，避免「弹窗关了但没切也没滚」的静默失败。
+            if (!navigated) {
+                useToast().error(t('chat.treeJumpFailed'))
+                return
+            }
             await nextTick()
         }
 
-        const jumped = await virtualMessageListRef.value?.scrollToEntry(entryId)
-        if (jumped) showSessionTreeModal.value = false
+        showSessionTreeModal.value = false
+        await nextTick()
+
+        // 3. 找目标 entry 对应的可见气泡：若目标本身没有气泡（被合并 / 空内容 / 工具结果），
+        //    沿 parent 链向上找最近一个有气泡的祖先（与 TUI findNearestVisible 一致）。
+        const visibleIds = new Set(
+            processedMessages.value
+                .map(message => message.entryId)
+                .filter((id): id is string => Boolean(id))
+        )
+        let target: string | null = entryId
+        while (target && !visibleIds.has(target)) {
+            target = entryById.get(target)?.parentId ?? null
+        }
+        if (target) {
+            await virtualMessageListRef.value?.scrollToEntry(target)
+        }
     } finally {
         sessionTreeBusy.value = false
     }
