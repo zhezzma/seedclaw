@@ -321,6 +321,16 @@ export function deleteDir(agentId: string, path: string): Promise<{ path: string
     return wsDelete(`${base(agentId)}/dir?path=${encodeURIComponent(path)}`)
 }
 
+/** 同目录内重命名文件或目录（workspace scope）。newName 须为单个路径段。
+ *  返回新旧相对路径，调用方据此刷新树 / 关闭旧 viewer。 */
+export function renameEntry(
+    agentId: string,
+    path: string,
+    newName: string,
+): Promise<{ path: string; oldPath: string }> {
+    return wsPost(`${base(agentId)}/rename?path=${encodeURIComponent(path)}`, { newName })
+}
+
 /** 读 agent 配置目录子项 (workspace/sessions 在顶层被后端过滤)。 */
 export function fetchAgentTree(agentId: string, path: string): Promise<TreeResult> {
     const qs = path ? `?path=${encodeURIComponent(path)}` : ''
@@ -366,6 +376,15 @@ export function deleteAgentFile(agentId: string, path: string): Promise<{ path: 
 /** 递归删除目录（agent scope）。 */
 export function deleteAgentDir(agentId: string, path: string): Promise<{ path: string }> {
     return wsDelete(`${base(agentId)}/agent-dir?path=${encodeURIComponent(path)}`)
+}
+
+/** 同目录内重命名文件或目录（agent scope）。顶层拒 workspace/ 与 sessions/。 */
+export function renameAgentEntry(
+    agentId: string,
+    path: string,
+    newName: string,
+): Promise<{ path: string; oldPath: string }> {
+    return wsPost(`${base(agentId)}/agent-rename?path=${encodeURIComponent(path)}`, { newName })
 }
 
 // ── Git 仓库 mutation: stage / unstage / discard / commit ──

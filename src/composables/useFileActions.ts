@@ -2,9 +2,9 @@
  * Workspace 文件 / 目录的右键菜单 action 工厂。
  *
  * 两类 action：
- * - 零后端：复制（绝对 / 相对 / 文件名 / @引用）、发送（@引用 / 文件内容）
- * - mutation：新建文件 / 新建目录 / 删除（走 useConfirm 确认）
- * 目录上自动禁用「@引用 / 发送内容」三项，对单文件才有意义。
+ * - 零后端：复制（绝对 / 相对 / 文件名）、发送（绝对路径 @引用 / 文件内容）
+ * - mutation：下载、重命名、新建文件 / 新建目录、删除（删除走 useConfirm 确认）
+ * 目录上自动禁用发送 @引用 / 发送内容 / 下载三项，对单文件才有意义。
  */
 import { useChatInput } from './useChatInput'
 import { useToast } from './useToast'
@@ -14,6 +14,7 @@ import {
     fetchFile, fetchAgentFile, fetchDownload,
     createFile, createDir, deleteFile, deleteDir,
     createAgentFile, createAgentDir, deleteAgentFile, deleteAgentDir,
+    renameEntry, renameAgentEntry,
     type TreeEntry,
 } from './workspace-api'
 import { saveBlob } from '../utils/fileDownload'
@@ -24,6 +25,7 @@ import {
     PaperAirplaneIcon,
     DocumentTextIcon,
     ArrowDownTrayIcon,
+    PencilSquareIcon,
     DocumentPlusIcon,
     FolderPlusIcon,
     TrashIcon,
@@ -194,6 +196,7 @@ export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
 
     const rmFile = scope === 'agent' ? deleteAgentFile : deleteFile
     const rmDir = scope === 'agent' ? deleteAgentDir : deleteDir
+    const rename = scope === 'agent' ? renameAgentEntry : renameEntry
 
     return [
         {
@@ -291,6 +294,31 @@ export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
                 parentPath: parentOf(entry),
                 onMutated,
             }),
+        },
+        {
+            label: tr('workspace.menu.rename'),
+            icon: PencilSquareIcon,
+            separator: true,
+            action: async () => {
+                const raw = window.prompt(tr('workspace.menu.renamePrompt'), entry.name)
+                if (raw === null) return
+                const name = raw.trim()
+                // 纯改名：不允许路径分隔符与 . / ..（后端也拦，这里给即时反馈）。
+                if (!name || name.includes('/') || name.includes('\\') || name === '.' || name === '..') {
+                    toast.error(tr('workspace.menu.invalidRename'))
+                    return
+                }
+                if (name === entry.name) return
+                try {
+                    await rename(agentId, entry.path, name)
+                    // 重命名后旧路径失效，与删除同理：刷新原父目录 + 关闭旧 viewer。
+                    await mutate(parentDir(entry.path))
+                    if (onDeleted) await onDeleted(entry.path)
+                    toast.success(tr('workspace.menu.renamed'))
+                } catch (e: any) {
+                    toast.error(`${tr('workspace.menu.rename')}: ${e?.message || String(e)}`)
+                }
+            },
         },
         {
             label: tr('workspace.menu.delete'),

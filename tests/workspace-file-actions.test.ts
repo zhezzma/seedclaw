@@ -47,6 +47,31 @@ test('useFileActions: download 动作走 fetchDownload + saveBlob，并通过 to
     assert.match(zh, /downloaded: '已下载'/, 'zh must define downloaded')
 })
 
+test('useFileActions: rename 动作走 scope 路由 API、拒路径分隔符、刷新原父 + 关 viewer', () => {
+    assert.match(src, /workspace\.menu\.rename\b/, 'menu must include rename action')
+    // scope 三元选择重命名 API
+    assert.match(src, /scope === 'agent' \? renameAgentEntry : renameEntry/, 'rename picks scope-specific API')
+    // 纯改名：拒绝路径分隔符与 . / ..（与后端一致）
+    assert.match(src, /name\.includes\('\/'\)/, 'rename must reject path separators (no move)')
+    assert.match(src, /name === '\.\.'/, 'rename must reject .. as new name')
+    // 重命名后旧路径失效：刷新 parentDir(entry.path) + onDeleted 关闭旧 viewer
+    assert.match(
+        src,
+        /await rename\(agentId, entry\.path, name\)\s*\n[\s\S]*?await mutate\(parentDir\(entry\.path\)\)\s*\n\s*if \(onDeleted\) await onDeleted\(entry\.path\)/,
+        'rename must refresh parentDir and close stale viewer via onDeleted',
+    )
+    // prompt 预填当前名字，取消（null）不报错
+    assert.match(src, /window\.prompt\(tr\('workspace\.menu\.renamePrompt'\), entry\.name\)/, 'rename prompt must prefill current name')
+    assert.match(src, /if \(raw === null\) return/, 'rename must early-return on prompt cancel')
+    // i18n 双侧
+    const en = read('src/i18n/en.ts')
+    const zh = read('src/i18n/zh.ts')
+    assert.match(en, /rename: 'Rename'/, 'en must define rename')
+    assert.match(en, /renamed: 'Renamed'/, 'en must define renamed')
+    assert.match(zh, /rename: '重命名'/, 'zh must define rename')
+    assert.match(zh, /renamed: '已重命名'/, 'zh must define renamed')
+})
+
 test('useFileActions: sendContent 必须区分 binary / truncated / 错误三态，并通过 toast 上报', () => {
     // 必须把 binary 单独 warning，不当成正常发送
     assert.match(src, /data\.binary/, 'sendContent must check binary')

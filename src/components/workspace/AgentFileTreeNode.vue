@@ -3,7 +3,7 @@
  * Agent 配置目录的递归节点。FileTreeNode 的精简版：
  * - 不显示 git 徽章（agent 配置目录不会嵌套 git 仓库）
  * - 走 useAgentFiles composable 而非 useWorkspaceTree
- * - scope=agent 进入 buildFileMenuItems：菜单的 @引用 用 `@agent:` 前缀
+ * - scope=agent 进入 buildFileMenuItems：仅影响读写 / 重命名 / 下载走 agent-* API 路由
  *
  * 通过 defineOptions({ name }) 显式声明组件名以支持模板自引用。
  */
