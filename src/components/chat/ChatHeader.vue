@@ -75,7 +75,7 @@ const notifyLoading = ref(false)
 const showAgentDropdown = computed(() => isNewSession(route))
 
 const selectedAgentId = computed(() => props.selectedAgent?.id || '')
-const canToggleNotify = computed(() => Boolean(chatState.sessionKey))
+const isSession = computed(() => Boolean(chatState.sessionKey))
 
 const buildNotifyAgentQuery = (agentId: string) => {
     return agentId ? `?agentId=${encodeURIComponent(agentId)}` : ''
@@ -274,16 +274,14 @@ defineExpose({
 
         <!-- Actions -->
         <template #actions>
-            <div class="flex items-center">
+            <div class="flex items-center lg:gap-2">
                 <!-- Connection Status Indicator -->
-                <div class="relative group flex items-center" @click.stop="showUsageTip = !showUsageTip"
-                    role="button" tabindex="0" :aria-expanded="showUsageTip"
+                <div class="relative group flex items-center" @click.stop="showUsageTip = !showUsageTip" role="button"
+                    tabindex="0" :aria-expanded="showUsageTip"
                     :aria-label="isConnected ? $t('common.connected') : $t('common.disconnected')"
                     @keydown.enter.prevent.stop="showUsageTip = !showUsageTip"
-                    @keydown.space.prevent.stop="showUsageTip = !showUsageTip"
-                    @keydown.escape="showUsageTip = false">
-                    <div class="w-3 h-3 rounded-full transition-colors duration-300 cursor-pointer"
-                        aria-hidden="true"
+                    @keydown.space.prevent.stop="showUsageTip = !showUsageTip" @keydown.escape="showUsageTip = false">
+                    <div class="w-3 h-3 rounded-full transition-colors duration-300 cursor-pointer" aria-hidden="true"
                         :class="isConnected ? 'bg-success' : 'bg-error/50'"></div>
                     <!-- Multi-line tooltip: hover (PC) + click (mobile) -->
                     <div role="tooltip" class="absolute top-full mt-2 right-0
@@ -292,65 +290,66 @@ defineExpose({
                                 shadow-lg whitespace-nowrap z-50"
                         :class="showUsageTip ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 pointer-events-none'">
                         <div>{{ isConnected ? $t('common.connected') : $t('common.disconnected') }}</div>
-                        <div v-for="(line, i) in usageTipLines" :key="i"
-                            class="text-neutral-content/70">{{ line }}</div>
+                        <div v-for="(line, i) in usageTipLines" :key="i" class="text-neutral-content/70">{{ line }}
+                        </div>
                     </div>
                 </div>
 
+
+
+                <!-- 移动端  -->
+                <button @click="refreshPage" class="btn btn-ghost btn-circle btn-xs lg:hidden"
+                    :title="$t('common.refresh')">
+                    <ArrowPathIcon class="h-5 w-5" />
+                </button>
+
+                <!-- <button @click="createNewSession" class="btn btn-ghost btn-circle btn-xs lg:hidden"
+                    :title="$t('chat.newChat')">
+                    <PlusIcon class="h-5 w-5" />
+                </button> -->
+
+
+
+                <!-- PC -->
+                <button @click="settingsStore.toggleTheme()" class="btn btn-ghost btn-circle btn-xs hidden lg:flex">
+                    <SunIcon v-if="settingsStore.isDark" class="h-5 w-5" />
+                    <MoonIcon v-else class="h-5 w-5" />
+                </button>
+
+                <!-- <button @click="settingsStore.toggleLayout()" class="btn btn-ghost btn-circle btn-xs hidden lg:flex"
+                    :title="settingsStore.isWideMode ? $t('chat.switchToNarrow') : $t('chat.switchToWide')">
+                    <ArrowsPointingInIcon v-if="settingsStore.isWideMode" class="h-5 w-5" />
+                    <ArrowsPointingOutIcon v-else class="h-5 w-5" />
+                </button> -->
+
+
+                <!-- PC 与移动端共用 -->
+
                 <!-- Voice button -->
-                <!-- <div v-if="settingsStore.isCurrentAsrConfigured && settingsStore.isCurrentTtsConfigured">
-                    <button @click="startVoiceChat"
+                <!-- <button v-if="settingsStore.isCurrentAsrConfigured && settingsStore.isCurrentTtsConfigured" @click="startVoiceChat"
                         class="btn btn-ghost btn-circle btn-xs" :title="$t('chat.voiceChat')">
                         <PhoneIcon class="h-5 w-5" />
-                    </button>
-                </div> -->
-
-         
+                </button> -->
 
                 <!-- Session tree -->
-                <button v-if="canToggleNotify" @click="emit('open-session-tree')"
-                    class="btn btn-ghost btn-circle btn-xs" :title="$t('chat.openSessionTree')">
+                <button v-if="isSession" @click="emit('open-session-tree')" class="btn btn-ghost btn-circle btn-xs"
+                    :title="$t('chat.openSessionTree')">
                     <QueueListIcon class="h-5 w-5" />
                 </button>
 
                 <!-- Session notify toggle -->
-                <button v-if="canToggleNotify" @click="toggleNotify" class="btn btn-ghost btn-circle btn-xs"
+                <button v-if="isSession" @click="toggleNotify" class="btn btn-ghost btn-circle btn-xs"
                     :class="{ 'text-primary': notifyEnabled }" :disabled="notifyLoading"
                     :title="`${$t('settings.notifications')}: ${notifyEnabled ? $t('common.enabled') : $t('common.disabled')}`">
                     <BellIcon v-if="notifyEnabled" class="h-5 w-5" />
                     <BellSlashIcon v-else class="h-5 w-5" />
                 </button>
 
-                <!-- Mobile buttons -->
-                <div class="flex lg:hidden">
-                    <button @click="refreshPage" class="btn btn-ghost btn-circle btn-xs" :title="$t('common.refresh')">
-                        <ArrowPathIcon class="h-5 w-5" />
-                    </button>
-                    <!-- <button @click="createNewSession" class="btn btn-ghost btn-circle btn-xs"
-                        :title="$t('chat.newChat')">
-                        <PlusIcon class="h-5 w-5" />
-                    </button> -->
-                </div>
-
-                <!-- PC theme toggle button -->
-                <div class="hidden lg:flex items-center">
-                    <!-- <button @click="settingsStore.toggleLayout()" class="btn btn-ghost btn-circle btn-xs"
-                        :title="settingsStore.isWideMode ? $t('chat.switchToNarrow') : $t('chat.switchToWide')">
-                        <ArrowsPointingInIcon v-if="settingsStore.isWideMode" class="h-5 w-5" />
-                        <ArrowsPointingOutIcon v-else class="h-5 w-5" />
-                    </button> -->
-                    <button @click="settingsStore.toggleTheme()" class="btn btn-ghost btn-circle btn-xs">
-                        <SunIcon v-if="settingsStore.isDark" class="h-5 w-5" />
-                        <MoonIcon v-else class="h-5 w-5" />
-                    </button>
-                </div>
-
                 <!-- Workspace panel toggle: PC 与移动端共用（移动端在 ChatHeader
                      按钮区开 right-drawer，与左侧 sidebar drawer 对称）。
                      无 agent 选中时隐藏，避免点开个空 drawer。 -->
                 <button v-if="chatState.agentsSelectedId" @click="panel.toggle()"
-                    class="btn btn-ghost btn-circle btn-xs"
-                    :class="{ 'text-primary': panel.isOpen.value }"
+                    class="btn btn-ghost btn-circle btn-xs" :class="{ 'text-primary': panel.isOpen.value }"
                     :title="$t('workspace.toggle')">
                     <RectangleGroupIcon class="h-5 w-5" />
                 </button>
