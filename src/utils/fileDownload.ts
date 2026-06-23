@@ -1,14 +1,43 @@
 import { BaseDirectory, writeFile } from '@tauri-apps/plugin-fs'
-import { shouldUseWebDownloadFallbackForUserAgent } from './mediaDownload'
 
 /**
- * 把 Blob 落盘 / 触发下载。与 useMediaPreview 的图片下载同源逻辑，
- * 抽出来供任意文件下载复用：
- * - Tauri：写入系统 Download 目录（Android 走 Home/Download）
- * - 浏览器：创建 <a download> 锚点触发；iOS/Android WebView 退回 location.href
- *
- * 返回落盘的目标描述（path），供调用方做 toast 提示。
+ * 文件 / 图片下载共用工具：
+ * - 文件名 / 扩展名归一：getImageExtension / ensureFileExtension
+ * - WebView 下载兜底判定：shouldUseWebDownloadFallbackForUserAgent
+ * - 落盘 / 触发下载：saveBlob
+ *   - Tauri：写入系统 Download 目录（Android 走 Home/Download）
+ *   - 浏览器：创建 <a download> 锚点触发；iOS/Android WebView 退回 location.href
+ *   返回落盘的目标描述（path），供调用方做 toast 提示。
  */
+
+/** MIME → 图片扩展名。image/jpeg 归一为 jpg；非图片或无法解析返回 bin。 */
+export const getImageExtension = (mimeType: string) => {
+    if (mimeType === 'image/jpeg') return 'jpg'
+
+    if (mimeType.startsWith('image/')) {
+        const subtype = mimeType.slice('image/'.length).split(';', 1)[0].trim().toLowerCase()
+        const normalizedSubtype = subtype.split('+', 1)[0]
+
+        if (/^[a-z0-9.-]+$/i.test(normalizedSubtype) && normalizedSubtype.length > 0) {
+            return normalizedSubtype
+        }
+    }
+
+    return 'bin'
+}
+
+/** 文件名已带扩展名则原样返回，否则补上给定扩展名。 */
+export const ensureFileExtension = (fileName: string, extension: string) => {
+    return /\.[a-z0-9]+$/i.test(fileName) ? fileName : `${fileName}.${extension}`
+}
+
+/** iOS / Android WebView 下 <a download> 不可靠，需退回 location.href 兜底。 */
+export const shouldUseWebDownloadFallbackForUserAgent = (userAgent: string) => {
+    const isIOS = /iPad|iPhone|iPod/i.test(userAgent)
+    const isAndroidWebView = /; wv\)/i.test(userAgent)
+
+    return isIOS || isAndroidWebView
+}
 
 const isTauriApp = () => {
     if (typeof window === 'undefined') return false
