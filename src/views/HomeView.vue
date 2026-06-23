@@ -53,7 +53,7 @@ const { loadCommands, setCurrentAgent } = useCommandState()
 const wsPanel = useWorkspacePanel()
 const wsViewer = useWorkspaceViewer()
 
-const busyAllowedCommands = ['steer', 'follow-up', 'autocontinue']
+const busyAllowedCommands = ['steer', 'follow-up', 'goal']
 const busyAllowedCommandPattern = new RegExp(`^\\/(${busyAllowedCommands
     .map(command => command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
     .join('|')})(?=\\s|$)`)
