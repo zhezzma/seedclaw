@@ -1,6 +1,6 @@
-import { BaseDirectory, writeFile } from '@tauri-apps/plugin-fs'
 import { ref } from 'vue'
-import { ensureFileExtension, getImageExtension, shouldUseWebDownloadFallbackForUserAgent } from '../utils/mediaDownload'
+import { ensureFileExtension, getImageExtension } from '../utils/mediaDownload'
+import { saveBlob } from '../utils/fileDownload'
 import { useToast } from './useToast'
 
 // ==================== Image Lightbox State ====================
@@ -153,59 +153,6 @@ const handleMouseUp = (_e: MouseEvent) => {
     }
 }
 
-const isTauriApp = () => {
-    if (typeof window === 'undefined') {
-        return false
-    }
-
-    return !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
-}
-
-const isAndroidTauri = () => {
-    if (typeof navigator === 'undefined') return false
-    return isTauriApp() && /Android/i.test(navigator.userAgent)
-}
-
-const getTauriDownloadTarget = (fileName: string) => {
-    if (isAndroidTauri()) {
-        return {
-            path: `Download/${fileName}`,
-            baseDir: BaseDirectory.Home,
-        }
-    }
-
-    return {
-        path: fileName,
-        baseDir: BaseDirectory.Download,
-    }
-}
-
-const shouldUseWebDownloadFallback = () => {
-    if (typeof navigator === 'undefined') {
-        return false
-    }
-
-    return shouldUseWebDownloadFallbackForUserAgent(navigator.userAgent || '')
-}
-
-const downloadBlobInBrowser = (blob: Blob, fileName: string) => {
-    const url = window.URL.createObjectURL(blob)
-
-    if (shouldUseWebDownloadFallback()) {
-        window.location.href = url
-        setTimeout(() => window.URL.revokeObjectURL(url), 30000)
-        return
-    }
-
-    const a = document.createElement('a')
-    a.href = url
-    a.download = fileName
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    setTimeout(() => window.URL.revokeObjectURL(url), 5000)
-}
-
 const downloadImage = async (src: string, defaultName?: string) => {
     const toast = useToast()
     const { i18n } = await import('../i18n')
@@ -216,17 +163,9 @@ const downloadImage = async (src: string, defaultName?: string) => {
         const blob = await response.blob()
         const extension = getImageExtension(blob.type)
         const fileName = ensureFileExtension(defaultName || `image-${Date.now()}`, extension)
-
-        if (isTauriApp()) {
-            const bytes = new Uint8Array(await blob.arrayBuffer())
-            const target = getTauriDownloadTarget(fileName)
-            await writeFile(target.path, bytes, { baseDir: target.baseDir })
-            toast.success(_t('chat.downloadImageSuccess', { path: target.path }))
-            return
-        }
-
-        downloadBlobInBrowser(blob, fileName)
-        toast.success(_t('chat.downloadImageSuccess', { path: fileName }))
+        // 落盘逻辑与任意文件下载共用 saveBlob：Tauri 写 Download 目录、浏览器走锚点。
+        const savedPath = await saveBlob(blob, fileName)
+        toast.success(_t('chat.downloadImageSuccess', { path: savedPath }))
     } catch (error) {
         console.error('Download failed:', error)
         toast.error(_t('chat.downloadImageFailed'))

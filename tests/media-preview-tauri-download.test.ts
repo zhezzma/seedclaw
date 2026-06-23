@@ -8,6 +8,7 @@ const testDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(testDir, '..')
 const mediaPreviewSource = readFileSync(path.join(repoRoot, 'src/composables/useMediaPreview.ts'), 'utf8')
 const mediaDownloadSource = readFileSync(path.join(repoRoot, 'src/utils/mediaDownload.ts'), 'utf8')
+const fileDownloadSource = readFileSync(path.join(repoRoot, 'src/utils/fileDownload.ts'), 'utf8')
 const enSource = readFileSync(path.join(repoRoot, 'src/i18n/en.ts'), 'utf8')
 const zhSource = readFileSync(path.join(repoRoot, 'src/i18n/zh.ts'), 'utf8')
 
@@ -17,23 +18,31 @@ const {
   ensureFileExtension
 } = await import(pathToFileURL(path.join(repoRoot, 'src/utils/mediaDownload.ts')).href)
 
-test('media preview writes Tauri downloads via getTauriDownloadTarget and keeps browser download logic', () => {
-  assert.match(mediaPreviewSource, /from '@tauri-apps\/plugin-fs'/)
-  assert.match(mediaPreviewSource, /from '\.\.\/utils\/mediaDownload'/)
-  assert.match(mediaPreviewSource, /BaseDirectory\.Download/)
-  assert.match(mediaPreviewSource, /BaseDirectory\.Home/)
-  assert.match(mediaPreviewSource, /getTauriDownloadTarget/)
-  assert.match(mediaPreviewSource, /writeFile\(target\.path, bytes, \{\s*baseDir: target\.baseDir\s*\}\)/)
-  assert.match(mediaPreviewSource, /isAndroidTauri/)
-  assert.match(mediaPreviewSource, /typeof window === 'undefined'/)
-  assert.match(mediaPreviewSource, /__TAURI_INTERNALS__|__TAURI__/)
-  assert.match(mediaPreviewSource, /document\.createElement\('a'\)/)
-  assert.match(mediaPreviewSource, /shouldUseWebDownloadFallback/)
-  assert.doesNotMatch(mediaPreviewSource, /isTauriApp\(\)[\s\S]{0,300}window\.open/)
+test('blob saving logic lives in shared fileDownload util (Tauri + browser), reused by image download', () => {
+  // 落盘逻辑已抽到 utils/fileDownload.ts，两者（图片 / 任意文件）共用 saveBlob。
+  assert.match(fileDownloadSource, /from '@tauri-apps\/plugin-fs'/)
+  assert.match(fileDownloadSource, /from '\.\/mediaDownload'/)
+  assert.match(fileDownloadSource, /BaseDirectory\.Download/)
+  assert.match(fileDownloadSource, /BaseDirectory\.Home/)
+  assert.match(fileDownloadSource, /getTauriDownloadTarget/)
+  assert.match(fileDownloadSource, /writeFile\(target\.path, bytes, \{ baseDir: target\.baseDir \}\)/)
+  assert.match(fileDownloadSource, /isAndroidTauri/)
+  assert.match(fileDownloadSource, /typeof window === 'undefined'/)
+  assert.match(fileDownloadSource, /__TAURI_INTERNALS__|__TAURI__/)
+  assert.match(fileDownloadSource, /document\.createElement\('a'\)/)
+  assert.match(fileDownloadSource, /shouldUseWebDownloadFallback/)
+  assert.match(fileDownloadSource, /export async function saveBlob/)
+
+  // useMediaPreview 不再自己重实现落盘，而是复用 saveBlob
+  assert.match(mediaPreviewSource, /from '\.\.\/utils\/fileDownload'/)
+  assert.match(mediaPreviewSource, /saveBlob\(blob, fileName\)/)
+  assert.doesNotMatch(mediaPreviewSource, /getTauriDownloadTarget/)
+  assert.doesNotMatch(mediaPreviewSource, /document\.createElement\('a'\)/)
+  assert.doesNotMatch(fileDownloadSource, /isTauriApp\(\)[\s\S]{0,300}window\.open/)
 })
 
 test('tauri download path no longer opens a new tab for mobile webview workarounds', () => {
-  assert.doesNotMatch(mediaPreviewSource, /window\.open\(url, '_blank'\)/)
+  assert.doesNotMatch(fileDownloadSource, /window\.open\(url, '_blank'\)/)
 })
 
 test('web download fallback detection handles Android WebView, normal Android Chrome, and iOS Safari', () => {
