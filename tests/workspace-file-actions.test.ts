@@ -11,20 +11,40 @@ function read(rel: string): string {
 
 const src = read('src/composables/useFileActions.ts')
 
-test('useFileActions: scope=agent 用 @agent: 前缀，scope=workspace 用 @ 前缀', () => {
-    // 关键：避免 namespace 串台。workspace 文件的 @path 与 agent 配置文件的 @agent:path 必须分流
+test('useFileActions: sendMention 发送绝对路径的 @引用（不再按 scope 分 @agent: 前缀）', () => {
+    // 改动：sendMention 现在发绝对路径，路径本身已唯一，无需 @agent: namespace 分流
     assert.match(
         src,
-        /scope === 'agent' \? `@agent:\$\{entry\.path\}` : `@\$\{entry\.path\}`/,
-        'mention syntax must split workspace (@) and agent (@agent:) namespaces',
+        /appendText\(`@\$\{buildAbsolutePath\(root, entry\.path\)\}`\)/,
+        'sendMention must append @ + absolute path (buildAbsolutePath(root, entry.path))',
     )
+    // copyMention 已移除
+    assert.doesNotMatch(src, /workspace\.menu\.copyMention/, 'copyMention action must be removed')
 })
 
 test('useFileActions: 目录 entry 上禁用 file-only 操作', () => {
-    // 复制 @引用 / 发送 @引用 / 发送内容 在目录上没有意义，必须 disabled
+    // 发送 @引用 / 发送内容 / 下载 在目录上没有意义，必须 disabled
     const disabledMatches = src.match(/disabled: !isFile/g)
     assert.ok(disabledMatches && disabledMatches.length >= 3,
-        `expected at least 3 'disabled: !isFile' (copyMention / sendMention / sendContent), got ${disabledMatches?.length ?? 0}`)
+        `expected at least 3 'disabled: !isFile' (sendMention / sendContent / download), got ${disabledMatches?.length ?? 0}`)
+})
+
+test('useFileActions: download 动作走 fetchDownload + saveBlob，并通过 toast 上报错误', () => {
+    assert.match(src, /workspace\.menu\.download/, 'menu must include download action')
+    assert.match(src, /fetchDownload\(agentId, entry\.path, scope\)/, 'download must call fetchDownload with scope')
+    assert.match(src, /saveBlob\(blob, entry\.name\)/, 'download must save blob via saveBlob using entry.name')
+    assert.match(
+        src,
+        /toast\.error\(`\$\{tr\('workspace\.menu\.download'\)\}: \$\{e\?\.message \|\| String\(e\)\}`\)/,
+        'download errors must include the action name as context prefix',
+    )
+    // i18n 双侧
+    const en = read('src/i18n/en.ts')
+    const zh = read('src/i18n/zh.ts')
+    assert.match(en, /download: 'Download'/, 'en must define download')
+    assert.match(en, /downloaded: 'Downloaded'/, 'en must define downloaded')
+    assert.match(zh, /download: '下载'/, 'zh must define download')
+    assert.match(zh, /downloaded: '已下载'/, 'zh must define downloaded')
 })
 
 test('useFileActions: sendContent 必须区分 binary / truncated / 错误三态，并通过 toast 上报', () => {

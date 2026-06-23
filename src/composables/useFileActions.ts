@@ -11,18 +11,19 @@ import { useToast } from './useToast'
 import { useConfirm } from './useConfirm'
 import { writeClipboard } from '../utils/clipboard'
 import {
-    fetchFile, fetchAgentFile,
+    fetchFile, fetchAgentFile, fetchDownload,
     createFile, createDir, deleteFile, deleteDir,
     createAgentFile, createAgentDir, deleteAgentFile, deleteAgentDir,
     type TreeEntry,
 } from './workspace-api'
+import { saveBlob } from '../utils/fileDownload'
 import type { ContextMenuItem } from './useContextMenu'
 import { i18n } from '../i18n'
 import {
     DocumentDuplicateIcon,
-    AtSymbolIcon,
     PaperAirplaneIcon,
     DocumentTextIcon,
+    ArrowDownTrayIcon,
     DocumentPlusIcon,
     FolderPlusIcon,
     TrashIcon,
@@ -185,8 +186,6 @@ export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
     const isDir = entry.type === 'dir'
     const toast = useToast()
     const { confirm } = useConfirm()
-    // @引用 syntax 区分 scope：agent 配置文件用 @agent: 前缀，避免和 workspace 路径冲突
-    const mention = scope === 'agent' ? `@agent:${entry.path}` : `@${entry.path}`
 
     /** mutation 完成后的刷新动作：调用者负责 invalidate + loadPath。 */
     const mutate = async (parent: string) => {
@@ -222,21 +221,13 @@ export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
             },
         },
         {
-            label: tr('workspace.menu.copyMention'),
-            icon: AtSymbolIcon,
-            disabled: !isFile,
-            action: async () => {
-                await writeClipboard(mention)
-                toast.success(tr('workspace.menu.copied'))
-            },
-        },
-        {
             label: tr('workspace.menu.sendMention'),
             icon: PaperAirplaneIcon,
             separator: true,
             disabled: !isFile,
             action: () => {
-                useChatInput().appendText(mention)
+                // 发绝对路径的 @引用：root + entry.path，跨平台拼接。
+                useChatInput().appendText(`@${buildAbsolutePath(root, entry.path)}`)
                 toast.success(tr('workspace.menu.sentToChat'))
             },
         },
@@ -262,6 +253,20 @@ export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
                 } catch (e: any) {
                     // 封上动作语义：裸 "Network Error" 用户不知道是哪步失败
                     toast.error(`${tr('workspace.menu.sendContent')}: ${e?.message || String(e)}`)
+                }
+            },
+        },
+        {
+            label: tr('workspace.menu.download'),
+            icon: ArrowDownTrayIcon,
+            disabled: !isFile,
+            action: async () => {
+                try {
+                    const blob = await fetchDownload(agentId, entry.path, scope)
+                    const savedPath = await saveBlob(blob, entry.name)
+                    toast.success(`${tr('workspace.menu.downloaded')}: ${savedPath}`)
+                } catch (e: any) {
+                    toast.error(`${tr('workspace.menu.download')}: ${e?.message || String(e)}`)
                 }
             },
         },

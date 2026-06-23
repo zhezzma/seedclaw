@@ -244,6 +244,28 @@ export async function fetchRawFile(agentId: string, path: string): Promise<Blob>
     return await response.blob()
 }
 
+/** 下载任意文件的原始字节（attachment）。scope 决定走 workspace 还是 agent 配置目录。
+ *  与 fetchRawFile 不同：不限扩展名、不设 5MB 上限，后端走流式返回。
+ *  返回 Blob，调用方负责落盘 / 触发浏览器下载。 */
+export async function fetchDownload(
+    agentId: string,
+    path: string,
+    scope: 'workspace' | 'agent' = 'workspace',
+): Promise<Blob> {
+    const endpoint = scope === 'agent' ? 'agent-download' : 'download'
+    const url = `${baseUrl()}${base(agentId)}/${endpoint}?path=${encodeURIComponent(path)}`
+    const response = await fetch(url, { method: 'GET', headers: authHeaders() })
+    if (!response.ok) {
+        let msg = `HTTP ${response.status}`
+        try {
+            const body = await response.json()
+            if (body?.error) msg = body.error
+        } catch { /* 二进制响应不是 JSON，忽略 */ }
+        throw new WorkspaceApiError(msg, response.status)
+    }
+    return await response.blob()
+}
+
 /** 按扩展名判断是否为可渲染的图片。需与后端 /workspace/raw 的白名单保持一致。
  *  SVG 不在名单：避免含脚本的 SVG 在同源下被执行。 */
 export function isImagePath(path: string): boolean {
