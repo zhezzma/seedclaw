@@ -902,6 +902,7 @@ export default {
         agentFiles: 'Agent 配置',
         noAgentFiles: '暂无可编辑的配置文件',
         menu: {
+            openFile: '打开文件',
             copyAbsolutePath: '复制绝对路径',
             copyRelativePath: '复制相对路径',
             copyName: '复制文件名',

@@ -903,6 +903,7 @@ export default {
         agentFiles: 'Agent Config',
         noAgentFiles: 'No editable config files',
         menu: {
+            openFile: 'Open File',
             copyAbsolutePath: 'Copy Absolute Path',
             copyRelativePath: 'Copy Relative Path',
             copyName: 'Copy Name',
