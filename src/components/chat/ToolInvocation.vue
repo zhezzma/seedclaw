@@ -170,6 +170,17 @@ const textResultContent = computed(() => {
         if (isAllText && props.result.length > 0) {
             return props.result.map(item => item.text).join('\n')
         }
+
+        // view_image 工具返回 image 块（含几 MB base64），提取文本部分，
+        // 避免把 base64 JSON 序列化渲染。
+        if (props.toolName === 'view_image') {
+            const imageCount = props.result.filter(item => item?.type === 'image').length
+            const textParts = props.result
+                .filter(item => item?.type === 'text' && typeof item.text === 'string')
+                .map(item => item.text)
+            const prefix = `[${imageCount} 张图片]`
+            return textParts.length > 0 ? `${prefix}\n${textParts.join('\n')}` : prefix
+        }
     }
 
     // 如果 result 本身就是单一的 { type: 'text', text: '...' }
