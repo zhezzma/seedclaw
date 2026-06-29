@@ -7,7 +7,7 @@
  * - Ctrl/Cmd+S 保存；父组件头部也提供 Save 按钮
  * - dirty 追踪：内容 vs baseline 比对，关闭/切换文件前由父组件 confirm
  * - 二进制 / 截断的文件强制 readOnly（编辑后保存会写入损坏 / 截断数据 → 安全约束，不是 UX 选项）
- * - 图片文件走 /workspace/raw 拿 blob 后用 <img> 渲染，不走 monaco
+ * - 图片文件走专用 raw 端点（workspace / agent）拿 blob 后用 <img> 渲染，不走 monaco
  * - HTML 预览（previewMode）用 iframe srcdoc 盖在编辑器之上，内容跟 dirty buffer
  * - Markdown 预览（previewMode）复用 chat 的 MarkdownRenderer，与其共享同一个
  *   agent-output 信任边界：markdown-it 默认 html=false 转义裸 HTML / 禁 javascript: scheme，
@@ -58,7 +58,7 @@ const error = ref<string | null>(null)
 const isSaving = ref(false)
 const isBinary = ref(false)
 const isTruncated = ref(false)
-/** 图片预览：workspace scope + 图片扩展名 → 走 raw 获取 blob URL 渲染 <img>。 */
+/** 图片预览：图片扩展名命中 → 走 raw 获取 blob URL 渲染 <img>（两个 scope 都支持）。 */
 const isImage = ref(false)
 const imageObjectUrl = ref<string | null>(null)
 /** 预览模式（HTML）—— true 时用 iframe 渲染当前 buffer，替换编辑器。
@@ -141,11 +141,12 @@ async function loadFile(path: string) {
     // load 末尾会按 isReadOnly.value 恢复。
     editor?.updateOptions({ readOnly: true })
 
-    // 图片分支：仅 workspace scope，且扩展名命中。agent-file 不走这里，
-    // 避免 /raw 端点拓展到 agentDir（目前后端也只提供了 workspace/raw）。
-    if (scope.value === 'workspace' && isImagePath(path)) {
+    // 图片分支：扩展名命中即可，两个 scope 都走专用 raw 端点。
+    //   workspace → /raw，agent → /agent-raw（后端带 workspace/sessions 顶层过滤）。
+    //   SVG 不在白名单：避免含脚本的 SVG 在同源下被执行。
+    if (isImagePath(path)) {
         try {
-            const blob = await fetchRawFile(props.agentId, path)
+            const blob = await fetchRawFile(props.agentId, path, scope.value)
             if (path !== props.path) return
             isImage.value = true
             imageObjectUrl.value = URL.createObjectURL(blob)

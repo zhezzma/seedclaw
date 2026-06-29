@@ -15,6 +15,7 @@ import {
     createFile, createDir, deleteFile, deleteDir,
     createAgentFile, createAgentDir, deleteAgentFile, deleteAgentDir,
     renameEntry, renameAgentEntry,
+    uploadFile,
     type TreeEntry,
 } from './workspace-api'
 import { saveBlob } from '../utils/fileDownload'
@@ -28,6 +29,7 @@ import {
     PencilSquareIcon,
     DocumentPlusIcon,
     FolderPlusIcon,
+    ArrowUpOnSquareIcon,
     TrashIcon,
 } from '@heroicons/vue/24/outline'
 
@@ -166,6 +168,71 @@ export async function runNewDirFlow(args: RootMutationArgs): Promise<void> {
     }
 }
 
+/** 共享的隐藏 file input：避免每次上传都新建/移除 DOM 节点。
+ *  只挂一份到 document.body，change 处理器按次绑定并解绑。 */
+let sharedInput: HTMLInputElement | null = null
+function getUploadInput(): HTMLInputElement {
+    if (sharedInput) return sharedInput
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.multiple = true
+    // 不设 accept：动作语义是「上传文件」，不限图片——图片只是常见子集。
+    input.style.display = 'none'
+    document.body.appendChild(input)
+    sharedInput = input
+    return input
+}
+
+/**
+ * 在 parentPath 下上传文件。仅 workspace scope：服务端只提供 /workspace/upload。
+ * agent scope 调用方负责不触发（菜单项对 agent scope 不展示）。
+ *
+ * 多文件逐个上传：单文件失败不中断其余，失败计数在末尾汇总 toast；全部成功才刷新一次父目录。
+ */
+export async function runUploadFlow(args: RootMutationArgs): Promise<void> {
+    const { agentId, scope, parentPath, onMutated } = args
+    const toast = useToast()
+    if (scope !== 'workspace') {
+        toast.warning(tr('workspace.menu.upload'))
+        return
+    }
+    const input = getUploadInput()
+    // 重置 value：否则选同一文件第二次不会触发 change。
+    input.value = ''
+    const files = await new Promise<File[] | null>(resolve => {
+        const onChange = () => {
+            input.removeEventListener('change', onChange)
+            resolve(input.files ? Array.from(input.files) : null)
+        }
+        input.addEventListener('change', onChange)
+        input.click()
+    })
+    if (!files || files.length === 0) return
+
+    let ok = 0
+    let failed = 0
+    for (const file of files) {
+        try {
+            await uploadFile(agentId, parentPath, file)
+            ok++
+        } catch {
+            failed++
+        }
+    }
+    if (ok > 0 && onMutated) await onMutated(parentPath)
+    if (failed === 0) {
+        toast.success(ok > 1
+            ? tr('workspace.menu.uploadedMany').replace('{count}', String(ok))
+            : tr('workspace.menu.uploaded'))
+    } else if (ok === 0) {
+        toast.error(tr('workspace.menu.uploadFailed'))
+    } else {
+        toast.warning(tr('workspace.menu.uploadPartial')
+            .replace('{ok}', String(ok))
+            .replace('{failed}', String(failed)))
+    }
+}
+
 /** 检验 prompt() 收到的名字：不能是绝对路径、不能含 .. / 。返回规范后的 POSIX-style
  *  路径段（可能含中间 /，让用户能一口气输 sub/foo.md）；非法返回 null。
  *  调用者需区分 prompt 取消（原始 null）与非法输入（本函数返回 null）两种状态。 */
@@ -295,6 +362,18 @@ export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
                 onMutated,
             }),
         },
+        // upload 仅 workspace scope：服务端只提供 /workspace/upload。agent 配置
+        // 目录无对应端点——菜单项干脆不展示，而非让用户点到一个弹无意义 warning 的项。
+        ...(scope === 'workspace' ? [{
+            label: tr('workspace.menu.upload'),
+            icon: ArrowUpOnSquareIcon,
+            disabled: !isDir,
+            action: () => runUploadFlow({
+                agentId, scope,
+                parentPath: parentOf(entry),
+                onMutated,
+            }),
+        }] as ContextMenuItem[] : []),
         {
             label: tr('workspace.menu.rename'),
             icon: PencilSquareIcon,

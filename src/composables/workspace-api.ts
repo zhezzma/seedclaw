@@ -228,10 +228,17 @@ export function fetchFile(agentId: string, path: string): Promise<FileContent> {
     return wsGet<FileContent>(`${base(agentId)}/file?path=${encodeURIComponent(path)}`)
 }
 
-/** 拉取 workspace 下文件的原始字节（仅服务端白名单内的图片扩展名）。
- *  返回 Blob，调用方负责转为 object URL 并在不用时 revokeObjectURL。 */
-export async function fetchRawFile(agentId: string, path: string): Promise<Blob> {
-    const url = `${baseUrl()}${base(agentId)}/raw?path=${encodeURIComponent(path)}`
+/** 拉取文件的原始字节（仅服务端白名单内的图片扩展名）。scope 决定端点：
+ *  workspace → /raw，agent → /agent-raw（后端带 workspace/sessions 顶层过滤）。
+ *  与 fetchDownload 同样的 scope 复用模式。返回 Blob，调用方负责转为 object URL
+ *  并在不用时 revokeObjectURL。 */
+export async function fetchRawFile(
+    agentId: string,
+    path: string,
+    scope: 'workspace' | 'agent' = 'workspace',
+): Promise<Blob> {
+    const endpoint = scope === 'agent' ? 'agent-raw' : 'raw'
+    const url = `${baseUrl()}${base(agentId)}/${endpoint}?path=${encodeURIComponent(path)}`
     const response = await fetch(url, { method: 'GET', headers: authHeaders() })
     if (!response.ok) {
         let msg = `HTTP ${response.status}`
@@ -264,6 +271,23 @@ export async function fetchDownload(
         throw new WorkspaceApiError(msg, response.status)
     }
     return await response.blob()
+}
+
+/** 上传单个文件到 workspace 下指定父目录（multipart `file` 字段）。
+ *  parentPath 为相对 workspace 根的目录路径（"" 表示根）。name 取自 file.name，
+ *  目标已存在则服务端返回 409（不静默覆写）。
+ *  与 fetchRawFile 一样绕过 wsPost：multipart 不走 JSON。 */
+export async function uploadFile(
+    agentId: string,
+    parentPath: string,
+    file: File,
+): Promise<{ path: string; bytes: number }> {
+    const qs = parentPath ? `?path=${encodeURIComponent(parentPath)}` : ''
+    const url = `${baseUrl()}${base(agentId)}/upload${qs}`
+    const form = new FormData()
+    form.append('file', file)
+    const response = await fetch(url, { method: 'POST', headers: authHeaders(), body: form })
+    return await readResponse<{ path: string; bytes: number }>(response)
 }
 
 /** 按扩展名判断是否为可渲染的图片。需与后端 /workspace/raw 的白名单保持一致。

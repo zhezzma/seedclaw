@@ -236,3 +236,40 @@ test('commitChanges: POST 带 message body, 返回 head', async () => {
     assert.equal(captured!.init!.body, JSON.stringify({ message: 'fix: x' }))
     assert.match(captured!.url, /\/repo\/commit\?repo=r/)
 })
+
+test('fetchRawFile: 默认 / workspace scope 走 /raw', async () => {
+    let captured = ''
+    globalThis.fetch = (async (url: string) => {
+        captured = url
+        return new Response(new Blob(['x'], { type: 'image/png' }), { status: 200 })
+    }) as any
+    const blob = await api.fetchRawFile('coder', 'a.png')
+    assert.ok(blob instanceof Blob)
+    assert.match(captured, /\/api\/agents\/coder\/workspace\/raw\?path=a\.png$/)
+})
+
+test('fetchRawFile: agent scope 走 /agent-raw', async () => {
+    let captured = ''
+    globalThis.fetch = (async (url: string) => {
+        captured = url
+        return new Response(new Blob(['x'], { type: 'image/png' }), { status: 200 })
+    }) as any
+    await api.fetchRawFile('coder', 'a.png', 'agent')
+    assert.match(captured, /\/api\/agents\/coder\/workspace\/agent-raw\?path=a\.png$/)
+})
+
+test('uploadFile: POST multipart 到 /upload，parentPath 进 query，含 file 字段', async () => {
+    let captured: { url: string, init?: RequestInit } | null = null
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+        captured = { url, init }
+        return new Response(JSON.stringify({ ok: true, payload: { path: 'a.png', bytes: 3 } }), { status: 200 })
+    }) as any
+    const file = new File(['png'], 'a.png', { type: 'image/png' })
+    const r = await api.uploadFile('coder', 'sub', file)
+    assert.equal(r.bytes, 3)
+    assert.equal(captured!.init!.method, 'POST')
+    assert.match(captured!.url, /\/api\/agents\/coder\/workspace\/upload\?path=sub$/)
+    const form = captured!.init!.body as FormData
+    assert.ok(form instanceof FormData, 'body must be FormData')
+    assert.ok(form.has('file'), 'FormData must contain file field')
+})

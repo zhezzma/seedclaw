@@ -300,3 +300,54 @@ test('WorkspaceTabFiles: 根目录 toolbar 提供 New File / New Dir 按钮', ()
         'agent buttons must live inside CollapsibleSection #actions slot, not in body',
     )
 })
+
+test('useFileActions: runUploadFlow 暴露入口 + 仅 workspace scope 防御', () => {
+    // toolbar / 右键菜单共用入口
+    assert.match(src, /export async function runUploadFlow/, 'must export runUploadFlow')
+    // 函数级防御：非 workspace scope 不上传（菜单源头已不展示 agent scope 的项）
+    assert.match(src, /if \(scope !== 'workspace'\)/, 'runUploadFlow must guard against non-workspace scope')
+})
+
+test('useFileActions: 多文件上传逐个循环，单文件失败不中断', () => {
+    assert.match(src, /for \(const file of files\)/, 'must upload each file in a loop')
+    assert.match(src, /let ok = 0/, 'must count successes')
+    assert.match(src, /let failed = 0/, 'must count failures')
+    // catch 内 failed++：单个失败被吞，循环继续
+    assert.match(src, /} catch \{[\s\S]*?failed\+\+/, 'single failure must not abort remaining uploads')
+})
+
+test('useFileActions: 上传结果三态 toast（全成 / 全败 / 部分）', () => {
+    // 三分支分别用不同 toast 级别与文案
+    assert.match(src, /if \(failed === 0\)/, 'branch: all success')
+    assert.match(src, /else if \(ok === 0\)/, 'branch: all failure')
+    assert.match(src, /workspace\.menu\.uploadPartial/, 'partial branch must use uploadPartial key')
+})
+
+test('useFileActions: 上传共享 input —— 重置 value 以允许重选同一文件', () => {
+    // 不重置 value，第二次选同一文件不触发 change
+    assert.match(src, /input\.value = ''/, 'must reset input.value before each click')
+    assert.match(src, /input\.addEventListener\('change', onChange\)/, 'must bind change listener')
+    assert.match(src, /input\.removeEventListener\('change', onChange\)/, 'must unbind change listener after resolve')
+})
+
+test('useFileActions: upload 菜单项仅 workspace scope 展示', () => {
+    // agent 配置目录无 /upload 端点：菜单项不应在 agent scope 出现，
+    // 否则用户点到一个看似可用的项却只弹无意义 warning。
+    assert.match(
+        src,
+        /\.\.\.\(scope === 'workspace' \? \[\{[\s\S]*?workspace\.menu\.upload[\s\S]*?\}\] as ContextMenuItem\[\] : \[\]\)/,
+        'upload menu item must only render when scope === workspace (agent scope omits it entirely)',
+    )
+})
+
+test('useFileActions: upload 相关 i18n 双侧补齐', () => {
+    const en = read('src/i18n/en.ts')
+    const zh = read('src/i18n/zh.ts')
+    assert.match(en, /upload: 'Upload File'/, 'en upload')
+    assert.match(en, /uploadedMany: 'Uploaded \{count\} files'/, 'en uploadedMany')
+    assert.match(en, /uploadFailed: 'Upload failed'/, 'en uploadFailed')
+    assert.match(en, /uploadPartial: 'Uploaded \{ok\}, \{failed\} failed'/, 'en uploadPartial')
+    assert.match(zh, /upload: '上传文件'/, 'zh upload')
+    assert.match(zh, /uploadedMany: '已上传 \{count\} 个文件'/, 'zh uploadedMany')
+    assert.match(zh, /uploadPartial: '已上传 \{ok\} 个，\{failed\} 个失败'/, 'zh uploadPartial')
+})

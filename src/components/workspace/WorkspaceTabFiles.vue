@@ -14,14 +14,14 @@
  */
 import { onMounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { DocumentPlusIcon, FolderPlusIcon } from '@heroicons/vue/24/outline'
+import { DocumentPlusIcon, FolderPlusIcon, ArrowUpOnSquareIcon } from '@heroicons/vue/24/outline'
 import { useWorkspaceTree } from '../../composables/useWorkspaceTree'
 import { useAgentFiles } from '../../composables/useAgentFiles'
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
 import { useWorkspacePanel } from '../../composables/useWorkspacePanel'
 import { useToast } from '../../composables/useToast'
 import { useConfirm } from '../../composables/useConfirm'
-import { runNewFileFlow, runNewDirFlow } from '../../composables/useFileActions'
+import { runNewFileFlow, runNewDirFlow, runUploadFlow } from '../../composables/useFileActions'
 import type { TreeEntry } from '../../composables/workspace-api'
 import FileTreeNode from './FileTreeNode.vue'
 import AgentFileTreeNode from './AgentFileTreeNode.vue'
@@ -117,6 +117,9 @@ function onNewWorkspaceFile() {
 function onNewWorkspaceDir() {
     runNewDirFlow({ agentId: props.agentId, scope: 'workspace', parentPath: '', onMutated: onMutatedWorkspace })
 }
+function onUploadWorkspace() {
+    runUploadFlow({ agentId: props.agentId, scope: 'workspace', parentPath: '', onMutated: onMutatedWorkspace })
+}
 function onNewAgentFile() {
     runNewFileFlow({ agentId: props.agentId, scope: 'agent', parentPath: '', onMutated: onMutatedAgent })
 }
@@ -148,6 +151,11 @@ function onNewAgentDir() {
                     :aria-label="$t('workspace.menu.newDir')" :title="$t('workspace.menu.newDir')"
                     @click="onNewWorkspaceDir">
                     <FolderPlusIcon class="h-4 w-4" />
+                </button>
+                <button type="button" class="btn btn-ghost btn-xs btn-square"
+                    :aria-label="$t('workspace.menu.upload')" :title="$t('workspace.menu.upload')"
+                    @click="onUploadWorkspace">
+                    <ArrowUpOnSquareIcon class="h-4 w-4" />
                 </button>
             </div>
         </div>
