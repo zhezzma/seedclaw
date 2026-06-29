@@ -292,13 +292,18 @@ export function useChatMessages(state: ChatStateShape) {
                         }
                         blocks.push(block)
                     } else if (item.type === 'image') {
+                        // /assets/... 是后端相对路径，需要拼上 apiBaseUrl 才能在前端正确加载
+                        const baseUrl = settings.apiBaseUrl?.trim()?.replace(/\/+$/, '') || ''
+                        const resolvedUrl = item.url && item.url.startsWith('/assets/')
+                            ? baseUrl + item.url
+                            : item.url
                         blocks.push({
                             type: 'image',
                             source: {
                                 type: item.url ? 'url' : 'base64',
                                 media_type: item.mimeType,
-                                data: item.data || item.url,
-                                url: item.url
+                                data: item.data || resolvedUrl,
+                                url: resolvedUrl
                             }
                         })
                     } else if (item.type === 'thinking') {
