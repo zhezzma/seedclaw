@@ -23,6 +23,7 @@ import {
     fetchRepos, fetchStatus, fetchLog, fetchCommitFiles,
     stageFiles as apiStage, unstageFiles as apiUnstage,
     discardFiles as apiDiscard, commitChanges as apiCommit,
+    syncRepo as apiSync,
     type RepoSummary, type RepoStatus, type CommitMeta, type CommitFile,
 } from './workspace-api.ts'
 
@@ -312,6 +313,23 @@ const _methods = {
                 _gitState.loadLog(agentId, repo),
             ])
             return { head: r.head }
+        } finally {
+            if (myEpoch === agentEpoch) state._mutating = false
+        }
+    },
+    async sync(agentId: string, repo: string): Promise<{ head: string | null; pushed: boolean }> {
+        if (state._mutating) throw new Error('mutation in progress')
+        const myEpoch = agentEpoch
+        state._mutating = true
+        try {
+            const r = await apiSync(agentId, repo)
+            if (myEpoch !== agentEpoch) return { head: r.head, pushed: r.pushed }
+            // 同步可能改变 HEAD（pull 合并远程）与历史 → 重拉 status + log
+            await Promise.all([
+                _gitState.loadStatus(agentId, repo),
+                _gitState.loadLog(agentId, repo),
+            ])
+            return { head: r.head, pushed: r.pushed }
         } finally {
             if (myEpoch === agentEpoch) state._mutating = false
         }

@@ -450,6 +450,15 @@ export function commitChanges(
     )
 }
 
+/** 同步仓库：git pull 整合远程更改 + 本地领先则 git push。
+ *  无上游分支 → 400；pull 冲突 → stderr 首行透明返回。 */
+export function syncRepo(
+    agentId: string,
+    repo: string,
+): Promise<{ ok: true; head: string | null; pulled: string; pushed: boolean; pushOutput: string }> {
+    return wsPost(`${base(agentId)}/repo/sync?repo=${encodeURIComponent(repo)}`)
+}
+
 /** 拉 diff 两侧完整文本，供 monaco diff editor 使用。 */
 export function fetchFileVersions(agentId: string, args: DiffArgs): Promise<FileVersions> {
     const params = new URLSearchParams({

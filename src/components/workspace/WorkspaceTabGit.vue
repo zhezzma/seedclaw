@@ -10,7 +10,7 @@ import { onMounted, computed, ref, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
     PlusIcon, MinusIcon, CheckIcon,
-    ArrowUturnLeftIcon,
+    ArrowUturnLeftIcon, ArrowPathIcon,ArrowsUpDownIcon
 } from '@heroicons/vue/24/outline'
 import RepoSelector from './git/RepoSelector.vue'
 import StatusGroup from './git/StatusGroup.vue'
@@ -180,11 +180,29 @@ const commitMessage = computed({
     set: (v: string) => { if (selectedRepo.value) git.setCommitMessage(selectedRepo.value, v) },
 })
 const stagedCount = computed(() => git.status.value?.staged.length ?? 0)
+const aheadCount = computed(() => git.status.value?.ahead ?? 0)
+const behindCount = computed(() => git.status.value?.behind ?? 0)
 const canCommit = computed(() => {
     if (git.mutating.value) return false
     if (!selectedRepo.value) return false
     if (commitMessage.value.trim().length === 0) return false
     return stagedCount.value > 0
+})
+
+/** 主按钮三态：暂存有文件→提交；暂存空且有未推送提交→同步；其余禁用。 */
+const primaryMode = computed<'commit' | 'sync' | 'disabled'>(() => {
+    if (stagedCount.value > 0) return 'commit'
+    if (aheadCount.value > 0) return 'sync'
+    return 'disabled'
+})
+
+/** 主按钮是否可点：commit 模式需 message 非空；sync 模式只需非 mutating。 */
+const canPrimary = computed(() => {
+    if (git.mutating.value) return false
+    if (!selectedRepo.value) return false
+    if (primaryMode.value === 'disabled') return false
+    if (primaryMode.value === 'commit' && commitMessage.value.trim().length === 0) return false
+    return true
 })
 
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
@@ -211,6 +229,32 @@ function onCommitKeydown(e: KeyboardEvent) {
         onCommit()
     }
 }
+
+// ── Sync ──
+const syncing = ref(false)
+
+async function onSync() {
+    const repo = selectedRepo.value
+    if (!repo || git.mutating.value) return
+    syncing.value = true
+    try {
+        const r = await git.sync(props.agentId, repo)
+        toast.success(r.pushed ? t('workspace.git.syncedPushed') : t('workspace.git.synced'))
+    } catch (e: any) {
+        toast.error(`${t('workspace.git.sync')}: ${e?.message || e}`)
+    } finally {
+        syncing.value = false
+    }
+}
+
+/** 主按钮点击：按当前模式分流到提交或同步。 */
+async function onPrimary() {
+    if (primaryMode.value === 'commit') {
+        await onCommit()
+    } else if (primaryMode.value === 'sync') {
+        await onSync()
+    }
+}
 </script>
 
 <template>
@@ -226,15 +270,37 @@ function onCommitKeydown(e: KeyboardEvent) {
                     :aria-label="$t('workspace.git.messagePlaceholder')"
                     :placeholder="$t('workspace.git.messagePlaceholder')" :disabled="git.mutating.value"
                     @keydown="onCommitKeydown" />
-                <button type="button" class="btn btn-primary btn-sm w-full mt-1 gap-1"
-                    :class="{ 'btn-disabled': !canCommit }" :disabled="!canCommit"
-                    :title="$t('workspace.git.commitTip')" @click="onCommit">
-                    <CheckIcon class="h-4 w-4" />
-                    <span>
-                        {{ $t('workspace.git.commit') }}
-                        <span v-if="stagedCount > 0" class="opacity-70">({{ stagedCount }})</span>
-                    </span>
-                </button>
+                <div class="flex gap-1 mt-1">
+                    <button type="button" class="btn btn-primary btn-sm flex-1 gap-1"
+                        :class="{ 'btn-disabled': !canPrimary }" :disabled="!canPrimary"
+                        :title="primaryMode === 'sync' ? $t('workspace.git.syncTip') : $t('workspace.git.commitTip')"
+                        @click="onPrimary">
+                        <template v-if="primaryMode === 'commit'">
+                            <CheckIcon class="h-4 w-4" />
+                            <span>
+                                {{ $t('workspace.git.commit') }}
+                                <span class="opacity-70">({{ stagedCount }})</span>
+                            </span>
+                        </template>
+                        <template v-else-if="primaryMode === 'sync'">
+                            <ArrowsUpDownIcon class="h-4 w-4" :class="{ 'animate-spin': syncing }" />
+                            <span>{{ $t('workspace.git.syncChanges') }} {{ aheadCount }}↑</span>
+                        </template>
+                        <template v-else>
+                            <CheckIcon class="h-4 w-4" />
+                            <span>{{ $t('workspace.git.commit') }}</span>
+                        </template>
+                    </button>
+                    <button type="button" class="btn   btn-sm px-2 gap-1"
+                        :class="{ 'btn-disabled': git.mutating.value || !selectedRepo }"
+                        :disabled="git.mutating.value || !selectedRepo"
+                        :title="$t('workspace.git.syncTip')" @click="onSync">
+                        <ArrowsUpDownIcon class="h-4 w-4" :class="{ 'animate-spin': syncing }" />
+                        <span v-if="behindCount > 0 || aheadCount > 0" class="text-xs font-mono leading-none">
+                            <span v-if="behindCount > 0">↓{{ behindCount }}</span><span v-if="behindCount > 0 && aheadCount > 0"> </span><span v-if="aheadCount > 0">↑{{ aheadCount }}</span>
+                        </span>
+                    </button>
+                </div>
             </div>
 
             <div v-if="git.statusLoading.value && !git.status.value" class="px-3 py-2 text-xs text-base-content/50">
