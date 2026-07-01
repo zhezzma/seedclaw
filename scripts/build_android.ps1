@@ -34,6 +34,37 @@ if ([string]::IsNullOrWhiteSpace($keyPass)) { $keyPass = "android" }
 
 Write-Host "ANDROID_KEYSTORE_PATH: $env:ANDROID_KEYSTORE_PATH"
 
+# 设置 Android SDK 路径 (硬编码以避免重装系统后需要重新配置环境变量)
+# 若已设置系统环境变量 ANDROID_HOME 则优先使用它，否则回退到下方固定路径
+$androidSdk = $env:ANDROID_HOME
+if ([string]::IsNullOrWhiteSpace($androidSdk)) { $androidSdk = "D:\Install\Android\Sdk" }
+if (-not (Test-Path $androidSdk)) {
+    Write-Host "`n❌ Android SDK 未找到：$androidSdk" -ForegroundColor Red
+    Write-Host "   请确认 SDK 安装位置，或设置 ANDROID_HOME 环境变量。" -ForegroundColor Red
+    Pause
+    exit
+}
+[Environment]::SetEnvironmentVariable("ANDROID_HOME", $androidSdk, "Process")
+[Environment]::SetEnvironmentVariable("ANDROID_SDK_ROOT", $androidSdk, "Process")
+Write-Host "ANDROID_HOME: $androidSdk"
+
+# 检查符号链接权限 (Tauri 在 jniLibs 目录创建软链接需要；开发者模式开启 或 管理员权限 均可)
+$devModeKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock"
+$devMode = (Get-ItemProperty -Path $devModeKey -Name "AllowDevelopmentWithoutDevLicense" -ErrorAction SilentlyContinue).AllowDevelopmentWithoutDevLicense
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if ($devMode -ne 1 -and -not $isAdmin) {
+    Write-Host "`n❌ 当前无法创建符号链接，Android 构建将会失败！" -ForegroundColor Red
+    Write-Host "   Tauri 需要在 jniLibs 目录创建符号链接，Windows 默认禁止，请满足以下任一条件：`n" -ForegroundColor Yellow
+    Write-Host "   方式一：开启开发者模式（推荐，一次性设置，之后普通权限即可构建）" -ForegroundColor Cyan
+    Write-Host "     · 图形界面：设置 → 系统 → 开发者选项 → 开启「开发人员模式」"
+    Write-Host "     · 命令行（在管理员 PowerShell 中运行一次）：" -ForegroundColor DarkGray
+    Write-Host "       New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' -Name 'AllowDevelopmentWithoutDevLicense' -Value 1 -PropertyType DWord -Force`n" -ForegroundColor DarkGray
+    Write-Host "   方式二：以管理员身份运行本脚本`n" -ForegroundColor Cyan
+    Pause
+    exit
+}
+Write-Host "✅ 符号链接权限检查通过 ($(if ($devMode -eq 1) { '开发者模式已开启' } else { '当前为管理员权限' }))" -ForegroundColor Green
+
 # ==============================================================================
 # [Windows 环境构建说明]
 # 本地构建 Android 版本时，由于使用了 `openssl` (vendored)，需要编译 C 源码。
@@ -54,7 +85,7 @@ if (Test-Path "$msys2Bin\perl.exe") {
 }
 
 # 自动检测 NDK 并强制设置 CC/AR/RANLIB 为 Unix 风格路径 (解决 OpenSSL makefile 中反斜杠路径失效问题)
-$ndkRoot = "D:\Install\Android\Sdk\ndk"
+$ndkRoot = "$androidSdk\ndk"
 if (Test-Path $ndkRoot) {
     # 获取最新的 NDK 版本
     $ndkVer = Get-ChildItem $ndkRoot | Sort-Object Name | Select-Object -Last 1 -ExpandProperty Name
@@ -80,6 +111,86 @@ if (Test-Path $ndkRoot) {
         $env:CC_aarch64_linux_android = $clangExe
         $env:AR_aarch64_linux_android = $ar
     }
+}
+
+# 确保 Gradle 全局镜像配置存在 (阿里云, 解决国内访问 Maven Central / Google 的 TLS 握手失败)
+# 重装系统后 ~/.gradle 会丢失, 此处自动重建, 无需手动配置
+$initGradleDir = "$env:USERPROFILE\.gradle\init.d"
+$initGradleFile = "$initGradleDir\init.gradle"
+if (-not (Test-Path $initGradleFile)) {
+    Write-Host "`n📦 配置 Gradle 全局镜像 (阿里云) 以加速国内依赖下载..." -ForegroundColor Cyan
+    New-Item -ItemType Directory -Path $initGradleDir -Force | Out-Null
+    $initContent = @'
+// 全局 Gradle 镜像 (阿里云) - 由 build_android.ps1 自动生成
+// 解决国内访问 Maven Central / Google / Gradle Plugin Portal 的 TLS 握手失败
+// 移除所有国外源并注入阿里云镜像, 对所有 Gradle 项目(含 buildSrc / buildscript)生效
+
+def aliyunRepos = [
+    'public'        : 'https://maven.aliyun.com/repository/public',
+    'google'        : 'https://maven.aliyun.com/repository/google',
+    'gradle-plugin' : 'https://maven.aliyun.com/repository/gradle-plugin',
+    'central'       : 'https://maven.aliyun.com/repository/central',
+]
+
+def blocked = [
+    'repo.maven.apache.org/maven2',
+    'repo1.maven.org/maven2',
+    'dl.google.com/dl/android/maven2',
+    'plugins.gradle.org/m2',
+    'jcenter.bintray.com',
+]
+
+allprojects {
+    buildscript {
+        repositories {
+            all { ArtifactRepository repo ->
+                if (repo instanceof MavenArtifactRepository) {
+                    def url = repo.url.toString()
+                    if (blocked.any { url.contains(it) }) { remove repo }
+                }
+            }
+            maven { url aliyunRepos['gradle-plugin'] }
+            maven { url aliyunRepos['google'] }
+            maven { url aliyunRepos['public'] }
+        }
+    }
+    repositories {
+        all { ArtifactRepository repo ->
+            if (repo instanceof MavenArtifactRepository) {
+                def url = repo.url.toString()
+                if (blocked.any { url.contains(it) }) { remove repo }
+            }
+        }
+        maven { url aliyunRepos['google'] }
+        maven { url aliyunRepos['public'] }
+        maven { url aliyunRepos['central'] }
+        maven { url aliyunRepos['gradle-plugin'] }
+    }
+}
+
+settingsEvaluated { settings ->
+    ['pluginManagement', 'dependencyResolutionManagement'].each { blockName ->
+        def block = settings."$blockName"
+        if (block?.hasProperty('repositories')) {
+            block.repositories {
+                all { ArtifactRepository repo ->
+                    if (repo instanceof MavenArtifactRepository) {
+                        def url = repo.url.toString()
+                        if (blocked.any { url.contains(it) }) { remove repo }
+                    }
+                }
+                maven { url aliyunRepos['google'] }
+                maven { url aliyunRepos['public'] }
+                maven { url aliyunRepos['gradle-plugin'] }
+            }
+        }
+    }
+}
+'@
+    [System.IO.File]::WriteAllText($initGradleFile, $initContent, (New-Object System.Text.UTF8Encoding($false)))
+    Write-Host "   已创建：$initGradleFile" -ForegroundColor Green
+} else {
+    Write-Host "✅ Gradle 全局镜像已配置：$initGradleFile" -ForegroundColor DarkGray
 }
 
 # 1. 构建 Release APK (此时可能已由 Gradle 签名，也可能未签名)

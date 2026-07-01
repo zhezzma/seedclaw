@@ -16,6 +16,26 @@ if (Test-Path $envFile) {
     }
 }
 
+# 检查 MSVC C++ 构建工具 (link.exe / cl.exe)，缺失会导致 Tauri 链接失败
+Write-Host "`n🔧 检查 MSVC C++ 构建工具..."
+$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+$msvcReady = $false
+if (Test-Path $vswhere) {
+    $vcInstallPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    if ($vcInstallPath) { $msvcReady = $true }
+}
+
+if (-not $msvcReady) {
+    Write-Host "`n❌ 未检测到 MSVC C++ 构建工具 (缺少 link.exe / cl.exe / Windows SDK)！" -ForegroundColor Red
+    Write-Host "   Tauri 在 Windows 上使用 MSVC 工具链，必须安装 Visual Studio 的 'C++ 桌面开发' 工作负载。" -ForegroundColor Yellow
+    Write-Host "`n   修复方法：以【管理员身份】打开 PowerShell，运行以下命令：" -ForegroundColor Cyan
+    Write-Host '   winget install --id Microsoft.VisualStudio.BuildTools --override "--passive --norestart --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"' -ForegroundColor White
+    Write-Host "`n   安装约 2-3GB (5-20 分钟)，完成后【新开终端】重新运行本脚本。" -ForegroundColor Yellow
+    Pause
+    exit
+}
+Write-Host "   ✅ 已检测到 MSVC C++ 构建工具。" -ForegroundColor Green
+
 # 1. 确保依赖最新
 Write-Host "`n📦 检查依赖..."
 npm install
