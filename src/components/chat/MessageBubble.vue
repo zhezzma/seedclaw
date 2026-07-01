@@ -54,6 +54,37 @@ function onA2UIAction(action: any, dataModel: Record<string, any>, surfaceId: st
     handleA2UIAction(action, dataModel, surfaceId, sourceComponentId)
 }
 
+// A2UI Action Block 友好展示：把原始 action.name + payload 提炼为人类可读的标签与作答摘要。
+// 选项作答取 context.label/value；自定义作答兜底 payload 顶层或 surface 数据模型内的 customAnswer。
+function formatA2UIAction(block: any): { label: string; summary: string } {
+    const name = block.a2uiEventName || ''
+    const payload = block.a2uiPayload || {}
+    const context = payload.action?.context || {}
+    const surfaceId = payload.action?.surfaceId
+    const dataModel = surfaceId ? payload.a2uiClientDataModel?.surfaces?.[surfaceId] : undefined
+
+    const labels: Record<string, string> = {
+        'question.submit': t('chat.a2uiActionQuestion'),
+        'questionnaire.submit': t('chat.a2uiActionQuestionnaire'),
+    }
+    const label = labels[name] || t('chat.a2uiAction')
+
+    // 选项作答
+    if (typeof context.label === 'string' && context.label.trim()) {
+        return { label, summary: `${t('chat.a2uiActionAnswerChoice')}：${context.label.trim()}` }
+    }
+    if (typeof context.value === 'string' && context.value.trim()) {
+        return { label, summary: `${t('chat.a2uiActionAnswerChoice')}：${context.value.trim()}` }
+    }
+    // 自定义作答：可能在 payload 顶层或 surface 数据模型内
+    const custom = typeof payload.customAnswer === 'string' ? payload.customAnswer
+        : typeof dataModel?.customAnswer === 'string' ? dataModel.customAnswer : ''
+    if (custom.trim()) {
+        return { label, summary: `${t('chat.a2uiActionAnswerCustom')}：${custom.trim()}` }
+    }
+    return { label, summary: '' }
+}
+
 // Edit state
 const isEditing = ref(false)
 const editText = ref('')
@@ -254,24 +285,27 @@ const { openLightbox, openFileViewer, downloadImage } = useMediaPreview()
                     <template v-for="(block, bIndex) in userParsedBlocks" :key="'text-' + bIndex">
                         <MarkdownRenderer v-if="block.type === 'text'" :content="block.text || ''" />
 
-                        <!-- NEW: A2UI Action Block -->
+                        <!-- A2UI Action Block（用户对交互面板的操作记录） -->
                         <div v-else-if="block.type === 'a2ui-action'" class="my-1 min-w-[240px] max-w-sm">
                             <div
                                 class="collapse collapse-arrow border border-base-content/10 bg-base-100/50 backdrop-blur-sm shadow-sm rounded-lg">
                                 <input type="checkbox" />
                                 <div class="collapse-title p-2 min-h-0 flex items-center gap-2">
                                     <span class="text-lg opacity-80">⚡</span>
-                                    <div class="flex flex-col flex-1 min-w-0 pr-2">
-                                        <span
-                                            class="text-[10px] font-semibold text-base-content/50 uppercase tracking-wider">{{
-                                                $t('chat.a2uiAction') }}</span>
+                                    <div class="flex flex-col flex-1 min-w-0 pr-2 gap-0.5">
                                         <span class="text-sm font-medium text-base-content/90 truncate">{{
-                                            block.a2uiEventName }}</span>
+                                            formatA2UIAction(block).label }}</span>
+                                        <span v-if="formatA2UIAction(block).summary"
+                                            class="text-xs text-base-content/60 truncate">{{
+                                            formatA2UIAction(block).summary }}</span>
                                     </div>
                                 </div>
                                 <div class="collapse-content p-0 pb-2 px-3 cursor-text">
+                                    <div
+                                        class="text-[10px] font-semibold text-base-content/40 uppercase tracking-wider mb-1 mt-1">
+                                        {{ $t('chat.a2uiActionRaw') }}</div>
                                     <pre
-                                        class="text-[11px] leading-tight bg-base-200/50 p-2 rounded overflow-x-auto text-base-content/70 whitespace-pre-wrap max-h-60 overflow-y-auto">{{ JSON.stringify(block.a2uiPayload, null, 2) }}</pre>
+                                        class="text-[11px] leading-tight bg-base-200/50 p-2 rounded overflow-x-auto text-base-content/60 whitespace-pre-wrap max-h-60 overflow-y-auto">{{ JSON.stringify(block.a2uiPayload, null, 2) }}</pre>
                                 </div>
                             </div>
                         </div>
