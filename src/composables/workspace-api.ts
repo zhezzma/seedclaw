@@ -137,6 +137,8 @@ export interface CommitMeta {
     author: string
     authorDate: string
     subject: string
+    /** 提交正文（不含标题）；单行提交时为空。 */
+    body?: string
 }
 
 export type DiffMode = 'unstaged' | 'staged' | 'commit' | 'untracked'

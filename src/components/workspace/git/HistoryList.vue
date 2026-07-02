@@ -6,9 +6,14 @@
  * - 底部 "load more" 翻页
  */
 import {
-    ChevronDownIcon, ChevronRightIcon, DocumentIcon,
+    ChevronDownIcon, ChevronRightIcon, ClipboardDocumentIcon, DocumentIcon,
 } from '@heroicons/vue/24/outline'
-import { useWorkspaceGit } from '../../../composables/useWorkspaceGit'
+import { useI18n } from 'vue-i18n'
+import { useWorkspaceGit, formatCommitInfo } from '../../../composables/useWorkspaceGit'
+import { useContextMenu } from '../../../composables/useContextMenu'
+import { useToast } from '../../../composables/useToast'
+import { writeClipboard } from '../../../utils/clipboard'
+import type { CommitMeta } from '../../../composables/workspace-api'
 
 const props = defineProps<{
     agentId: string
@@ -17,6 +22,9 @@ const props = defineProps<{
 }>()
 
 const git = useWorkspaceGit()
+const ctxMenu = useContextMenu()
+const toast = useToast()
+const { t } = useI18n()
 
 // expanded 状态提升到 store（commitExpandedData）：PC v-if 卸载重挂与移动端 drawer 关闭/重开
 // 之后，之前点开的 commit 及其文件列表保持显示。agent 切换时由 git.reset() 统一清理。
@@ -26,6 +34,24 @@ async function toggleCommit(sha: string) {
     if (opened && !git.commitFiles.value[sha]) {
         await git.loadCommitFiles(props.agentId, props.repo, sha)
     }
+}
+
+function onCommitContextMenu(e: MouseEvent, commit: CommitMeta) {
+    e.preventDefault()
+    ctxMenu.openAt([
+        {
+            label: t('workspace.git.copyCommitInfo'),
+            icon: ClipboardDocumentIcon,
+            action: async () => {
+                try {
+                    await writeClipboard(formatCommitInfo(commit))
+                    toast.success(t('workspace.menu.copied'))
+                } catch (err: any) {
+                    toast.error(`${t('workspace.git.copyCommitInfo')}: ${err?.message || err}`)
+                }
+            },
+        },
+    ], { x: e.clientX, y: e.clientY })
 }
 
 /** 简单的相对时间显示（秒/分/时/天）；不引入额外依赖 */
@@ -52,7 +78,8 @@ function relativeTime(iso: string): string {
         <template v-else>
             <div v-for="commit in git.commits.value" :key="commit.sha">
                 <button class="flex items-center gap-2 w-full text-left px-2 py-1 hover:bg-base-200"
-                    :title="commit.subject" @click="toggleCommit(commit.sha)">
+                    :title="commit.subject" @click="toggleCommit(commit.sha)"
+                    @contextmenu="onCommitContextMenu($event, commit)">
                     <ChevronDownIcon v-if="git.commitExpanded.value[commit.sha]" class="h-3 w-3 shrink-0" />
                     <ChevronRightIcon v-else class="h-3 w-3 shrink-0" />
                     <span class="font-mono text-base-content/60">●</span>

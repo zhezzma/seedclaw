@@ -87,6 +87,19 @@ const state = reactive<GitState>({
 // agent 级 epoch：每次 reset() 自增；异步 load 通过比对 epoch 丢弃跨 agent 的旧响应
 let agentEpoch = 0
 
+/** 提交历史右键“复制提交信息”的纯格式化逻辑；body 为可选字段，缺省时不输出 Body 行。 */
+export function formatCommitInfo(commit: CommitMeta): string {
+    const lines = [
+        `Commit: ${commit.sha}`,
+        `Author: ${commit.author}`,
+        `Date: ${commit.authorDate}`,
+        `Subject: ${commit.subject}`,
+    ]
+    // 正文为空时不输出 Body 行，避免在单行提交后多一行噪声。
+    if (commit.body) lines.push(`Body: ${commit.body}`)
+    return lines.join('\n')
+}
+
 // 使用 getter 对象而非 computed：
 // reactive(state) 上 Object.assign computed 会被 Vue 在 set 时 auto-unwrap，
 // 导致 panel.repos.value 为 undefined。getter 保证渲染调用者仍能跟踪 reactive 依赖。

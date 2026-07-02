@@ -119,6 +119,58 @@ test('loadCommitFiles 缓存到 commitFiles map', async () => {
     assert.equal(git.commitFiles.value['sha']?.length, 1)
 })
 
+test('formatCommitInfo 生成可复制的完整提交信息', async () => {
+    const { formatCommitInfo } = await import('../src/composables/useWorkspaceGit.ts')
+    assert.equal(formatCommitInfo({
+        sha: 'abcdef1234567890',
+        shortSha: 'abcdef1',
+        author: 'Alice <alice@example.com>',
+        authorDate: '2026-07-02T12:34:56.000Z',
+        subject: 'feat: add context menu',
+        body: 'line one\nline two',
+    }), [
+        'Commit: abcdef1234567890',
+        'Author: Alice <alice@example.com>',
+        'Date: 2026-07-02T12:34:56.000Z',
+        'Subject: feat: add context menu',
+        'Body: line one\nline two',
+    ].join('\n'))
+})
+
+test('formatCommitInfo 无正文时不输出 Body 行', async () => {
+    const { formatCommitInfo } = await import('../src/composables/useWorkspaceGit.ts')
+    assert.equal(formatCommitInfo({
+        sha: 'abcdef1234567890',
+        shortSha: 'abcdef1',
+        author: 'Alice <alice@example.com>',
+        authorDate: '2026-07-02T12:34:56.000Z',
+        subject: 'init',
+        body: '',
+    }), [
+        'Commit: abcdef1234567890',
+        'Author: Alice <alice@example.com>',
+        'Date: 2026-07-02T12:34:56.000Z',
+        'Subject: init',
+    ].join('\n'))
+})
+
+test('formatCommitInfo 缺省 body 字段时不输出 Body 行', async () => {
+    const { formatCommitInfo } = await import('../src/composables/useWorkspaceGit.ts')
+    // body 字段缺省（后端未返回时最常见的形态），与 body: '' 行为一致
+    assert.equal(formatCommitInfo({
+        sha: 'abcdef1234567890',
+        shortSha: 'abcdef1',
+        author: 'Alice <alice@example.com>',
+        authorDate: '2026-07-02T12:34:56.000Z',
+        subject: 'init',
+    }), [
+        'Commit: abcdef1234567890',
+        'Author: Alice <alice@example.com>',
+        'Date: 2026-07-02T12:34:56.000Z',
+        'Subject: init',
+    ].join('\n'))
+})
+
 test('reset 清空所有状态', async () => {
     await setupSettings()
     mockRoutes({ '/workspace/repos': () => ({ repos: [{ name: 'r', path: 'r', branch: 'm', head: null, dirty: 0, ahead: 0, behind: 0 }] }) })

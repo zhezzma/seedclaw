@@ -878,6 +878,7 @@ export default {
             discardAll: 'Discard All Changes',
             discardAllUntracked: 'Delete All Untracked',
             openChanges: 'Open Changes',
+            copyCommitInfo: 'Copy Commit Info',
             commit: 'Commit',
             commitTip: 'Ctrl+Enter to commit',
             committed: 'Committed {sha}',

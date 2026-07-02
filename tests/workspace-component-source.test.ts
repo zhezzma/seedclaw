@@ -163,6 +163,16 @@ test('HistoryList: load more + 展开 commit 文件', () => {
     assert.match(src, /onOpenDiff/, 'must dispatch diff open to parent')
 })
 
+test('HistoryList: commit 行右键可复制完整提交信息', () => {
+    const src = read('src/components/workspace/git/HistoryList.vue')
+    assert.match(src, /useContextMenu/, 'history rows must use the shared workspace context menu')
+    assert.match(src, /writeClipboard/, 'copy action must use the shared clipboard writer')
+    assert.match(src, /formatCommitInfo\(commit\)/, 'copy action must format the full commit info')
+    assert.match(src, /workspace\.git\.copyCommitInfo/, 'menu label must come from workspace git i18n')
+    assert.match(src, /@contextmenu="onCommitContextMenu\(\$event, commit\)"/, 'commit row must open menu on right-click')
+    assert.match(src, /catch \(err: any\)[\s\S]*toast\.error/, 'copy failures must show an error toast')
+})
+
 test('WorkspaceViewer: 通过 type 切换 file vs diff', () => {
     const src = read('src/components/workspace/WorkspaceViewer.vue')
     assert.match(src, /useWorkspaceViewer/)

@@ -877,6 +877,7 @@ export default {
             discardAll: '丢弃所有',
             discardAllUntracked: '删除所有未跟踪',
             openChanges: '打开 diff',
+            copyCommitInfo: '复制提交信息',
             commit: '提交',
             commitTip: 'Ctrl+Enter 提交',
             committed: '已提交 {sha}',
