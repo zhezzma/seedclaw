@@ -13,12 +13,16 @@ import { useWorkspaceGit, formatCommitInfo } from '../../../composables/useWorks
 import { useContextMenu } from '../../../composables/useContextMenu'
 import { useToast } from '../../../composables/useToast'
 import { writeClipboard } from '../../../utils/clipboard'
-import type { CommitMeta } from '../../../composables/workspace-api'
+import { buildGitFileMenu } from '../../../composables/useGitFileActions'
+import { buildAbsolutePath } from '../../../composables/useFileActions'
+import type { CommitFile, CommitMeta } from '../../../composables/workspace-api'
 
 const props = defineProps<{
     agentId: string
     repo: string
     onOpenDiff: (args: { ref: string; file: string }) => void
+    /** 打开工作区当前版本文件（commit 文件行右键"打开文件"）。 */
+    onOpenFile?: (file: string) => void
 }>()
 
 const git = useWorkspaceGit()
@@ -52,6 +56,19 @@ function onCommitContextMenu(e: MouseEvent, commit: CommitMeta) {
             },
         },
     ], { x: e.clientX, y: e.clientY })
+}
+
+/** commit 文件行右键：复用通用 buildGitFileMenu（与工作区/暂存区共用打开/diff/复制路径）。 */
+function onCommitFileContextMenu(e: MouseEvent, commit: CommitMeta, f: CommitFile) {
+    e.preventDefault()
+    const openFile = props.onOpenFile
+    ctxMenu.openAt(buildGitFileMenu({
+        onOpenDiff: () => props.onOpenDiff({ ref: commit.sha, file: f.path }),
+        onOpenFile: openFile ? () => openFile(f.path) : undefined,
+        absolutePath: buildAbsolutePath(git.workspaceRoot.value, `${props.repo}/${f.path}`),
+        // commit 中被删除的文件在工作区不存在，禁用打开文件。
+        openFileDisabled: f.status === 'D',
+    }), { x: e.clientX, y: e.clientY })
 }
 
 /** 简单的相对时间显示（秒/分/时/天）；不引入额外依赖 */
@@ -93,7 +110,8 @@ function relativeTime(iso: string): string {
                     </div>
                     <button v-for="f in git.commitFiles.value[commit.sha] || []" :key="f.path"
                         class="flex items-center gap-2 w-full text-left px-2 py-0.5 hover:bg-base-200 font-mono"
-                        @click="onOpenDiff({ ref: commit.sha, file: f.path })">
+                        @click="onOpenDiff({ ref: commit.sha, file: f.path })"
+                        @contextmenu="onCommitFileContextMenu($event, commit, f)">
                         <DocumentIcon class="h-3 w-3 shrink-0 text-base-content/40" />
                         <span class="truncate">{{ f.path }}</span>
                     </button>

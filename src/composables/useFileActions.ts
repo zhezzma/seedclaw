@@ -65,7 +65,7 @@ function tr(key: string): string {
 
 /** 拼出 entry 的绝对路径：root + entry.path。OS-native 分隔符以便于粘贴给本地工具。
  *  root 从调用者透入（TreeNode 可以直接拿到），避免跨模块 import composable。 */
-function buildAbsolutePath(root: string | null, relPath: string): string {
+export function buildAbsolutePath(root: string | null, relPath: string): string {
     if (!root) return relPath
     // 服务端返回的 root 使用 Node 的 path.join：Windows 上是反斜杠，POSIX 上是正斜杠。
     // entry.path 服务端统一返回正斜杠；Windows 下走 backslash 路径拼接以避免混合分隔符。

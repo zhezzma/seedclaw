@@ -24,6 +24,7 @@ import {
     buildGitFileMenuItems, buildGitInlineActions,
     runDiscardAllFlow, type GitGroup,
 } from '../../composables/useGitFileActions'
+import { buildAbsolutePath } from '../../composables/useFileActions'
 import type { FileChange } from '../../composables/workspace-api'
 
 const props = defineProps<{ agentId: string }>()
@@ -43,6 +44,8 @@ async function loadAll(repo: string) {
 }
 
 onMounted(async () => {
+    // workspaceRoot 用于拼 git 文件的绝对路径（右键复制路径）；有缓存则跳过。
+    void git.loadWorkspaceRoot(props.agentId)
     if (git.repos.value.length === 0 && !git.reposLoading.value) {
         await git.loadRepos(props.agentId)
     }
@@ -98,6 +101,13 @@ function openCommitDiff(args: { ref: string; file: string }) {
     viewer.openDiff({ repo, mode: 'commit', ref: args.ref, file: args.file })
 }
 
+/** commit 文件行右键"打开文件"：打开工作区当前版本（workspace 相对路径 repo/file）。 */
+function openCommitFile(file: string) {
+    const repo = selectedRepo.value
+    if (!repo) return
+    viewer.openFile(`${repo}/${file}`)
+}
+
 const commitsCount = computed(() => git.commits.value.length || null)
 
 // ── 合并 unstaged + untracked：VSCode 风格，"工作区改动" 包含 tracked 修改 + 未跟踪。
@@ -117,6 +127,8 @@ function callbacksFor(group: GitGroup, change: FileChange) {
         // unstaged 组：diff 按 status 选 mode；staged 组依然走 staged mode。
         onOpenDiff: () => group === 'unstaged' ? openUnstagedDiff(change) : openDiff(group, change),
         onOpenFile: () => openFile(change),
+        // 绝对路径 = workspaceRoot + repo + change.path；root 未就绪时退回相对路径。
+        absolutePath: buildAbsolutePath(git.workspaceRoot.value, `${repo}/${change.path}`),
         // git 服务端会区分 tracked / untracked，这里一起传就行。
         onStage: group === 'unstaged' && repo
             ? () => git.stage(props.agentId, repo, [change.path])
@@ -361,7 +373,8 @@ async function onPrimary() {
         <CollapsibleSection v-if="selectedRepo" :title="$t('workspace.history')"
             :open="panel.bottomSections.value.history" :count="commitsCount"
             @toggle="(o: boolean) => panel.setBottomSection('history', o)">
-            <HistoryList :agent-id="agentId" :repo="selectedRepo" :on-open-diff="openCommitDiff" />
+            <HistoryList :agent-id="agentId" :repo="selectedRepo" :on-open-diff="openCommitDiff"
+                :on-open-file="openCommitFile" />
         </CollapsibleSection>
     </div>
 </template>

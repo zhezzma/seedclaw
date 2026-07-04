@@ -24,6 +24,7 @@ import {
     stageFiles as apiStage, unstageFiles as apiUnstage,
     discardFiles as apiDiscard, commitChanges as apiCommit,
     syncRepo as apiSync,
+    fetchTree as apiFetchTree,
     type RepoSummary, type RepoStatus, type CommitMeta, type CommitFile,
 } from './workspace-api.ts'
 
@@ -58,6 +59,8 @@ interface GitState {
 
     /** 每 repo 独立记忆的 commit message，在 viewer / tab 切换间保留，agent 切换时重置。 */
     commitMessages: Record<string, string>
+    /** 工作区根目录的绝对路径（fetchTree('') 的 root），用于拼 git 文件的绝对路径。 */
+    workspaceRootData: string | null
     /** 正在进行中的 mutation（stage / unstage / discard / commit）标记；
      *  UI 按钮 过期间禁用，避免重复点击并发 git 命令。 */
     _mutating: boolean
@@ -81,6 +84,7 @@ const state = reactive<GitState>({
     commitExpandedData: {},
     currentAgentId: null,
     commitMessages: {},
+    workspaceRootData: null,
     _mutating: false,
 })
 
@@ -123,6 +127,9 @@ const _methods = {
     commitFiles: { get value() { return state.commitFilesData } },
     commitExpanded: { get value() { return state.commitExpandedData } },
 
+    /** 工作区根目录绝对路径（供 git 文件拼接绝对路径用）。 */
+    workspaceRoot: { get value() { return state.workspaceRootData } },
+
     /** 切换指定 commit 的展开状态。返回切换后是否为展开（调用方据此决定是否要 loadCommitFiles）。 */
     toggleCommitExpanded(sha: string): boolean {
         const next = !state.commitExpandedData[sha]
@@ -159,6 +166,7 @@ const _methods = {
         state.commitFilesLoading = {}
         state.commitExpandedData = {}
         state.commitMessages = {}
+        state.workspaceRootData = null
         state._mutating = false
     },
 
@@ -266,6 +274,19 @@ const _methods = {
 
     isCommitFilesLoading(ref: string): boolean {
         return state.commitFilesLoading[ref] === true
+    },
+
+    /** 拉工作区根目录绝对路径（fetchTree('') 的 root）。跨 agent epoch 护栏与其它 load 一致。 */
+    async loadWorkspaceRoot(agentId: string) {
+        if (state.workspaceRootData) return
+        const myEpoch = agentEpoch
+        try {
+            const r = await apiFetchTree(agentId, '')
+            if (myEpoch !== agentEpoch) return
+            state.workspaceRootData = r.root
+        } catch {
+            // 拿不到 root 时保持 null：复制绝对路径会退回相对路径（buildAbsolutePath 的缺省分支）
+        }
     },
 
     // ── Mutation：stage / unstage / discard / commit ──

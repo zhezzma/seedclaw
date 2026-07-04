@@ -171,6 +171,18 @@ test('formatCommitInfo 缺省 body 字段时不输出 Body 行', async () => {
     ].join('\n'))
 })
 
+test('loadWorkspaceRoot 拉工作区根绝对路径', async () => {
+    await setupSettings()
+    mockRoutes({
+        '/workspace/tree': () => ({ root: '/abs/workspace', path: '', entries: [] }),
+    })
+    const { useWorkspaceGit } = await import('../src/composables/useWorkspaceGit.ts')
+    const git = useWorkspaceGit()
+    git.reset()
+    await git.loadWorkspaceRoot('coder')
+    assert.equal(git.workspaceRoot.value, '/abs/workspace')
+})
+
 test('reset 清空所有状态', async () => {
     await setupSettings()
     mockRoutes({ '/workspace/repos': () => ({ repos: [{ name: 'r', path: 'r', branch: 'm', head: null, dirty: 0, ahead: 0, behind: 0 }] }) })

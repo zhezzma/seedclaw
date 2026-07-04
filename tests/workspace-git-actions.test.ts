@@ -71,3 +71,15 @@ test('useGitFileActions: buildGitInlineActions 提供行内按钮配置', () => 
     assert.match(src, /workspace\.git\.stage/, 'inline must surface stage for unstaged/untracked')
     assert.match(src, /workspace\.git\.unstage/, 'inline must surface unstage for staged')
 })
+
+test('useGitFileActions: buildGitFileMenu 通用工厂产出 打开文件/打开diff/复制路径', () => {
+    // 三处 git 文件行（工作区/暂存区/提交历史文件）共用的核心菜单项。
+    assert.match(src, /export function buildGitFileMenu/, 'must export buildGitFileMenu')
+    // 顺序：打开文件 → 打开 diff → 复制路径（与 VSCode git 行右键一致）
+    assert.match(src, /workspace\.menu\.openFile[\s\S]*?workspace\.git\.openChanges[\s\S]*?workspace\.menu\.copyAbsolutePath/, 'order must be openFile → openChanges → copyAbsolutePath')
+    // 复制路径写调用方拼好的绝对路径，工厂统一处理 clipboard + toast
+    assert.match(src, /writeClipboard\(absolutePath\)/, 'copy action must write caller-provided absolutePath')
+    assert.match(src, /toast\.success\(tr\('workspace\.menu\.copied'\)\)/, 'copy success must toast workspace.menu.copied')
+    // 打开文件可禁用（deleted 等），由调用方传 openFileDisabled
+    assert.match(src, /disabled: openFileDisabled/, 'openFile must honor openFileDisabled')
+})

@@ -14,6 +14,8 @@
  */
 import { useToast } from './useToast'
 import { useConfirm } from './useConfirm'
+import { writeClipboard } from '../utils/clipboard'
+import { buildAbsolutePath } from './useFileActions'
 import type { ContextMenuItem } from './useContextMenu'
 import type { FileChange } from './workspace-api'
 import { i18n } from '../i18n'
@@ -23,18 +25,28 @@ import {
     TrashIcon,
     ArrowsRightLeftIcon,
     DocumentCheckIcon,
+    DocumentDuplicateIcon,
     ArrowUturnLeftIcon,
 } from '@heroicons/vue/24/outline'
 
 export type GitGroup = 'unstaged' | 'staged'
 
-export interface GitFileMenuArgs {
-    file: FileChange
-    group: GitGroup
+/** 三处 git 文件行（工作区/暂存区/提交历史文件）共用的核心右键菜单参数。
+ *  复制路径由调用方拼好绝对路径传入，工厂统一处理 clipboard + toast。 */
+export interface GitFileMenuCommonArgs {
     /** 打开 diff 视图（跟点击行的默认行为相同）。 */
     onOpenDiff: () => void | Promise<void>
-    /** 打开当前工作区文件（VSCode 风格 "Open File"）；deleted 状态禁用。 */
+    /** 打开当前工作区文件（VSCode 风格 "Open File"）；不传则不显示该顶。 */
     onOpenFile?: () => void | Promise<void>
+    /** 该文件的绝对路径（workspace root + repo + file），用于复制。 */
+    absolutePath: string
+    /** 打开文件是否禁用（如该文件在工作区已删除）。 */
+    openFileDisabled?: boolean
+}
+
+export interface GitFileMenuArgs extends GitFileMenuCommonArgs {
+    file: FileChange
+    group: GitGroup
     /** 仅 unstaged + untracked 有效；调用者透入 git.stage(agentId, repo, [file.path])。 */
     onStage?: () => Promise<void>
     /** 仅 staged 有效；调用者透入 git.unstage(agentId, repo, [file.path])。 */
@@ -63,19 +75,19 @@ function isUntrackedFile(file: FileChange): boolean {
     return file.status === '?'
 }
 
-export function buildGitFileMenuItems(args: GitFileMenuArgs): ContextMenuItem[] {
-    const { file, group, onOpenDiff, onOpenFile, onStage, onUnstage, onDiscard } = args
+/** 三处 git 文件行共用的核心菜单项：打开文件 → 打开 diff → 复制路径。
+ *  工作区/暂存区在调本函数后追加 Stage/Unstage/Discard（见 buildGitFileMenuItems）。
+ *  提交历史文件行只本函数的三项。 */
+export function buildGitFileMenu(args: GitFileMenuCommonArgs): ContextMenuItem[] {
+    const { onOpenDiff, onOpenFile, absolutePath, openFileDisabled } = args
     const toast = useToast()
-    const { confirm } = useConfirm()
-    const isUntracked = isUntrackedFile(file)
-
     const items: ContextMenuItem[] = []
 
     if (onOpenFile) {
         items.push({
             label: tr('workspace.menu.openFile'),
             icon: DocumentCheckIcon,
-            disabled: isOpenFileDisabled(file),
+            disabled: openFileDisabled,
             action: async () => {
                 try { await onOpenFile() }
                 catch (e: any) { toast.error(`${tr('workspace.menu.openFile')}: ${e?.message || e}`) }
@@ -90,6 +102,36 @@ export function buildGitFileMenuItems(args: GitFileMenuArgs): ContextMenuItem[] 
             try { await onOpenDiff() }
             catch (e: any) { toast.error(`${tr('workspace.git.openChanges')}: ${e?.message || e}`) }
         },
+    })
+
+    items.push({
+        label: tr('workspace.menu.copyAbsolutePath'),
+        icon: DocumentDuplicateIcon,
+        action: async () => {
+            try {
+                await writeClipboard(absolutePath)
+                toast.success(tr('workspace.menu.copied'))
+            } catch (e: any) {
+                toast.error(`${tr('workspace.menu.copyAbsolutePath')}: ${e?.message || e}`)
+            }
+        },
+    })
+
+    return items
+}
+
+export function buildGitFileMenuItems(args: GitFileMenuArgs): ContextMenuItem[] {
+    const { file, group, onOpenDiff, onOpenFile, absolutePath, onStage, onUnstage, onDiscard } = args
+    const toast = useToast()
+    const { confirm } = useConfirm()
+    const isUntracked = isUntrackedFile(file)
+
+    // 前三项（打开文件 / 打开 diff / 复制路径）复用通用工厂。
+    const items: ContextMenuItem[] = buildGitFileMenu({
+        onOpenDiff,
+        onOpenFile,
+        absolutePath,
+        openFileDisabled: onOpenFile ? isOpenFileDisabled(file) : undefined,
     })
 
     if (group !== 'staged' && onStage) {
@@ -122,6 +164,7 @@ export function buildGitFileMenuItems(args: GitFileMenuArgs): ContextMenuItem[] 
             // 语义区分：untracked 是删文件 (TrashIcon)，tracked 是撤销改动 (ArrowUturnLeft)。
             // 跟 VSCode 的 discard 图标一致：垃圾桶 = 删除，U-turn 箭头 = revert。
             icon: isUntracked ? TrashIcon : ArrowUturnLeftIcon,
+            separator: true,
             danger: true,
             action: async () => {
                 const msg = isUntracked

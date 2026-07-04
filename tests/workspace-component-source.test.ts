@@ -96,6 +96,17 @@ test('WorkspaceTabGit: 装配 RepoSelector + StatusGroup + HistoryList + Commit 
     assert.match(src, /buildGitFileMenuItems/, 'must use buildGitFileMenuItems for per-row menus')
 })
 
+test('WorkspaceTabGit: 加载 workspaceRoot + 菜单传绝对路径 + HistoryList onOpenFile', () => {
+    const src = read('src/components/workspace/WorkspaceTabGit.vue')
+    // 加载工作区根目录绝对路径（拼 git 文件绝对路径用）
+    assert.match(src, /git\.loadWorkspaceRoot/, 'must load workspaceRoot on mount')
+    assert.match(src, /git\.workspaceRoot\.value/, 'must read workspaceRoot from the git store')
+    // callbacksFor 给菜单工厂传 absolutePath
+    assert.match(src, /buildAbsolutePath\(git\.workspaceRoot\.value, `\$\{repo\}\/\$\{change\.path\}`\)/, 'must compose absolute path as root + repo + change.path')
+    // commit 文件行也要打开工作区文件：透传 onOpenFile 给 HistoryList
+    assert.match(src, /:on-open-file="openCommitFile"/, 'must pass onOpenFile to HistoryList for commit file open')
+})
+
 test('CollapsibleSection: header + body + maxHeight + count + actions slot', () => {
     const src = read('src/components/workspace/CollapsibleSection.vue')
     assert.match(src, /ChevronRightIcon/, 'must render collapsed chevron')
@@ -171,6 +182,19 @@ test('HistoryList: commit 行右键可复制完整提交信息', () => {
     assert.match(src, /workspace\.git\.copyCommitInfo/, 'menu label must come from workspace git i18n')
     assert.match(src, /@contextmenu="onCommitContextMenu\(\$event, commit\)"/, 'commit row must open menu on right-click')
     assert.match(src, /catch \(err: any\)[\s\S]*toast\.error/, 'copy failures must show an error toast')
+})
+
+test('HistoryList: commit 文件行右键可打开文件/打开 diff/复制路径', () => {
+    const src = read('src/components/workspace/git/HistoryList.vue')
+    // commit 展开的文件行复用通用 buildGitFileMenu（与工作区/暂存区共用核心菜单）
+    assert.match(src, /import \{ buildGitFileMenu[^}]*\} from ['"]\.\.\/\.\.\/\.\.\/composables\/useGitFileActions['"]/, 'must import buildGitFileMenu')
+    assert.match(src, /buildAbsolutePath/, 'must import buildAbsolutePath to compose absolute path')
+    // 拼绝对路径用 workspaceRoot + repo + file
+    assert.match(src, /git\.workspaceRoot\.value/, 'must read workspaceRoot from the git store')
+    // onOpenFile 打开工作区当前版本，由父组件透入
+    assert.match(src, /onOpenFile/, 'must accept onOpenFile prop to open the working-tree version')
+    // commit 文件行绑定 @contextmenu
+    assert.match(src, /@contextmenu="onCommitFileContextMenu\(\$event, commit, f\)"/, 'commit file row must open menu on right-click')
 })
 
 test('WorkspaceViewer: 通过 type 切换 file vs diff', () => {
