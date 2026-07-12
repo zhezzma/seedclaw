@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import md from '../../utils/markdown/markdown'
+import { resolveMarkdownImageUrls } from '../../utils/media-url'
+import { useUiSettingsStore } from '../../stores/setting'
 
 const props = defineProps<{
     content: string
 }>()
 
+const settings = useUiSettingsStore()
 const renderedHtml = ref('')
 const isRendering = ref(false)
 
@@ -18,25 +21,25 @@ const renderContent = async (text: string) => {
 
         // Use sync render immediately to feel responsive
         if (syncHtml) {
-            renderedHtml.value = syncHtml
+            renderedHtml.value = resolveMarkdownImageUrls(syncHtml, settings.apiBaseUrl)
         }
 
         // Second pass: async worker render (if needed for complex features or just to be safe)
         // In many cases sync render is enough, but worker might have more features enabled
         const workerHtml = await md.render(text || '')
         if (workerHtml && workerHtml !== syncHtml) {
-            renderedHtml.value = workerHtml
+            renderedHtml.value = resolveMarkdownImageUrls(workerHtml, settings.apiBaseUrl)
         }
     } catch (error) {
         console.error('Markdown render error:', error)
         // Fallback to basic text or sync render
-        renderedHtml.value = md.renderSync(text || '')
+        renderedHtml.value = resolveMarkdownImageUrls(md.renderSync(text || ''), settings.apiBaseUrl)
     } finally {
         isRendering.value = false
     }
 }
 
-watch(() => props.content, (newContent) => {
+watch([() => props.content, () => settings.apiBaseUrl], ([newContent]) => {
     renderContent(newContent)
 }, { immediate: true })
 

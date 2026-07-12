@@ -4,6 +4,7 @@ import { useUiSettingsStore } from '../stores/setting'
 import type { A2UIComponent } from '../components/a2ui/types'
 import { getOrCreateSurface, updateSurfaceDataModel, deleteSurface } from './useA2UISurfaces'
 import { ensureRenderableBlocks } from '../utils/chatMessageRender'
+import { resolveMediaUrl } from '../utils/media-url'
 
 // Types for internal display
 export interface DisplayBlock {
@@ -292,11 +293,8 @@ export function useChatMessages(state: ChatStateShape) {
                         }
                         blocks.push(block)
                     } else if (item.type === 'image') {
-                        // /assets/... 是后端相对路径，需要拼上 apiBaseUrl 才能在前端正确加载
-                        const baseUrl = settings.apiBaseUrl?.trim()?.replace(/\/+$/, '') || ''
-                        const resolvedUrl = item.url && item.url.startsWith('/assets/')
-                            ? baseUrl + item.url
-                            : item.url
+                        // 结构化图片与 Markdown 图片共用同一套媒体 URL 解析规则。
+                        const resolvedUrl = resolveMediaUrl(item.url, settings.apiBaseUrl)
                         blocks.push({
                             type: 'image',
                             source: {
