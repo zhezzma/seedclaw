@@ -9,7 +9,7 @@ const componentPath = path.resolve(testDir, '../src/components/chat/ChatInput.vu
 const source = readFileSync(componentPath, 'utf8')
 
 const modelSectionStart = '<!-- Model -->'
-const modelSectionEnd = '</div>\n\n\n\n                    <!-- Thinking Level -->'
+const modelSectionEnd = '<!-- Thinking Level -->'
 const start = source.indexOf(modelSectionStart)
 const end = source.indexOf(modelSectionEnd, start)
 

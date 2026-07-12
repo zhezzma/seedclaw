@@ -1,6 +1,6 @@
 import { ref } from 'vue'
-import { ensureFileExtension, getImageExtension, saveBlob } from '../utils/fileDownload'
-import { useToast } from './useToast'
+import { ensureFileExtension, getImageExtension, saveBlob } from '../utils/fileDownload.ts'
+import { useToast } from './useToast.ts'
 
 // ==================== Image Lightbox State ====================
 

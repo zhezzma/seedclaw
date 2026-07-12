@@ -45,13 +45,13 @@ test('useWorkspacePanel: toggle 切换并持久化', async () => {
     assert.equal(raw.workspacePanel?.open, true)
 })
 
-test('useWorkspacePanel: setWidth 限定到 [240, 600]', async () => {
+test('useWorkspacePanel: setWidth 限定到 [240, 1000]', async () => {
     const { useWorkspacePanel } = await import('../src/composables/useWorkspacePanel.ts')
     const panel = useWorkspacePanel()
     panel.setWidth(100)
     assert.equal(panel.width.value, 240)
-    panel.setWidth(800)
-    assert.equal(panel.width.value, 600)
+    panel.setWidth(1200)
+    assert.equal(panel.width.value, 1000)
     panel.setWidth(420)
     assert.equal(panel.width.value, 420)
 })

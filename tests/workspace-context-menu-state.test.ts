@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { useContextMenu } from '../src/composables/useContextMenu'
+import { useContextMenu } from '../src/composables/useContextMenu.ts'
 
 test.beforeEach(() => {
     useContextMenu().close()

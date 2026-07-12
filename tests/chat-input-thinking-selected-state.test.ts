@@ -9,7 +9,7 @@ const componentPath = path.resolve(testDir, '../src/components/chat/ChatInput.vu
 const source = readFileSync(componentPath, 'utf8')
 
 const thinkingSectionStart = '<!-- Thinking Level -->'
-const thinkingSectionEnd = '</div>\n\n                </div>'
+const thinkingSectionEnd = '<!-- Right Actions -->'
 const start = source.indexOf(thinkingSectionStart)
 const end = source.indexOf(thinkingSectionEnd, start)
 

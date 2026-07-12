@@ -32,7 +32,7 @@ test('blob saving logic lives in shared fileDownload util (Tauri + browser), reu
   assert.match(fileDownloadSource, /export async function saveBlob/)
 
   // useMediaPreview 不再自己重实现落盘，而是从 fileDownload 复用 saveBlob 与扩展名 helper
-  assert.match(mediaPreviewSource, /from '\.\.\/utils\/fileDownload'/)
+  assert.match(mediaPreviewSource, /from '\.\.\/utils\/fileDownload(?:\.ts)?'/)
   assert.match(mediaPreviewSource, /saveBlob\(blob, fileName\)/)
   assert.doesNotMatch(mediaPreviewSource, /mediaDownload/)
   assert.doesNotMatch(mediaPreviewSource, /getTauriDownloadTarget/)
