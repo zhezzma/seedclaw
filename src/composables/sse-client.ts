@@ -12,6 +12,7 @@
  * - tool_end -> { toolName: string, isError: boolean }
  * - message_end
  * - turn_end
+ * - agent_settled (0.80.6: 重试/压缩/continuation 全部完成后触发)
  * - done -> { message: string }
  */
 

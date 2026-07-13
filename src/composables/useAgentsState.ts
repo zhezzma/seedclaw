@@ -31,7 +31,7 @@ export interface AgentInfo {
     avatar?: string
     defaultProvider?: string
     defaultModel?: string
-    defaultThinkingLevel?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh"
+    defaultThinkingLevel?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
     steeringMode?: "all" | "one-at-a-time" | string
     followUpMode?: "all" | "one-at-a-time" | string
     compaction?: boolean | CompactionSettings

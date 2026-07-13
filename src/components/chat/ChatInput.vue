@@ -67,7 +67,7 @@ const commandSuggestionsPanelRef = ref<HTMLDivElement | null>(null)
 
 const { openLightbox } = useMediaPreview()
 
-const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const
+const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
 type ThinkingLevel = typeof THINKING_LEVELS[number]
 
 
@@ -99,6 +99,34 @@ const currentModelLabel = computed(() => {
     }
 
     return value
+})
+
+// 当前模型的完整配置（reasoning / thinkingLevelMap），用于按能力过滤思考等级
+const currentModelInfo = computed(() => {
+    const value = currentModel.value
+    if (!value) return undefined
+    for (const group of availableModels.value) {
+        const matched = group.models.find((model) => `${group.provider}/${model.id}` === value)
+        if (matched) return matched
+    }
+    return undefined
+})
+
+// 复刻上游 pi-ai getSupportedThinkingLevels：
+// - 非 reasoning 模型只有 off；
+// - thinkingLevelMap 中 null 表示该级别禁用；
+// - xhigh/max 需显式映射才视为支持（否则 pi 会 clamp 到 high）。
+// 找不到模型配置时回退为全部级别，避免误屏蔽。
+const supportedThinkingLevels = computed<readonly ThinkingLevel[]>(() => {
+    const model = currentModelInfo.value
+    if (!model) return THINKING_LEVELS
+    if (!model.reasoning) return ['off']
+    return THINKING_LEVELS.filter((level) => {
+        const mapped = model.thinkingLevelMap?.[level]
+        if (mapped === null) return false
+        if (level === 'xhigh' || level === 'max') return mapped !== undefined
+        return true
+    })
 })
 
 // 思考级别：优先从 session 获取，否则从 agent 默认值获取
@@ -416,7 +444,7 @@ defineExpose({
                         <ul v-if="thinkingDropdownOpen"
                             class="dropdown-content menu p-2 shadow-xl bg-base-100 rounded-box w-36 border border-base-300 mb-2 z-[100]">
                             <li class="menu-title"><span>{{ $t('chat.thinkingLevel') }}</span></li>
-                            <li v-for="level in THINKING_LEVELS" :key="level">
+                            <li v-for="level in supportedThinkingLevels" :key="level">
                                 <a @click="selectThinkingLevel(level)" class="flex items-center gap-2 rounded-lg"
                                     :class="{ 'bg-primary/10 text-primary': thinkingLevel === level }">
                                     <span class="flex-1">{{ $t(`chat.thinkingLevels.${level}`) }}</span>

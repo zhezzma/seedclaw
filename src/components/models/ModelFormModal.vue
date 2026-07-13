@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { reactive, computed, watch } from 'vue'
 import { AvailableModel, ThinkingLevelKey, ThinkingLevelMap } from '../../composables/useModelsState'
-import { createDefaultModelFormData, applyModelFormData } from './model-form-state'
+import { createDefaultModelFormData, applyModelFormData, buildModelCostForSave } from './model-form-state'
 
 const props = defineProps<{
     show: boolean
@@ -23,9 +23,9 @@ const formData = reactive(createDefaultModelFormData())
 //   default  → 不写进 map（用 provider 默认映射）
 //   custom   → 显示右侧输入框，存字符串
 //   disabled → 存 null（不支持）
-// pi 对 xhigh 的“省略=不支持”在三态下无需特例：用户选 default 即省略（xhigh 不支持），
-// 要启用 xhigh 就选 custom 并填值。序列化与反序列化完全对称。
-const THINKING_LEVELS: ThinkingLevelKey[] = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
+// pi 对 xhigh/max 的“省略=不支持”在三态下无需特例：用户选 default 即省略（不支持），
+// 要启用 xhigh/max 就选 custom 并填值。序列化与反序列化完全对称。
+const THINKING_LEVELS: ThinkingLevelKey[] = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
 
 type ThinkingMode = 'default' | 'custom' | 'disabled'
 
@@ -116,7 +116,8 @@ const handleSubmit = () => {
         name: formData.name,
         contextWindow: formData.contextWindow,
         maxTokens: formData.maxTokens,
-        cost: { ...formData.cost },
+        // 表单只编辑基础费率；tiers 不展示但必须随 cost 整对象 PATCH 带回，否则服务端会丢掉阶梯价。
+        cost: buildModelCostForSave(formData.cost),
         reasoning: formData.reasoning,
         input: [...formData.input],
     }
@@ -240,7 +241,7 @@ const handleSubmit = () => {
                             </select>
                             <input v-if="row.mode === 'custom'" v-model="row.value" type="text"
                                 class="input input-bordered input-sm flex-1 font-mono"
-                                :placeholder="row.key === 'xhigh' ? $t('model.thinking.xhighPlaceholder') : $t('model.thinking.valuePlaceholder')"
+                                :placeholder="row.key === 'xhigh' || row.key === 'max' ? $t('model.thinking.xhighPlaceholder') : $t('model.thinking.valuePlaceholder')"
                                 :disabled="isReadonly" />
                             <span v-else class="flex-1"></span>
                         </div>

@@ -4,8 +4,9 @@ import { apiGet, apiPost, apiPatch, apiDelete } from './api-client'
 
 // ==================== Types ====================
 
-/** pi thinking levels. `off` 也是合法 key（用于标记模型不可关闭思考）。 */
-export type ThinkingLevelKey = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+/** pi thinking levels. `off` 也是合法 key（用于标记模型不可关闭思考）。
+ *  `xhigh` 和 `max` 需要 thinkingLevelMap 中显式映射才能使用。 */
+export type ThinkingLevelKey = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 /**
  * 三态：
@@ -15,6 +16,23 @@ export type ThinkingLevelKey = 'off' | 'minimal' | 'low' | 'medium' | 'high' | '
  */
 export type ThinkingLevelMap = Partial<Record<ThinkingLevelKey, string | null>>
 
+/** 与上游 pi-ai `ModelCost` 对齐：基础费率 + 可选阶梯定价。 */
+export interface ModelCostTier {
+    inputTokensAbove: number
+    input: number
+    output: number
+    cacheRead: number
+    cacheWrite: number
+}
+
+export interface ModelCost {
+    input: number
+    output: number
+    cacheRead: number
+    cacheWrite: number
+    tiers?: ModelCostTier[]
+}
+
 /** A single model entry returned by the API */
 export interface AvailableModel {
     id: string
@@ -22,17 +40,12 @@ export interface AvailableModel {
     // Optional overrides
     contextWindow?: number
     maxTokens?: number
-    cost?: {
-        input: number
-        output: number
-        cacheRead: number
-        cacheWrite: number
-    }
+    cost?: ModelCost
     reasoning?: boolean
     input?: string[]
     /** null 仅用于 PATCH 时显式删除后端已存的 map（后端 merge 语义下省略无法清除）。 */
     thinkingLevelMap?: ThinkingLevelMap | null
-    compat?: OpenAICompletionsCompat | AnthropicMessagesCompat
+    compat?: OpenAICompletionsCompat | AnthropicMessagesCompat | OpenAIResponsesCompat
 }
 //https://github.com/earendil-works/pi/blob/main/packages/ai/src/types.ts
 //https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/models.md
@@ -50,7 +63,7 @@ export interface ProviderConfig {
     headers?: Record<string, string>
     models: AvailableModel[]
     custom: boolean
-    compat?: OpenAICompletionsCompat | AnthropicMessagesCompat
+    compat?: OpenAICompletionsCompat | AnthropicMessagesCompat | OpenAIResponsesCompat
 }
 
 /** Shape of the API response payload for /api/models */
@@ -66,29 +79,66 @@ export interface ModelOption {
     model: string
 }
 
+/** chat-template thinkingFormat 的 chat_template_kwargs 值。 */
+export type ChatTemplateKwargValue =
+    | string
+    | number
+    | boolean
+    | null
+    | {
+        $var: 'thinking.enabled' | 'thinking.effort'
+        omitWhenOff?: boolean
+    }
+
+/** OpenRouter provider routing 偏好（结构复杂，客户端不编辑，仅透传）。 */
+export type OpenRouterRouting = Record<string, unknown>
+
+/** Vercel AI Gateway routing 偏好。 */
+export interface VercelGatewayRouting {
+    only?: string[]
+    order?: string[]
+}
+
 export interface OpenAICompletionsCompat {
-    supportsStore?: boolean;
-    supportsDeveloperRole?: boolean;
-    supportsReasoningEffort?: boolean;
-    supportsUsageInStreaming?: boolean;
-    maxTokensField?: "max_completion_tokens" | "max_tokens";
-    requiresToolResultName?: boolean;
-    requiresAssistantAfterToolResult?: boolean;
-    requiresThinkingAsText?: boolean;
-    requiresMistralToolIds?: boolean;
-    thinkingFormat?: "openai" | "openrouter" | "deepseek" | "together" | "zai" | "qwen" | "qwen-chat-template" | "string-thinking";
-    supportsStrictMode?: boolean;
-    supportsLongCacheRetention?: boolean;
+    supportsStore?: boolean
+    supportsDeveloperRole?: boolean
+    supportsReasoningEffort?: boolean
+    supportsUsageInStreaming?: boolean
+    maxTokensField?: 'max_completion_tokens' | 'max_tokens'
+    requiresToolResultName?: boolean
+    requiresAssistantAfterToolResult?: boolean
+    requiresThinkingAsText?: boolean
+    requiresReasoningContentOnAssistantMessages?: boolean
+    thinkingFormat?: 'openai' | 'openrouter' | 'deepseek' | 'together' | 'zai' | 'qwen' | 'chat-template' | 'qwen-chat-template' | 'string-thinking' | 'ant-ling'
+    /** thinkingFormat=chat-template 时发送的 chat_template_kwargs；无 UI，保存时必须透传。 */
+    chatTemplateKwargs?: Record<string, ChatTemplateKwargValue>
+    /** OpenRouter routing；无 UI，保存时必须透传。 */
+    openRouterRouting?: OpenRouterRouting
+    /** Vercel AI Gateway routing；无 UI，保存时必须透传。 */
+    vercelGatewayRouting?: VercelGatewayRouting
+    zaiToolStream?: boolean
+    supportsStrictMode?: boolean
+    cacheControlFormat?: 'anthropic'
+    sendSessionAffinityHeaders?: boolean
+    supportsLongCacheRetention?: boolean
 }
 
 /** api: "anthropic-messages" 专用 compat 字段。 */
 export interface AnthropicMessagesCompat {
-    supportsEagerToolInputStreaming?: boolean;
-    supportsLongCacheRetention?: boolean;
-    sendSessionAffinityHeaders?: boolean;
-    supportsCacheControlOnTools?: boolean;
-    forceAdaptiveThinking?: boolean;
-    allowEmptySignature?: boolean;
+    supportsEagerToolInputStreaming?: boolean
+    supportsLongCacheRetention?: boolean
+    sendSessionAffinityHeaders?: boolean
+    supportsCacheControlOnTools?: boolean
+    supportsTemperature?: boolean
+    forceAdaptiveThinking?: boolean
+    allowEmptySignature?: boolean
+}
+
+/** api: "openai-responses" 专用 compat 字段。 */
+export interface OpenAIResponsesCompat {
+    supportsDeveloperRole?: boolean
+    sendSessionIdHeader?: boolean
+    supportsLongCacheRetention?: boolean
 }
 
 
@@ -146,7 +196,7 @@ const loadModels = async () => {
     }
 }
 
-const saveProvider = async (providerData: { id: string, baseUrl: string, type?: 'api_key' | 'oauth', apiKey?: string, api: KnownApi, headers?: Record<string, string>, compat?: OpenAICompletionsCompat | AnthropicMessagesCompat }) => {
+const saveProvider = async (providerData: { id: string, baseUrl: string, type?: 'api_key' | 'oauth', apiKey?: string, api: KnownApi, headers?: Record<string, string>, compat?: OpenAICompletionsCompat | AnthropicMessagesCompat | OpenAIResponsesCompat }) => {
     const existing = state.providers[providerData.id]
     if (existing) {
         await apiPatch(`/api/models/providers/${providerData.id}`, {
@@ -195,13 +245,14 @@ const saveModel = async (providerId: string, model: AvailableModel) => {
     const existingModelIndex = provider.models.findIndex(m => m.id === model.id)
     if (existingModelIndex !== -1) {
         await apiPatch(`/api/models/providers/${providerId}/models/${encodeURIComponent(model.id)}`, model)
-        // null 是发给后端的“删除”信号；本地 state 同步为剔除该字段，与后端保持一致。
+        // 镜像后端 PATCH 的浅 merge 语义（{ ...existing, ...body }）：保留表单未涵盖的
+        // 字段（如 per-model compat、headers），避免本地 state 被整对象替换冲掉、刷新前显示不一致。
+        const merged: AvailableModel = { ...provider.models[existingModelIndex], ...model }
+        // null 是发给后端的“删除”信号；后端 merge 后会 delete 该字段，本地同步剔除。
         if (model.thinkingLevelMap === null) {
-            const { thinkingLevelMap: _omit, ...rest } = model
-            provider.models[existingModelIndex] = rest
-        } else {
-            provider.models[existingModelIndex] = model
+            delete merged.thinkingLevelMap
         }
+        provider.models[existingModelIndex] = merged
     } else {
         await apiPost(`/api/models/providers/${providerId}/models`, model)
         provider.models.push(model)

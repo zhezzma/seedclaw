@@ -42,6 +42,8 @@ export interface SessionUsage {
     output: number
     cacheRead: number
     cacheWrite: number
+    /** pi 0.80.x 起 usage 可单独累计 reasoning tokens（output 的子集）；缺省时按 0 处理 */
+    reasoning?: number
     cost: number
     /** 当前上下文占用的 token 数（预留字段，前端暂未使用，后端在 compaction 后可能返回 null） */
     contextTokens: number | null
@@ -477,8 +479,10 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
             break
         case 'turn_end':
         case 'agent_end':
-            // agent_end 在重试场景中每轮都会触发（auto_retry），不应在此终止会话
-            // 最终清理统一由 done 事件负责
+        case 'agent_settled':
+            // agent_end 在重试场景中每轮都会触发（auto_retry）；
+            // agent_settled 在重试/压缩/continuation 全部完成后触发。
+            // SSE done 由服务端在 settled 后发送，客户端只在 done 里终止会话。
             break
         case 'auto_retry_start':
             // 服务器开始自动重试，确保 chatSending 保持为 true

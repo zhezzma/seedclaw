@@ -1,6 +1,7 @@
 import type {
     AvailableModel,
     ThinkingLevelMap,
+    ModelCost,
 } from '../../composables/useModelsState'
 
 export interface ModelFormState {
@@ -8,12 +9,7 @@ export interface ModelFormState {
     name: string
     contextWindow: number
     maxTokens: number
-    cost: {
-        input: number
-        output: number
-        cacheRead: number
-        cacheWrite: number
-    }
+    cost: ModelCost
     reasoning: boolean
     input: string[]
     thinkingLevelMap: ThinkingLevelMap
@@ -37,6 +33,18 @@ export function createDefaultModelFormData(): ModelFormState {
     }
 }
 
+/** 提交用 cost：浅拷贝基础费率 + 深拷 tiers，避免把表单 reactive 引用直接写回 state。 */
+export function buildModelCostForSave(cost: ModelCost): ModelCost {
+    return {
+        input: cost.input,
+        output: cost.output,
+        cacheRead: cost.cacheRead,
+        cacheWrite: cost.cacheWrite,
+        // 表单不编辑 tiers，但 PATCH 会整对象替换 cost，必须原样带回。
+        ...(cost.tiers?.length ? { tiers: cost.tiers.map((tier) => ({ ...tier })) } : {}),
+    }
+}
+
 export function applyModelFormData(target: ModelFormState, initialData?: AvailableModel): ModelFormState {
     const defaults = createDefaultModelFormData()
 
@@ -45,12 +53,13 @@ export function applyModelFormData(target: ModelFormState, initialData?: Availab
     target.name = initialData?.name ?? defaults.name
     target.contextWindow = initialData?.contextWindow ?? defaults.contextWindow
     target.maxTokens = initialData?.maxTokens ?? defaults.maxTokens
-    target.cost = {
+    target.cost = buildModelCostForSave({
         input: initialData?.cost?.input ?? defaults.cost.input,
         output: initialData?.cost?.output ?? defaults.cost.output,
         cacheRead: initialData?.cost?.cacheRead ?? defaults.cost.cacheRead,
         cacheWrite: initialData?.cost?.cacheWrite ?? defaults.cost.cacheWrite,
-    }
+        ...(initialData?.cost?.tiers ? { tiers: initialData.cost.tiers } : {}),
+    })
     target.reasoning = initialData?.reasoning ?? defaults.reasoning
     target.input = initialData
         ? [...(initialData.input?.length ? initialData.input : ['text'])]

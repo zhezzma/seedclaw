@@ -548,6 +548,7 @@ const toggleAllSkills = () => {
                             <option value="medium">{{ $t('chat.thinkingLevels.medium') }}</option>
                             <option value="high">{{ $t('chat.thinkingLevels.high') }}</option>
                             <option value="xhigh">{{ $t('chat.thinkingLevels.xhigh') }}</option>
+                            <option value="max">{{ $t('chat.thinkingLevels.max') }}</option>
                         </select>
                     </div>
 

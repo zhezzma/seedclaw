@@ -12,7 +12,7 @@ export interface SubagentSkillsConfig {
     disabledSkills?: string[]
 }
 
-export type SubagentThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+export type SubagentThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 export interface SubagentConfig {
     id: string

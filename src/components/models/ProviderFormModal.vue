@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue'
-import { KnownApi, useModelsState, OAuthProviders, OpenAICompletionsCompat, AnthropicMessagesCompat } from '../../composables/useModelsState'
+import { KnownApi, useModelsState, OAuthProviders, OpenAICompletionsCompat, AnthropicMessagesCompat, OpenAIResponsesCompat } from '../../composables/useModelsState'
 import { useI18n } from 'vue-i18n'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline'
 
@@ -15,7 +15,7 @@ const props = defineProps<{
         api: KnownApi
         apiKey?: string
         headers?: Record<string, string>
-        compat?: OpenAICompletionsCompat | AnthropicMessagesCompat
+        compat?: OpenAICompletionsCompat | AnthropicMessagesCompat | OpenAIResponsesCompat
     }
 }>()
 
@@ -56,9 +56,17 @@ const OPENAI_COMPAT_FIELDS: CompatFieldDef[] = [
     { kind: 'bool', name: 'requiresToolResultName', labelKey: 'provider.compat.requiresToolResultName' },
     { kind: 'bool', name: 'requiresAssistantAfterToolResult', labelKey: 'provider.compat.requiresAssistantAfterToolResult' },
     { kind: 'bool', name: 'requiresThinkingAsText', labelKey: 'provider.compat.requiresThinkingAsText' },
+    { kind: 'bool', name: 'requiresReasoningContentOnAssistantMessages', labelKey: 'provider.compat.requiresReasoningContentOnAssistantMessages' },
+    { kind: 'bool', name: 'zaiToolStream', labelKey: 'provider.compat.zaiToolStream' },
+    { kind: 'bool', name: 'sendSessionAffinityHeaders', labelKey: 'provider.compat.sendSessionAffinityHeaders' },
+    { kind: 'bool', name: 'supportsLongCacheRetention', labelKey: 'provider.compat.supportsLongCacheRetention' },
+    { kind: 'enum', name: 'cacheControlFormat', labelKey: 'provider.compat.cacheControlFormat', options: ['anthropic'] },
     { kind: 'enum', name: 'maxTokensField', labelKey: 'provider.compat.maxTokensField', options: ['max_completion_tokens', 'max_tokens'] },
-    { kind: 'enum', name: 'thinkingFormat', labelKey: 'provider.compat.thinkingFormat', options: ['openai', 'openrouter', 'deepseek', 'together', 'zai', 'qwen', 'qwen-chat-template', 'string-thinking'] },
+    { kind: 'enum', name: 'thinkingFormat', labelKey: 'provider.compat.thinkingFormat', options: ['openai', 'openrouter', 'deepseek', 'together', 'zai', 'qwen', 'chat-template', 'qwen-chat-template', 'string-thinking', 'ant-ling'] },
 ]
+
+// 无 UI 的嵌套/复杂字段：编辑 provider 时必须透传，否则 PATCH 会冲掉 models.json 里的配置。
+const OPENAI_NON_UI_COMPAT_KEYS = ['chatTemplateKwargs', 'openRouterRouting', 'vercelGatewayRouting'] as const
 
 const ANTHROPIC_COMPAT_FIELDS: CompatFieldDef[] = [
     { kind: 'bool', name: 'forceAdaptiveThinking', labelKey: 'provider.compat.forceAdaptiveThinking' },
@@ -67,11 +75,19 @@ const ANTHROPIC_COMPAT_FIELDS: CompatFieldDef[] = [
     { kind: 'bool', name: 'supportsCacheControlOnTools', labelKey: 'provider.compat.supportsCacheControlOnTools' },
     { kind: 'bool', name: 'supportsLongCacheRetention', labelKey: 'provider.compat.supportsLongCacheRetention' },
     { kind: 'bool', name: 'sendSessionAffinityHeaders', labelKey: 'provider.compat.sendSessionAffinityHeaders' },
+    { kind: 'bool', name: 'supportsTemperature', labelKey: 'provider.compat.supportsTemperature' },
+]
+
+const OPENAI_RESPONSES_COMPAT_FIELDS: CompatFieldDef[] = [
+    { kind: 'bool', name: 'supportsDeveloperRole', labelKey: 'provider.compat.supportsDeveloperRole' },
+    { kind: 'bool', name: 'sendSessionIdHeader', labelKey: 'provider.compat.sendSessionIdHeader' },
+    { kind: 'bool', name: 'supportsLongCacheRetention', labelKey: 'provider.compat.supportsLongCacheRetention' },
 ]
 
 const compatFields = computed<CompatFieldDef[]>(() => {
     if (formData.api === 'anthropic-messages') return ANTHROPIC_COMPAT_FIELDS
     if (formData.api === 'openai-completions') return OPENAI_COMPAT_FIELDS
+    if (formData.api === 'openai-responses') return OPENAI_RESPONSES_COMPAT_FIELDS
     return []
 })
 
@@ -110,8 +126,11 @@ watch(() => props.show, (newVal) => {
             formData.api = props.initialData.api as KnownApi
             formData.apiKey = props.initialData.apiKey || ''
             formData.headers = props.initialData.headers ? JSON.stringify(props.initialData.headers, null, 2) : ''
-            // 深拷避免表单编辑直接窜改到 state.providers 里的原始对象。
-            formData.compat = { ...((props.initialData.compat as object) ?? {}) }
+            // 深拷避免表单编辑直接窜改到 state.providers 里的原始对象
+            //（含 chatTemplateKwargs / routing 等嵌套字段）。
+            // 注意：initialData.compat 是 Vue reactive Proxy，structuredClone 对 Proxy
+            // 会抛 DataCloneError；compat 全是 JSON-safe 数据，用 JSON 深拷。
+            formData.compat = JSON.parse(JSON.stringify(props.initialData.compat ?? {}))
         } else {
             // Reset for add
             formData.id = ''
@@ -181,8 +200,12 @@ const handleSubmit = async () => {
 
         const shouldSendApiKey = !!formData.apiKey.trim() || props.mode === 'add' || props.initialData?.apiKey !== undefined
 
-        // compat 只保留当前 api 类型下的字段，避免切换 api 后残留无关项。
-        const allowedNames = new Set(compatFields.value.map((f) => f.name))
+        // compat 只保留当前 api 类型下的字段，避免切换 api 后残留无关项；
+        // 同时透传同 api 的无 UI 嵌套字段（如 chatTemplateKwargs），防止例行编辑冲掉配置。
+        const allowedNames = new Set<string>([
+            ...compatFields.value.map((f) => f.name),
+            ...(formData.api === 'openai-completions' ? OPENAI_NON_UI_COMPAT_KEYS : []),
+        ])
         const compat: Record<string, unknown> = {}
         for (const [k, v] of Object.entries(formData.compat)) {
             if (allowedNames.has(k)) compat[k] = v
@@ -195,7 +218,9 @@ const handleSubmit = async () => {
             apiKey: shouldSendApiKey ? formData.apiKey : undefined,
             api: formData.api,
             headers: parsedHeaders,
-            compat: Object.keys(compat).length > 0 ? (compat as OpenAICompletionsCompat | AnthropicMessagesCompat) : undefined,
+            compat: Object.keys(compat).length > 0
+                ? (compat as OpenAICompletionsCompat | AnthropicMessagesCompat | OpenAIResponsesCompat)
+                : undefined,
         })
 
         emit('saved', formData.id)
