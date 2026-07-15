@@ -40,7 +40,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         icon: HomeIcon,
         activeIcon: HomeIconSolid,
         route: 'home',
-        showInSidebar: true,
+        showInSidebar: false,
         showInBottomNav: true
     },
     {

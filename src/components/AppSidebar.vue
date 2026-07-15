@@ -292,7 +292,7 @@ const openWeixinLoginModal = () => {
         <!-- New Chat Button -->
         <div class="shrink-0 px-4" :class="isCollapsed && 'lg:px-2'">
             <button @click="createNewSession"
-                class="btn btn-primary btn-block gap-2 shadow-md hover:shadow-lg transition-shadow rounded-xl h-11"
+                class="btn btn-primary btn-block btn-sm gap-2 shadow-md hover:shadow-lg transition-shadow rounded-xl h-10"
                 :title="$t('sidebar.newChat')">
                 <PlusIcon class="h-5 w-5" />
                 <span class="font-medium" :class="isCollapsed && 'lg:hidden'">{{ $t('sidebar.newChat') }}</span>
