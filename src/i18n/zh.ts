@@ -88,6 +88,8 @@ export default {
         archived: '已归档',
         archive: '归档',
         unarchive: '取消归档',
+        pin: '置顶',
+        unpin: '取消置顶',
         more: '更多',
         rename: '重命名',
         viewInfo: '查看信息',
@@ -814,7 +816,7 @@ export default {
         },
     },
     prompt: {
-        title: '智能提示词',
+        title: '提示词',
         system: '系统提示词',
         global: '全局提示词',
         agent: '智能体提示词',

@@ -19,6 +19,17 @@ test('session state defines archived sessions state and archive helpers', () => 
 })
 
 
+test('session state defines pin helpers calling the backend pin/unpin endpoints', () => {
+  assert.match(sessionsStateSource, /const pinSession = async \(id: string\) => {[\s\S]*?apiPost\(`\/api\/sessions\/\$\{encodeURIComponent\(id\)\}\/pin`\)/)
+  assert.match(sessionsStateSource, /const unpinSession = async \(id: string\) => {[\s\S]*?apiPost\(`\/api\/sessions\/\$\{encodeURIComponent\(id\)\}\/unpin`\)/)
+  assert.match(sessionsStateSource, /SessionRow[\s\S]*?pinned\?: boolean/)
+})
+
+test('archiveSession clears local pinned state to match backend archive-removes-pin semantics', () => {
+  // 服务端归档会同步移除置顶，本地构造 archivedSession 时必须显式置 pinned: false
+  assert.match(sessionsStateSource, /pinned: false,\s*\.\.\.normalizeSessionRouteState/)
+})
+
 test('unarchiveSession calls the backend unarchive endpoint', () => {
   assert.match(sessionsStateSource, /const unarchiveSession = async \(id: string\) => {[\s\S]*?apiPost\(`\/api\/sessions\/\$\{encodeURIComponent\(id\)\}\/unarchive`\)/)
   assert.doesNotMatch(sessionsStateSource, /const unarchiveSession = async \(id: string\) => {[\s\S]*?apiDelete\(`\/api\/sessions\/\$\{encodeURIComponent\(id\)\}\/archive`\)/)

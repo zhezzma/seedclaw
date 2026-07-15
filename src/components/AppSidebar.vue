@@ -80,7 +80,8 @@ const displaySessions = computed(() => {
     return sessionsState.sessionsResult?.sessions
         .map((s: SessionRow) => ({
             key: s.id,
-            label: s?.name || truncateText(s.firstMessage, 9)
+            label: s?.name || truncateText(s.firstMessage, 9),
+            pinned: Boolean(s.pinned),
         }))
 })
 
@@ -120,10 +121,14 @@ const handleArchiveSession = async (session: { key: string, label: string }) => 
     }
 }
 
-const sessionMenuItems = computed<SessionMenuItem[]>(() => [
+const getSessionMenuItems = (session: { pinned?: boolean }): SessionMenuItem[] => [
     {
         key: 'rename',
         label: t('sidebar.rename'),
+    },
+    {
+        key: session.pinned ? 'unpin' : 'pin',
+        label: session.pinned ? t('sidebar.unpin') : t('sidebar.pin'),
     },
     {
         key: 'info',
@@ -138,7 +143,20 @@ const sessionMenuItems = computed<SessionMenuItem[]>(() => [
         label: t('common.delete'),
         tone: 'danger',
     },
-])
+]
+
+// 会话行右键菜单：通过 ref 打开对应行的 SessionActionMenu
+const sessionMenuRefs = new Map<string, { openMenu: () => void }>()
+const setSessionMenuRef = (key: string, el: unknown) => {
+    if (el) {
+        sessionMenuRefs.set(key, el as { openMenu: () => void })
+    } else {
+        sessionMenuRefs.delete(key)
+    }
+}
+const openSessionContextMenu = (key: string) => {
+    sessionMenuRefs.get(key)?.openMenu()
+}
 
 const startRename = async (session: { key: string, label: string }) => {
     renamingKey.value = session.key
@@ -187,6 +205,16 @@ const openSessionInfo = async (session: { key: string, label: string }) => {
 const handleSessionMenuSelect = async (session: { key: string, label: string }, action: string) => {
     if (action === 'rename') {
         await startRename(session)
+        return
+    }
+
+    if (action === 'pin') {
+        await sessionsState.pinSession(session.key)
+        return
+    }
+
+    if (action === 'unpin') {
+        await sessionsState.unpinSession(session.key)
         return
     }
 
@@ -307,19 +335,18 @@ const openWeixinLoginModal = () => {
         </div>
 
         <!-- Conversations Header -->
-        <div class="shrink-0 px-4 pt-2 pb-2 flex items-center justify-between"
-            :class="isCollapsed && 'lg:hidden'">
+        <div class="shrink-0 px-4 pt-2 pb-2 flex items-center justify-between" :class="isCollapsed && 'lg:hidden'">
             <span class="text-sm font-medium text-base-content/70 uppercase tracking-wider">{{ $t('sidebar.recentChats')
-            }}</span>
+                }}</span>
             <div class="flex gap-1">
                 <button v-if="displaySessions && displaySessions.length > 0"
                     class="btn btn-ghost btn-circle btn-xs hover:bg-error/20 hover:text-error"
                     :title="$t('sidebar.clearAll')" @click="handleDeleteAllSessions">
                     <TrashIcon class="h-4 w-4" />
                 </button>
-                <button class="btn btn-ghost btn-circle btn-xs hover:bg-base-300">
+                <!-- <button class="btn btn-ghost btn-circle btn-xs hover:bg-base-300">
                     <MagnifyingGlassIcon class="h-4 w-4" />
-                </button>
+                </button> -->
             </div>
         </div>
 
@@ -337,21 +364,27 @@ const openWeixinLoginModal = () => {
             <!-- Sessions list -->
             <div v-else class="space-y-1">
                 <a v-for="session in displaySessions" :key="session.key" @click="selectSession(session.key)"
+                    @contextmenu.prevent="openSessionContextMenu(session.key)"
                     class="flex items-center gap-3 px-3 py-1.5 rounded-xl cursor-pointer transition-colors group"
                     :class="activeSessionKey === session.key
                         ? 'bg-primary/10 dark:bg-primary/15 hover:bg-primary/15 dark:hover:bg-primary/20'
                         : 'hover:bg-base-300'">
-                    <ChatBubbleLeftRightIcon class="h-5 w-5 shrink-0"
+                    <template v-if="session.pinned">
+                        <span class="h-5 w-5 shrink-0 inline-flex items-center justify-center" :title="$t('sidebar.pin')" aria-hidden="true">📌</span>
+                        <span class="sr-only">{{ $t('sidebar.pin') }}</span>
+                    </template>
+                    <ChatBubbleLeftRightIcon v-else class="h-5 w-5 shrink-0"
                         :class="activeSessionKey === session.key ? 'text-primary opacity-80' : 'opacity-50'" />
-                    <input v-if="renamingKey === session.key" :ref="setRenameInput" v-model="renameText"
-                        type="text"
-                        class="input input-xs input-bordered flex-1 min-w-0 h-7 rounded-lg"
-                        @click.stop @keydown.enter.prevent="confirmRename" @keydown.esc.prevent="cancelRename"
+                    <input v-if="renamingKey === session.key" :ref="setRenameInput" v-model="renameText" type="text"
+                        class="input input-xs input-bordered flex-1 min-w-0 h-7 rounded-lg" @click.stop @contextmenu.stop
+                        @keydown.enter.prevent="confirmRename" @keydown.esc.prevent="cancelRename"
                         @blur="confirmRename" />
                     <template v-else>
                         <span class="text-sm truncate flex-1"
-                            :class="activeSessionKey === session.key ? 'font-semibold text-primary' : ''">{{ session.label }}</span>
-                        <SessionActionMenu :actions="sessionMenuItems" :menu-id="`recent:${session.key}`"
+                            :class="activeSessionKey === session.key ? 'font-semibold text-primary' : ''">{{
+                            session.label }}</span>
+                        <SessionActionMenu :ref="(el) => setSessionMenuRef(session.key, el)"
+                            :actions="getSessionMenuItems(session)" :menu-id="`recent:${session.key}`"
                             :title="$t('sidebar.more')" @select="handleSessionMenuSelect(session, $event)" />
                     </template>
                 </a>
@@ -360,10 +393,8 @@ const openWeixinLoginModal = () => {
 
         <!-- Collapse toggle (Desktop only) -->
         <div class="shrink-0 mt-auto hidden lg:block border-t border-base-300 p-2">
-            <button @click="toggleCollapsed"
-                class="btn btn-ghost btn-sm w-full gap-2 hover:bg-base-300"
-                :class="isCollapsed && 'px-0'"
-                :title="isCollapsed ? $t('sidebar.expand') : $t('sidebar.collapse')">
+            <button @click="toggleCollapsed" class="btn btn-ghost btn-sm w-full gap-2 hover:bg-base-300"
+                :class="isCollapsed && 'px-0'" :title="isCollapsed ? $t('sidebar.expand') : $t('sidebar.collapse')">
                 <ChevronDoubleRightIcon v-if="isCollapsed" class="h-5 w-5" />
                 <ChevronDoubleLeftIcon v-else class="h-5 w-5" />
                 <span class="font-medium text-sm" :class="isCollapsed && 'hidden'">{{ $t('sidebar.collapse') }}</span>

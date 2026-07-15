@@ -88,6 +88,8 @@ export default {
         archived: 'Archived',
         archive: 'Archive',
         unarchive: 'Unarchive',
+        pin: 'Pin',
+        unpin: 'Unpin',
         more: 'More',
         rename: 'Rename',
         viewInfo: 'View Info',

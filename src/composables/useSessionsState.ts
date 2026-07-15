@@ -34,6 +34,7 @@ export interface SessionRow {
     thinkingLevel?: string
     sessionCategory?: SessionCategory
     archived?: boolean
+    pinned?: boolean
 }
 
 export interface SessionsResult {
@@ -181,6 +182,8 @@ const archiveSession = async (id: string) => {
     if (known) {
         const archivedSession = {
             ...known,
+            // 服务端归档时会同步移除置顶，本地状态保持一致
+            pinned: false,
             ...normalizeSessionRouteState({
                 sessionCategory: known.sessionCategory,
                 archived: true,
@@ -218,6 +221,17 @@ const unarchiveSession = async (id: string) => {
     }
 
     return { archived: false }
+}
+
+const pinSession = async (id: string) => {
+    await apiPost(`/api/sessions/${encodeURIComponent(id)}/pin`)
+    // 置顶改变列表排序，直接重新拉取服务端排好序的列表
+    await loadSessions()
+}
+
+const unpinSession = async (id: string) => {
+    await apiPost(`/api/sessions/${encodeURIComponent(id)}/unpin`)
+    await loadSessions()
 }
 
 const deleteSession = async (key: string) => {
@@ -348,6 +362,8 @@ const _sessionsState = Object.assign(state, {
     updateSessionLocal,
     archiveSession,
     unarchiveSession,
+    pinSession,
+    unpinSession,
     deleteSession,
     deleteSessions,
     hasSession,

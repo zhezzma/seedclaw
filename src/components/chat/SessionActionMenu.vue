@@ -41,6 +41,11 @@ export default defineComponent({
             isOpen.value = false
         }
 
+        const openMenu = () => {
+            sharedActiveMenuId.value = props.menuId
+            isOpen.value = true
+        }
+
         const toggleMenu = (event: MouseEvent) => {
             event.stopPropagation()
 
@@ -49,8 +54,7 @@ export default defineComponent({
                 return
             }
 
-            sharedActiveMenuId.value = props.menuId
-            isOpen.value = true
+            openMenu()
         }
 
         const handleSelect = (key: string, event: MouseEvent) => {
@@ -96,6 +100,7 @@ export default defineComponent({
         return {
             menuRef,
             isOpen,
+            openMenu,
             toggleMenu,
             handleSelect,
         }

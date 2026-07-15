@@ -24,10 +24,27 @@ test('AppSidebar uses SessionActionMenu for recent chat row actions', () => {
 })
 
 test('recent chat more menu includes archive and delete actions', () => {
-    assert.match(sidebarSource, /const sessionMenuItems = computed<SessionMenuItem\[]>\(\(\) => \[/)
+    assert.match(sidebarSource, /const getSessionMenuItems = \(session: \{ pinned\?: boolean \}\): SessionMenuItem\[] => \[/)
+    assert.match(sidebarSource, /key: session\.pinned \? 'unpin' : 'pin'/)
+    assert.match(sidebarSource, /label: session\.pinned \? t\('sidebar\.unpin'\) : t\('sidebar\.pin'\)/)
     assert.match(sidebarSource, /key: 'archive',[\s\S]*?label: t\('sidebar\.archive'\)/)
     assert.match(sidebarSource, /key: 'delete',[\s\S]*?label: t\('common\.delete'\)/)
-    assert.match(sidebarSource, /:actions="sessionMenuItems"/)
+    assert.match(sidebarSource, /:actions="getSessionMenuItems\(session\)"/)
+})
+
+test('recent chat row opens action menu on right-click via exposed openMenu', () => {
+    assert.match(sidebarSource, /@contextmenu\.prevent="openSessionContextMenu\(session\.key\)"/)
+    assert.match(sidebarSource, /const openSessionContextMenu = \(key: string\) => {[\s\S]*?sessionMenuRefs\.get\(key\)\?\.openMenu\(\)/)
+    assert.match(sidebarSource, /:ref="\(el\) => setSessionMenuRef\(session\.key, el\)"/)
+    assert.match(sessionActionMenuSource, /const openMenu = \(\) => \{/)
+    assert.match(sessionActionMenuSource, /return \{[\s\S]*?\bopenMenu,/)
+})
+
+test('rename input preserves native context menu and pinned indicator is screen-reader accessible', () => {
+    // 重命名输入框需阻右键冒泡，避免被行级 .prevent 吞掉原生菜单（剪切/复制/粘贴）
+    assert.match(sidebarSource, /<input[\s\S]*?@contextmenu\.stop/)
+    // 置顶状态需对辅助技术可感知（视觉 📌 aria-hidden + sr-only 文案）
+    assert.match(sidebarSource, /<template v-if="session\.pinned">[\s\S]*?aria-hidden="true">📌[\s\S]*?class="sr-only"[\s\S]*?\$t\('sidebar\.pin'\)/)
 })
 
 test('session action menu wiring stops row selection click bubbling', () => {
@@ -66,9 +83,13 @@ test('sidebar i18n includes archived and more copy in Chinese and English', () =
     assert.match(zhSource, /archived: '已归档'/)
     assert.match(zhSource, /archive: '归档'/)
     assert.match(zhSource, /unarchive: '取消归档'/)
+    assert.match(zhSource, /pin: '置顶'/)
+    assert.match(zhSource, /unpin: '取消置顶'/)
     assert.match(zhSource, /more: '更多'/)
     assert.match(enSource, /archived: 'Archived'/)
     assert.match(enSource, /archive: 'Archive'/)
     assert.match(enSource, /unarchive: 'Unarchive'/)
+    assert.match(enSource, /pin: 'Pin'/)
+    assert.match(enSource, /unpin: 'Unpin'/)
     assert.match(enSource, /more: 'More'/)
 })
