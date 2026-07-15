@@ -10,7 +10,7 @@ import { onMounted, computed, ref, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
     PlusIcon, MinusIcon, CheckIcon,
-    ArrowUturnLeftIcon, ArrowPathIcon,ArrowsUpDownIcon
+    ArrowUturnLeftIcon, ArrowPathRoundedSquareIcon
 } from '@heroicons/vue/24/outline'
 import RepoSelector from './git/RepoSelector.vue'
 import StatusGroup from './git/StatusGroup.vue'
@@ -295,7 +295,7 @@ async function onPrimary() {
                             </span>
                         </template>
                         <template v-else-if="primaryMode === 'sync'">
-                            <ArrowsUpDownIcon class="h-4 w-4" :class="{ 'animate-spin': syncing }" />
+                            <ArrowPathRoundedSquareIcon class="h-4 w-4" :class="{ 'animate-spin': syncing }" />
                             <span>{{ $t('workspace.git.syncChanges') }} {{ aheadCount }}↑</span>
                         </template>
                         <template v-else>
@@ -307,7 +307,7 @@ async function onPrimary() {
                         :class="{ 'btn-disabled': git.mutating.value || !selectedRepo }"
                         :disabled="git.mutating.value || !selectedRepo"
                         :title="$t('workspace.git.syncTip')" @click="onSync">
-                        <ArrowsUpDownIcon class="h-4 w-4" :class="{ 'animate-spin': syncing }" />
+                        <ArrowPathRoundedSquareIcon class="h-4 w-4" :class="{ 'animate-spin': syncing }" />
                         <span v-if="behindCount > 0 || aheadCount > 0" class="text-xs font-mono leading-none">
                             <span v-if="behindCount > 0">↓{{ behindCount }}</span><span v-if="behindCount > 0 && aheadCount > 0"> </span><span v-if="aheadCount > 0">↑{{ aheadCount }}</span>
                         </span>

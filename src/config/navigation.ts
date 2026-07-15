@@ -1,27 +1,27 @@
 import {
     Squares2X2Icon,
-    DeviceTabletIcon,
     SparklesIcon,
-    DocumentIcon,
     HomeIcon,
     Cog6ToothIcon,
     CubeIcon,
     ChatBubbleLeftRightIcon,
     DocumentTextIcon,
-    ArchiveBoxIcon
+    ArchiveBoxIcon,
+    ClockIcon,
+    CalendarDaysIcon
 } from '@heroicons/vue/24/outline'
 
 import {
     HomeIcon as HomeIconSolid,
     Squares2X2Icon as Squares2X2IconSolid,
     Cog6ToothIcon as Cog6ToothIconSolid,
-    DeviceTabletIcon as DeviceTabletIconSolid,
     SparklesIcon as SparklesIconSolid,
-    DocumentIcon as DocumentIconSolid,
     CubeIcon as CubeIconSolid,
     ChatBubbleLeftRightIcon as ChatBubbleLeftRightIconSolid,
     DocumentTextIcon as DocumentTextIconSolid,
-    ArchiveBoxIcon as ArchiveBoxIconSolid
+    ArchiveBoxIcon as ArchiveBoxIconSolid,
+    ClockIcon as ClockIconSolid,
+    CalendarDaysIcon as CalendarDaysIconSolid
 } from '@heroicons/vue/24/solid'
 
 export interface NavItem {
@@ -52,9 +52,33 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         showInBottomNav: true
     },
     {
+        label: 'sidebar.models',
+        icon: CubeIcon,
+        activeIcon: CubeIconSolid,
+        route: 'models',
+        showInSidebar: true,
+        showInBottomNav: true
+    },
+    {
+        label: 'prompt.title',
+        icon: DocumentTextIcon,
+        activeIcon: DocumentTextIconSolid,
+        route: 'prompts',
+        showInSidebar: true,
+        showInBottomNav: true
+    },
+    {
+        label: 'sidebar.cron',
+        icon: ClockIcon,
+        activeIcon: ClockIconSolid,
+        route: 'cron',
+        showInSidebar: true,
+        showInBottomNav: true
+    },
+    {
         label: 'sidebar.taskSessions',
-        icon: ChatBubbleLeftRightIcon,
-        activeIcon: ChatBubbleLeftRightIconSolid,
+        icon: CalendarDaysIcon,
+        activeIcon: CalendarDaysIconSolid,
         route: 'tasks',
         showInSidebar: true,
         showInBottomNav: true
@@ -68,37 +92,12 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         showInBottomNav: false
     },
     {
-        label: 'sidebar.models',
-        icon: CubeIcon,
-        activeIcon: CubeIconSolid,
-        route: 'models',
-        showInSidebar: true,
-        showInBottomNav: true
-    },
-    {
         label: 'sidebar.skills',
         icon: SparklesIcon,
         activeIcon: SparklesIconSolid,
         route: 'skills',
         showInSidebar: false,
         showInBottomNav: false
-    },
-
-    {
-        label: 'sidebar.cron',
-        icon: DocumentIcon,
-        activeIcon: DocumentIconSolid,
-        route: 'cron',
-        showInSidebar: true,
-        showInBottomNav: true
-    },
-    {
-        label: 'prompt.title',
-        icon: DocumentTextIcon,
-        activeIcon: DocumentTextIconSolid,
-        route: 'prompts',
-        showInSidebar: true,
-        showInBottomNav: true
     },
     {
         label: 'settings.title',
