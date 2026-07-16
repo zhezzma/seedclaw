@@ -2,7 +2,7 @@
 import { ref, watch, onMounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import md from '../../utils/markdown/markdown'
-import { resolveMarkdownImageUrls } from '../../utils/media-url'
+import { resolveMarkdownResourceUrls } from '../../utils/media-url'
 import { useUiSettingsStore } from '../../stores/setting'
 import { useMediaPreview } from '../../composables/useMediaPreview'
 
@@ -52,7 +52,7 @@ const enhanceRenderedImages = () => {
 }
 
 const setRenderedHtml = async (html: string) => {
-    renderedHtml.value = resolveMarkdownImageUrls(html, settings.apiBaseUrl)
+    renderedHtml.value = resolveMarkdownResourceUrls(html, settings.apiBaseUrl)
     await nextTick()
     enhanceRenderedImages()
 }
