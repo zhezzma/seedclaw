@@ -596,8 +596,6 @@ export default {
         copyImageFailed: 'Failed to copy image',
         previousImage: 'Previous image',
         nextImage: 'Next image',
-        shareImage: 'Share image',
-        shareImageFailed: 'Failed to share image',
         zoomHint: 'Double tap to zoom | Pinch to zoom',
     },
     voice: {

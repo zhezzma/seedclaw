@@ -596,8 +596,6 @@ export default {
         copyImageFailed: '复制图片失败',
         previousImage: '上一张',
         nextImage: '下一张',
-        shareImage: '分享图片',
-        shareImageFailed: '分享图片失败',
         zoomHint: '双击放大 | 双指缩放',
     },
     voice: {
