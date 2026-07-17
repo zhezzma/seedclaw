@@ -29,6 +29,7 @@ const {
     handleMouseUp,
     downloadImage,
     copyImageToClipboard,
+    shareImage,
     fileViewerOpen,
     fileViewerName,
     fileViewerContent,
@@ -93,6 +94,16 @@ onBeforeUnmount(() => {
                             stroke="currentColor" class="w-6 h-6">
                             <path stroke-linecap="round" stroke-linejoin="round"
                                 d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+                        </svg>
+                    </button>
+                    <!-- Share -->
+                    <button v-if="isMobileDevice" @click.stop="shareImage(lightboxSrc)"
+                        class="btn btn-ghost btn-circle bg-white/10 text-white hover:bg-white/20 backdrop-blur-md"
+                        :title="t('chat.shareImage')" :aria-label="t('chat.shareImage')">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M7.217 10.907a2.25 2.25 0 100-1.814m0 1.814c.2-.118.415-.214.642-.285m-.642.285l6.566 3.772m0 0a2.25 2.25 0 103.935 2.188 2.25 2.25 0 00-3.935-2.188zm0-5.358a2.25 2.25 0 103.935-2.188 2.25 2.25 0 00-3.935 2.188zM7.86 9.378l5.923-3.401" />
                         </svg>
                     </button>
                     <!-- Download -->

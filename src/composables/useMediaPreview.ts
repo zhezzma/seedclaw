@@ -244,6 +244,66 @@ const copyImageToClipboard = async (src: string) => {
     }
 }
 
+const isShareCancelled = (error: unknown) =>
+    typeof error === 'object'
+    && error !== null
+    && 'name' in error
+    && error.name === 'AbortError'
+
+const shareImage = async (src: string) => {
+    const toast = useToast()
+    const showShareError = async () => {
+        const { i18n } = await import('../i18n')
+        toast.error(i18n.global.t('chat.shareImageFailed'))
+    }
+
+    if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') {
+        await showShareError()
+        return
+    }
+
+    let fileShareError: unknown
+
+    try {
+        const response = await fetch(src)
+        if (!response.ok) throw new Error(`Image request failed: ${response.status}`)
+
+        const blob = await response.blob()
+        const extension = getImageExtension(blob.type)
+        const file = new File(
+            [blob],
+            ensureFileExtension(`image-${Date.now()}`, extension),
+            { type: blob.type },
+        )
+        const shareData: ShareData = { files: [file] }
+
+        if (navigator.canShare?.(shareData)) {
+            try {
+                await navigator.share(shareData)
+                return
+            } catch (error) {
+                if (isShareCancelled(error)) return
+                fileShareError = error
+            }
+        }
+    } catch (error) {
+        fileShareError = error
+    }
+
+    if (/^https?:\/\//i.test(src)) {
+        try {
+            await navigator.share({ url: src })
+            return
+        } catch (error) {
+            if (isShareCancelled(error)) return
+            fileShareError = error
+        }
+    }
+
+    console.error('Share image failed:', fileShareError)
+    await showShareError()
+}
+
 const convertToPng = (blob: Blob): Promise<Blob> => {
     return new Promise((resolve, reject) => {
         const img = new Image()
@@ -311,6 +371,7 @@ const _mediaPreviewState = {
     handleMouseUp,
     downloadImage,
     copyImageToClipboard,
+    shareImage,
     // File viewer
     fileViewerOpen,
     fileViewerName,

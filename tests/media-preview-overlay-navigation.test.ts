@@ -31,3 +31,12 @@ test('navigation labels exist in both locales', () => {
     assert.match(en, /previousImage: 'Previous image'/)
     assert.match(en, /nextImage: 'Next image'/)
 })
+
+test('overlay shows native image sharing only on mobile', () => {
+    assert.match(overlay, /v-if="isMobileDevice" @click\.stop="shareImage\(lightboxSrc\)"/)
+    assert.match(overlay, /t\('chat\.shareImage'\)/)
+    assert.match(zh, /shareImage: '分享图片'/)
+    assert.match(zh, /shareImageFailed: '分享图片失败'/)
+    assert.match(en, /shareImage: 'Share image'/)
+    assert.match(en, /shareImageFailed: 'Failed to share image'/)
+})
