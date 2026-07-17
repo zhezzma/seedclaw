@@ -594,6 +594,8 @@ export default {
         downloadImageFailed: 'Download failed, please try again',
         copyImage: 'Copy Image',
         copyImageFailed: 'Failed to copy image',
+        previousImage: 'Previous image',
+        nextImage: 'Next image',
         zoomHint: 'Double tap to zoom | Pinch to zoom',
     },
     voice: {

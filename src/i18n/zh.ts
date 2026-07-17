@@ -594,6 +594,8 @@ export default {
         downloadImageFailed: '下载失败，请稍后重试',
         copyImage: '复制图片',
         copyImageFailed: '复制图片失败',
+        previousImage: '上一张',
+        nextImage: '下一张',
         zoomHint: '双击放大 | 双指缩放',
     },
     voice: {

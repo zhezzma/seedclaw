@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMediaPreview } from '../../composables/useMediaPreview'
 
@@ -13,6 +14,10 @@ const {
     imgTranslateY,
     isDragging,
     isMouseDragging,
+    canNavigateLightbox,
+    showPreviousImage,
+    showNextImage,
+    handleLightboxKeydown,
     closeLightbox,
     handleTouchStart,
     handleTouchMove,
@@ -29,6 +34,14 @@ const {
     fileViewerContent,
     closeFileViewer,
 } = useMediaPreview()
+
+onMounted(() => {
+    window.addEventListener('keydown', handleLightboxKeydown)
+})
+
+onBeforeUnmount(() => {
+    window.removeEventListener('keydown', handleLightboxKeydown)
+})
 </script>
 
 <template>
@@ -49,6 +62,26 @@ const {
                         }" class="max-w-[100vw] max-h-[100vh] object-contain shadow-2xl select-none"
                         :class="imgScale > 1 ? 'cursor-move' : ''" draggable="false" />
                 </div>
+
+                <!-- Previous image -->
+                <button v-if="canNavigateLightbox" @click.stop="showPreviousImage"
+                    class="fixed left-3 sm:left-6 top-1/2 -translate-y-1/2 btn btn-ghost btn-circle bg-white/10 text-white hover:bg-white/20 backdrop-blur-md z-[60]"
+                    :title="t('chat.previousImage')" :aria-label="t('chat.previousImage')">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                        stroke="currentColor" class="w-7 h-7">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                    </svg>
+                </button>
+
+                <!-- Next image -->
+                <button v-if="canNavigateLightbox" @click.stop="showNextImage"
+                    class="fixed right-3 sm:right-6 top-1/2 -translate-y-1/2 btn btn-ghost btn-circle bg-white/10 text-white hover:bg-white/20 backdrop-blur-md z-[60]"
+                    :title="t('chat.nextImage')" :aria-label="t('chat.nextImage')">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                        stroke="currentColor" class="w-7 h-7">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                    </svg>
+                </button>
 
                 <!-- Tools -->
                 <div class="fixed top-4 right-4 flex items-center gap-2 z-[60]">
