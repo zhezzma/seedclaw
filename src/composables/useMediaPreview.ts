@@ -32,6 +32,8 @@ const resetZoomState = () => {
     imgScale.value = 1
     imgTranslateX.value = 0
     imgTranslateY.value = 0
+    isDragging.value = false
+    isMouseDragging.value = false
 }
 
 const toggleZoom = () => {

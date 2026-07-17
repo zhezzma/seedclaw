@@ -12,10 +12,11 @@ test('HomeView synchronizes processed session images into the shared lightbox', 
     assert.match(source, /import \{ collectSessionImageSources \} from '\.\.\/utils\/session-image-gallery'/)
     assert.match(source, /import \{ useMediaPreview \} from '\.\.\/composables\/useMediaPreview'/)
     assert.match(source, /const \{ setLightboxSources \} = useMediaPreview\(\)/)
+    assert.match(source, /const gallerySignature = computed\(/)
     assert.match(
         source,
         /collectSessionImageSources\(processedMessages\.value, settingsStore\.apiBaseUrl\)/,
     )
-    assert.match(source, /sources => setLightboxSources\(sources\)/)
+    assert.match(source, /\(\) => setLightboxSources\(/)
     assert.match(source, /setLightboxSources\(\[\]\)/)
 })

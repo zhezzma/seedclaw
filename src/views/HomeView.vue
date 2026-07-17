@@ -76,9 +76,23 @@ const {
 
 const { setLightboxSources } = useMediaPreview()
 
+// 仅在可能改变画廊的输入变化时才重算，避免流式输出逐 chunk 全量解析 Markdown。
+// 签名覆盖：API 基址、消息数量、末条 id/块数/文本长度（流式增长的主要信号）。
+const gallerySignature = computed(() => {
+    const messages = processedMessages.value
+    const last = messages[messages.length - 1]
+    const lastTextLen = last?.blocks?.reduce(
+        (sum, b) => sum + ((b.type === 'text' || b.type === 'thinking') ? (b.text?.length ?? 0) : 0),
+        0,
+    ) ?? 0
+    return `${settingsStore.apiBaseUrl}|${messages.length}|${last?.id ?? ''}|${last?.blocks?.length ?? 0}|${lastTextLen}`
+})
+
 watch(
-    () => collectSessionImageSources(processedMessages.value, settingsStore.apiBaseUrl),
-    sources => setLightboxSources(sources),
+    gallerySignature,
+    () => setLightboxSources(
+        collectSessionImageSources(processedMessages.value, settingsStore.apiBaseUrl),
+    ),
     { immediate: true },
 )
 
