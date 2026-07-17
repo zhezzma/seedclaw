@@ -27,7 +27,7 @@ Add a focused, pure utility that derives image URLs from `DisplayMessage[]`:
 
 1. Walk messages and blocks in display order.
 2. Resolve structured image sources with the same URL and data-URI rules used by the message renderer.
-3. Parse Markdown using the existing Markdown configuration and collect image destinations from Markdown image tokens and supported inline HTML image markup.
+3. Parse Markdown using the existing Markdown configuration and collect image destinations from the image tokens that configuration renders.
 4. Resolve relative image destinations with the existing media URL policy.
 5. Remove empty values and duplicate URLs while preserving order.
 
