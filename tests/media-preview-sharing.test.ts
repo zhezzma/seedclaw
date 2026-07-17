@@ -1,8 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { useMediaPreview } from '../src/composables/useMediaPreview.ts'
+import { useToast } from '../src/composables/useToast.ts'
 
 const mediaPreview = useMediaPreview()
+const toast = useToast()
 const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
 const originalFetch = globalThis.fetch
 
@@ -20,9 +22,18 @@ const restoreGlobals = () => {
         delete (globalThis as { navigator?: Navigator }).navigator
     }
     globalThis.fetch = originalFetch
+    toast.clear()
 }
 
 test.afterEach(restoreGlobals)
+
+test('reports unsupported native sharing with the localized failure toast', async () => {
+    setNavigator({})
+
+    await assert.doesNotReject(() => mediaPreview.shareImage('https://example.com/photo.png'))
+
+    assert.equal(toast.toasts.value.at(-1)?.message, '分享图片失败')
+})
 
 test('shares the fetched image as a file when native file sharing is supported', async () => {
     const shareCalls: ShareData[] = []

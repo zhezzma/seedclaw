@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue'
+import { i18n } from '../i18n/index.ts'
 import { ensureFileExtension, getImageExtension, saveBlob } from '../utils/fileDownload.ts'
 import { useToast } from './useToast.ts'
 
@@ -252,13 +253,12 @@ const isShareCancelled = (error: unknown) =>
 
 const shareImage = async (src: string) => {
     const toast = useToast()
-    const showShareError = async () => {
-        const { i18n } = await import('../i18n')
+    const showShareError = () => {
         toast.error(i18n.global.t('chat.shareImageFailed'))
     }
 
     if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') {
-        await showShareError()
+        showShareError()
         return
     }
 
@@ -301,7 +301,7 @@ const shareImage = async (src: string) => {
     }
 
     console.error('Share image failed:', fileShareError)
-    await showShareError()
+    showShareError()
 }
 
 const convertToPng = (blob: Blob): Promise<Blob> => {
