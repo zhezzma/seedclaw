@@ -6,6 +6,10 @@ import mdct from './markdown-it-code-title.ts'
 import hljs from './hljs.ts'
 import markdownItMermaid from "./markdown-it-mermaid.ts"
 
+const katexPlugin = typeof mk === 'function'
+    ? mk
+    : (mk as unknown as { default: typeof mk }).default
+
 
 
 export interface MarkdownConfigOptions {
@@ -28,7 +32,7 @@ export function createMarkdownItInstance(options: MarkdownConfigOptions = {}): M
     })
     md.use(mdhljs, { hljs })
     md.use(mila, { attrs: { target: '_blank', rel: 'noopener' } })
-    md.use(mk, { throwOnError: false, errorColor: " #cc0000", enableBareBlocks: true, enableMathBlockInHtml: false, enableMathInlineInHtml: false, enableFencedBlocks: true });
+    md.use(katexPlugin, { throwOnError: false, errorColor: " #cc0000", enableBareBlocks: true, enableMathBlockInHtml: false, enableMathInlineInHtml: false, enableFencedBlocks: true });
     md.use(markdownItMermaid)
 
     return md

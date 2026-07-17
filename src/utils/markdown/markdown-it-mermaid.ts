@@ -1,5 +1,5 @@
 import MarkdownIt from 'markdown-it'
-import { mermaidCache, mermaidState } from './mermaid-cache'
+import { mermaidCache, mermaidState } from './mermaid-cache.ts'
 
 /** Simple string hash function for deterministic IDs */
 function hashCode(str: string): string {
