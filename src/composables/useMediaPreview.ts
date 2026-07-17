@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { ensureFileExtension, getImageExtension, saveBlob } from '../utils/fileDownload.ts'
 import { useToast } from './useToast.ts'
 
@@ -6,6 +6,10 @@ import { useToast } from './useToast.ts'
 
 const lightboxOpen = ref(false)
 const lightboxSrc = ref('')
+const sessionImageSources = ref<string[]>([])
+const lightboxSources = ref<string[]>([])
+const lightboxIndex = ref(-1)
+const canNavigateLightbox = computed(() => lightboxSources.value.length > 1)
 
 const imgScale = ref(1)
 const imgTranslateX = ref(0)
@@ -38,15 +42,60 @@ const toggleZoom = () => {
     }
 }
 
+const setLightboxSources = (sources: string[]) => {
+    sessionImageSources.value = Array.from(new Set(sources.filter(Boolean)))
+
+    if (!lightboxOpen.value) return
+
+    const currentIndex = sessionImageSources.value.indexOf(lightboxSrc.value)
+    if (currentIndex >= 0) {
+        lightboxSources.value = sessionImageSources.value
+        lightboxIndex.value = currentIndex
+    }
+}
+
 const openLightbox = (src: string) => {
     resetZoomState()
+
+    const sessionIndex = sessionImageSources.value.indexOf(src)
+    lightboxSources.value = sessionIndex >= 0
+        ? sessionImageSources.value
+        : [src]
+    lightboxIndex.value = sessionIndex >= 0 ? sessionIndex : 0
     lightboxSrc.value = src
     lightboxOpen.value = true
+}
+
+const switchLightboxImage = (offset: -1 | 1) => {
+    if (!canNavigateLightbox.value) return
+
+    const imageCount = lightboxSources.value.length
+    const nextIndex = (lightboxIndex.value + offset + imageCount) % imageCount
+    lightboxIndex.value = nextIndex
+    lightboxSrc.value = lightboxSources.value[nextIndex]
+    resetZoomState()
+}
+
+const showPreviousImage = () => switchLightboxImage(-1)
+const showNextImage = () => switchLightboxImage(1)
+
+const handleLightboxKeydown = (event: KeyboardEvent) => {
+    if (!lightboxOpen.value || !canNavigateLightbox.value) return
+
+    if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        showPreviousImage()
+    } else if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        showNextImage()
+    }
 }
 
 const closeLightbox = () => {
     lightboxOpen.value = false
     lightboxSrc.value = ''
+    lightboxSources.value = []
+    lightboxIndex.value = -1
     resetZoomState()
 }
 
@@ -238,6 +287,9 @@ const _mediaPreviewState = {
     // Image lightbox
     lightboxOpen,
     lightboxSrc,
+    lightboxSources,
+    lightboxIndex,
+    canNavigateLightbox,
     imgScale,
     imgTranslateX,
     imgTranslateY,
@@ -245,6 +297,10 @@ const _mediaPreviewState = {
     isMouseDragging,
     openLightbox,
     closeLightbox,
+    setLightboxSources,
+    showPreviousImage,
+    showNextImage,
+    handleLightboxKeydown,
     handleTouchStart,
     handleTouchMove,
     handleTouchEnd,
