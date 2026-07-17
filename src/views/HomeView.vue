@@ -7,6 +7,7 @@ import { useUiSettingsStore } from '../stores/setting'
 import { ChevronDoubleDownIcon } from '@heroicons/vue/24/outline'
 
 import { useChatMessages, type DisplayMessage } from '../composables/useChatMessages'
+import { useMediaPreview } from '../composables/useMediaPreview'
 import { useScrollManager } from '../composables/useScrollManager'
 import type { BranchInfo } from '../components/chat/MessageBubble.vue'
 import { useTTS } from '../composables/useTTS'
@@ -35,6 +36,7 @@ import { useToast } from '../composables/useToast'
 import { useWorkspacePanel } from '../composables/useWorkspacePanel'
 import { useWorkspaceViewer } from '../composables/useWorkspaceViewer'
 import { truncateText } from '../utils/format'
+import { collectSessionImageSources } from '../utils/session-image-gallery'
 import { buildBranchIndexes, findLeafId as findBranchLeafId, getBranchInfo as resolveBranchInfo } from '../utils/chatBranchNavigation'
 
 const route = useRoute()
@@ -71,6 +73,14 @@ const {
     isBusy,
     streamingText,
 } = useChatMessages(chatState as any)
+
+const { setLightboxSources } = useMediaPreview()
+
+watch(
+    () => collectSessionImageSources(processedMessages.value, settingsStore.apiBaseUrl),
+    sources => setLightboxSources(sources),
+    { immediate: true },
+)
 
 // 滚动管理 composable
 const {
@@ -686,6 +696,7 @@ onMounted(async () => {
 onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside)
     window.removeEventListener('keydown', handleWorkspaceShortcut)
+    setLightboxSources([])
 })
 
 
