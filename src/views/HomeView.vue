@@ -55,10 +55,12 @@ const { loadCommands, setCurrentAgent } = useCommandState()
 const wsPanel = useWorkspacePanel()
 const wsViewer = useWorkspaceViewer()
 
-const busyAllowedCommands = ['steer', 'follow-up', 'goal']
+// busy 时仍允许走 /chat 的命令（goal 等）。/steer /follow-up /abort 走控制 API，不在此列。
+const busyAllowedCommands = ['goal']
 const busyAllowedCommandPattern = new RegExp(`^\\/(${busyAllowedCommands
     .map(command => command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
     .join('|')})(?=\\s|$)`)
+const deliveryCommandPattern = /^\/(follow-up|steer|abort)(?:\s+([\s\S]*))?$/i
 
 // Refs
 const messagesContainerRef = ref<HTMLDivElement | null>(null)
@@ -311,6 +313,41 @@ const showMobileSessionList = computed(() => {
 })
 
 
+/**
+ * 解析并执行控制命令：/follow-up | /steer | /abort。
+ * 一律走专用 API，不经 POST /chat。
+ * @returns true 表示已处理（含参数错误），调用方应直接 return
+ */
+const trySendDeliveryCommand = async (inputText: string): Promise<boolean> => {
+    const match = inputText.match(deliveryCommandPattern)
+    if (!match) return false
+
+    const cmd = match[1].toLowerCase()
+    const deliveryText = (match[2] || '').trim()
+
+    if (cmd === 'abort') {
+        // /abort 不接受正文；有多余参数也直接中止
+        await chatState.abortChat()
+        return true
+    }
+
+    if (!deliveryText) {
+        useToast().warning(cmd === 'steer' ? '用法: /steer <text>' : '用法: /follow-up <text>')
+        if (chatInputRef.value) {
+            chatInputRef.value.inputText = inputText
+        }
+        return true
+    }
+
+    if (cmd === 'steer') {
+        await chatState.steerMessage(deliveryText)
+    } else {
+        await chatState.followMessage(deliveryText)
+    }
+    scrollToBottom(true)
+    return true
+}
+
 // Send message handler
 // Send message handler
 const handleSend = async () => {
@@ -352,6 +389,9 @@ const handleSend = async () => {
 
     // Case 2: Busy + has text
     if (isBusy.value && inputText) {
+        // /follow-up /steer /abort：走控制 API，不经 /chat
+        if (await trySendDeliveryCommand(inputText)) return
+
         // 检查是否为 / 开头的命令
         if (inputText.startsWith('/')) {
             // Allow a small set of commands to pass through as normal messages while busy.
@@ -379,6 +419,9 @@ const handleSend = async () => {
     }
 
     // Case 3: Not busy → normal send
+    // /follow-up /steer /abort 在 idle 也走控制 API，避免 POST /chat 返回 JSON 而非 SSE
+    if (await trySendDeliveryCommand(inputText)) return
+
     // Determine session key
     let targetSessionKey = chatState.sessionKey
     const isNew = isNewSession(route)

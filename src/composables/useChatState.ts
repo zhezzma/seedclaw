@@ -675,7 +675,23 @@ const followMessage = async (message: string, sessionKey?: string) => {
         return
     }
 
-    await sendMessage(`/follow-up ${message}`, undefined, targetKey)
+    const sessionId = targetKey
+    const sessionData = getSessionData(targetKey)
+
+    // 乐观 UI：只插纯文本 user 气泡；不 abort 当前 SSE，不走 /chat
+    sessionData.chatMessages = [...sessionData.chatMessages, {
+        role: 'user',
+        content: message,
+        timestamp: Date.now(),
+        id: generateUUID()
+    }]
+
+    try {
+        // 控制面：与 steer 对称，排队到当前 run 结束后再投递
+        await apiPost(`/api/chat/${sessionId}/follow-up`, { text: message })
+    } catch (err: any) {
+        console.error('Failed to follow-up:', err)
+    }
 }
 
 
