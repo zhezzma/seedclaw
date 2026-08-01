@@ -302,3 +302,27 @@ test('WorkspaceFileView: 向 viewer 同步 dirty 状态', () => {
     assert.match(src, /useWorkspaceViewer/, 'must read viewer composable')
     assert.match(src, /viewer\.setDirty/, 'must propagate dirty state to viewer')
 })
+
+test('WorkspaceFileView: text 模式接受 language prop 并在 loadText 优先使用', () => {
+    const src = read('src/components/workspace/WorkspaceFileView.vue')
+    // 接受可选 language prop（代码块全屏按 fence 语言高亮，而非内容猜）
+    assert.match(src, /language\?:\s*string/, 'must accept an optional language prop for text mode')
+    // loadText 必须优先用 props.language（而非仅 guessLanguageFromContent）
+    assert.match(src, /props\.language/, 'loadText must prefer the language prop over content-based guess')
+    // 复用共享的标签 → monaco id 解析（不内联映射表，避免与 monaco-setup 漂移）
+    assert.match(src, /resolveLanguageId/, 'must resolve fence label via shared resolveLanguageId')
+})
+
+test('monaco-setup: 导出 resolveLanguageId（代码块语言标签 → monaco id，未知回退 plaintext）', () => {
+    const src = read('src/components/workspace/monaco-setup.ts')
+    assert.match(src, /export function resolveLanguageId/, 'must export resolveLanguageId')
+    assert.match(src, /plaintext/, 'must fall back to plaintext for unknown labels')
+})
+
+test('markdown: 代码块全屏读取 fence 语言并透传给 openText', () => {
+    const src = read('src/utils/markdown/markdown.ts')
+    // 必须从代码块头部 .code-language 取语言（否则全屏丢失高亮）
+    assert.match(src, /code-language/, 'onFullscreen must read the language from the .code-language span')
+    // 仍走统一的 openText（现在带语言参数）
+    assert.match(src, /openText\(/, 'must dispatch fullscreen via openText')
+})

@@ -48,6 +48,8 @@ const breadcrumb = computed(() => {
     if (!tgt) return ''
     if (tgt.type === 'file') return tgt.path
     if (tgt.type === 'agent-file') return `agent / ${tgt.path}`
+    if (tgt.type === 'absolute') return tgt.path
+    if (tgt.type === 'text') return tgt.title || t('fileViewer.preview')
     if (tgt.type === 'diff') {
         const sha = tgt.ref ? ` @ ${tgt.ref.slice(0, 7)}` : ''
         return `${tgt.repo} / ${tgt.file}${sha}`
@@ -57,7 +59,7 @@ const breadcrumb = computed(() => {
 
 // ── file 模式按钮状态：通过 fileViewRef.value 直接读 expose 的 ref ──
 const isFileMode = computed(() =>
-    target.value?.type === 'file' || target.value?.type === 'agent-file',
+    target.value?.type === 'file' || target.value?.type === 'agent-file' || target.value?.type === 'absolute',
 )
 const fileIsDirty = computed(() => fileViewRef.value?.isDirty ?? false)
 const fileIsSaving = computed(() => fileViewRef.value?.isSaving ?? false)
@@ -71,7 +73,7 @@ const fileSaveDisabled = computed(() =>
 // previewableExt 从 workspace-api 导入，与子组件 togglePreview 共用同一仰仰。
 const previewKind = computed(() => {
     const tgt = target.value
-    if (!tgt || (tgt.type !== 'file' && tgt.type !== 'agent-file')) return null
+    if (!tgt || (tgt.type !== 'file' && tgt.type !== 'agent-file' && tgt.type !== 'absolute')) return null
     return previewableExt(tgt.path)
 })
 const showPreviewButton = computed(() => previewKind.value !== null)
@@ -202,6 +204,11 @@ watch(target, () => {
                 :path="target.path" scope="workspace" />
             <WorkspaceFileView v-else-if="target?.type === 'agent-file'" ref="fileViewRef" :agent-id="agentId"
                 :path="target.path" scope="agent" />
+            <!-- absolute：任意绝对路径（工具调用返回），走 /api/files/open，不需要 agentId -->
+            <WorkspaceFileView v-else-if="target?.type === 'absolute'" ref="fileViewRef" agent-id=""
+                :path="target.path" scope="absolute" />
+            <!-- text：纯文本只读预览（工具结果 / 代码块全屏），复用 WorkspaceFileView + readonly，无路径/agentId -->
+            <WorkspaceFileView v-else-if="target?.type === 'text'" ref="fileViewRef" agent-id="" path="" :content="target.content" :language="target.language" readonly />
             <WorkspaceDiffEditor v-else-if="target?.type === 'diff'" ref="diffViewRef" :agent-id="agentId"
                 :repo="target.repo" :mode="target.mode" :file="target.file" :ref-sha="target.ref" />
         </div>

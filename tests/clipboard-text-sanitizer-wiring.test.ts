@@ -8,7 +8,6 @@ const testDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(testDir, '..')
 
 const clipboardUtilsSource = readFileSync(path.join(repoRoot, 'src/utils/clipboard.ts'), 'utf8')
-const fileViewSource = readFileSync(path.join(repoRoot, 'src/views/FileView.vue'), 'utf8')
 const homeViewSource = readFileSync(path.join(repoRoot, 'src/views/HomeView.vue'), 'utf8')
 const markdownCodeTitleSource = readFileSync(path.join(repoRoot, 'src/utils/markdown/markdown-it-code-title.ts'), 'utf8')
 const mermaidRenderSource = readFileSync(path.join(repoRoot, 'src/utils/markdown/mermaid-render.ts'), 'utf8')
@@ -49,9 +48,6 @@ test('writeClipboard strips a leading BOM before writing text without exporting 
 })
 
 test('text-copy entry points use the shared clipboard writer', () => {
-  assert.match(fileViewSource, /from ['"]\.\.\/utils\/clipboard(?:\.ts)?['"]/)
-  assert.match(fileViewSource, /writeClipboard\(content\.value\)/)
-
   assert.match(homeViewSource, /from ['"]\.\.\/utils\/clipboard(?:\.ts)?['"]/)
   assert.match(homeViewSource, /writeClipboard\(text\)/)
 

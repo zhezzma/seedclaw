@@ -237,8 +237,22 @@ export function fetchFile(agentId: string, path: string): Promise<FileContent> {
 export async function fetchRawFile(
     agentId: string,
     path: string,
-    scope: 'workspace' | 'agent' = 'workspace',
+    scope: 'workspace' | 'agent' | 'absolute' = 'workspace',
 ): Promise<Blob> {
+    // absolute scope：任意绝对路径，走 /api/files/raw（与 workspace/agent 的 raw 端点不同）。
+    if (scope === 'absolute') {
+        const url = `${baseUrl()}/api/files/raw?path=${encodeURIComponent(path)}`
+        const response = await fetch(url, { method: 'GET', headers: authHeaders() })
+        if (!response.ok) {
+            let msg = `HTTP ${response.status}`
+            try {
+                const body = await response.json()
+                if (body?.error) msg = body.error
+            } catch { /* 二进制响应不是 JSON，忽略 */ }
+            throw new WorkspaceApiError(msg, response.status)
+        }
+        return await response.blob()
+    }
     const endpoint = scope === 'agent' ? 'agent-raw' : 'raw'
     const url = `${baseUrl()}${base(agentId)}/${endpoint}?path=${encodeURIComponent(path)}`
     const response = await fetch(url, { method: 'GET', headers: authHeaders() })
@@ -361,6 +375,21 @@ export function renameEntry(
 export function fetchAgentTree(agentId: string, path: string): Promise<TreeResult> {
     const qs = path ? `?path=${encodeURIComponent(path)}` : ''
     return wsGet<TreeResult>(`${base(agentId)}/agent-tree${qs}`)
+}
+
+/** 读任意绝对路径文件（工具调用返回的真实文件系统路径，不属于任何 agent 沙箱）。
+ *  走 /api/files/open，无 resolveSafe 越界保护（与 workspace scope 的语义不同）。
+ *  后端已复用 workspace 的二进制检测 / 5MB 截断，返回完整 FileContent 契约，这里直接透传。 */
+export function fetchAbsoluteFile(path: string): Promise<FileContent> {
+    return wsPost<FileContent>(`/api/files/open`, { path })
+}
+
+/** 覆写任意绝对路径文件。走 /api/files/save。 */
+export function saveAbsoluteFile(
+    path: string,
+    content: string,
+): Promise<{ success: true }> {
+    return wsPost(`/api/files/save`, { path, content })
 }
 
 /** 读 agent 配置目录下的文件。 */

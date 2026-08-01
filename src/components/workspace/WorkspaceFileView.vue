@@ -23,27 +23,45 @@ import { useI18n } from 'vue-i18n'
 import {
     fetchFile, saveFile,
     fetchAgentFile, saveAgentFile,
+    fetchAbsoluteFile, saveAbsoluteFile,
     fetchRawFile, isImagePath, previewableExt,
 } from '../../composables/workspace-api'
 import { useToast } from '../../composables/useToast'
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
 import { useWorkspaceGit } from '../../composables/useWorkspaceGit'
-import { monaco, languageFromPath, monacoThemeFromDaisy } from './monaco-setup'
+import { monaco, languageFromPath, guessLanguageFromContent, resolveLanguageId, monacoThemeFromDaisy, MONACO_FILE_EDITOR_OPTIONS } from './monaco-setup'
 import MarkdownRenderer from '../chat/MarkdownRenderer.vue'
 
 const props = defineProps<{
+    /** agentId：workspace/agent scope 需要（走 agent-scoped API）；absolute/text 不用（传空串）。 */
     agentId: string
-    /** workspace 相对路径 (scope=workspace) 或 agentDir 相对路径 (scope=agent) */
+    /** workspace 相对路径 (scope=workspace) 或 agentDir 相对路径 (scope=agent)。
+     *  text 模式无路径，传空串（isTextMode 由 content 判定，不走 loadFile）。 */
     path: string
-    /** 默认 workspace；走 /file。agent 走 /agent-file，对应 paths.agentDir(id) 下的配置文件。 */
-    scope?: 'workspace' | 'agent'
+    /** 直接传入内容（text 只读预览模式），优先于 path：有 content 则跳过 fetch 直接展示。 */
+    content?: string
+    /** 默认 workspace；走 /file。agent 走 /agent-file，对应 paths.agentDir(id) 下的配置文件。
+     *  absolute 走 /api/files/open，任意绝对路径（工具调用返回的真实文件系统路径）。 */
+    scope?: 'workspace' | 'agent' | 'absolute'
+    /** 强制只读（text 预览模式传 true）。默认 false，文件模式可编辑。 */
+    readonly?: boolean
+    /** text 模式的语言标签（markdown fence 的 info string，如 'python'）。
+     *  优先于 guessLanguageFromContent：代码块全屏按声明的语言高亮，而非靠内容猜。 */
+    language?: string
 }>()
+
+/** text 只读预览模式：传了 content 即走此分支，跳过 fetch/save/dirty/git。 */
+const isTextMode = computed(() => props.content !== undefined)
 
 const scope = computed(() => props.scope ?? 'workspace')
 const fetchByScope = (id: string, p: string) =>
-    scope.value === 'agent' ? fetchAgentFile(id, p) : fetchFile(id, p)
+    scope.value === 'agent' ? fetchAgentFile(id, p)
+        : scope.value === 'absolute' ? fetchAbsoluteFile(p)
+            : fetchFile(id, p)
 const saveByScope = (id: string, p: string, content: string) =>
-    scope.value === 'agent' ? saveAgentFile(id, p, content) : saveFile(id, p, content)
+    scope.value === 'agent' ? saveAgentFile(id, p, content)
+        : scope.value === 'absolute' ? saveAbsoluteFile(p, content)
+            : saveFile(id, p, content)
 
 const { t } = useI18n()
 const toast = useToast()
@@ -69,8 +87,8 @@ const content = ref('')
 /** 上一次 load/save 后的原始内容；用于 dirty 比对 */
 const baselineContent = ref('')
 const isDirty = computed(() => content.value !== baselineContent.value)
-/** 只读条件：二进制 / 截断 / load 失败 / 图片 */
-const isReadOnly = computed(() => isBinary.value || isTruncated.value || isImage.value || error.value !== null)
+/** 只读条件：强制 readonly / 二进制 / 截断 / load 失败 / 图片 */
+const isReadOnly = computed(() => props.readonly || isBinary.value || isTruncated.value || isImage.value || error.value !== null)
 
 let editor: monaco.editor.IStandaloneCodeEditor | null = null
 let modelChangeDisposer: monaco.IDisposable | null = null
@@ -84,15 +102,7 @@ function ensureEditor() {
         language: 'plaintext',
         theme: monacoThemeFromDaisy(),
         readOnly: false, // 默认就能编辑（VSCode 风格）
-        automaticLayout: false, // 自己用 ResizeObserver 控制（automaticLayout 在隐藏容器中会跳）
-        minimap: { enabled: false },
-        scrollBeyondLastLine: false,
-        fontSize: 13,
-        fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-        lineNumbersMinChars: 3,
-        renderLineHighlight: 'line',
-        wordWrap: 'off',
-        smoothScrolling: true,
+        ...MONACO_FILE_EDITOR_OPTIONS,
     })
     // Ctrl/Cmd+S → save。Monaco 默认会把 Ctrl+S 给 cmd palette 用，addCommand 直接覆盖。
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
@@ -118,6 +128,32 @@ function attachModelChangeListener() {
         if (!editor) return
         content.value = editor.getValue()
     })
+}
+
+/** text 只读预览模式：直接用 props.content 初始化 model，不 fetch、不 save、不 dirty。
+ *  由 isTextMode 分支调用（工具结果预览 / 代码块全屏）。 */
+function loadText() {
+    ensureEditor()
+    if (!editor) return
+    const text = props.content ?? ''
+    const lang = props.language ? resolveLanguageId(props.language) : guessLanguageFromContent(text)
+    error.value = null
+    isBinary.value = false
+    isTruncated.value = false
+    isImage.value = false
+    previewMode.value = false
+    const model = editor.getModel()
+    if (model) {
+        monaco.editor.setModelLanguage(model, lang)
+        model.setValue(text)
+    } else {
+        editor.setModel(monaco.editor.createModel(text, lang))
+    }
+    attachModelChangeListener()
+    content.value = text
+    baselineContent.value = text
+    editor.updateOptions({ readOnly: isReadOnly.value })
+    editor.setScrollPosition({ scrollTop: 0 })
 }
 
 async function loadFile(path: string) {
@@ -283,7 +319,8 @@ onMounted(() => {
     ensureEditor()
     setupResizeObserver()
     setupThemeObserver()
-    loadFile(props.path)
+    if (isTextMode.value) loadText()
+    else loadFile(props.path)
 })
 
 // path / agentId / scope 变化即重拉
@@ -291,14 +328,23 @@ onMounted(() => {
 // `[isDirty, props.path]` watcher 误认为新文件的 dirty → viewer.dirty 错挂。
 // 预览模式也重置：避免从 html 切到别的文件后 Preview 按钮消失但 iframe 残留。
 watch(() => [props.agentId, props.path, scope.value], () => {
+    if (isTextMode.value) return // text 模式不 fetch
     content.value = ''
     baselineContent.value = ''
     previewMode.value = false
     loadFile(props.path)
 })
 
-// 向全局 viewer dirty 同步：跨组件（HomeView session 切换）检查未保存丢弃。
+// text 模式：content 变化重新展示（不 fetch）
+watch(() => props.content, () => {
+    if (!isTextMode.value) return
+    loadText()
+})
+
+// 向全局 viewer dirty 同步：跨组件（HomeView session 切换 / workspace tree 切文件）检查未保存丢弃。
 // path 变化同步重置，避免上一个文件的 dirty 状态泄露到新文件。
+// viewer 是单槽语义（同一时刻只开一个文件），所有 scope（含 absolute）都写全局 store，
+// 这样切文件 / session 时 confirm 才能拦住未保存改动；close() 会清理。
 watch(
     [isDirty, () => props.path],
     ([dirty, path]) => {

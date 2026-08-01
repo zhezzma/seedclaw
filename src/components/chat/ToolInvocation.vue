@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
 import {
     WrenchScrewdriverIcon,
     CheckCircleIcon,
@@ -10,7 +9,7 @@ import {
     ChevronRightIcon,
     EyeIcon
 } from '@heroicons/vue/24/outline'
-import FileView from '../../views/FileView.vue'
+import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
 
 const props = defineProps<{
     toolName: string
@@ -22,7 +21,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const router = useRouter()
+const wsViewer = useWorkspaceViewer()
 
 const isOpen = ref(false)
 
@@ -241,29 +240,14 @@ const resultPaths = computed(() => {
     return extractPaths(text)
 })
 
-const showModal = ref(false)
-const modalPath = ref('')
-const modalPreview = ref(false)
-const modalPreviewContent = ref('')
-
-/** 点击路径按钮 — 弹出 file-viewer */
+/** 点击路径按钮 — 全屏打开（复用 WorkspaceViewer，与 workspace 打开文件体验一致）*/
 function openFilePath(path: string) {
-    modalPath.value = path
-    modalPreview.value = false
-    modalPreviewContent.value = ''
-    showModal.value = true
+    wsViewer.openAbsolute(path)
 }
 
-/** 预览内容 — 弹出 file-viewer */
+/** 预览内容 — 全屏只读展示（复用 WorkspaceViewer 的 text 模式，与打开文件体验一致）*/
 function previewContent(content: string) {
-    modalPath.value = ''
-    modalPreview.value = true
-    modalPreviewContent.value = content
-    showModal.value = true
-}
-
-function closeModal() {
-    showModal.value = false
+    wsViewer.openText(content)
 }
 </script>
 
@@ -380,19 +364,5 @@ function closeModal() {
                 </div>
             </div>
         </div>
-
-        <!-- File Viewer Modal -->
-        <Teleport to="body" v-if="showModal">
-            <dialog class="modal modal-open">
-                <div
-                    class="modal-box w-full max-w-full h-full max-h-full rounded-none sm:w-11/12 sm:max-w-5xl sm:h-[85vh] sm:max-h-[85vh] sm:rounded-lg p-0 overflow-hidden flex flex-col bg-base-100 shadow-xl sm:border sm:border-base-300">
-                    <FileView is-modal :path="modalPath" :preview="modalPreview" :preview-content="modalPreviewContent"
-                        @close="closeModal" />
-                </div>
-                <div class="modal-backdrop bg-base-300/50 backdrop-blur-sm" @click="closeModal">
-                    <button class="sr-only">close</button>
-                </div>
-            </dialog>
-        </Teleport>
     </div>
 </template>

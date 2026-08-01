@@ -89,11 +89,6 @@ const router = createRouter({
                     component: LogView
                 },
                 {
-                    path: 'file-viewer',
-                    name: 'file-viewer',
-                    component: () => import('../views/FileView.vue')
-                },
-                {
                     path: 'prompts',
                     name: 'prompts',
                     component: PromptsView

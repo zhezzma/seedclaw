@@ -12,6 +12,8 @@ import type { DiffMode } from './workspace-api.ts'
 export type ViewerTarget =
     | { type: 'file'; path: string }
     | { type: 'agent-file'; path: string }
+    | { type: 'absolute'; path: string }
+    | { type: 'text'; content: string; title?: string; language?: string }
     | { type: 'diff'; repo: string; mode: DiffMode; file: string; ref?: string }
 
 const current = ref<ViewerTarget | null>(null)
@@ -33,6 +35,19 @@ const _viewerState = {
     /** 打开 agent 配置目录下的文件（agent-tree 点击）。 */
     openAgentFile(path: string) {
         current.value = { type: 'agent-file', path }
+    },
+    /** 打开任意绝对路径文件（工具调用返回的真实文件系统路径）。
+     *  与 openFile 的 workspace 相对路径不同：走 /api/files/open，无 resolveSafe 越界保护。 */
+    openAbsolute(path: string) {
+        current.value = { type: 'absolute', path }
+    },
+    /** 打开纯文本预览（工具结果 / 代码块全屏），只读展示，不落盘。
+     *  language 可选：代码块全屏时传 markdown fence 的语言标签，让 monaco 按语言高亮
+     *  （工具结果预览通常不传，回退到内容猜）。 */
+    openText(content: string, title?: string, language?: string) {
+        current.value = language !== undefined
+            ? { type: 'text', content, title, language }
+            : { type: 'text', content, title }
     },
     openDiff(args: { repo: string; mode: DiffMode; file: string; ref?: string }) {
         current.value = { type: 'diff', repo: args.repo, mode: args.mode, file: args.file, ref: args.ref }

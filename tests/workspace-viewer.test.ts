@@ -32,6 +32,33 @@ test('openAgentFile 设置 current.type=agent-file', () => {
     assert.equal(v.isActive.value, true)
 })
 
+test('openAbsolute 设置 current.type=absolute', () => {
+    const v = useWorkspaceViewer()
+    v.openAbsolute('/abs/path/file.ts')
+    assert.deepEqual(v.current.value, { type: 'absolute', path: '/abs/path/file.ts' })
+    assert.equal(v.isActive.value, true)
+})
+
+test('openText 设置 current.type=text', () => {
+    const v = useWorkspaceViewer()
+    v.openText('hello world', 'Preview')
+    assert.deepEqual(v.current.value, { type: 'text', content: 'hello world', title: 'Preview' })
+    assert.equal(v.isActive.value, true)
+})
+
+test('openText 透传 language 到 target（代码块全屏按语言高亮）', () => {
+    const v = useWorkspaceViewer()
+    v.openText('print(1)', 'Preview', 'python')
+    assert.deepEqual(v.current.value, { type: 'text', content: 'print(1)', title: 'Preview', language: 'python' })
+    assert.equal(v.isActive.value, true)
+})
+
+test('openText 不传 language 时 target 不携带 language 字段（保持向后兼容）', () => {
+    const v = useWorkspaceViewer()
+    v.openText('x')
+    assert.deepEqual(v.current.value, { type: 'text', content: 'x', title: undefined })
+})
+
 test('close 清空', () => {
     const v = useWorkspaceViewer()
     v.openFile('/a')

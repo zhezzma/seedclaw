@@ -2,19 +2,18 @@ import markdownWorker from './markdown-worker-wrapper'
 import { renderMermaidDiagrams } from "./mermaid-render.ts"
 import { createMarkdownItInstance } from './markdown-config'
 import { useToast } from '../../composables/useToast'
-import router from '../../router'
+import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
 
 
 
 // 创建同步渲染器作为回退选项
 const syncRenderer = createMarkdownItInstance({
     onCopySuccess: (_text, _element) => { useToast().success("复制成功!") },
-    onFullscreen: (code: string, _element: HTMLElement) => {
-        router.push({
-            name: 'file-viewer',
-            query: { preview: 'true' },
-            state: { previewContent: code }
-        } as any)
+    onFullscreen: (code: string, element: HTMLElement) => {
+        // 从代码块头部取声明的语言（.code-language），透传给 openText 让 monaco 按语言高亮；
+        // 无语言（空 fence）则交回 WorkspaceFileView 的内容猜。不拼到 history.state，走内存 target。
+        const lang = element.closest('.code-header')?.querySelector('.code-language')?.textContent?.trim() || undefined
+        useWorkspaceViewer().openText(code, undefined, lang)
     }
 })
 
