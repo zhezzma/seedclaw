@@ -58,7 +58,23 @@ const handleUninstall = async (skillId: string) => {
     }
 }
 
-const toggleSkill = async (skill: any) => {
+// Extension-skill whose backing extension is globally disabled cannot be toggled on
+const isExtensionGloballyDisabled = (skill: any) =>
+    skill?.kind === 'extension-skill' && !!skill?.extensionGloballyDisabled
+
+// Revert the checkbox DOM state when the request fails (:checked is one-way bound,
+// so Vue won't reset a user-flipped checkbox by itself)
+const revertToggle = (skill: any, event?: Event) => {
+    const input = event?.target as HTMLInputElement | null
+    if (input) input.checked = !!skill.enabled
+}
+
+const toggleSkill = async (skill: any, event?: Event) => {
+    if (isExtensionGloballyDisabled(skill)) {
+        revertToggle(skill, event)
+        toast.error(t('skills.extensionGloballyDisabledHint'))
+        return
+    }
     const skillId = skill.id
     processing.value[skillId] = true
     try {
@@ -66,6 +82,7 @@ const toggleSkill = async (skill: any) => {
         await skillsState.toggleAgentSkill(props.agent.id, skillId, newEnabled)
         skill.enabled = newEnabled
     } catch (e: any) {
+        revertToggle(skill, event)
         toast.error(t('skills.updateFailed', { error: e.message }))
     } finally {
         processing.value[skillId] = false
@@ -93,7 +110,12 @@ const handleUninstallGlobal = async (skillId: string) => {
     }
 }
 
-const toggleGlobalOrSystemSkill = async (skill: any) => {
+const toggleGlobalOrSystemSkill = async (skill: any, event?: Event) => {
+    if (isExtensionGloballyDisabled(skill)) {
+        revertToggle(skill, event)
+        toast.error(t('skills.extensionGloballyDisabledHint'))
+        return
+    }
     const skillId = skill.id
     processing.value[skillId] = true
     try {
@@ -101,6 +123,7 @@ const toggleGlobalOrSystemSkill = async (skill: any) => {
         await skillsState.toggleAgentSkill(props.agent.id, skillId, newEnabled)
         skill.enabled = newEnabled
     } catch (e: any) {
+        revertToggle(skill, event)
         toast.error(t('skills.updateFailed', { error: e.message }))
     } finally {
         processing.value[skillId] = false
@@ -188,8 +211,14 @@ const openSkillDoc = async (skill: any, type: 'agent' | 'system' | 'global') => 
                             </button>
 
                             <!-- Helper to toggle -->
-                            <input type="checkbox" class="toggle toggle-sm toggle-primary" :checked="skill.enabled"
-                                :disabled="processing[skill.id]" @change="toggleSkill(skill)" />
+                            <span v-if="isExtensionGloballyDisabled(skill)"
+                                class="badge badge-xs badge-warning">{{ $t('skills.extensionGloballyDisabled') }}</span>
+                            <span
+                                :title="isExtensionGloballyDisabled(skill) ? $t('skills.extensionGloballyDisabledHint') : ''">
+                                <input type="checkbox" class="toggle toggle-sm toggle-primary" :checked="skill.enabled"
+                                    :disabled="processing[skill.id] || isExtensionGloballyDisabled(skill)"
+                                    @change="toggleSkill(skill, $event)" />
+                            </span>
 
                             <button class="btn btn-ghost btn-square btn-sm text-error hover:bg-error/10"
                                 :disabled="processing[skill.id]" @click="handleUninstall(skill.id)"
@@ -239,8 +268,14 @@ const openSkillDoc = async (skill: any, type: 'agent' | 'system' | 'global') => 
                                 <DocumentTextIcon class="w-4 h-4" />
                             </button>
 
-                            <input type="checkbox" class="toggle toggle-sm toggle-info" :checked="skill.enabled"
-                                :disabled="processing[skill.id]" @change="toggleGlobalOrSystemSkill(skill)" />
+                            <span v-if="isExtensionGloballyDisabled(skill)"
+                                class="badge badge-xs badge-warning">{{ $t('skills.extensionGloballyDisabled') }}</span>
+                            <span
+                                :title="isExtensionGloballyDisabled(skill) ? $t('skills.extensionGloballyDisabledHint') : ''">
+                                <input type="checkbox" class="toggle toggle-sm toggle-info" :checked="skill.enabled"
+                                    :disabled="processing[skill.id] || isExtensionGloballyDisabled(skill)"
+                                    @change="toggleGlobalOrSystemSkill(skill, $event)" />
+                            </span>
                             <div class="badge badge-ghost badge-sm border-info/20 text-info">{{ $t('common.system') }}
                             </div>
                         </div>
@@ -286,8 +321,14 @@ const openSkillDoc = async (skill: any, type: 'agent' | 'system' | 'global') => 
                             </button>
 
                             <!-- Toggle for Global Skill -->
-                            <input type="checkbox" class="toggle toggle-sm toggle-secondary" :checked="skill.enabled"
-                                :disabled="processing[skill.id]" @change="toggleGlobalOrSystemSkill(skill)" />
+                            <span v-if="isExtensionGloballyDisabled(skill)"
+                                class="badge badge-xs badge-warning">{{ $t('skills.extensionGloballyDisabled') }}</span>
+                            <span
+                                :title="isExtensionGloballyDisabled(skill) ? $t('skills.extensionGloballyDisabledHint') : ''">
+                                <input type="checkbox" class="toggle toggle-sm toggle-secondary" :checked="skill.enabled"
+                                    :disabled="processing[skill.id] || isExtensionGloballyDisabled(skill)"
+                                    @change="toggleGlobalOrSystemSkill(skill, $event)" />
+                            </span>
 
                             <div class="badge badge-ghost badge-sm">{{ $t('common.global') }}</div>
 
