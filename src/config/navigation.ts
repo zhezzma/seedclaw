@@ -8,7 +8,8 @@ import {
     DocumentTextIcon,
     ArchiveBoxIcon,
     ClockIcon,
-    CalendarDaysIcon
+    CalendarDaysIcon,
+    PuzzlePieceIcon
 } from '@heroicons/vue/24/outline'
 
 import {
@@ -21,7 +22,8 @@ import {
     DocumentTextIcon as DocumentTextIconSolid,
     ArchiveBoxIcon as ArchiveBoxIconSolid,
     ClockIcon as ClockIconSolid,
-    CalendarDaysIcon as CalendarDaysIconSolid
+    CalendarDaysIcon as CalendarDaysIconSolid,
+    PuzzlePieceIcon as PuzzlePieceIconSolid
 } from '@heroicons/vue/24/solid'
 
 export interface NavItem {
@@ -72,6 +74,14 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         icon: ClockIcon,
         activeIcon: ClockIconSolid,
         route: 'cron',
+        showInSidebar: true,
+        showInBottomNav: true
+    },
+    {
+        label: 'extensions.title',
+        icon: PuzzlePieceIcon,
+        activeIcon: PuzzlePieceIconSolid,
+        route: 'extensions',
         showInSidebar: true,
         showInBottomNav: true
     },

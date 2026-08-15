@@ -11,6 +11,7 @@ import MainLayout from '../layouts/MainLayout.vue'
 import SetupView from '../views/SetupView.vue'
 import HomeView from '../views/HomeView.vue'
 import SettingsView from '../views/SettingsView.vue'
+import ExtensionsView from '../views/ExtensionsView.vue'
 import AgentsView from '../views/AgentsView.vue'
 import ModelsView from '../views/ModelsView.vue'
 import SkillsView from '../views/SkillsView.vue'
@@ -62,6 +63,11 @@ const router = createRouter({
                     path: 'settings',
                     name: 'settings',
                     component: SettingsView
+                },
+                {
+                    path: 'extensions',
+                    name: 'extensions',
+                    component: ExtensionsView
                 },
                 {
                     path: 'agents',

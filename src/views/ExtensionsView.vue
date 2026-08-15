@@ -1,0 +1,113 @@
+<script setup lang="ts">
+/**
+ * 扩展管理页：列出服务端发现的全部扩展（全局 + 项目级），
+ * 提供启用/禁用开关（乐观更新，失败回滚）与设置表单入口。
+ */
+import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { PuzzlePieceIcon, AdjustmentsHorizontalIcon } from '@heroicons/vue/24/outline'
+import ViewHeader from '../components/ViewHeader.vue'
+import ExtensionSettingsModal from '../components/extensions/ExtensionSettingsModal.vue'
+import { apiGet, apiPost } from '../composables/api-client'
+
+interface ExtensionItem {
+    id: string
+    name: string
+    description: string
+    enabled: boolean
+    hasSettings: boolean
+    source: 'project' | 'global'
+}
+
+const { t } = useI18n()
+
+const extensions = ref<ExtensionItem[]>([])
+const loading = ref(false)
+const loadError = ref('')
+
+// 设置弹层当前目标（null = 关闭）
+const settingsTarget = ref<ExtensionItem | null>(null)
+
+async function loadExtensions() {
+    loading.value = true
+    loadError.value = ''
+    try {
+        extensions.value = await apiGet<ExtensionItem[]>('/api/extensions')
+    } catch (e: any) {
+        loadError.value = e?.message || String(e)
+    } finally {
+        loading.value = false
+    }
+}
+
+async function toggleExtension(item: ExtensionItem) {
+    const next = !item.enabled
+    // 乐观更新：先切 UI，失败回滚（错误提示由 api-client 统一 toast）
+    item.enabled = next
+    try {
+        await apiPost(`/api/extensions/${encodeURIComponent(item.id)}/${next ? 'enable' : 'disable'}`)
+    } catch {
+        item.enabled = !next
+    }
+}
+
+onMounted(loadExtensions)
+</script>
+
+<template>
+    <div class="flex flex-col h-full bg-base-200">
+        <ViewHeader :title="t('extensions.title')" :is-main-page="true" />
+
+        <div class="flex-1 overflow-y-auto p-4 md:p-6">
+            <!-- 顶部提示 -->
+            <p class="text-xs text-base-content/50 mb-4">{{ t('extensions.newSessionHint') }}</p>
+
+            <!-- Loading -->
+            <div v-if="loading" class="flex justify-center p-8">
+                <span class="loading loading-spinner loading-lg text-primary"></span>
+            </div>
+
+            <!-- Error -->
+            <div v-else-if="loadError" class="alert alert-error">{{ loadError }}</div>
+
+            <!-- 空态 -->
+            <div v-else-if="extensions.length === 0" class="text-center py-8 text-base-content/50">
+                <PuzzlePieceIcon class="w-10 h-10 mx-auto mb-2 opacity-40" />
+                <p class="text-sm">{{ t('extensions.noExtensions') }}</p>
+            </div>
+
+            <!-- 格子 -->
+            <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div v-for="item in extensions" :key="item.id"
+                    class="card bg-base-100 shadow-sm border border-base-200 hover:border-primary transition-colors hover:shadow-md h-full">
+                    <div class="card-body p-4 gap-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <div class="w-2 h-2 rounded-full shrink-0"
+                                    :class="item.enabled ? 'bg-success' : 'bg-base-content/30'"></div>
+                                <h4 class="font-bold text-base truncate">{{ item.name }}</h4>
+                            </div>
+                            <span class="badge badge-sm badge-ghost shrink-0">
+                                {{ item.source === 'project' ? t('extensions.sourceProject') : t('extensions.sourceGlobal') }}
+                            </span>
+                        </div>
+
+                        <p class="text-xs text-base-content/50 line-clamp-2 min-h-8">{{ item.description || '—' }}</p>
+
+                        <div class="card-actions justify-end items-center pt-1">
+                            <button v-if="item.hasSettings" class="btn btn-ghost btn-sm btn-square"
+                                :title="t('extensions.settings')" @click="settingsTarget = item">
+                                <AdjustmentsHorizontalIcon class="h-5 w-5" />
+                            </button>
+                            <input type="checkbox" class="toggle toggle-primary toggle-sm" :checked="item.enabled"
+                                @change="toggleExtension(item)" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <ExtensionSettingsModal v-if="settingsTarget" :extension-id="settingsTarget.id"
+            :extension-name="settingsTarget.name" @close="settingsTarget = null" />
+    </div>
+</template>
