@@ -108,15 +108,6 @@ export const AGENT_FILE_DEFINITIONS = [
             { name: 'HEARTBEAT.md', labelKey: 'agent.files.heartbeat' },
             { name: 'BOOTSTRAP.md', labelKey: 'agent.files.bootstrap' },
         ]
-    },
-    {
-        groupKey: 'agent.memorySettings',
-        files: [
-            { name: 'MEMORY.md', labelKey: 'agent.files.memory' },
-            { name: 'SCRATCHPAD.md', labelKey: 'agent.files.scratchpad' },
-            { name: 'MEMORY_TODAY.md', labelKey: 'agent.files.memoryToday' },
-            { name: 'MEMORY_YESTERDAY.md', labelKey: 'agent.files.memoryYesterday' },
-        ]
     }
 ]
 

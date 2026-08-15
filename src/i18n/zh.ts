@@ -153,7 +153,6 @@ export default {
         configNotInList: '此智能体未在配置列表中定义，无法修改模型。',
         roleSettings: '角色设定',
         capabilitySettings: '能力设定',
-        memorySettings: '记忆设定',
         files: {
             agent: '智能体定义',
             system: '核心人设',
@@ -162,10 +161,6 @@ export default {
             user: '用户信息',
             heartbeat: '心跳配置',
             bootstrap: '引导脚本',
-            memory: '记忆存储',
-            scratchpad: '工作待办',
-            memoryToday: '今日记忆',
-            memoryYesterday: '昨日记忆',
         },
         missing: '缺失',
         empty: '空',

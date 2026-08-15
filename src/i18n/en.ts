@@ -153,7 +153,6 @@ export default {
         configNotInList: 'This agent is not defined in the configuration list, cannot modify model.',
         roleSettings: 'Role Settings',
         capabilitySettings: 'Capability Settings',
-        memorySettings: 'Memory Settings',
         files: {
             agent: 'Agent Definition',
             system: 'System',
@@ -162,10 +161,6 @@ export default {
             user: 'User Info',
             heartbeat: 'Heartbeat Config',
             bootstrap: 'Bootstrap Script',
-            memory: 'Memory Storage',
-            scratchpad: 'Scratchpad',
-            memoryToday: 'Today\'s Memory',
-            memoryYesterday: 'Yesterday\'s Memory',
         },
         missing: 'Missing',
         empty: 'Empty',
