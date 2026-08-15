@@ -67,7 +67,7 @@ async function save() {
 
 <template>
     <div class="modal modal-open">
-        <div class="modal-box max-w-lg">
+        <div class="modal-box max-w-2xl">
             <h3 class="font-bold text-lg mb-4">{{ t('extensions.settingsTitle', { name: extensionName }) }}</h3>
 
             <div v-if="loading" class="flex justify-center p-8">
