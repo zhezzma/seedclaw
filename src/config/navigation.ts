@@ -62,6 +62,14 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         showInBottomNav: true
     },
     {
+        label: 'extensions.title',
+        icon: PuzzlePieceIcon,
+        activeIcon: PuzzlePieceIconSolid,
+        route: 'extensions',
+        showInSidebar: true,
+        showInBottomNav: true
+    },
+    {
         label: 'prompt.title',
         icon: DocumentTextIcon,
         activeIcon: DocumentTextIconSolid,
@@ -74,14 +82,6 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         icon: ClockIcon,
         activeIcon: ClockIconSolid,
         route: 'cron',
-        showInSidebar: true,
-        showInBottomNav: true
-    },
-    {
-        label: 'extensions.title',
-        icon: PuzzlePieceIcon,
-        activeIcon: PuzzlePieceIconSolid,
-        route: 'extensions',
         showInSidebar: true,
         showInBottomNav: true
     },

@@ -651,7 +651,7 @@ export default {
         notificationsMultipleCandidates: '检测到多条待处理通知，已打开任务会话列表',
     },
     extensions: {
-        title: '扩展管理',
+        title: '扩展',
         newSessionHint: '扩展开关只对新会话生效；已挂载的扩展接口不受影响。',
         noExtensions: '未发现任何扩展',
         sourceProject: '项目',
