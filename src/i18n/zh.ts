@@ -28,6 +28,7 @@ export default {
         scrollToBottom: '滚动到底部',
         loadMore: '加载更多',
         error: '错误',
+        networkError: '网络请求失败',
         warning: '警告',
         info: '信息',
         back: '返回',

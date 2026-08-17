@@ -6,6 +6,7 @@
  */
 import { useUiSettingsStore } from '../stores/setting'
 import { useToast } from './useToast'
+import { i18n } from '../i18n'
 
 // ==================== Types ====================
 
@@ -50,6 +51,19 @@ function getHeaders(contentType?: string): Record<string, string> {
 // 需要静默处理的错误码（调用方自己处理）
 const SILENT_CODES = new Set([409, 404])
 
+/**
+ * fetch 层兜底提示：断网/服务器不可达/CORS 等 reject 不经过 handleResponse 的全局 toast，
+ * 此处统一提示后原样抛出（ApiError 类错误已按 SILENT_CODES 规则处理过，不在此列）。
+ */
+async function fetchWithToast(url: string, init: RequestInit): Promise<Response> {
+    try {
+        return await fetch(url, init)
+    } catch (e) {
+        useToast().error((i18n.global as any).t('common.networkError'), 5000)
+        throw e
+    }
+}
+
 async function handleResponse<T>(response: Response, silent = false): Promise<T> {
     if (!response.ok) {
         let errorMessage = `HTTP ${response.status}`
@@ -81,7 +95,7 @@ async function handleResponse<T>(response: Response, silent = false): Promise<T>
 
 export async function apiGet<T = any>(path: string): Promise<T> {
     const url = `${getBaseUrl()}${path}`
-    const response = await fetch(url, {
+    const response = await fetchWithToast(url, {
         method: 'GET',
         headers: getHeaders(),
     })
@@ -90,7 +104,7 @@ export async function apiGet<T = any>(path: string): Promise<T> {
 
 export async function apiPost<T = any>(path: string, body?: any): Promise<T> {
     const url = `${getBaseUrl()}${path}`
-    const response = await fetch(url, {
+    const response = await fetchWithToast(url, {
         method: 'POST',
         headers: getHeaders('application/json'),
         body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -100,7 +114,7 @@ export async function apiPost<T = any>(path: string, body?: any): Promise<T> {
 
 export async function apiPut<T = any>(path: string, body?: any): Promise<T> {
     const url = `${getBaseUrl()}${path}`
-    const response = await fetch(url, {
+    const response = await fetchWithToast(url, {
         method: 'PUT',
         headers: getHeaders('application/json'),
         body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -110,7 +124,7 @@ export async function apiPut<T = any>(path: string, body?: any): Promise<T> {
 
 export async function apiPatch<T = any>(path: string, body?: any): Promise<T> {
     const url = `${getBaseUrl()}${path}`
-    const response = await fetch(url, {
+    const response = await fetchWithToast(url, {
         method: 'PATCH',
         headers: getHeaders('application/json'),
         body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -120,7 +134,7 @@ export async function apiPatch<T = any>(path: string, body?: any): Promise<T> {
 
 export async function apiDelete<T = any>(path: string): Promise<T> {
     const url = `${getBaseUrl()}${path}`
-    const response = await fetch(url, {
+    const response = await fetchWithToast(url, {
         method: 'DELETE',
         headers: getHeaders(),
     })
@@ -138,7 +152,7 @@ export async function apiUpload<T = any>(path: string, formData: FormData): Prom
         headers['Authorization'] = `Bearer ${settings.token.trim()}`
     }
     // Do NOT set Content-Type — browser sets it with boundary for multipart
-    const response = await fetch(url, {
+    const response = await fetchWithToast(url, {
         method: 'POST',
         headers,
         body: formData,
@@ -156,7 +170,7 @@ export async function apiPatchMultipart<T = any>(path: string, formData: FormDat
     if (settings.token?.trim()) {
         headers['Authorization'] = `Bearer ${settings.token.trim()}`
     }
-    const response = await fetch(url, {
+    const response = await fetchWithToast(url, {
         method: 'PATCH',
         headers,
         body: formData,

@@ -25,6 +25,7 @@ export default {
         clear: 'Clear',
         success: 'Success',
         error: 'Error',
+        networkError: 'Network request failed',
         refresh: 'Refresh',
         scrollToBottom: 'Scroll to bottom',
         loadMore: 'Load More',
