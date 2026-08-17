@@ -1,17 +1,23 @@
+/**
+ * 扩展面板 qr-login 状态机。
+ * 调用扩展约定端点 POST /api/extensions/:extensionId/login/start|wait，
+ * 本地渲染二维码并轮询登录结果；面板显隐由宿主组件控制（activate/deactivate）。
+ * 模块级单例状态：同屏至多一个登录面板。
+ */
 import { computed, getCurrentScope, onScopeDispose, ref } from 'vue'
 import QRCode from 'qrcode'
 import { useUiSettingsStore } from '../stores/setting.ts'
 import { useToast } from './useToast.ts'
 
-export type WeixinLoginStatus = 'idle' | 'pending' | 'connected' | 'expired' | 'failed'
+export type QrLoginStatus = 'idle' | 'pending' | 'connected' | 'expired' | 'failed'
 
-export interface WeixinLoginStartPayload {
+export interface QrLoginStartPayload {
     sessionKey: string
     qrcode: string
     qrcodeUrl: string
 }
 
-export type WeixinLoginWaitPayload =
+export type QrLoginWaitPayload =
     | {
         status: 'pending'
         connected: false
@@ -42,13 +48,12 @@ export type WeixinLoginWaitPayload =
         error: string
     }
 
-const isModalOpen = ref(false)
+const isPanelActive = ref(false)
 const isStarting = ref(false)
 const sessionKey = ref('')
-const qrCodeText = ref('')
 const qrCodeUrl = ref('')
 const qrCodeImageDataUrl = ref('')
-const status = ref<WeixinLoginStatus>('idle')
+const status = ref<QrLoginStatus>('idle')
 const errorMessage = ref('')
 const accountId = ref('')
 
@@ -64,10 +69,10 @@ let pollTimer: ReturnType<typeof globalThis.setTimeout> | null = null
 let activePollSessionKey = ''
 let openGeneration = 0
 
-function buildApiUrl(path: string): string {
+function buildApiUrl(extensionId: string, action: 'start' | 'wait'): string {
     const settings = useUiSettingsStore()
     const baseUrl = settings.apiBaseUrl?.trim()
-    return `${baseUrl.replace(/\/+$/, '')}${path}`
+    return `${baseUrl.replace(/\/+$/, '')}/api/extensions/${encodeURIComponent(extensionId)}/login/${action}`
 }
 
 function getHeaders(contentType?: string): Record<string, string> {
@@ -82,8 +87,8 @@ function getHeaders(contentType?: string): Record<string, string> {
     return headers
 }
 
-async function postJson<T>(path: string, body?: unknown): Promise<T> {
-    const response = await fetch(buildApiUrl(path), {
+async function postJson<T>(url: string, body?: unknown): Promise<T> {
+    const response = await fetch(url, {
         method: 'POST',
         headers: getHeaders('application/json'),
         body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -101,7 +106,6 @@ function clearTimeoutSafe(timer: ReturnType<typeof globalThis.setTimeout>) {
 
 function resetVisibleState() {
     sessionKey.value = ''
-    qrCodeText.value = ''
     qrCodeUrl.value = ''
     qrCodeImageDataUrl.value = ''
     status.value = 'idle'
@@ -117,7 +121,7 @@ function stopPolling() {
     activePollSessionKey = ''
 }
 
-function applyWaitState(payload: WeixinLoginWaitPayload) {
+function applyWaitState(payload: QrLoginWaitPayload) {
     status.value = payload.status
     if (payload.status === 'pending') {
         qrCodeUrl.value = payload.qrcodeUrl || qrCodeUrl.value
@@ -136,9 +140,9 @@ function applyWaitState(payload: WeixinLoginWaitPayload) {
     stopPolling()
 }
 
-async function pollLoginOnce(currentSessionKey = sessionKey.value) {
+async function pollLoginOnce(extensionId: string, currentSessionKey = sessionKey.value) {
     if (!currentSessionKey) return
-    const payload = await postJson<WeixinLoginWaitPayload>('/api/channels/wechat/login/wait', {
+    const payload = await postJson<QrLoginWaitPayload>(buildApiUrl(extensionId, 'wait'), {
         sessionKey: currentSessionKey,
         timeoutMs: 1000,
     })
@@ -146,25 +150,29 @@ async function pollLoginOnce(currentSessionKey = sessionKey.value) {
     applyWaitState(payload)
 }
 
-function startPolling(currentSessionKey: string, generation: number) {
+function startPolling(extensionId: string, currentSessionKey: string, generation: number) {
     stopPolling()
     activePollSessionKey = currentSessionKey
 
     const schedule = () => {
         pollTimer = globalThis.setTimeout(async () => {
             try {
-                if (!isModalOpen.value || generation !== openGeneration || currentSessionKey !== sessionKey.value) {
+                if (!isPanelActive.value || generation !== openGeneration || currentSessionKey !== sessionKey.value) {
                     stopPolling()
                     return
                 }
-                await pollLoginOnce(currentSessionKey)
-                if (status.value === 'pending' && isModalOpen.value && generation === openGeneration && currentSessionKey === sessionKey.value) {
+                await pollLoginOnce(extensionId, currentSessionKey)
+                if (status.value === 'pending' && isPanelActive.value && generation === openGeneration && currentSessionKey === sessionKey.value) {
                     schedule()
                     return
                 }
                 stopPolling()
             } catch (error) {
                 stopPolling()
+                // 世代过期即丢弃：面板已关闭（状态已重置），迟到的轮询错误不应改写单例状态
+                if (generation !== openGeneration) {
+                    return
+                }
                 status.value = 'failed'
                 errorMessage.value = error instanceof Error ? error.message : String(error)
             }
@@ -174,30 +182,30 @@ function startPolling(currentSessionKey: string, generation: number) {
     schedule()
 }
 
-export function resetWeixinLoginForTest() {
+export function resetQrLoginForTest() {
     stopPolling()
-    isModalOpen.value = false
+    isPanelActive.value = false
     isStarting.value = false
     openGeneration = 0
     resetVisibleState()
 }
 
-export function useWeixinLogin() {
+export function useQrLogin(extensionId: string) {
     const toast = useToast()
 
     const statusTextKey = computed(() => {
-        if (isStarting.value) return 'sidebar.weixinLoginStarting'
+        if (isStarting.value) return 'extensions.qrLogin.starting'
         switch (status.value) {
             case 'pending':
-                return 'sidebar.weixinLoginWaiting'
+                return 'extensions.qrLogin.waiting'
             case 'connected':
-                return 'sidebar.weixinLoginSuccess'
+                return 'extensions.qrLogin.success'
             case 'expired':
-                return 'sidebar.weixinLoginExpired'
+                return 'extensions.qrLogin.expired'
             case 'failed':
-                return 'sidebar.weixinLoginFailed'
+                return 'extensions.qrLogin.failed'
             default:
-                return 'sidebar.weixinLoginIdle'
+                return 'extensions.qrLogin.idle'
         }
     })
 
@@ -208,7 +216,7 @@ export function useWeixinLogin() {
         if (isStarting.value) return
         if (!force && status.value === 'pending' && sessionKey.value) {
             if (activePollSessionKey !== sessionKey.value) {
-                startPolling(sessionKey.value, generation)
+                startPolling(extensionId, sessionKey.value, generation)
             }
             return
         }
@@ -218,15 +226,16 @@ export function useWeixinLogin() {
         qrCodeUrl.value = ''
         qrCodeImageDataUrl.value = ''
         try {
-            const payload = await postJson<WeixinLoginStartPayload>('/api/channels/wechat/login/start')
-            if (generation !== openGeneration && isModalOpen.value) {
+            const payload = await postJson<QrLoginStartPayload>(buildApiUrl(extensionId, 'start'))
+            // 世代过期即丢弃：面板已关闭（deactivate 已重置状态），迟到的写入只会污染单例状态
+            if (generation !== openGeneration) {
                 return
             }
             sessionKey.value = payload.sessionKey
             qrCodeUrl.value = payload.qrcodeUrl
             status.value = 'pending'
             void renderQrCodeDataUrl(payload.qrcodeUrl).then((dataUrl) => {
-                if (generation !== openGeneration && isModalOpen.value) {
+                if (generation !== openGeneration) {
                     return
                 }
                 if (sessionKey.value !== payload.sessionKey) {
@@ -234,17 +243,17 @@ export function useWeixinLogin() {
                 }
                 qrCodeImageDataUrl.value = dataUrl
             }).catch((renderError) => {
-                console.error('Failed to render weixin login QR locally', renderError)
+                console.error('Failed to render qr login code locally', renderError)
             })
-            await pollLoginOnce(payload.sessionKey)
-            if (generation !== openGeneration && isModalOpen.value) {
+            await pollLoginOnce(extensionId, payload.sessionKey)
+            if (generation !== openGeneration) {
                 return
             }
             if (status.value === 'pending') {
-                startPolling(payload.sessionKey, generation)
+                startPolling(extensionId, payload.sessionKey, generation)
             }
         } catch (error) {
-            if (generation !== openGeneration && isModalOpen.value) {
+            if (generation !== openGeneration) {
                 return
             }
             status.value = 'failed'
@@ -257,15 +266,16 @@ export function useWeixinLogin() {
         }
     }
 
-    function openModal() {
-        isModalOpen.value = true
+    // 面板激活（宿主挂载时调用）：idle 全新开始；pending 恢复轮询；expired/failed 重置后重开
+    function activate() {
+        isPanelActive.value = true
         openGeneration += 1
         if (status.value === 'idle') {
             void startLogin(true)
             return
         }
         if (status.value === 'pending' && sessionKey.value && activePollSessionKey !== sessionKey.value) {
-            startPolling(sessionKey.value, openGeneration)
+            startPolling(extensionId, sessionKey.value, openGeneration)
             return
         }
         if (status.value === 'expired' || status.value === 'failed') {
@@ -274,8 +284,9 @@ export function useWeixinLogin() {
         }
     }
 
-    function closeModal() {
-        isModalOpen.value = false
+    // 面板关闭（宿主卸载时调用）：停轮询并清空可见状态
+    function deactivate() {
+        isPanelActive.value = false
         openGeneration += 1
         isStarting.value = false
         stopPolling()
@@ -289,7 +300,7 @@ export function useWeixinLogin() {
     }
 
     return {
-        isModalOpen,
+        isPanelActive,
         isStarting,
         sessionKey,
         qrCodeUrl,
@@ -299,8 +310,8 @@ export function useWeixinLogin() {
         accountId,
         statusTextKey,
         qrCodeSrc,
-        openModal,
-        closeModal,
+        activate,
+        deactivate,
         startLogin,
         pollLoginOnce,
     }

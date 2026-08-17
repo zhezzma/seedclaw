@@ -9,6 +9,8 @@ import { PuzzlePieceIcon, AdjustmentsHorizontalIcon, InformationCircleIcon } fro
 import ViewHeader from '../components/ViewHeader.vue'
 import ExtensionSettingsModal from '../components/extensions/ExtensionSettingsModal.vue'
 import ExtensionUsageModal from '../components/extensions/ExtensionUsageModal.vue'
+import ExtensionPanelModal from '../components/extensions/ExtensionPanelModal.vue'
+import { getExtensionPanelIcon, getExtensionPanelTitleKey } from '../components/extensions/panel-registry'
 import { apiGet, apiPost } from '../composables/api-client'
 
 interface ExtensionItem {
@@ -18,6 +20,8 @@ interface ExtensionItem {
     enabled: boolean
     hasSettings: boolean
     hasUsage: boolean
+    /** extension.json 声明的面板类型列表（如 ['qr-login']）；无面板为空数组 */
+    panelTypes: string[]
     source: 'project' | 'global'
 }
 
@@ -31,12 +35,16 @@ const loadError = ref('')
 const settingsTarget = ref<ExtensionItem | null>(null)
 // 说明弹层当前目标（null = 关闭）
 const usageTarget = ref<ExtensionItem | null>(null)
+// 面板弹层当前目标（null = 关闭；携带具体 panelType，同一扩展可有多个面板入口）
+const panelTarget = ref<{ item: ExtensionItem; panelType: string } | null>(null)
 
 async function loadExtensions() {
     loading.value = true
     loadError.value = ''
     try {
-        extensions.value = await apiGet<ExtensionItem[]>('/api/extensions')
+        // 规范化：旧版服务端不下发 panelTypes 时兜底为空数组，消除对隐式缺省的假设
+        const raw = await apiGet<ExtensionItem[]>('/api/extensions')
+        extensions.value = raw.map((e) => ({ ...e, panelTypes: e.panelTypes ?? [] }))
     } catch (e: any) {
         loadError.value = e?.message || String(e)
     } finally {
@@ -99,6 +107,13 @@ onMounted(loadExtensions)
                         <p class="text-xs text-base-content/50 line-clamp-2 min-h-8">{{ item.description || '—' }}</p>
 
                         <div class="card-actions justify-end items-center pt-1">
+                            <template v-if="item.enabled">
+                                <button v-for="ptype in item.panelTypes" :key="ptype"
+                                    class="btn btn-ghost btn-sm btn-square" :title="t(getExtensionPanelTitleKey(ptype))"
+                                    @click="panelTarget = { item, panelType: ptype }">
+                                    <component :is="getExtensionPanelIcon(ptype)" class="h-5 w-5" />
+                                </button>
+                            </template>
                             <button v-if="item.hasUsage" class="btn btn-ghost btn-sm btn-square"
                                 :title="t('extensions.usage')" @click="usageTarget = item">
                                 <InformationCircleIcon class="h-5 w-5" />
@@ -119,5 +134,8 @@ onMounted(loadExtensions)
             :extension-name="settingsTarget.name" @close="settingsTarget = null" />
         <ExtensionUsageModal v-if="usageTarget" :extension-id="usageTarget.id"
             :extension-name="usageTarget.name" @close="usageTarget = null" />
+        <ExtensionPanelModal v-if="panelTarget" :key="panelTarget.item.id + ':' + panelTarget.panelType"
+            :extension-id="panelTarget.item.id" :extension-name="panelTarget.item.name"
+            :panel-type="panelTarget.panelType" @close="panelTarget = null" />
     </div>
 </template>

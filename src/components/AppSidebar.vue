@@ -8,7 +8,6 @@ import {
     ChatBubbleLeftRightIcon,
     TrashIcon,
     ArrowTopRightOnSquareIcon,
-    QrCodeIcon,
     ChevronDoubleLeftIcon,
     ChevronDoubleRightIcon,
 } from '@heroicons/vue/24/outline'
@@ -26,7 +25,6 @@ import { useNavActive } from '../composables/useNavActive'
 import { useUiSettingsStore } from '../stores/setting'
 import { useI18n } from 'vue-i18n'
 import { truncateText } from '../utils/format'
-import { useWeixinLogin } from '../composables/useWeixinLogin'
 
 type SessionMenuItem = {
     key: string
@@ -56,7 +54,6 @@ const infoLoading = ref(false)
 const infoSession = ref<SessionRow | null>(null)
 const { t } = useI18n()
 const configStore = useUiSettingsStore()
-const weixinLogin = useWeixinLogin()
 
 const isCollapsed = computed(() => configStore.isSidebarCollapsed)
 
@@ -67,11 +64,6 @@ const toggleCollapsed = () => {
 // Active session key: prefer chatState (reactive), fallback to route param
 const activeSessionKey = computed(() => {
     return chatState.sessionKey || (route.params.sessionkey as string) || ''
-})
-
-const weixinButtonLabel = computed(() => {
-    if (weixinLogin.status.value === 'connected') return t('sidebar.weixinLoginConnectedButton')
-    return t('sidebar.weixinLoginButton')
 })
 
 
@@ -258,11 +250,6 @@ const handleNavClick = (item: any) => {
         closeSidebarDrawer()
     }
 }
-
-const openWeixinLoginModal = () => {
-    closeSidebarDrawer()
-    weixinLogin.openModal()
-}
 </script>
 
 <template>
@@ -279,10 +266,6 @@ const openWeixinLoginModal = () => {
                     rel="noopener noreferrer" class="btn btn-ghost btn-circle btn-sm hover:bg-base-300">
                     <ArrowTopRightOnSquareIcon class="h-5 w-5" />
                 </a>
-                <button @click="openWeixinLoginModal" class="btn btn-ghost btn-circle btn-sm hover:bg-base-300"
-                    :title="$t('sidebar.weixinLoginButton')">
-                    <QrCodeIcon class="h-5 w-5" />
-                </button>
                 <button @click="router.push('/settings')" class="btn btn-ghost btn-circle btn-sm hover:bg-base-300">
                     <Cog6ToothIcon class="h-5 w-5" />
                 </button>
