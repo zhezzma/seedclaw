@@ -662,6 +662,9 @@ export default {
         settingsLoadFailed: '设置加载失败，扩展可能未注册设置表单',
         cancel: '取消',
         saveSuccess: '设置已保存',
+        usage: '使用说明',
+        usageTitle: '{name} 使用说明',
+        usageNotFound: '该扩展未提供使用说明',
     },
     settings: {
         title: '设置',

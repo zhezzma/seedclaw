@@ -662,6 +662,9 @@ export default {
         settingsLoadFailed: 'Failed to load settings; extension may not register a settings form',
         cancel: 'Cancel',
         saveSuccess: 'Settings saved',
+        usage: 'Usage',
+        usageTitle: '{name} Usage',
+        usageNotFound: 'This extension has no usage documentation',
     },
     settings: {
         title: 'Settings',

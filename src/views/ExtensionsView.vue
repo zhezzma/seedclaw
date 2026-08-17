@@ -5,9 +5,10 @@
  */
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { PuzzlePieceIcon, AdjustmentsHorizontalIcon } from '@heroicons/vue/24/outline'
+import { PuzzlePieceIcon, AdjustmentsHorizontalIcon, InformationCircleIcon } from '@heroicons/vue/24/outline'
 import ViewHeader from '../components/ViewHeader.vue'
 import ExtensionSettingsModal from '../components/extensions/ExtensionSettingsModal.vue'
+import ExtensionUsageModal from '../components/extensions/ExtensionUsageModal.vue'
 import { apiGet, apiPost } from '../composables/api-client'
 
 interface ExtensionItem {
@@ -16,6 +17,7 @@ interface ExtensionItem {
     description: string
     enabled: boolean
     hasSettings: boolean
+    hasUsage: boolean
     source: 'project' | 'global'
 }
 
@@ -27,6 +29,8 @@ const loadError = ref('')
 
 // 设置弹层当前目标（null = 关闭）
 const settingsTarget = ref<ExtensionItem | null>(null)
+// 说明弹层当前目标（null = 关闭）
+const usageTarget = ref<ExtensionItem | null>(null)
 
 async function loadExtensions() {
     loading.value = true
@@ -95,6 +99,10 @@ onMounted(loadExtensions)
                         <p class="text-xs text-base-content/50 line-clamp-2 min-h-8">{{ item.description || '—' }}</p>
 
                         <div class="card-actions justify-end items-center pt-1">
+                            <button v-if="item.hasUsage" class="btn btn-ghost btn-sm btn-square"
+                                :title="t('extensions.usage')" @click="usageTarget = item">
+                                <InformationCircleIcon class="h-5 w-5" />
+                            </button>
                             <button v-if="item.hasSettings" class="btn btn-ghost btn-sm btn-square"
                                 :title="t('extensions.settings')" @click="settingsTarget = item">
                                 <AdjustmentsHorizontalIcon class="h-5 w-5" />
@@ -109,5 +117,7 @@ onMounted(loadExtensions)
 
         <ExtensionSettingsModal v-if="settingsTarget" :extension-id="settingsTarget.id"
             :extension-name="settingsTarget.name" @close="settingsTarget = null" />
+        <ExtensionUsageModal v-if="usageTarget" :extension-id="usageTarget.id"
+            :extension-name="usageTarget.name" @close="usageTarget = null" />
     </div>
 </template>
