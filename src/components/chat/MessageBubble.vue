@@ -500,7 +500,7 @@ const { openLightbox, openFileViewer, downloadImage } = useMediaPreview()
                         </svg>
                         <div class="flex-1">
                             <div class="font-bold">{{ $t('common.error') }}</div>
-                            <div class="whitespace-pre-wrap">{{ block.error }}</div>
+                            <div class="break-all">{{ block.error }}</div>
                         </div>
                     </div>
                 </template>
