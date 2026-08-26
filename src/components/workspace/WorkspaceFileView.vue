@@ -9,6 +9,8 @@
  * - 二进制 / 截断的文件强制 readOnly（编辑后保存会写入损坏 / 截断数据 → 安全约束，不是 UX 选项）
  * - 图片文件走专用 raw 端点（workspace / agent）拿 blob 后用 <img> 渲染，不走 monaco
  * - HTML 预览（previewMode）用 iframe srcdoc 盖在编辑器之上，内容跟 dirty buffer
+ * - SVG 预览（previewMode）源码包成完整 HTML 文档走 iframe srcdoc + 空 sandbox
+ *   （无 allow-scripts / allow-same-origin，内嵌脚本/事件处理器一律不执行，比 HTML 更严格）
  * - Markdown 预览（previewMode）复用 chat 的 MarkdownRenderer，与其共享同一个
  *   agent-output 信任边界：markdown-it 默认 html=false 转义裸 HTML / 禁 javascript: scheme，
  *   但 mermaid securityLevel:'loose'、v-html 渲染到主文档是已知风险点（跟 chat 等价）；
@@ -79,8 +81,8 @@ const isTruncated = ref(false)
 /** 图片预览：图片扩展名命中 → 走 raw 获取 blob URL 渲染 <img>（两个 scope 都支持）。 */
 const isImage = ref(false)
 const imageObjectUrl = ref<string | null>(null)
-/** 预览模式（HTML）—— true 时用 iframe 渲染当前 buffer，替换编辑器。
- *  父组件通过 togglePreview() / setPreviewMode(false) 控制。 */
+/** 预览模式（html/svg iframe、md 渲染器）—— true 时预览渲染替换编辑器。
+ *  父组件通过 togglePreview() 控制。 */
 const previewMode = ref(false)
 /** 当前 model 的内容（响应式跟随 monaco onDidChangeModelContent 同步） */
 const content = ref('')
@@ -301,8 +303,16 @@ function setupThemeObserver() {
 }
 
 // 预览切换：父组件 Preview 按钮调用。
-// .html / .md 都可切换；渲染分支由模板按 previewKind 选择。
+// .html/.md/.svg 都可切换；渲染分支由模板按 previewKind 选择。
 const previewKind = computed(() => previewableExt(props.path))
+
+/** SVG 预览的 srcdoc：把 SVG 源码包成完整 HTML 文档。
+ *  计算属性避免在模板里写多行模板字符串（vue-tsc 对 <template> 内反引号解析易断）。 */
+const svgSrcDoc = computed(() => {
+    if (previewKind.value !== 'svg') return ''
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;height:100%;background:white;overflow:hidden;display:flex;align-items:center;justify-content:center;">${content.value}</body></html>`
+})
 function togglePreview() {
     if (previewKind.value === null) return
     previewMode.value = !previewMode.value
@@ -401,6 +411,16 @@ defineExpose({
 
             <!-- HTML 预览：用当前 dirty buffer 走 iframe srcdoc，allow-scripts 但不允许同源 -->
             <iframe v-else-if="previewMode && previewKind === 'html'" :srcdoc="content" sandbox="allow-scripts"
+                class="absolute inset-0 h-full w-full bg-white border-0"
+                :title="path" />
+
+            <!-- SVG 预览：把 SVG 源码包成完整 HTML 文档走 iframe srcdoc。
+                 sandbox 不加 allow-scripts → 内嵌 <script> / event handler 一律不执行，消除 SVG XSS 面；
+                 同时不加 allow-same-origin → 也无法访问主文档。
+                 与 HTML 预览形成对比：SVG 是纯展示，无交互需求，故比 HTML 更严格。 -->
+            <iframe v-else-if="previewMode && previewKind === 'svg'"
+                :srcdoc="svgSrcDoc"
+                sandbox=""
                 class="absolute inset-0 h-full w-full bg-white border-0"
                 :title="path" />
 

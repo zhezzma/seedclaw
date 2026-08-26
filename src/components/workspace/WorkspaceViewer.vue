@@ -68,9 +68,9 @@ const fileSaveDisabled = computed(() =>
     fileIsReadOnly.value || fileIsSaving.value || !fileIsDirty.value,
 )
 
-// 预览按钮：仅在当前文件是 .html/.htm/.md/.markdown 时显示。
+// 预览按钮：仅在当前文件是 .html/.htm/.md/.markdown/.svg 时显示。
 // 避免按钮常驻 disable 造成视觉噪音。
-// previewableExt 从 workspace-api 导入，与子组件 togglePreview 共用同一仰仰。
+// previewableExt 从 workspace-api 导入，与子组件 togglePreview 共用同一权威源。
 const previewKind = computed(() => {
     const tgt = target.value
     if (!tgt || (tgt.type !== 'file' && tgt.type !== 'agent-file' && tgt.type !== 'absolute')) return null
@@ -99,7 +99,7 @@ async function onClickSave() {
 }
 
 function onClickPreview() {
-    // .html / .md 都可切换；子组件根据当前文件选渲染分支。
+    // .html / .md / .svg 都可切换；子组件根据当前文件选渲染分支。
     if (previewKind.value === null) return
     fileViewRef.value?.togglePreview()
 }

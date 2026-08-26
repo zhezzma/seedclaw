@@ -237,6 +237,19 @@ test('WorkspaceFileView: 默认可编辑 + 保存 + dirty 追踪，无 view/edit
         'must temporarily set readOnly during load to avoid losing edits')
 })
 
+// 防回归：SVG 预览必须走空 sandbox iframe——内嵌 <script>/事件处理器一律不执行，
+// 且不得与主文档同源；将来不得“好心”加回 allow-scripts / allow-same-origin
+test('WorkspaceFileView: SVG 预览走空 sandbox iframe，杜绝 XSS 面', () => {
+    const src = read('src/components/workspace/WorkspaceFileView.vue')
+    assert.match(src, /previewKind === 'svg'/, 'must have svg preview branch')
+    const m = src.match(/previewKind === 'svg'"[\s\S]{0,200}?sandbox="([^"]*)"/)
+    assert.ok(m, 'svg preview iframe must declare a sandbox attribute')
+    assert.ok(!m[1].includes('allow-scripts'), 'svg sandbox must NOT allow scripts')
+    assert.ok(!m[1].includes('allow-same-origin'), 'svg sandbox must NOT share origin')
+    const api = read('src/composables/workspace-api.ts')
+    assert.match(api, /\\\.svg\$\/i/, 'previewableExt must match .svg')
+})
+
 test('WorkspaceDiffEditor: monaco diff editor + split/inline 切换', () => {
     const src = read('src/components/workspace/WorkspaceDiffEditor.vue')
     assert.match(src, /createDiffEditor/, 'must use monaco.editor.createDiffEditor')
