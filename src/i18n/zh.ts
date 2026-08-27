@@ -606,6 +606,15 @@ export default {
         openFile: '打开文件',
         preview: '预览',
     },
+    subagentTrace: {
+        title: '子代理轨迹',
+        trace: '轨迹',
+        viewTrace: '查看子代理轨迹',
+        viewAgentTrace: '查看 {agent} 轨迹',
+        empty: '暂无轨迹（子代理尚未产出）',
+        cleaned: '（轨迹已清理或尚未创建）',
+        loadFailed: '加载失败',
+    },
     fileViewer: {
         title: '文件查看器',
         preview: '内容预览',

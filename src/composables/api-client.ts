@@ -54,12 +54,13 @@ const SILENT_CODES = new Set([409, 404])
 /**
  * fetch 层兜底提示：断网/服务器不可达/CORS 等 reject 不经过 handleResponse 的全局 toast，
  * 此处统一提示后原样抛出（ApiError 类错误已按 SILENT_CODES 规则处理过，不在此列）。
+ * silent=true 供轮询类调用：不弹提示，由调用方内联展示错误。
  */
-async function fetchWithToast(url: string, init: RequestInit): Promise<Response> {
+async function fetchWithToast(url: string, init: RequestInit, silent = false): Promise<Response> {
     try {
         return await fetch(url, init)
     } catch (e) {
-        useToast().error((i18n.global as any).t('common.networkError'), 5000)
+        if (!silent) useToast().error((i18n.global as any).t('common.networkError'), 5000)
         throw e
     }
 }
@@ -93,13 +94,14 @@ async function handleResponse<T>(response: Response, silent = false): Promise<T>
 
 // ==================== Public API ====================
 
-export async function apiGet<T = any>(path: string): Promise<T> {
+/** silent=true 时错误不弹全局 toast（轮询场景由调用方内联处理） */
+export async function apiGet<T = any>(path: string, silent = false): Promise<T> {
     const url = `${getBaseUrl()}${path}`
     const response = await fetchWithToast(url, {
         method: 'GET',
         headers: getHeaders(),
-    })
-    return handleResponse<T>(response)
+    }, silent)
+    return handleResponse<T>(response, silent)
 }
 
 export async function apiPost<T = any>(path: string, body?: any): Promise<T> {

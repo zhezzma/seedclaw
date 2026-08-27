@@ -7,9 +7,12 @@ import {
     ExclamationCircleIcon,
     ChevronDownIcon,
     ChevronRightIcon,
-    EyeIcon
+    EyeIcon,
+    CommandLineIcon
 } from '@heroicons/vue/24/outline'
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
+import { useSubagentTrace } from '../../composables/useSubagentTrace'
+import { useChatState } from '../../composables/useChatState'
 
 const props = defineProps<{
     toolName: string
@@ -22,6 +25,8 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const wsViewer = useWorkspaceViewer()
+const traceViewer = useSubagentTrace()
+const chatState = useChatState()
 
 const isOpen = ref(false)
 
@@ -249,6 +254,19 @@ function openFilePath(path: string) {
 function previewContent(content: string) {
     wsViewer.openText(content)
 }
+
+// ─── 子代理轨迹查看 ─────────────────────────
+/** 任一子代理带回 subagentSessionId 即可查看落盘轨迹 */
+const canViewTrace = computed(() => {
+    return isSubagentTool.value && subagentResults.value.some((r: any) => r?.subagentSessionId)
+})
+
+/** 打开轨迹抽屉（全局状态，抽屉在 HomeView 挂载；点在哪个子代理行上就定位哪个 tab） */
+function openTrace(subId?: string) {
+    const parentSessionId = chatState.currentSession?.id
+    if (!parentSessionId) return
+    traceViewer.open(parentSessionId, subagentResults.value, subId)
+}
 </script>
 
 <template>
@@ -268,6 +286,13 @@ function previewContent(content: string) {
             <div class="flex-1 font-medium text-base-content/80">
                 {{ statusText }}
             </div>
+
+            <!-- 查看子代理轨迹（全局抽屉；运行中与完成后均可用） -->
+            <button v-if="canViewTrace" class="btn btn-ghost btn-xs gap-1 flex-none text-primary/80 hover:text-primary"
+                :title="$t('subagentTrace.viewTrace')" @click.stop="openTrace()">
+                <CommandLineIcon class="w-3.5 h-3.5" />
+                <span class="text-xs">{{ $t('subagentTrace.trace') }}</span>
+            </button>
 
             <!-- Toggle Icon -->
             <div class="flex-none text-base-content/50">
@@ -293,6 +318,12 @@ function previewContent(content: string) {
                 <span v-if="Number(r.usage?.turns) > 0" class="text-xs text-base-content/40">Turn {{ r.usage.turns }}</span>
                 <!-- Elapsed -->
                 <span v-if="r.startedAt" class="text-xs text-base-content/40 ml-auto">{{ formatElapsed(r.startedAt) }}</span>
+                <!-- 轨迹入口：点击直接定位到该子代理的 tab -->
+                <button v-if="r.subagentSessionId"
+                    class="btn btn-ghost btn-xs btn-circle flex-none text-base-content/40 hover:text-primary"
+                    :title="$t('subagentTrace.viewAgentTrace', { agent: r.agent })" @click.stop="openTrace(r.subagentSessionId)">
+                    <CommandLineIcon class="w-3 h-3" />
+                </button>
             </div>
             <!-- Streaming text preview -->
             <div v-if="subagentResults.length === 1 && subagentResults[0].streamingText && subagentResults[0].status === 'thinking'"

@@ -17,6 +17,7 @@ import MessageBubble from '../components/chat/MessageBubble.vue'
 import VirtualMessageList from '../components/chat/VirtualMessageList.vue'
 import ChatInput from '../components/chat/ChatInput.vue'
 import SessionTreeModal from '../components/chat/SessionTreeModal.vue'
+import SubagentTraceDrawer from '../components/chat/SubagentTraceDrawer.vue'
 import VoiceChatOverlay from '../components/chat/VoiceChatOverlay.vue'
 import SessionSidebar from '../components/chat/SessionSidebar.vue'
 import AppSidebar from '../components/AppSidebar.vue'
@@ -917,6 +918,9 @@ async function applyDefaultSessionBehavior() {
             <SessionTreeModal :open="showSessionTreeModal" :entries="chatState.sessionTree"
                 :leaf-id="chatState.sessionLeafId" :busy="sessionTreeBusy"
                 @close="showSessionTreeModal = false" @jump-to-entry="handleJumpToTreeEntry" />
+
+            <!-- 子代理轨迹抽屉（全局状态驱动，ToolInvocation 卡片按钮打开） -->
+            <SubagentTraceDrawer />
         </div>
 
         <!-- Workspace Panel (PC 右侧侧栏，可拖宽) -->

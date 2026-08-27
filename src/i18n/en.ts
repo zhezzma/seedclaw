@@ -606,6 +606,15 @@ export default {
         openFile: 'Open File',
         preview: 'Preview',
     },
+    subagentTrace: {
+        title: 'Subagent Trace',
+        trace: 'Trace',
+        viewTrace: 'View subagent trace',
+        viewAgentTrace: 'View {agent} trace',
+        empty: 'No trace yet (subagent has not produced output)',
+        cleaned: ' (trace cleaned up or not yet created)',
+        loadFailed: 'Failed to load',
+    },
     fileViewer: {
         title: 'File Viewer',
         preview: 'Content Preview',

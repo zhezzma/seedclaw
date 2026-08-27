@@ -34,6 +34,8 @@ const props = defineProps<{
     branchInfo?: BranchInfo | null
     /** 是否是最后一条消息，只有最后一条消息的 A2UI Surface 才允许交互 */
     isLastMessage?: boolean
+    /** 覆盖助手显示名（子代理轨迹抽屉传子代理名）；不传用当前 agent 名 */
+    agentName?: string
 }>()
 
 const emit = defineEmits<{
@@ -145,7 +147,7 @@ const getImageSrc = (source: any): string => {
 
 // 当前 Agent 信息直接从 chatState 获取，无需额外 watch 和查询
 const currentAgent = computed(() => chatState.currentAgent)
-const assistantName = computed(() => currentAgent.value?.identity?.name || currentAgent.value?.name || 'Assistant')
+const assistantName = computed(() => props.agentName || currentAgent.value?.identity?.name || currentAgent.value?.name || 'Assistant')
 const assistantAvatar = computed(() => {
     const avatar = currentAgent.value?.avatar
     return isAvatarUrl(avatar) ? avatar : (currentAgent.value?.identity?.emoji || null)
