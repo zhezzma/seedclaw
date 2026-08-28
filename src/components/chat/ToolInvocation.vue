@@ -282,8 +282,8 @@ function openTrace(subId?: string) {
                 <WrenchScrewdriverIcon v-else class="w-5 h-5 text-base-content/70" />
             </div>
 
-            <!-- Title -->
-            <div class="flex-1 font-medium text-base-content/80">
+            <!-- Title（min-w-0 允许被长 agent 名压缩，否则 flex 默认 min-width:auto 会把右侧按钮挤出容器） -->
+            <div class="flex-1 min-w-0 break-words font-medium text-base-content/80">
                 {{ statusText }}
             </div>
 
@@ -308,8 +308,8 @@ function openTrace(subId?: string) {
                 class="flex items-center gap-2 py-1" :class="{ 'border-t border-base-200 mt-1 pt-1': Number(idx) > 0 }">
                 <!-- Status icon -->
                 <span class="text-sm flex-none">{{ getStatusIcon(r.status) }}</span>
-                <!-- Agent name -->
-                <span class="font-mono text-xs font-semibold" :class="getStatusColorClass(r.status)">{{ r.agent }}</span>
+                <!-- Agent name（min-w-0 + break-all：长名收缩换行，保住右侧状态/耗时/轨迹入口） -->
+                <span class="font-mono text-xs font-semibold min-w-0 break-all" :class="getStatusColorClass(r.status)">{{ r.agent }}</span>
                 <!-- Status label -->
                 <span class="text-xs" :class="getStatusColorClass(r.status)">{{ getStatusLabel(r.status) }}</span>
                 <!-- Current tool (if running) -->
