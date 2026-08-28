@@ -43,6 +43,7 @@ const emit = defineEmits<{
     (e: 'read-aloud', msg: DisplayMessage): void
     (e: 'delete', msg: DisplayMessage): void
     (e: 'retry', msg: DisplayMessage): void
+    (e: 'fork', msg: DisplayMessage): void
     (e: 'edit', msg: DisplayMessage, newText: string): void
     (e: 'navigate-branch', msg: DisplayMessage, direction: 'prev' | 'next'): void
 }>()
@@ -525,6 +526,21 @@ const { openLightbox, openFileViewer, downloadImage } = useMediaPreview()
                 <template v-else>
                     <SpeakerWaveIcon class="h-4 w-4" />
                 </template>
+            </button>
+            <button v-if="!isBusy && message.entryId" @click="emit('fork', message)"
+                :disabled="chatState.isForkingEntry(message.entryId)"
+                class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-secondary hover:bg-secondary/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                :title="$t('chat.fork')">
+                <span v-if="chatState.isForkingEntry(message.entryId)" class="loading loading-spinner h-4 w-4"></span>
+                <!-- git-fork 图标（heroicons 无对应图标，用 lucide git-fork 路径内联） -->
+                <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
+                    <circle cx="12" cy="18" r="3" />
+                    <circle cx="6" cy="6" r="3" />
+                    <circle cx="18" cy="6" r="3" />
+                    <path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9" />
+                    <path d="M12 12v3" />
+                </svg>
             </button>
             <button v-if="!isBusy && message.entryId" @click="emit('retry', message)"
                 class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-warning hover:bg-warning/10"

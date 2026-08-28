@@ -533,6 +533,12 @@ const retryMessage = async (msg: DisplayMessage) => {
     // retry 逻辑同上，chatState 会接管
 }
 
+const forkMessage = async (msg: DisplayMessage) => {
+    if (!msg.entryId) return
+    // 从该条 AI 回复处分叉新会话（含该回复），成功后 chatState 会切换过去
+    await chatState.forkFromEntry(msg.entryId)
+}
+
 const editMessage = async (msg: DisplayMessage, newText: string) => {
     if (!msg.entryId) return
     await chatState.editMessage(msg.entryId, newText)
@@ -891,7 +897,7 @@ async function applyDefaultSessionBehavior() {
                             :scroll-container="messagesContainerRef" :is-wide-mode="settingsStore.isWideMode"
                             :get-branch-info="getBranchInfo" @copy="copyMessage" @read-aloud="readAloud"
                             @delete="deleteMessage" @retry="retryMessage" @edit="editMessage"
-                            @navigate-branch="navigateBranch" />
+                            @fork="forkMessage" @navigate-branch="navigateBranch" />
                     </div>
 
                     <!-- Scroll to bottom FAB -->

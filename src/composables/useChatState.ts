@@ -284,8 +284,9 @@ const handleCommandDelta = (data: any, targetKey: string) => {
             }
             break
         }
-        case 'new': {
-            // /new 命令：服务端已创建新会话，前端切换过去
+        case 'new':
+        case 'fork': {
+            // /new、/fork 命令：服务端已创建/分叉新会话，前端切换过去
             const newSessionId = data.data?.sessionId
             if (newSessionId) {
                 const sessionsState = useSessionsState()
@@ -830,6 +831,54 @@ const editMessage = async (entryId: string, newText: string, sessionKey?: string
     bindSSELifecycle(sse, targetKey)
 }
 
+// ==================== Fork ====================
+
+/**
+ * 从指定消息处分叉出新会话（position:"at"，新会话包含该消息），成功后切换过去。
+ * 用于 AI 回复下的“从此处分叉”按钮；原会话保留在侧边栏。
+ */
+const forkInFlight = reactive(new Set<string>())
+const forkFromEntry = async (entryId: string, sessionKey?: string) => {
+    const targetKey = sessionKey || state.sessionKey
+    if (!targetKey) {
+        console.error('[useChatState] forkFromEntry called without sessionKey')
+        return
+    }
+    // 防双击：请求在途时忽略重复触发，避免分叉出多个会话
+    const forkKey = `${targetKey}:${entryId}`
+    if (forkInFlight.has(forkKey)) return
+    forkInFlight.add(forkKey)
+
+    try {
+        const result = await apiPost<{ sessionId?: string }>(
+            `/api/sessions/${encodeURIComponent(targetKey)}/fork`,
+            { entryId, position: 'at' }
+        )
+        const newSessionId = result?.sessionId
+        if (!newSessionId) return
+
+        const sessionsState = useSessionsState()
+        sessionsState.loadSessions()
+        setSessionKey(newSessionId)
+        router.push({ name: 'chat', params: { sessionkey: newSessionId } })
+    } catch (err: any) {
+        console.error('[useChatState] forkFromEntry failed:', err)
+        // 404/409 在 api-client 的 SILENT_CODES 中不弹全局 toast，这里显式提示，避免按钮静默失败
+        // （ApiError 恒带 message，无需兑底文案）
+        if ([404, 409].includes(err?.code)) {
+            useToast().error(err?.message, 5000)
+        }
+    } finally {
+        forkInFlight.delete(forkKey)
+    }
+}
+
+/** 某条消息的分叉请求是否在途（供按钮展示 loading/禁用） */
+const isForkingEntry = (entryId: string, sessionKey?: string): boolean => {
+    const targetKey = sessionKey || state.sessionKey
+    return !!targetKey && forkInFlight.has(`${targetKey}:${entryId}`)
+}
+
 export interface SessionTreeEntry {
     id: string
     parentId: string | null
@@ -929,7 +978,8 @@ const _methods = {
     chatSending, chatRunId, chatStreamStartedAt, chatLoading, sessionUsage, currentAgent,
     sendMessage, steerMessage, followMessage, abortChat, loadChatHistory,
     setSessionKey, createNewSession, selectAgent, getSessionData,
-    deleteMessage, retryMessage, editMessage, fetchSessionTree, fetchSessionUsage, navigateBranch,
+    deleteMessage, retryMessage, editMessage, fetchSessionTree, fetchSessionUsage, navigateBranch, forkFromEntry,
+    isForkingEntry,
 }
 const _chatState = Object.assign(state, _methods) as unknown as typeof state & UnwrapComputed<typeof _methods>
 

@@ -528,6 +528,7 @@ export default {
         reasoning: 'Reasoning Process',
         readAloud: 'Read Aloud',
         retry: 'Retry',
+        fork: 'Fork from here',
         editUpdate: 'Update',
         waitMessage: 'Please wait for the current message to finish sending',
         inputPlaceholder: "Type a message or '/' to select a command",
