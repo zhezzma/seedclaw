@@ -6,6 +6,7 @@ import { apiGet, apiPost } from './api-client'
 import { startChatSSE, attachSessionSSE, startRetrySSE, startEditSSE, type SSEConnection } from './sse-client'
 import { AgentInfo, useAgentsState } from './useAgentsState'
 import { applyAttachMessageState, getLastMessageEntryId, shouldAttachSession } from '../utils/chat-attach'
+import { findToolBlockInMessages } from '../utils/tool-event-target'
 import { type KnownApi } from './useModelsState'
 import { useToast } from './useToast'
 import { clearAllSurfaces } from './useA2UISurfaces'
@@ -375,6 +376,13 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
                     }
                 }
 
+                // 刷新重连场景：工具执行于 assistant message_end 之后（pi 落盘后清空
+                // streamingMessage），toolCall block 只在历史消息里，chatStream 恒为空。
+                // 服务端 attach 重放的快照与后续 live 事件都靠这里落到历史 block 上
+                if (!toolCallItem) {
+                    toolCallItem = findToolBlockInMessages(sessionData.chatMessages, data.toolCallId)
+                }
+
                 if (toolCallItem) {
                     // Update arguments if present
                     if (data.args) {
@@ -417,6 +425,11 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
                 }
             }
 
+            // 刷新重连场景的历史 block 二级查找（同 tool_execution_update 的回退逻辑）
+            if (!toolCallItem) {
+                toolCallItem = findToolBlockInMessages(sessionData.chatMessages, data.toolCallId)
+            }
+
             if (toolCallItem) {
                 // Update final result and status
                 toolCallItem.toolResult = data.result.content
@@ -433,7 +446,9 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
                 role: 'toolResult',
                 content: data.result.content,
                 timestamp: Date.now(),
-                toolCallId: toolCallItem ? toolCallItem.id : data.toolCallId,
+                // 变体兜底：历史 block 形如 {type:'toolCall', toolCallId:'x'}（无 id）时，
+                // 仅取 item.id 会丢失定位 → 1.1 合并静默失效（就地写入已保终态，此为备份路径）
+                toolCallId: toolCallItem ? (toolCallItem.id ?? toolCallItem.toolCallId) : data.toolCallId,
                 isError: data.isError
             }]
 
@@ -511,7 +526,12 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
             // 静默刷新消息，补上 entryId/parentEntryId（不设置 chatLoading，避免页面闪烁）
             apiGet<{ messages: ChatMessage[] }>(`/api/chat/${targetKey}/messages`).then(result => {
                 if (result?.messages) {
-                    getSessionData(targetKey).chatMessages = result.messages
+                    const sd = getSessionData(targetKey)
+                    sd.chatMessages = result.messages
+                    // 服务端已持久化全部 toolResult entry，本地临时条目同步清空
+                    //（同 loadChatHistory 规则）：不清会与持久化消息双重参与 1.1 合并，
+                    // 幂等但永久残留，且随 sessionsMap 永不驱逐
+                    sd.chatToolMessages = []
                     // Messages reloaded -> Tree structure definitely valid now
                     fetchSessionTree(targetKey)
                 }
