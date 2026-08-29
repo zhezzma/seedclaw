@@ -535,7 +535,7 @@ const retryMessage = async (msg: DisplayMessage) => {
 
 const forkMessage = async (msg: DisplayMessage) => {
     if (!msg.entryId) return
-    // 从该条 AI 回复处分叉新会话（含该回复），成功后 chatState 会切换过去
+    // 从该条消息处分叉新会话（含该消息），成功后 chatState 会切换过去
     await chatState.forkFromEntry(msg.entryId)
 }
 

@@ -835,7 +835,7 @@ const editMessage = async (entryId: string, newText: string, sessionKey?: string
 
 /**
  * 从指定消息处分叉出新会话（position:"at"，新会话包含该消息），成功后切换过去。
- * 用于 AI 回复下的“从此处分叉”按钮；原会话保留在侧边栏。
+ * 用于用户/AI 消息下的“从此处分叉”按钮；原会话保留在侧边栏。
  */
 const forkInFlight = reactive(new Set<string>())
 const forkFromEntry = async (entryId: string, sessionKey?: string) => {
