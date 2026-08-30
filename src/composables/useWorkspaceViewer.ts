@@ -36,8 +36,9 @@ const _viewerState = {
     openAgentFile(path: string) {
         current.value = { type: 'agent-file', path }
     },
-    /** 打开任意绝对路径文件（工具调用返回的真实文件系统路径）。
-     *  与 openFile 的 workspace 相对路径不同：走 /api/files/open，无 resolveSafe 越界保护。 */
+    /** 打开任意绝对路径文件（工具调用返回的真实文件系统路径，或 /assets/ 开头的
+     *  公开静态端点 URL）。与 openFile 的 workspace 相对路径不同：文本文件走
+     *  /api/files/open（无 resolveSafe 越界保护），图片由 fetchRawFile 按前缀分流。 */
     openAbsolute(path: string) {
         current.value = { type: 'absolute', path }
     },

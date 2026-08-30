@@ -231,7 +231,8 @@ export function fetchFile(agentId: string, path: string): Promise<FileContent> {
 }
 
 /** 拉取文件的原始字节（仅服务端白名单内的图片扩展名）。scope 决定端点：
- *  workspace → /raw，agent → /agent-raw（后端带 workspace/sessions 顶层过滤）。
+ *  workspace → /raw，agent → /agent-raw（后端带 workspace/sessions 顶层过滤），
+ *  absolute → 真实绝对路径走 /api/files/raw，/assets/ 前缀直连公开静态端点（见内部分支注释）。
  *  与 fetchDownload 同样的 scope 复用模式。返回 Blob，调用方负责转为 object URL
  *  并在不用时 revokeObjectURL。 */
 export async function fetchRawFile(
@@ -240,9 +241,20 @@ export async function fetchRawFile(
     scope: 'workspace' | 'agent' | 'absolute' = 'workspace',
 ): Promise<Blob> {
     // absolute scope：任意绝对路径，走 /api/files/raw（与 workspace/agent 的 raw 端点不同）。
+    // 例外：/assets/ 前缀不是文件系统路径，而是服务端公开静态端点的 URL（image-gen 等
+    // 工具结果返回的 session 图片地址）；/api/files/raw 只认真实文件系统绝对路径
+    // （existsSync 直接查盘），故直接请求公开端点，无需 auth（与 Markdown 图片的
+    // resolveMediaUrl 拼 origin 策略一致）。前提：path 是调用方已提取的纯路径，
+    // 不做二次编码——与 resolveMediaUrl 同策略。
     if (scope === 'absolute') {
-        const url = `${baseUrl()}/api/files/raw?path=${encodeURIComponent(path)}`
-        const response = await fetch(url, { method: 'GET', headers: authHeaders() })
+        const isAssetUrl = path.startsWith('/assets/')
+        const url = isAssetUrl
+            ? `${baseUrl()}${path}`
+            : `${baseUrl()}/api/files/raw?path=${encodeURIComponent(path)}`
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: isAssetUrl ? undefined : authHeaders(),
+        })
         if (!response.ok) {
             let msg = `HTTP ${response.status}`
             try {

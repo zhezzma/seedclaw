@@ -204,7 +204,8 @@ watch(target, () => {
                 :path="target.path" scope="workspace" />
             <WorkspaceFileView v-else-if="target?.type === 'agent-file'" ref="fileViewRef" :agent-id="agentId"
                 :path="target.path" scope="agent" />
-            <!-- absolute：任意绝对路径（工具调用返回），走 /api/files/open，不需要 agentId -->
+            <!-- absolute：任意绝对路径（工具调用返回）或 /assets URL，不需要 agentId；
+                 文本走 /api/files/open，图片由 fetchRawFile 分流（/assets 直连公开端点） -->
             <WorkspaceFileView v-else-if="target?.type === 'absolute'" ref="fileViewRef" agent-id=""
                 :path="target.path" scope="absolute" />
             <!-- text：纯文本只读预览（工具结果 / 代码块全屏），复用 WorkspaceFileView + readonly，无路径/agentId -->

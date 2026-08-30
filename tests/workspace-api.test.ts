@@ -258,6 +258,40 @@ test('fetchRawFile: agent scope 走 /agent-raw', async () => {
     assert.match(captured, /\/api\/agents\/coder\/workspace\/agent-raw\?path=a\.png$/)
 })
 
+test('fetchRawFile: absolute scope 走 /api/files/raw 且带 auth', async () => {
+    let captured: { url: string, init?: RequestInit } | null = null
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+        captured = { url, init }
+        return new Response(new Blob(['x'], { type: 'image/png' }), { status: 200 })
+    }) as any
+    await api.fetchRawFile('coder', '/tmp/pics/a.png', 'absolute')
+    assert.match(captured!.url, /\/api\/files\/raw\?path=%2Ftmp%2Fpics%2Fa\.png$/)
+    assert.equal((captured!.init!.headers as Record<string, string>)['Authorization'], 'Bearer tk')
+})
+
+test('fetchRawFile: absolute + /assets/ 前缀走公开静态端点，不带 auth', async () => {
+    // image-gen 等工具结果里返回的是 /assets URL（服务端公开静态端点）而非文件系统路径，
+    // /api/files/raw 只认真实绝对路径（existsSync 查盘），直接拼公开端点访问。
+    let captured: { url: string, init?: RequestInit } | null = null
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+        captured = { url, init }
+        return new Response(new Blob(['x'], { type: 'image/png' }), { status: 200 })
+    }) as any
+    await api.fetchRawFile(
+        'coder',
+        '/assets/images/session/01a04b48-13ca-79bd-9be7-1375e7b2d4bd/image-x.png',
+        'absolute',
+    )
+    assert.match(
+        captured!.url,
+        /^http:\/\/localhost:8088\/assets\/images\/session\/01a04b48-13ca-79bd-9be7-1375e7b2d4bd\/image-x\.png$/,
+    )
+    const headers = captured!.init?.headers as Record<string, string> | undefined
+    // headers 严格 undefined：/assets 分支不发任何自定义头（auth 哈希为 {} 也不算过）。
+    assert.equal(headers, undefined)
+    assert.ok(!headers?.['Authorization'])
+})
+
 test('uploadFile: POST multipart 到 /upload，parentPath 进 query，含 file 字段', async () => {
     let captured: { url: string, init?: RequestInit } | null = null
     globalThis.fetch = (async (url: string, init?: RequestInit) => {
