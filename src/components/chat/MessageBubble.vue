@@ -14,6 +14,7 @@ import { useMediaPreview } from '../../composables/useMediaPreview'
 import { useI18n } from 'vue-i18n'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ToolInvocation from './ToolInvocation.vue'
+import ThinkingBlock from './ThinkingBlock.vue'
 import { A2UIRenderer } from '../a2ui'
 import { handleA2UIAction } from '../../composables/useA2UIActions'
 import { getSurface } from '../../composables/useA2UISurfaces'
@@ -483,24 +484,11 @@ const { openLightbox, openFileViewer, downloadImage } = useMediaPreview()
                             </button>
                         </div>
                     </div>
-                    <div v-else-if="block.type === 'thinking' && !currentAgent?.hideThinkingBlock" class="my-2">
-                        <div class="collapse collapse-arrow border border-base-300 bg-base-100 rounded-box">
-                            <input type="checkbox" />
-                            <div class="collapse-title text-sm font-medium opacity-70 flex items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                    stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
-                                </svg>
-                                {{ $t('chat.reasoning') }}
-                            </div>
-                            <div class="collapse-content">
-                                <div class="opacity-80 text-sm border-t border-base-300 pt-2 mt-2">
-                                    <MarkdownRenderer :content="block.text || ''" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- 思考块：默认折叠且内容零挂载；流式中展开走纯文本直播（详见 ThinkingBlock）。
+                         streaming 判定：thinking 是最后一个 block 且本轮仍在忙 → 仍在增长 -->
+                    <ThinkingBlock v-else-if="block.type === 'thinking' && !currentAgent?.hideThinkingBlock"
+                        :text="block.text || ''"
+                        :streaming="isLoading && bIndex === assistantParsedBlocks.length - 1" />
                     <div v-else-if="block.type === 'unknown'" class="alert alert-warning text-xs p-2 my-1">
                         <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-4 w-4" fill="none"
                             viewBox="0 0 24 24">
