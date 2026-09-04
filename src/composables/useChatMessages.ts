@@ -42,6 +42,10 @@ export interface DisplayMessage {
     timestamp?: number
     entryId?: string
     parentEntryId?: string | null
+    /** 合并气泡（assistantMsgMerge）下组内最后一条 entry 的 id；
+     *  fork 等以「气泡末尾」为锚点的操作应优先用它，entryId 保持指向组内第一条
+     *  （会话树跳转的反向定位依赖该语义，不可改动） */
+    lastEntryId?: string
 }
 
 export interface ChatStateShape {
@@ -417,6 +421,10 @@ export function useChatMessages(state: ChatStateShape) {
                     // 记录合并前的起始 Block 索引
                     const baseBlockIdx = lastMsg.blocks.length
                     lastMsg.blocks.push(...blocks)
+
+                    // 合并气泡的操作锚点跟随组内最后一条 entry：
+                    // fork「从此处分叉」应分叉到最后一轮回复，而不是停留在第一条的 entryId
+                    if (msg.entryId) lastMsg.lastEntryId = msg.entryId
 
                     // 注册合并后的 Tool Call
                     blocks.forEach((b, idx) => {

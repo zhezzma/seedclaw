@@ -286,8 +286,8 @@ function close() { trace.close() }
 
 <template>
     <Teleport to="body">
-        <!-- 遮罩：移动端点击关闭；桌面半透明不拦截（面板外区域可继续操作聊天） -->
-        <div v-if="trace.isActive.value" class="fixed inset-0 z-40 bg-black/30 sm:pointer-events-none"
+        <!-- 遮罩：移动端 + 桌面统一交互，点击任意非面板区域均可关闭抽屉 -->
+        <div v-if="trace.isActive.value" class="fixed inset-0 z-40 bg-black/30"
             @click="close()" />
 
         <Transition enter-active-class="transition-transform duration-200 ease-out"

@@ -398,10 +398,10 @@ const { openLightbox, openFileViewer, downloadImage } = useMediaPreview()
                     <PencilSquareIcon class="h-4 w-4" />
                 </button>
                 <button v-if="!isBusy && message.entryId" @click="emit('fork', message)"
-                    :disabled="chatState.isForkingEntry(message.entryId)"
+                    :disabled="chatState.isForkingEntry(message.lastEntryId ?? message.entryId)"
                     class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-secondary hover:bg-secondary/10 disabled:opacity-40 disabled:cursor-not-allowed"
                     :title="$t('chat.fork')">
-                    <span v-if="chatState.isForkingEntry(message.entryId)" class="loading loading-spinner h-4 w-4"></span>
+                    <span v-if="chatState.isForkingEntry(message.lastEntryId ?? message.entryId)" class="loading loading-spinner h-4 w-4"></span>
                     <!-- git-fork 图标（heroicons 无对应图标，用 lucide git-fork 路径内联） -->
                     <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
@@ -543,10 +543,10 @@ const { openLightbox, openFileViewer, downloadImage } = useMediaPreview()
                 </template>
             </button>
             <button v-if="!isBusy && message.entryId" @click="emit('fork', message)"
-                :disabled="chatState.isForkingEntry(message.entryId)"
+                :disabled="chatState.isForkingEntry(message.lastEntryId ?? message.entryId)"
                 class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-secondary hover:bg-secondary/10 disabled:opacity-40 disabled:cursor-not-allowed"
                 :title="$t('chat.fork')">
-                <span v-if="chatState.isForkingEntry(message.entryId)" class="loading loading-spinner h-4 w-4"></span>
+                <span v-if="chatState.isForkingEntry(message.lastEntryId ?? message.entryId)" class="loading loading-spinner h-4 w-4"></span>
                 <!-- git-fork 图标（heroicons 无对应图标，用 lucide git-fork 路径内联） -->
                 <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">

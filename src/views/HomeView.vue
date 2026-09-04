@@ -534,9 +534,12 @@ const retryMessage = async (msg: DisplayMessage) => {
 }
 
 const forkMessage = async (msg: DisplayMessage) => {
-    if (!msg.entryId) return
+    // 合并气泡（assistantMsgMerge）显示为一整条，fork 应锚定组内最后一条 entry；
+    // 未合并气泡无 lastEntryId，回落 entryId
+    const entryId = msg.lastEntryId ?? msg.entryId
+    if (!entryId) return
     // 从该条消息处分叉新会话（含该消息），成功后 chatState 会切换过去
-    await chatState.forkFromEntry(msg.entryId)
+    await chatState.forkFromEntry(entryId)
 }
 
 const editMessage = async (msg: DisplayMessage, newText: string) => {
