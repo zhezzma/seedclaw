@@ -21,6 +21,7 @@ import { getSurface } from '../../composables/useA2UISurfaces'
 import { useChatState } from '../../composables/useChatState'
 import { useTTS } from '../../composables/useTTS'
 import { useConfirm } from '../../composables/useConfirm'
+import { computeBlockKeys } from '../../utils/blockKeys'
 import type { DisplayMessage } from '../../composables/useChatMessages'
 
 export interface BranchInfo {
@@ -228,12 +229,15 @@ const userFiles = computed(() => {
     return userParsedBlocks.value.filter(b => b.type === 'file')
 })
 
+// 助手侧显示块：DisplayBlock + gallery 分组产物（连续 image 合并，不在 DisplayBlock 联合内）
+type AssistantDisplayBlock = DisplayMessage['blocks'][number] | { type: 'image_gallery', images: DisplayMessage['blocks'][number][] }
+
 // Parse assistant message blocks to group consecutive images
-const assistantParsedBlocks = computed(() => {
+const assistantParsedBlocks = computed<AssistantDisplayBlock[]>(() => {
     if (props.message.role === 'user') return []
     const blocks = props.message.blocks || []
-    const result = []
-    let currentGallery: any = null
+    const result: AssistantDisplayBlock[] = []
+    let currentGallery: { type: 'image_gallery', images: DisplayMessage['blocks'][number][] } | null = null
 
     for (const block of blocks) {
         if (block.type === 'image') {
@@ -251,6 +255,11 @@ const assistantParsedBlocks = computed(() => {
 })
 
 const { openLightbox, openFileViewer, downloadImage } = useMediaPreview()
+
+// 助手侧块稳定键：流式期间 blocks 每帧重建（新对象引用），索引键在中段插入块时
+// 会平移导致状态子组件（ThinkingBlock 展开/ToolInvocation 开合）丢失状态，
+// 故用纯数据推导的稳定键（详见 utils/blockKeys.ts）。computed 缓存，仅 blocks 变化时重算。
+const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks.value))
 </script>
 
 <template>
@@ -432,7 +441,7 @@ const { openLightbox, openFileViewer, downloadImage } = useMediaPreview()
                 <!-- Loading indicator if empty or just waiting -->
                 <div v-if="isLoading && (!message.blocks.length || (message.blocks.length === 1 && message.blocks[0].type === 'text' && !message.blocks[0].text))"
                     class="loading loading-dots loading-sm opacity-50 "></div>
-                <template v-else v-for="(block, bIndex) in assistantParsedBlocks" :key="bIndex">
+                <template v-else v-for="(block, bIndex) in assistantParsedBlocks" :key="assistantBlockKeys[bIndex]">
                     <MarkdownRenderer v-if="block.type === 'text'" :content="block.text || ``" />
                     <ToolInvocation v-else-if="block.type === 'tool'" :toolName="block.toolName || 'Unknown Tool'"
                         :args="block.toolArgs || {}" :result="block.toolResult" :state="block.toolState"
