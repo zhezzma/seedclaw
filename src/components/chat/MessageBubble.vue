@@ -447,11 +447,11 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
                         :args="block.toolArgs || {}" :result="block.toolResult" :state="block.toolState"
                         :errorMessage="block.toolError" :details="block.toolDetails" />
                     <!-- A2UI 组件渲染 -->
+                    <!-- a2uiSurfaceId 非空由 v-else-if 守卫保证，但守卫收窄无法穿透进事件闭包，需非空断言 -->
                     <A2UIRenderer v-else-if="block.type === 'a2ui' && block.a2uiComponents && block.a2uiSurfaceId"
                         :components="block.a2uiComponents"
                         :data-model="getSurface(block.a2uiSurfaceId)?.dataModel || {}" :root-ids="block.a2uiRootIds"
                         :disabled="!isLastMessage" class="my-2"
-                        <!-- a2uiSurfaceId 非空由 v-else-if 守卫保证，但守卫收窄无法穿透进事件闭包，需非空断言 -->
                         @action="(action: any, dm: any, sourceId: string) => onA2UIAction(action, dm, block.a2uiSurfaceId!, sourceId)" />
                     <!-- A2UI 加载中（流式接收，标签未闭合） -->
                     <div v-else-if="block.type === 'a2ui_loading'" class="my-2">
