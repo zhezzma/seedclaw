@@ -451,7 +451,8 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
                         :components="block.a2uiComponents"
                         :data-model="getSurface(block.a2uiSurfaceId)?.dataModel || {}" :root-ids="block.a2uiRootIds"
                         :disabled="!isLastMessage" class="my-2"
-                        @action="(action: any, dm: any, sourceId: string) => onA2UIAction(action, dm, block.a2uiSurfaceId, sourceId)" />
+                        <!-- a2uiSurfaceId 非空由 v-else-if 守卫保证，但守卫收窄无法穿透进事件闭包，需非空断言 -->
+                        @action="(action: any, dm: any, sourceId: string) => onA2UIAction(action, dm, block.a2uiSurfaceId!, sourceId)" />
                     <!-- A2UI 加载中（流式接收，标签未闭合） -->
                     <div v-else-if="block.type === 'a2ui_loading'" class="my-2">
                         <div class="collapse collapse-arrow border border-base-300 bg-base-100 rounded-box">
@@ -467,7 +468,10 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
                             </div>
                         </div>
                     </div>
-                    <div v-else-if="block.type === 'image_gallery'" class="grid gap-2 my-1 w-fit" :class="{
+                    <template v-else-if="block.type === 'image_gallery'">
+                    <!-- 内层 v-if 是 vue-tsc 类型收窄需要的显式守卫（可选链表达 images 可能不存在，
+                         但进入此分支时必为 gallery 形状）；直接用 block.images 会报 TS2339 -->
+                    <div v-if="'images' in block" class="grid gap-2 my-1 w-fit" :class="{
                         'grid-cols-1': block.images.length === 1,
                         'grid-cols-2 max-w-[240px] sm:max-w-[320px]': block.images.length === 2 || block.images.length === 4,
                         'grid-cols-3 max-w-[360px] sm:max-w-[480px]': block.images.length === 3 || block.images.length > 4
@@ -493,6 +497,7 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
                             </button>
                         </div>
                     </div>
+                    </template>
                     <!-- 思考块：默认折叠且内容零挂载；流式中展开走纯文本直播（详见 ThinkingBlock）。
                          streaming 判定：thinking 是最后一个 block 且本轮仍在忙 → 仍在增长 -->
                     <ThinkingBlock v-else-if="block.type === 'thinking' && !currentAgent?.hideThinkingBlock"
