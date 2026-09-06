@@ -35,3 +35,5 @@ debug.keystore
 .worktrees/
 .workbuddy/
 .worktrees/
+
+src-tauri/resources/
