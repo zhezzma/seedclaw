@@ -72,6 +72,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: "--max-old-space-size=6144"
         with:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}
           args: ${{ matrix.args }}

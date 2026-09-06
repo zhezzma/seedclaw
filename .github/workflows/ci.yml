@@ -118,6 +118,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: "--max-old-space-size=6144"
         with:
           tagName: seedagent-build-latest
           releaseName: "SeedClaw Seedagent Latest Build"
