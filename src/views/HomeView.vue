@@ -4,7 +4,7 @@ import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
-import { ChevronDoubleDownIcon, ChevronDownIcon, CheckIcon, FolderIcon } from '@heroicons/vue/24/outline'
+import { ChevronDoubleDownIcon, ChevronDownIcon, CheckIcon, FolderIcon, FolderOpenIcon } from '@heroicons/vue/24/outline'
 
 import { useChatMessages, type DisplayMessage } from '../composables/useChatMessages'
 import { useMediaPreview } from '../composables/useMediaPreview'
@@ -24,6 +24,7 @@ import MediaPreviewOverlay from '../components/chat/MediaPreviewOverlay.vue'
 import WorkspacePanel from '../components/workspace/WorkspacePanel.vue'
 import WorkspaceViewer from '../components/workspace/WorkspaceViewer.vue'
 import WorkspaceContextMenu from '../components/workspace/ContextMenu.vue'
+import WorkspaceBindDialog from '../components/workspace/WorkspaceBindDialog.vue'
 
 import { isNewSession, NEW_SESSION_PATH, NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
 import { writeClipboard } from '../utils/clipboard.ts'
@@ -77,6 +78,18 @@ const selectWelcomeAgent = async (agentId: string) => {
     if (welcomeAgentDropdownRef.value) {
         welcomeAgentDropdownRef.value.open = false
     }
+}
+
+// 「选择文件夹」绑定弹窗：切换/新建 agent 后复用 selectWelcomeAgent（含命令列表跟随）
+const showWorkspaceDialog = ref(false)
+
+const onWorkspaceSwitch = async (agentId: string) => {
+    await selectWelcomeAgent(agentId)
+}
+
+const onWorkspaceCreated = async (agentId: string) => {
+    await agentsState.loadAgents()
+    await selectWelcomeAgent(agentId)
 }
 
 // Chat messages composable
@@ -797,6 +810,13 @@ async function applyDefaultSessionBehavior() {
                                                     class="h-4 w-4" />
                                             </a>
                                         </li>
+                                        <li class="mt-1 border-t border-base-300/60 pt-1">
+                                            <a @click="showWorkspaceDialog = true"
+                                                class="flex items-center gap-2 text-base-content/80">
+                                                <FolderOpenIcon class="h-4 w-4 opacity-70" />
+                                                <span>{{ $t('workspaceBinding.openFolder') }}</span>
+                                            </a>
+                                        </li>
                                     </ul>
                                 </details>
                             </template>
@@ -867,5 +887,9 @@ async function applyDefaultSessionBehavior() {
         <!-- Workspace context menu (PC 右键 + 移动端 kebab 共用同一实例，
              Teleport 到 body 上避免被 panel / drawer 的 overflow-hidden 裁切) -->
         <WorkspaceContextMenu />
+
+        <!-- 「选择文件夹」工作区绑定弹窗（欢迎页 agent 下拉入口） -->
+        <WorkspaceBindDialog :show="showWorkspaceDialog" @close="showWorkspaceDialog = false"
+            @switch-agent="onWorkspaceSwitch" @created="onWorkspaceCreated" />
     </div>
 </template>
