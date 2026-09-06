@@ -1,4 +1,7 @@
 {
     "productName": "SeedClaw Server",
-    "identifier": "com.godgodgame.seedclaw.server"
+    "identifier": "com.godgodgame.seedclaw.server",
+    "bundle": {
+        "resources": ["resources/seedagent/**/*"]
+    }
 }

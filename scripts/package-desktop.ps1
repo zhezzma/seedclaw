@@ -148,14 +148,17 @@ if ($StageOnly) {
 }
 
 # ④ tauri build：默认 --no-bundle 只出裸 exe（快）；-Installers 才打 MSI/NSIS 安装包
+# --config tauri.bundled.conf.json：本脚本产出"内置服务端"版（保持原 productName/
+# identifier）。服务端 resources glob 只存在于 overlay，不在基础配置——因此
+# build_windows.ps1 / build_android.ps1 等纯客户端构建不会受装配残留影响
 Push-Location $root
 try {
     if ($Installers) {
         Write-Host "==> npm run tauri build (含 MSI/NSIS 安装包，压缩约 5~20 分钟)"
-        npm run tauri build
+        npm run tauri build -- --config src-tauri/tauri.bundled.conf.json
     } else {
         Write-Host "==> npm run tauri build --no-bundle (只出便携版; -Installers 可打安装包)"
-        npm run tauri build -- --no-bundle
+        npm run tauri build -- --no-bundle --config src-tauri/tauri.bundled.conf.json
     }
     if ($LASTEXITCODE -ne 0) { throw "tauri build failed" }
 } finally { Pop-Location }

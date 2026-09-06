@@ -140,8 +140,8 @@ jobs:
           token: ${{ secrets.SEEDAGENT_TOKEN }}
 
       # 装配：构建 seedagent → 采集 node.exe → 填充 src-tauri/resources/seedagent/
-      # （tauri.conf.json 的 resources glob 会随包携带；不含 server 的构建里没有
-      #   这份资源 → bundled=false → 网关强制远程模式，属预期降级）
+      # （tauri.server.conf.json overlay 的 resources glob 会随包携带；不含 server
+      #   的构建没有这份资源 → bundled=false → 网关强制远程模式，属预期降级）
       - name: Stage bundled server
         if: matrix.bundleServer
         shell: pwsh

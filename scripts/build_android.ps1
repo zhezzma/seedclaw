@@ -194,6 +194,9 @@ settingsEvaluated { settings ->
 }
 
 # 1. 构建 Release APK (此时可能已由 Gradle 签名，也可能未签名)
+# Android 版不含内置服务端：内置服务端的 resources 只在
+# tauri.bundled.conf.json / tauri.server.conf.json overlay 中，基础配置不含
+# resources，因此 package-desktop.ps1 的 Windows 装配残留不会被打进 APK
 Write-Host "`n🚀 正在构建 Release APK..."
 cd $projectRoot
 npx tauri android build --target aarch64

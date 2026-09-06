@@ -48,6 +48,9 @@ cd $projectRoot
 # 如果 .env 中配置了，这里会自动生效。
 
 # 注意：Windows 构建不需要 MSYS2，使用系统默认工具链 (MSVC)
+# 本脚本产出"无内置服务端"的纯客户端：内置服务端的 resources 只在
+# tauri.bundled.conf.json / tauri.server.conf.json overlay 中，
+# 基础配置不含 resources，因此 package-desktop.ps1 的装配残留不会被打进包
 npm run tauri build
 
 if ($LASTEXITCODE -ne 0) {
