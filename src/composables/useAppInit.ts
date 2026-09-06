@@ -7,6 +7,7 @@ import { useCronState } from './useCronState'
 import { useModelsState } from './useModelsState'
 import { useSkillsState } from './useSkillsState'
 import { connectServer } from './notify-server-connection'
+import { ensureLocalServerLoaded } from './local-server'
 import { useExecApproval } from './useExecApproval'
 import { useCommandState } from './useCommandState'
 
@@ -28,6 +29,11 @@ export function useAppInit() {
     useUiSettingsStore()
 
     const init = async () => {
+        // 本地网关模式下先等内置服务端状态就绪（会把托管地址回填进 settings）：
+        // init() 在 App setup 里与路由守卫并发执行，若不等待，首启时 localStorage
+        // 里残留的旧远程 apiBaseUrl 会被下面的数据加载抢先使用
+        await ensureLocalServerLoaded()
+
         await Promise.all([
             agentsState.loadAgents(),
             sessionsState.loadSessions(),

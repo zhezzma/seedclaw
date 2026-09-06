@@ -112,7 +112,16 @@ const onTtsEngineChange = (event: Event) => {
 const saveConnection = () => {
     const mode = editForm.value.gatewayMode
     if (mode === 'local') {
-        configStore.save({ gatewayMode: 'local' })
+        // 切本地时若内置服务端已有地址，立即写入 apiBaseUrl/token：
+        // 否则 reload 后 App 启动抢跑的数据加载会先用旧远程值拉数据，
+        // 出现"刷新后仍显示远程数据、需再手动刷新"的问题
+        configStore.save({
+            gatewayMode: 'local',
+            ...(localServer.url && localServer.token ? {
+                apiBaseUrl: localServer.url,
+                token: localServer.token,
+            } : {}),
+        })
     } else {
         configStore.save({
             gatewayMode: 'remote',
