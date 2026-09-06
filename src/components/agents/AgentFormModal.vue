@@ -379,6 +379,7 @@ const submitForm = async () => {
                             <!-- Workspace Directory Field (spec §5.1) -->
                             <div class="form-control">
                                 <WorkspacePathField ref="workspaceFieldRef" v-model="formData.workspaceDir"
+                                    :agent-id="mode === 'edit' ? agentData?.id : undefined"
                                     @validated="onWorkspaceValidated" />
                             </div>
 
