@@ -1,11 +1,35 @@
 ﻿#Requires -Version 5.1
 <#
-桌面打包：构建 seedagent → 采集 Node 23 运行时 → staging 到 src-tauri/resources/seedagent → tauri build → 部署
-用法：
-  powershell -File scripts/package-desktop.ps1                      # 完整打包（每次强制重建 seedagent + staging + build + 部署）
-  powershell -File scripts/package-desktop.ps1 -StageOnly           # 只做 staging（构建 seedagent + 填充 resources），供 tauri dev 联调内置服务
-  powershell -File scripts/package-desktop.ps1 -SkipStage           # 跳过 staging（复用 resources 里已有产物，也不重建 seedagent），直接 build + 部署
-  powershell -File scripts/package-desktop.ps1 -SkipDeploy          # 只出包，不部署到 D:\Applications\seedclaw
+桌面一键打包脚本（Windows，带内置 seedagent 服务端）
+
+【名词说明】
+"staging"（装配/备料）：指把内置服务端运行所需的全部文件，收集到
+src-tauri\resources\seedagent\ 目录的过程。该目录会被 tauri 打进安装包/便携版，
+桌面端运行时就是从它里面拉起服务端。装配内容包括：
+    node.exe                  Node 运行时（本机版本匹配则直接拷贝，否则从 nodejs.org 下载）
+    dist\                     seedagent 编译产物（npm run build 生成）
+    node_modules\             生产依赖（在装配目录内单独 npm ci --omit=dev，不动 seedagent 仓库）
+    package.json / package-lock.json
+
+【完整流程】
+  ① 构建 seedagent（在 $SeedagentDir 里 npm run build，每次强制重跑，保证 dist 最新）
+  ② 采集 Node 运行时（本机版本匹配则拷贝，否则下载并缓存到 scripts\.cache\）
+  ③ 装配（staging）：清空重建 src-tauri\resources\seedagent\，填入上述内容并校验
+  ④ tauri build：前端 + Rust 打包，resources 随包携带
+  ⑤ 收集产物：NSIS/MSI 安装包 → dist-windows\；便携版（裸 exe + resources）压成 zip
+  ⑥ 部署：便携版内容镜像到 $DeployDir（先结束部署目录内运行中的 seedclaw/node 进程）
+
+【用法】
+  powershell -File scripts/package-desktop.ps1               # 全流程 ①→⑥（默认部署到 D:\Applications\seedclaw）
+  powershell -File scripts/package-desktop.ps1 -StageOnly    # 只跑到 ③ 就停（只装配不打包），配合 npm run tauri dev 联调内置服务
+  powershell -File scripts/package-desktop.ps1 -SkipStage    # 跳过 ①②③（复用已装配好的 resources），从 ④ 开始
+  powershell -File scripts/package-desktop.ps1 -SkipDeploy   # 跑完 ①-⑤ 但不执行 ⑥
+
+【参数】
+  -SeedagentDir  seedagent 仓库路径（默认 D:\Workspace\seedagent，或环境变量 SEEDAGENT_DIR）
+  -NodeVersion   Node 运行时版本（默认 23.11.0，须 23.x，原生模块 ABI 锁定）
+  -DeployDir     部署目录（默认 D:\Applications\seedclaw）
+  注意：-StageOnly 与 -SkipStage 互斥，不要同时传（同时传等于什么也不做直接退出）。
 #>
 param(
     [string]$SeedagentDir = $(if ($env:SEEDAGENT_DIR) { $env:SEEDAGENT_DIR } else { "D:\Workspace\seedagent" }),
@@ -47,7 +71,7 @@ else {
         throw "seedagent not found at $SeedagentDir (use -SeedagentDir or env SEEDAGENT_DIR)"
     }
 
-    # 1. 构建 seedagent（每次强制重跑，保证打进包的 dist 是最新的）
+    # ① 构建 seedagent（每次强制重跑，保证打进包的 dist 是最新的）
     Write-Host "==> building seedagent"
     Push-Location $SeedagentDir
     try {
@@ -56,7 +80,7 @@ else {
         if ($LASTEXITCODE -ne 0) { throw "seedagent build failed" }
     } finally { Pop-Location }
 
-    # 2. 采集 node.exe：本机版本匹配则直接拷，否则下载 pinned 版本
+    # ② 采集 node.exe：本机版本匹配则直接拷，否则下载 pinned 版本
     function Get-LocalNodePath([string]$WantVersion) {
         $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
         if (-not $nodeCmd) { return $null }
@@ -76,7 +100,7 @@ else {
         $nodeExe = $cached
     }
 
-    # 3. staging（不在 seedagent 仓库里 prune，staging 目录内独立 npm ci --omit=dev）
+    # ③ 装配（staging）：不在 seedagent 仓库里 prune，装配目录内独立 npm ci --omit=dev
     Write-Host "==> staging into $staging"
     Remove-LongPath $staging
     New-Item -ItemType Directory -Force -Path $staging | Out-Null
@@ -93,7 +117,7 @@ else {
         if ($LASTEXITCODE -ne 0) { throw "npm ci --omit=dev failed" }
     } finally { Pop-Location }
 
-    # 4. 校验 staging
+    # ③ 校验装配结果
     Assert-Staging $staging
     Write-Host "==> staging OK: $staging"
 }
@@ -103,7 +127,7 @@ if ($StageOnly) {
     exit 0
 }
 
-# 5. tauri build（仅桌面）
+# ④ tauri build（仅桌面）
 Write-Host "==> npm run tauri build"
 Push-Location $root
 try {
@@ -111,7 +135,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "tauri build failed" }
 } finally { Pop-Location }
 
-# 6. 收集产物：NSIS/MSI + 便携版（裸 exe + resources 目录，resource_dir 按 exe 同目录解析）
+# ⑤ 收集产物：NSIS/MSI + 便携版（裸 exe + resources 目录，resource_dir 按 exe 同目录解析）
 $outDir = Join-Path $root 'dist-windows'
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 $bundleDir = Join-Path $root 'src-tauri\target\release\bundle'
@@ -136,7 +160,7 @@ try {
 } finally { Pop-Location }
 Write-Host "==> portable zip: dist-windows\seedclaw-portable-windows.zip"
 
-# 7. 部署便携版到指定目录（参考 build_windows.ps1）
+# ⑥ 部署便携版到指定目录（参考 build_windows.ps1）
 if (-not $SkipDeploy) {
     Write-Host "==> deploying to $DeployDir ..."
 
