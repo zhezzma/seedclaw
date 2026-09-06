@@ -1,60 +1,69 @@
 # SeedClaw (OpenClaw Desktop)
 
 SeedClaw 是 OpenClaw 的桌面端实现，基于 Tauri 构建，专为高性能、低延迟的本地 AI
-智能体交互而设计。它结合了现代 Web 前端技术与
-Rust后端能力，提供了一个安全、可扩展的智能体交互环境。
+智能体交互而设计。它结合了现代 Web 前端技术与 Rust 后端能力，提供了一个安全、
+可扩展的智能体交互环境。
+
+**服务端为 [seedagent](https://github.com/zhezzma/seedagent)**——独立的 Node.js
+多 Agent 服务，通过 HTTP + WebSocket 提供会话、聊天、技能、定时任务等 API。
+SeedClaw 作为客户端连接它：桌面版可将服务端**内置打包**（本地模式），也可连接
+任意远程部署的 seedagent（远程模式）。
 
 ## 技术架构
 
-本项目采用了经典的前后端分离架构，但在桌面端进行了深度集成：
-
 - **前端 (Frontend)**: 基于 **Vue 3** + **TypeScript** + **Vite** 构建。
-  - 负责用户界面渲染、交互逻辑以及与 WebSocket 网关的通信。
+  - 负责用户界面渲染、交互逻辑以及与服务端的通信（REST / WebSocket / SSE）。
   - 使用了 Tailwind CSS 进行样式开发，Heroicons 作为图标库。
   - 集成了 Markdown 渲染、代码高亮等富文本功能，用于展示 Agent 的响应。
 
-- **后端 (Backend / Core)**: 基于 **Rust** (Tauri) 构建。
-  - **Gateway (网关)**: 项目的核心组件，运行在本地的 WebSocket
-    服务器。负责管理所有连接、路由消息、调度 Agent 任务。
-  - **Tauri 桥接**:
-    提供系统级能力的访问（如文件系统、系统通知、原生窗口管理等）。
+- **服务端 (Server)**: [seedagent](https://github.com/zhezzma/seedagent)。
+  - Node.js + TypeScript (Hono) 实现的多 Agent 远程服务，接口为 `/api/*`
+    (REST) 与 `/ws` (WebSocket 通知通道)，认证使用 Bearer Token。
+  - 负责管理 Agent、会话、技能、扩展与定时任务。部署与配置详见其仓库说明。
+
+- **桌面壳 (Rust / Tauri)**:
+  - 提供系统级能力：系统通知、托盘、文件系统、原生窗口管理等。
+  - Windows 桌面版可**内置 seedagent 服务端**：Rust 侧负责其完整生命周期——
+    自动拉起、崩溃退避重启、退出时清理整个进程树（详见下文）。
 
 - **通信机制**:
-  - 前端与 Rust 后端主要通过 **WebSocket** 进行实时双向通信。
-  - Tauri 的 IPC 机制作为补充，用于特定的系统级操作。
+  - 前端 ↔ 服务端：REST + WebSocket（流式聊天走 SSE）。
+  - Tauri 的 IPC 作为补充，用于系统级操作与服务端生命周期事件。
 
-## 开发环境配置
+## 网关连接模式
 
-### 核心配置：Tauri 跨域访问 (Allowed Origins)
+在「设置 → 连接设置」中选择：
 
-在 Tauri 开发模式下，前端页面和后端 Gateway
-服务运行在不同的端口或协议上，因此必须正确配置 Gateway 的 CORS 策略，否则
-WebSocket 连接会被拒绝。
+- **本地服务**（仅内置服务端的桌面构建可选）：地址与令牌由应用托管，不可修改。
+  - 默认 `127.0.0.1:18789`，被占用时在 18789~18798 中自动挑选；
+    `~/.seedagent/.env` 中的 `PORT` 会作为首选候选。
+  - 认证令牌为首次启动自动生成的 UUID，持久化在 `~/.seedagent/desktop.json`。
+  - 服务端数据目录为 `~/.seedagent`（全平台统一）。
+- **远程服务器**：手动填写 seedagent 地址 + Bearer Token，与 Web/Android 版一致。
 
-请确保你的 Gateway 配置文件中包含以下 `allowedOrigins` 设置：
+未内置服务端的构建（Web 版、Android、未装配的开发环境）只有远程模式。
 
-```json
-"gateway": {
-  "port": 18789,        // Gateway 默认端口
-  "mode": "local",
-  "bind": "lan",
-  "controlUi": {
-    "allowedOrigins": [
-      "https://tauri.localhost",  // Tauri 生产环境 (macOS/Linux)
-      "tauri://localhost",        // Tauri 生产环境 (Windows WebView2)
-      "http://tauri.localhost",   // Tauri 开发环境标准协议
-      "http://localhost:1420",    // Vite 开发服务器默认端口
-      "http://localhost:18081"    // 备用开发端口
-    ],
-    "allowInsecureAuth": true     // 允许本地开发的非 HTTPS 连接鉴权
-  }
-}
+## 桌面端内置服务端
+
+Windows 桌面安装包可将 seedagent 服务端连同 Node 23 运行时一起打包，开箱即用、
+无需单独部署服务端：
+
+**启动流程**：应用启动 → Rust 检测内置资源 → 生成/复用令牌 → 选端口并探测
+（同令牌的残留实例会被直接复用）→ 拉起 `node dist/index.js` → 等待端口真正
+开始监听 → 前端自动连接并进入主界面。服务进程崩溃时自动退避重启；应用退出时
+清理整个进程树。
+
+**打包**（Windows，需本机可运行 npm；Node 运行时本机匹配 23.x 则直接采集，
+否则自动下载）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/package-desktop.ps1 -SeedagentDir <seedagent 仓库路径>
 ```
 
-> **注意**: 如果 `allowedOrigins` 配置不正确，你可能会在控制台中看到 WebSocket
-> 连接失败或 `403 Forbidden` 错误，导致无法与 Agent 进行对话。
+产物在 `dist-windows\`：NSIS 安装包、MSI、便携版 zip。更多开关（`-StageOnly`、
+`-SkipStage`、`-NodeExe`、部署目录等）见脚本头部注释。
 
-## 快速开始
+## 开发环境配置
 
 1. **安装依赖**:
    ```bash
@@ -73,6 +82,20 @@ WebSocket 连接会被拒绝。
    ```bash
    npm run tauri build
    ```
+
+### 联调内置服务端（可选）
+
+开发环境下默认没有装配服务端资源（`bundled=false`），应用以纯远程客户端运行，
+行为与 Web/Android 一致。若要在开发中联调内置服务端：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/package-desktop.ps1 -StageOnly -SeedagentDir <seedagent 仓库路径>
+npm run tauri dev
+```
+
+`-StageOnly` 只把服务端装配到 `src-tauri\resources\seedagent\`（不打包），此时
+`tauri dev` 会检测到内置服务并自动拉起。服务端的端口、令牌、数据目录等配置项
+见 [seedagent](https://github.com/zhezzma/seedagent) 仓库说明。
 
 ## Web 自动部署（Cloudflare Workers）
 
