@@ -13,6 +13,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import DeliveryTargetsEditor from '@/components/delivery/DeliveryTargetsEditor.vue'
 import ModelSelectMenuContent from '../../models/ModelSelectMenuContent.vue'
+import WorkspaceBindDialog from '../../workspace/WorkspaceBindDialog.vue'
 import { defaultHeartbeatDeliveryTargets, sanitizeDeliveryTargets, summarizeDeliveryTargets } from '../../../utils/delivery-targets'
 import { validateHeartbeatForm } from '../../../utils/form-validation'
 
@@ -31,6 +32,13 @@ const agentsState = useAgentsState()
 const modelsState = useModelsState()
 
 const { t } = useI18n()
+
+// Workspace rebind dialog
+const showWorkspaceDialog = ref(false)
+const onWorkspaceUpdated = async () => {
+    await agentsState.loadAgents()
+    toast.success(t('workspaceBinding.rebindDone'))
+}
 
 
 
@@ -448,11 +456,15 @@ const handleDeleteAgent = async () => {
                 </h4>
                 <div class="card bg-base-100 shadow-sm overflow-visible">
                     <ul class="divide-y divide-base-300">
-                        <li class="flex items-center justify-between p-4 bg-base-100">
+                        <li class="flex items-center justify-between p-4 bg-base-100 gap-2">
                             <span class="font-medium text-base-content/90">{{ $t('agent.workspace') }}</span>
-                            <div class="font-mono text-xs bg-base-200 px-2 py-1 rounded text-base-content/70 truncate max-w-[200px] md:max-w-md"
-                                :title="agent.workspaceDir">
-                                {{ agent.workspaceDir || '-' }}
+                            <div class="flex items-center gap-2 min-w-0">
+                                <div class="font-mono text-xs bg-base-200 px-2 py-1 rounded text-base-content/70 truncate max-w-[160px] md:max-w-sm"
+                                    :title="agent.workspaceDir">
+                                    {{ agent.workspaceDir || '-' }}
+                                </div>
+                                <button class="btn btn-ghost btn-xs shrink-0"
+                                    @click="showWorkspaceDialog = true">{{ $t('workspaceBinding.editBinding') }}</button>
                             </div>
                         </li>
                         <li class="flex items-center justify-between p-4 bg-base-100">
@@ -724,6 +736,9 @@ const handleDeleteAgent = async () => {
                     <button>close</button>
                 </form>
             </dialog>
+
+            <WorkspaceBindDialog :show="showWorkspaceDialog" :agent-id="agent.id"
+                @close="showWorkspaceDialog = false" @updated="onWorkspaceUpdated" />
 
             <!-- Danger Zone -->
             <div class="space-y-2 pt-6 border-t border-base-200/50">
