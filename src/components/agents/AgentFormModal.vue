@@ -50,7 +50,8 @@ const formData = ref({
     description: '',
     defaultModel: '',
     defaultProvider: '',
-    defaultThinkingLevel: 'off',
+    // 默认对齐服务端 DEFAULT_AGENT_CONFIG.defaultThinkingLevel: "high"，保留既有创建行为
+    defaultThinkingLevel: 'high',
     workspaceDir: '',
     identityName: 'seedagent',
     identityCreature: '',
@@ -121,7 +122,7 @@ watch(() => props.show, (newVal) => {
                 description: props.agentData.description || '',
                 defaultModel: props.agentData.defaultModel || '',
                 defaultProvider: props.agentData.defaultProvider || '',
-                defaultThinkingLevel: props.agentData?.defaultThinkingLevel || 'off',
+                defaultThinkingLevel: props.agentData?.defaultThinkingLevel || 'high',
                 // 必须用 raw 原始值（服务端 GET 详情提供 workspaceDirRaw）；
                 // 用解析/规范化值会把默认 agent 一保存就绑到自身 workspace
                 workspaceDir: props.agentData?.workspaceDirRaw || '',
@@ -144,7 +145,7 @@ watch(() => props.show, (newVal) => {
                 description: '',
                 defaultModel: '',
                 defaultProvider: '',
-                defaultThinkingLevel: 'off',
+                defaultThinkingLevel: 'high',
                 workspaceDir: '',
                 identityName: 'seedagent',
                 identityCreature: '',
@@ -269,7 +270,7 @@ const submitForm = async () => {
         if (formData.value.description) data.append('description', formData.value.description)
         if (formData.value.defaultModel) data.append('defaultModel', formData.value.defaultModel)
         if (formData.value.defaultProvider) data.append('defaultProvider', formData.value.defaultProvider)
-        // 思考等级始终提交（off 为合法默认值），服务端解析 + 枚举校验
+        // 思考等级始终提交（默认 high，对齐服务端 DEFAULT_AGENT_CONFIG），服务端解析 + 枚举校验
         data.append('defaultThinkingLevel', formData.value.defaultThinkingLevel)
 
         // workspaceDirRaw 契约守卫：当前网关的编辑详情必含 workspaceDirRaw，此时始终
