@@ -154,21 +154,24 @@ async function doRebind() {
 
             <div class="px-5 py-4 border-t border-base-200 flex justify-end gap-2">
                 <button class="btn btn-ghost btn-sm" @click="emit('close')">{{ t('common.cancel') }}</button>
-                <!-- rebind：更新绑定 -->
+                <!-- rebind：更新绑定（rebind 恒为 input 阶段，仅渲染本按钮 + 取消） -->
                 <button v-if="isRebind" class="btn btn-primary btn-sm" :disabled="isBusy || !st.lastResult"
                     @click="doRebind">{{ t('workspaceBinding.rebindAction') }}</button>
-                <!-- input 阶段：已绑定→切换 -->
-                <button v-if="stage === 'input' && st.switchTarget" class="btn btn-primary btn-sm"
-                    @click="doSwitch">
-                    {{ t('workspaceBinding.switchTo') }}
-                </button>
-                <button v-else-if="stage === 'input'" class="btn btn-primary btn-sm"
-                    :disabled="!st.canNext" @click="stage = 'create'">
-                    {{ t('workspaceBinding.next') }}
-                </button>
-                <!-- create 阶段 -->
-                <button v-else class="btn btn-primary btn-sm" :disabled="isBusy || !st.form.id.trim()"
-                    @click="doCreate">{{ t('workspaceBinding.createAndChat') }}</button>
+                <!-- 非 rebind：切换/下一步/创建 三按钮链（整体以 !isRebind 门控） -->
+                <template v-if="!isRebind">
+                    <!-- input 阶段：已绑定→切换 -->
+                    <button v-if="stage === 'input' && st.switchTarget" class="btn btn-primary btn-sm"
+                        @click="doSwitch">
+                        {{ t('workspaceBinding.switchTo') }}
+                    </button>
+                    <button v-else-if="stage === 'input'" class="btn btn-primary btn-sm"
+                        :disabled="!st.canNext" @click="stage = 'create'">
+                        {{ t('workspaceBinding.next') }}
+                    </button>
+                    <!-- create 阶段 -->
+                    <button v-else class="btn btn-primary btn-sm" :disabled="isBusy || !st.form.id.trim()"
+                        @click="doCreate">{{ t('workspaceBinding.createAndChat') }}</button>
+                </template>
             </div>
         </div>
     </div>
