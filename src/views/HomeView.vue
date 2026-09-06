@@ -783,17 +783,17 @@ async function applyDefaultSessionBehavior() {
 
                 <!-- 新会话欢迎页：居中问候语 + agent 下拉 + 输入框 -->
                 <div v-else-if="isNewSessionPage || isCreatingSession"
-                    class="relative flex-1 flex flex-col items-center justify-center px-4 py-6 overflow-y-auto">
+                    class="relative flex-1 flex flex-col items-center  px-4 py-6 overflow-y-auto">
                     <!-- 背景氛围光晕（纯装饰，不响应交互） -->
                     <div class="welcome-aurora" aria-hidden="true">
                         <div class="welcome-blob welcome-blob-a"></div>
                         <div class="welcome-blob welcome-blob-b"></div>
                         <div class="welcome-blob welcome-blob-c"></div>
                     </div>
-                    <div class="relative w-full max-w-2xl sm:max-w-3xl lg:max-w-4xl flex flex-col gap-8">
-                        <h1 class="welcome-shimmer welcome-rise text-3xl font-bold text-center">{{ $t(greetingKey) }}</h1>
+                    <div class="relative w-full max-w-2xl sm:max-w-3xl lg:max-w-4xl flex flex-col">
+                        <h1 class="welcome-shimmer welcome-rise text-3xl font-bold text-center mt-[25%]">{{ $t(greetingKey) }}</h1>
 
-                        <ChatInput ref="chatInputRef" centered class="welcome-rise welcome-rise-delay" :is-busy="isBusy"
+                        <ChatInput ref="chatInputRef" centered class="welcome-rise welcome-rise-delay mt-[25%]" :is-busy="isBusy"
                             :disabled="false" @send="handleSend">
                             <template #top>
                                 <details ref="welcomeAgentDropdownRef" class="dropdown px-2 pt-1.5">
@@ -817,7 +817,7 @@ async function applyDefaultSessionBehavior() {
                                             <a @click="showAgentFormModal = true"
                                                 class="flex items-center gap-2 text-base-content/80">
                                                 <FolderOpenIcon class="h-4 w-4 opacity-70" />
-                                                <span>{{ $t('workspaceBinding.openFolder') }}</span>
+                                                <span>{{ $t('agent.addTitle') }}</span>
                                             </a>
                                         </li>
                                     </ul>

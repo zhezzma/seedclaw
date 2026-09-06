@@ -437,22 +437,7 @@ const submitForm = async () => {
 
                         <!-- Main Info Section -->
                         <div class="flex flex-col gap-4">
-                            <!-- Workspace Directory Field (spec §5.1) -->
-                            <div class="form-control">
-                                <WorkspacePathField ref="workspaceFieldRef" v-model="formData.workspaceDir"
-                                    :agent-id="mode === 'edit' ? agentData?.id : undefined"
-                                    @validated="onWorkspaceValidated" />
-                            </div>
 
-                            <!-- 信任并启用（仅新建）：路径含 .pi 信任要求配置时展示 -->
-                            <div v-if="mode === 'add' && formData.workspaceDir && workspaceTrustRequiring"
-                                class="form-control">
-                                <label class="label cursor-pointer justify-start gap-2">
-                                    <input v-model="workspaceTrustChecked" type="checkbox"
-                                        class="checkbox checkbox-sm checkbox-primary" />
-                                    <span class="label-text text-xs">{{ t('workspaceBinding.trustOnCreate') }}</span>
-                                </label>
-                            </div>
 
                             <!-- ID Field -->
                             <div class="form-control w-full">
@@ -482,6 +467,24 @@ const submitForm = async () => {
                                     :placeholder="t('agent.form.namePlaceholder')" @input="nameTouched = true"
                                     class="input input-bordered w-full focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all" />
                             </div>
+
+                            <!-- Workspace Directory Field (spec §5.1) -->
+                            <div class="form-control">
+                                <WorkspacePathField ref="workspaceFieldRef" v-model="formData.workspaceDir"
+                                    :agent-id="mode === 'edit' ? agentData?.id : undefined"
+                                    @validated="onWorkspaceValidated" />
+                            </div>
+
+                            <!-- 信任并启用（仅新建）：路径含 .pi 信任要求配置时展示 -->
+                            <div v-if="mode === 'add' && formData.workspaceDir && workspaceTrustRequiring"
+                                class="form-control">
+                                <label class="label cursor-pointer justify-start gap-2">
+                                    <input v-model="workspaceTrustChecked" type="checkbox"
+                                        class="checkbox checkbox-sm checkbox-primary" />
+                                    <span class="label-text text-xs">{{ t('workspaceBinding.trustOnCreate') }}</span>
+                                </label>
+                            </div>
+
                         </div>
 
                         <!-- Description -->

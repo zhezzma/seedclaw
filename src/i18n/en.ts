@@ -303,7 +303,6 @@ export default {
         rebindAction: 'Update binding',
         rebindDone: 'Binding updated; takes effect for new sessions',
         rebindNote: 'Applies to new sessions; active sessions keep the old directory until idle recycling',
-        openFolder: 'Open folder…',
         editBinding: 'Change',
         trustDefaultLabel: 'Project trust default',
         trustDefaultAsk: 'Ask (treated as untrusted without UI)',

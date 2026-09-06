@@ -303,7 +303,6 @@ export default {
         rebindAction: '更新绑定',
         rebindDone: '已更新绑定，对新建会话生效',
         rebindNote: '改动对新会话生效，活跃会话保留旧目录直到空闲回收',
-        openFolder: '选择文件夹…',
         editBinding: '修改',
         trustDefaultLabel: '项目信任默认策略',
         trustDefaultAsk: '每次询问（无界面时视为不信任）',
