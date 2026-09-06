@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
+import { localServer, effectiveGatewayMode, restartLocalServer } from '../composables/local-server'
 import { apiGet } from '../composables/api-client'
 import { useModelsState, type KnownApi } from '../composables/useModelsState'
 import { useAgentsState } from '../composables/useAgentsState'
@@ -45,6 +46,11 @@ const isLoading = ref(false)
 const error = ref('')
 const showPassword = ref(false)
 const deviceName = ref(configStore.deviceName || 'SeedClaw')
+
+// 内置服务端模式（Tauri + bundled）：本地服务由应用托管，
+// 引导页不再要求手填网关地址；"连接远程服务器"是显式的高级选项
+const isLocalMode = computed(() => effectiveGatewayMode() === 'local')
+const showRemoteForm = ref(!isLocalMode.value)
 
 // Step 2: Model State
 const modelProviderId = ref('openai')
@@ -101,6 +107,30 @@ const handleFileChange = (event: Event) => {
 
 // --- Step 1: Connection Logic ---
 
+// 本地模式：服务端由 Rust 托管，无需手填地址；就绪后写 gatewayMode 并进入后续步骤
+const handleLocalSubmit = async () => {
+    isLoading.value = true
+    error.value = ''
+
+    try {
+        configStore.save({
+            gatewayMode: 'local',
+            ...(localServer.url && localServer.token ? {
+                apiBaseUrl: localServer.url,
+                token: localServer.token,
+            } : {}),
+            deviceName: deviceName.value.trim() || 'SeedClaw'
+        })
+        await checkNextSteps()
+    } catch (e: any) {
+        error.value = e instanceof Error ? e.message : t('setup.connectionFailed')
+        console.error(e)
+        isLoading.value = false
+    }
+}
+
+const restartServer = () => { restartLocalServer() }
+
 const handleConnectionSubmit = async () => {
     // Validate
     if (!apiBaseUrl.value.trim()) {
@@ -123,13 +153,17 @@ const handleConnectionSubmit = async () => {
 
     try {
         // Save configuration first
+        // 远程模式显式落 gatewayMode 与 remote* 字段（切换本地/远程的持久化依据）
         configStore.save({
+            gatewayMode: 'remote',
+            remoteApiBaseUrl: apiBaseUrl.value.trim(),
+            remoteToken: authToken.value.trim(),
             apiBaseUrl: apiBaseUrl.value.trim(),
             token: authToken.value.trim(),
             deviceName: deviceName.value.trim() || 'SeedClaw'
         })
 
-        // Connection successful. 
+        // Connection successful.
         // Determine if we need to show Model/Agent setup steps.
         await checkNextSteps()
 
@@ -309,9 +343,74 @@ const handleAgentSubmit = async () => {
                 </div>
 
 
-                <!-- Step 1: Connection Form -->
-                <form v-if="currentStep === 1" @submit.prevent="handleConnectionSubmit"
-                    class="space-y-6 animate-fade-in">
+                <!-- Step 1a: Local bundled server card（内置服务端托管，无需手填地址） -->
+                <div v-if="currentStep === 1 && isLocalMode && !showRemoteForm" class="space-y-6 animate-fade-in">
+                    <div class="rounded-2xl border border-base-300 bg-base-200/60 p-5">
+                        <div class="flex items-center gap-3">
+                            <ServerIcon class="h-6 w-6 text-primary" />
+                            <div class="flex-1">
+                                <p class="font-medium">{{ $t('setup.localServerTitle') }}</p>
+                                <p class="text-xs opacity-60">{{ $t('setup.localServerDesc') }}</p>
+                            </div>
+                            <span v-if="localServer.state === 'running'" class="badge badge-success badge-soft gap-1.5">
+                                <span class="inline-block h-1.5 w-1.5 rounded-full bg-success animate-pulse"></span>
+                                {{ $t('setup.localServerRunning') }}
+                            </span>
+                            <span v-else-if="localServer.state === 'failed'" class="badge badge-error badge-soft">
+                                {{ $t('setup.localServerFailed') }}
+                            </span>
+                            <span v-else class="badge badge-warning badge-soft gap-1.5">
+                                <span class="loading loading-spinner loading-xs"></span>
+                                {{ $t('setup.localServerStarting') }}
+                            </span>
+                        </div>
+                        <p v-if="localServer.state === 'running' && localServer.url"
+                            class="mt-2 font-mono text-xs opacity-50">{{ localServer.url }}</p>
+                        <div v-if="localServer.state === 'failed'" class="mt-2 space-y-2">
+                            <p class="text-xs text-error">{{ localServer.lastError }}</p>
+                            <button type="button" class="btn btn-outline btn-xs" @click="restartServer">
+                                {{ $t('setup.localServerRetry') }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Device Name -->
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend text-sm font-medium">
+                            <DevicePhoneMobileIcon class="w-4 h-4 inline mr-1" />
+                            {{ $t('setup.deviceNameOptional') }}
+                        </legend>
+                        <input v-model="deviceName" type="text" class="input w-full focus:input-primary transition-all"
+                            placeholder="SeedClaw" />
+                        <p class="label text-xs opacity-60">{{ $t('setup.deviceNameDesc') }}</p>
+                    </fieldset>
+
+                    <button type="button" @click="handleLocalSubmit"
+                        class="btn btn-primary btn-block gap-2 h-12 text-base shadow-lg hover:shadow-primary/25 transition-all"
+                        :disabled="isLoading || localServer.state !== 'running'">
+                        <span v-if="isLoading || localServer.state !== 'running'"
+                            class="loading loading-spinner loading-sm"></span>
+                        <template v-else>
+                            {{ $t('setup.startUsing') }}
+                            <ArrowRightIcon class="h-5 w-5" />
+                        </template>
+                    </button>
+
+                    <button type="button" class="btn btn-ghost btn-sm btn-block opacity-60"
+                        @click="showRemoteForm = true">
+                        {{ $t('setup.useRemoteServer') }}
+                    </button>
+                </div>
+
+                <!-- Step 1b: Remote Connection Form -->
+                <form v-if="currentStep === 1 && !(isLocalMode && !showRemoteForm)"
+                    @submit.prevent="handleConnectionSubmit" class="space-y-6 animate-fade-in">
+                    <!-- 本地模式下显式切来远程，给个返回入口 -->
+                    <button v-if="isLocalMode" type="button" class="btn btn-ghost btn-sm opacity-60"
+                        @click="showRemoteForm = false">
+                        ← {{ $t('setup.useLocalServer') }}
+                    </button>
+
                     <!-- Gateway URL -->
                     <fieldset class="fieldset">
                         <legend class="fieldset-legend text-sm font-medium">
