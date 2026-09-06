@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 桌面打包：构建 seedagent → 采集 Node 23 运行时 → staging 到 src-tauri/resources/seedagent → tauri build
 用法：
@@ -24,6 +24,16 @@ function Assert-Staging([string]$Dir) {
     foreach ($p in @('node.exe', 'dist\index.js', 'node_modules')) {
         if (-not (Test-Path (Join-Path $Dir $p))) { throw "staging incomplete at ${Dir}: missing $p" }
     }
+}
+
+# PS 5.1 的 Remove-Item/Copy-Item 对超过 260 字符的深路径（node_modules 常见）会失败。
+# robocopy 内部走 \\?\ 长路径 API：用空目录 /MIR 清空目标，再删掉空壳。
+function Remove-LongPath([string]$Dir) {
+    if (-not (Test-Path $Dir)) { return }
+    $emptyDir = Join-Path $env:TEMP ("seedclaw-empty-" + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Force -Path $emptyDir | Out-Null
+    robocopy $emptyDir $Dir /MIR /NFL /NDL /NJH /NJS | Out-Null
+    Remove-Item -Recurse -Force $emptyDir
 }
 
 if ($SkipStage) {
@@ -72,7 +82,7 @@ else {
 
     # 3. staging（不在 seedagent 仓库里 prune，staging 目录内独立 npm ci --omit=dev）
     Write-Host "==> staging into $staging"
-    if (Test-Path $staging) { Remove-Item -Recurse -Force $staging }
+    Remove-LongPath $staging
     New-Item -ItemType Directory -Force -Path $staging | Out-Null
 
     Copy-Item (Join-Path $SeedagentDir 'dist') (Join-Path $staging 'dist') -Recurse
@@ -113,11 +123,21 @@ Get-ChildItem "$bundleDir\nsis\*.exe", "$bundleDir\msi\*.msi" -ErrorAction Silen
     ForEach-Object { Copy-Item $_.FullName $outDir -Force; Write-Host "==> collected $($_.Name)" }
 
 $portable = Join-Path $outDir 'portable'
-if (Test-Path $portable) { Remove-Item -Recurse -Force $portable }
+Remove-LongPath $portable
 New-Item -ItemType Directory -Force -Path $portable | Out-Null
 Copy-Item (Join-Path $root 'src-tauri\target\release\seedclaw.exe') $portable
-Copy-Item (Join-Path $root 'src-tauri\resources') (Join-Path $portable 'resources') -Recurse
-Compress-Archive -Path (Join-Path $portable '*') -DestinationPath (Join-Path $outDir 'seedclaw-portable-windows.zip') -Force
-Remove-Item -Recurse -Force $portable
+# Copy-Item -Recurse 同样受 260 字符限制，node_modules 用 robocopy 拷贝
+robocopy (Join-Path $root 'src-tauri\resources') (Join-Path $portable 'resources') /E /NFL /NDL /NJH /NJS | Out-Null
+if ($LASTEXITCODE -ge 8) { throw "robocopy resources failed (exit $LASTEXITCODE)" }
+
+# Compress-Archive 对深路径同样会失败，用系统自带 bsdtar 生成 zip（绝对路径调用，避免 PATH 里 GNU tar 抢占）
+$portableZip = Join-Path $outDir 'seedclaw-portable-windows.zip'
+if (Test-Path $portableZip) { Remove-Item -Force $portableZip }
+Push-Location $portable
+try {
+    & "$env:SystemRoot\System32\tar.exe" -a -c -f $portableZip seedclaw.exe resources
+    if ($LASTEXITCODE -ne 0) { throw "portable zip failed (tar exit $LASTEXITCODE)" }
+} finally { Pop-Location }
+Remove-LongPath $portable
 Write-Host "==> portable zip: dist-windows\seedclaw-portable-windows.zip"
 Write-Host "==> done. Artifacts in $outDir"
