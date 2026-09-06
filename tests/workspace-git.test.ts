@@ -317,22 +317,23 @@ test('save 后在 statusRepo 匹配时重拉 status（新契约：只有磁盘�
     // 应用属于 repoA 的归属判断逻辑，主动走一次 loadStatus
     const repo = git.statusRepo!
     const path = 'repoA/src/a.ts'
-    const belongs = repo === '' || path === repo || path.startsWith(repo + '/')
+    const belongs = repo === '.' || path === repo || path.startsWith(repo + '/')
     assert.equal(belongs, true)
     if (belongs) await git.loadStatus('coder', repo)
 
     assert.equal(statusCalls, statusBefore + 1)
 })
 
-test('save 归属判断：root repo / prefix-collision / 跨仓 覆盖', () => {
+test('save 归属判断：root repo（"."）/ prefix-collision / 跨仓 覆盖', () => {
     // 这是 WorkspaceFileView.save 里归属判断的纯逻辑回归点。
     // 与实现必须严格一致，避免 'foo' 误匹 'foobar' 之类 bug。
+    // 服务端对「workspace 根本身是 repo」emit relPath "."（旧版 '' 已废）。
     const belongs = (repo: string, path: string) =>
-        repo === '' || path === repo || path.startsWith(repo + '/')
+        repo === '.' || path === repo || path.startsWith(repo + '/')
 
-    // 1) root repo：workspace 根本身是 repo，任何 workspace 路径都属于它
-    assert.equal(belongs('', 'any/path.ts'), true)
-    assert.equal(belongs('', 'a.ts'), true)
+    // 1) root repo：workspace 根本身是 repo（relPath "."），任何 workspace 文件都属于它
+    assert.equal(belongs('.', 'any/path.ts'), true)
+    assert.equal(belongs('.', 'a.ts'), true)
 
     // 2) 正常嵌套
     assert.equal(belongs('foo', 'foo/a.ts'), true)
@@ -344,4 +345,11 @@ test('save 归属判断：root repo / prefix-collision / 跨仓 覆盖', () => {
 
     // 4) 跨仓：bar 仓不能匹 foo/* 路径
     assert.equal(belongs('bar', 'foo/a.ts'), false)
+})
+
+test('repoJoin：根仓库（"."）不产生 "./" 前缀，子仓正常拼接', async () => {
+    const { repoJoin } = await import('../src/composables/useWorkspaceGit.ts')
+    assert.equal(repoJoin('.', 'src/foo.ts'), 'src/foo.ts')
+    assert.equal(repoJoin('.', 'a.ts'), 'a.ts')
+    assert.equal(repoJoin('sub', 'a.ts'), 'sub/a.ts')
 })

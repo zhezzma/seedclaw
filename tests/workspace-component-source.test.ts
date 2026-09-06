@@ -101,8 +101,8 @@ test('WorkspaceTabGit: 加载 workspaceRoot + 菜单传绝对路径 + HistoryLis
     // 加载工作区根目录绝对路径（拼 git 文件绝对路径用）
     assert.match(src, /git\.loadWorkspaceRoot/, 'must load workspaceRoot on mount')
     assert.match(src, /git\.workspaceRoot\.value/, 'must read workspaceRoot from the git store')
-    // callbacksFor 给菜单工厂传 absolutePath
-    assert.match(src, /buildAbsolutePath\(git\.workspaceRoot\.value, `\$\{repo\}\/\$\{change\.path\}`\)/, 'must compose absolute path as root + repo + change.path')
+    // callbacksFor 给菜单工厂传 absolutePath（repoJoin 处理根仓库 "." 不产生 "./" 前缀）
+    assert.match(src, /buildAbsolutePath\(git\.workspaceRoot\.value, repoJoin\(repo, change\.path\)\)/, 'must compose absolute path as root + repoJoin(repo, change.path)')
     // commit 文件行也要打开工作区文件：透传 onOpenFile 给 HistoryList
     assert.match(src, /:on-open-file="openCommitFile"/, 'must pass onOpenFile to HistoryList for commit file open')
 })

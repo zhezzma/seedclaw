@@ -16,7 +16,7 @@ import RepoSelector from './git/RepoSelector.vue'
 import StatusGroup from './git/StatusGroup.vue'
 import HistoryList from './git/HistoryList.vue'
 import CollapsibleSection from './CollapsibleSection.vue'
-import { useWorkspaceGit } from '../../composables/useWorkspaceGit'
+import { useWorkspaceGit, repoJoin } from '../../composables/useWorkspaceGit'
 import { useWorkspacePanel } from '../../composables/useWorkspacePanel'
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
 import { useToast } from '../../composables/useToast'
@@ -86,12 +86,13 @@ function openUnstagedDiff(change: FileChange) {
 }
 
 /** 在 viewer 里打开"工作区当前文件"（VSCode 风格 Open File）。
- *  路径需要 workspace 相对路径：repoPath + '/' + entry.path。
+ *  路径需要 workspace 相对路径：repoPath + '/' + entry.path（根仓库 relPath "." 时
+ *  由 repoJoin 直接用 entry.path，避免 "./" 前缀）。
  *  staged 模式 + deleted 状态：文件可能不在 worktree，调用方靠 disabledFor 屏蔽。 */
 function openFile(change: FileChange) {
     const repo = selectedRepo.value
     if (!repo) return
-    const wsRelPath = `${repo}/${change.path}`
+    const wsRelPath = repoJoin(repo, change.path)
     viewer.openFile(wsRelPath)
 }
 
@@ -105,7 +106,7 @@ function openCommitDiff(args: { ref: string; file: string }) {
 function openCommitFile(file: string) {
     const repo = selectedRepo.value
     if (!repo) return
-    viewer.openFile(`${repo}/${file}`)
+    viewer.openFile(repoJoin(repo, file))
 }
 
 const commitsCount = computed(() => git.commits.value.length || null)
@@ -120,15 +121,16 @@ const unstagedAndUntracked = computed<FileChange[]>(() => {
 
 // ── 共用：构造单行的 callback 集合（行内按钮和右键菜单都拿同一份） ──
 function callbacksFor(group: GitGroup, change: FileChange) {
-    const repo = selectedRepo.value
+    // 调用方（buildItemsFor / buildInlineFor）已在 repo 为空时返回 []；?? '' 仅兜底类型
+    const repo = selectedRepo.value ?? ''
     return {
         file: change,
         group,
         // unstaged 组：diff 按 status 选 mode；staged 组依然走 staged mode。
         onOpenDiff: () => group === 'unstaged' ? openUnstagedDiff(change) : openDiff(group, change),
         onOpenFile: () => openFile(change),
-        // 绝对路径 = workspaceRoot + repo + change.path；root 未就绪时退回相对路径。
-        absolutePath: buildAbsolutePath(git.workspaceRoot.value, `${repo}/${change.path}`),
+        // 绝对路径 = workspaceRoot + repoJoin(repo, change.path)；root 未就绪时退回相对路径。
+        absolutePath: buildAbsolutePath(git.workspaceRoot.value, repoJoin(repo, change.path)),
         // git 服务端会区分 tracked / untracked，这里一起传就行。
         onStage: group === 'unstaged' && repo
             ? () => git.stage(props.agentId, repo, [change.path])

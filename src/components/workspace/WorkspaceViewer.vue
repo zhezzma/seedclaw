@@ -52,7 +52,8 @@ const breadcrumb = computed(() => {
     if (tgt.type === 'text') return tgt.title || t('fileViewer.preview')
     if (tgt.type === 'diff') {
         const sha = tgt.ref ? ` @ ${tgt.ref.slice(0, 7)}` : ''
-        return `${tgt.repo} / ${tgt.file}${sha}`
+        // 根仓库（"."）不显示 ". /" 前缀（repoJoin 同语义）；子仓保留 "repo / file" 排版
+        return tgt.repo === '.' ? `${tgt.file}${sha}` : `${tgt.repo} / ${tgt.file}${sha}`
     }
     return ''
 })

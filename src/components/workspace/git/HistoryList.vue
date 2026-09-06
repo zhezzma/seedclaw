@@ -9,7 +9,7 @@ import {
     ChevronDownIcon, ChevronRightIcon, ClipboardDocumentIcon, DocumentIcon,
 } from '@heroicons/vue/24/outline'
 import { useI18n } from 'vue-i18n'
-import { useWorkspaceGit, formatCommitInfo } from '../../../composables/useWorkspaceGit'
+import { useWorkspaceGit, formatCommitInfo, repoJoin } from '../../../composables/useWorkspaceGit'
 import { useContextMenu } from '../../../composables/useContextMenu'
 import { useToast } from '../../../composables/useToast'
 import { writeClipboard } from '../../../utils/clipboard'
@@ -65,7 +65,7 @@ function onCommitFileContextMenu(e: MouseEvent, commit: CommitMeta, f: CommitFil
     ctxMenu.openAt(buildGitFileMenu({
         onOpenDiff: () => props.onOpenDiff({ ref: commit.sha, file: f.path }),
         onOpenFile: openFile ? () => openFile(f.path) : undefined,
-        absolutePath: buildAbsolutePath(git.workspaceRoot.value, `${props.repo}/${f.path}`),
+        absolutePath: buildAbsolutePath(git.workspaceRoot.value, repoJoin(props.repo, f.path)),
         // commit 中被删除的文件在工作区不存在，禁用打开文件。
         openFileDisabled: f.status === 'D',
     }), { x: e.clientX, y: e.clientY })

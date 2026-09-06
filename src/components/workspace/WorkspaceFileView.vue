@@ -271,9 +271,10 @@ async function save(): Promise<boolean> {
             // fire-and-forget：save 的语义是"保存成功"，不被 status reload 阻塞。
             if (scopeAtStart === 'workspace' && git.statusRepo !== null) {
                 const repo = git.statusRepo
-                // repo === '' 表示 workspace 根本身是个 repo → 任何 workspace 文件都属于它。
+                // repo === '.' 表示 workspace 根本身是个 repo（服务端 emit relPath "."）
+                //   → 任何 workspace 文件都属于它。
                 // 严格前缀匹配避免 'foo' 误匹 'foobar'；path === repo 作为防御性分支保留。
-                const belongs = repo === ''
+                const belongs = repo === '.'
                     || pathAtStart === repo
                     || pathAtStart.startsWith(repo + '/')
                 if (belongs) {

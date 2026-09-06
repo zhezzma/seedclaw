@@ -104,6 +104,11 @@ export function formatCommitInfo(commit: CommitMeta): string {
     return lines.join('\n')
 }
 
+/** repo 相对路径前缀：根仓库（"."）不产生 "./" 前缀 */
+export function repoJoin(repo: string, filePath: string): string {
+    return repo === '.' ? filePath : `${repo}/${filePath}`
+}
+
 // 使用 getter 对象而非 computed：
 // reactive(state) 上 Object.assign computed 会被 Vue 在 set 时 auto-unwrap，
 // 导致 panel.repos.value 为 undefined。getter 保证渲染调用者仍能跟踪 reactive 依赖。
