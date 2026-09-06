@@ -236,8 +236,10 @@ const submitForm = async () => {
         }
 
         // 新建 + 勾选「信任并启用」：随创建请求提交 workspaceTrust=trust，
-        // 服务端仅在 workspaceDir 非空且校验通过时接受
-        if (props.mode === 'add' && formData.value.workspaceDir && workspaceTrustChecked.value) {
+        // 服务端仅在 workspaceDir 非空且校验通过时接受。
+        // 守卫须与勾选框渲染条件同谓词：路径改为非信任要求目录后 requiring 复位、
+        // 勾选框隐藏，残留的 checked=true 不得再随请求提交 trust。
+        if (props.mode === 'add' && formData.value.workspaceDir && workspaceTrustRequiring.value && workspaceTrustChecked.value) {
             data.append('workspaceTrust', 'trust')
         }
 
