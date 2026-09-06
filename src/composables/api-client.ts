@@ -7,6 +7,7 @@
 import { useUiSettingsStore } from '../stores/setting'
 import { useToast } from './useToast'
 import { i18n } from '../i18n'
+import { isLocalServerBooting, waitForLocalServerReady } from './local-server'
 
 // ==================== Types ====================
 
@@ -57,6 +58,10 @@ const SILENT_CODES = new Set([409, 404])
  * silent=true 供轮询类调用：不弹提示，由调用方内联展示错误。
  */
 async function fetchWithToast(url: string, init: RequestInit, silent = false): Promise<Response> {
+    // 内置服务端启动窗口内（bundled + local + 未 Running 过）先等服务端口真正监听再发：
+    // 兜住 UI 提前渲染后组件级（如 HomeView 挂载期 watcher）抢跑的请求，避免连接拒绝报错。
+    // 就绪后 / 非 bundled 构建 / remote 模式：isLocalServerBooting() 恒 false，零开销直通
+    if (isLocalServerBooting()) await waitForLocalServerReady()
     try {
         return await fetch(url, init)
     } catch (e) {
