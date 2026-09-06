@@ -298,6 +298,12 @@ fn find_listener_pid(port: u16) -> Option<u32> {
     None
 }
 
+/// 非 Windows：复用残留实例暂不接管 pid（跨平台清理属后续扩展），行为同前。
+#[cfg(not(target_os = "windows"))]
+fn find_listener_pid(_port: u16) -> Option<u32> {
+    None
+}
+
 enum PortProbe {
     /// 带 token 的 /api/health 返回 200 —— 自己残留的旧实例，直接复用
     Ours,
