@@ -27,6 +27,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import ViewHeader from '@/components/ViewHeader.vue'
 import { useConfirm } from '../composables/useConfirm'
+import { localServer, effectiveGatewayMode, restartLocalServer } from '../composables/local-server'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -34,6 +35,7 @@ const configStore = useUiSettingsStore()
 const { confirm } = useConfirm()
 
 const editForm = ref({
+    gatewayMode: 'remote' as 'local' | 'remote',
     apiBaseUrl: '',
     token: '',
     asrEngine: 'fun-asr' as ASREngineType,
@@ -65,10 +67,12 @@ const loadTtsFormForEngine = (engine: TTSEngineType) => {
 }
 
 const openConnectionModal = () => {
+    const mode = effectiveGatewayMode()
     editForm.value = {
         ...editForm.value,
-        apiBaseUrl: configStore.apiBaseUrl,
-        token: configStore.token,
+        gatewayMode: mode,
+        apiBaseUrl: mode === 'remote' ? configStore.remoteApiBaseUrl : (localServer.url ?? ''),
+        token: mode === 'remote' ? configStore.remoteToken : (localServer.token ?? ''),
     }
     const modal = document.getElementById('basic_settings_modal') as HTMLDialogElement
     if (modal) modal.showModal()
@@ -95,13 +99,38 @@ const onTtsEngineChange = (event: Event) => {
 }
 
 const saveConnection = () => {
-    configStore.save({
-        apiBaseUrl: editForm.value.apiBaseUrl,
-        token: editForm.value.token,
-    })
+    const mode = editForm.value.gatewayMode
+    if (mode === 'local') {
+        configStore.save({ gatewayMode: 'local' })
+    } else {
+        configStore.save({
+            gatewayMode: 'remote',
+            remoteApiBaseUrl: editForm.value.apiBaseUrl.trim(),
+            remoteToken: editForm.value.token,
+            apiBaseUrl: editForm.value.apiBaseUrl.trim(),
+            token: editForm.value.token,
+        })
+    }
     if (window.location.protocol !== 'file:') {
         window.location.reload()
     }
+}
+
+const localStateText = () => {
+    switch (localServer.state) {
+        case 'running': return `${t('settings.localServerRunning')} · ${localServer.url ?? ''}`
+        case 'starting': return t('settings.localServerStarting')
+        case 'restarting': return t('settings.localServerRestarting')
+        case 'failed': return `${t('settings.localServerFailed')}${localServer.lastError ? `：${localServer.lastError}` : ''}`
+        default: return t('settings.localServerUnavailable')
+    }
+}
+
+const onRestartServer = () => { restartLocalServer() }
+
+const onCopyLogPath = () => {
+    const dir = localServer.dataDir ? `${localServer.dataDir}\\logs` : '~/.seedagent/logs'
+    navigator.clipboard.writeText(dir)
 }
 
 const saveSessionsActiveDays = (event: Event) => {
@@ -382,17 +411,42 @@ const logout = async () => {
             <div class="form-control w-full space-y-4">
                 <div>
                     <label class="label">
+                        <span class="label-text">{{ $t('settings.gatewayMode') }}</span>
+                    </label>
+                    <select v-model="editForm.gatewayMode" class="select select-bordered w-full">
+                        <option v-if="localServer.bundled" value="local">{{ $t('settings.gatewayModeLocal') }}</option>
+                        <option value="remote">{{ $t('settings.gatewayModeRemote') }}</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="label">
                         <span class="label-text">{{ $t('settings.gatewayUrl') }}</span>
                     </label>
                     <input type="text" v-model="editForm.apiBaseUrl" :placeholder="$t('settings.gatewayUrlPlaceholder')"
-                        class="input input-bordered w-full" />
+                        :disabled="editForm.gatewayMode === 'local'" class="input input-bordered w-full" />
+                </div>
+                <div v-if="editForm.gatewayMode === 'local'" class="text-sm space-y-2">
+                    <p class="text-base-content/70">
+                        {{ localStateText() }}
+                        <span v-if="localServer.bundled" class="block text-xs text-base-content/50 mt-1">
+                            {{ $t('settings.localServerManagedHint') }}
+                        </span>
+                    </p>
+                    <p class="text-xs text-base-content/50 flex items-center gap-2">
+                        <span>{{ $t('settings.localServerLogHint') }}: {{ localServer.dataDir ? localServer.dataDir + '\\logs' : '~/.seedagent/logs' }}</span>
+                        <button class="btn btn-ghost btn-xs" @click="onCopyLogPath">{{ $t('settings.copyLogPath') }}</button>
+                    </p>
+                    <button v-if="localServer.state === 'failed' || localServer.state === 'running'"
+                        class="btn btn-outline btn-sm" @click="onRestartServer">
+                        {{ $t('settings.restartServer') }}
+                    </button>
                 </div>
                 <div>
                     <label class="label">
                         <span class="label-text">{{ $t('settings.token') }}</span>
                     </label>
                     <input type="text" v-model="editForm.token" :placeholder="$t('settings.tokenPlaceholder')"
-                        class="input input-bordered w-full" />
+                        :disabled="editForm.gatewayMode === 'local'" class="input input-bordered w-full" />
                 </div>
             </div>
             <div class="modal-action">
