@@ -27,13 +27,17 @@ src-tauri\resources\seedagent\ 目录的过程。该目录会被 tauri 打进安
 
 【参数】
   -SeedagentDir  seedagent 仓库路径（默认 D:\Workspace\seedagent，或环境变量 SEEDAGENT_DIR）
-  -NodeVersion   Node 运行时版本（默认 23.11.0，须 23.x，原生模块 ABI 锁定）
+  -NodeVersion   Node 运行时版本（默认 23.11.0，须 23.x，原生模块 ABI 锁主版本）
+  -NodeExe       显式指定本机 node.exe 路径（校验主版本为 23.x 后直接使用，不走下载）；
+                 例如 nvm 用户：-NodeExe "$env:USERPROFILE\AppData\Roaming\nvm\v23.0.0\node.exe"
+                 （或者直接 `nvm use 23.x` 后让脚本自动识别，无需此参数）
   -DeployDir     部署目录（默认 D:\Applications\seedclaw）
   注意：-StageOnly 与 -SkipStage 互斥，不要同时传（同时传等于什么也不做直接退出）。
 #>
 param(
     [string]$SeedagentDir = $(if ($env:SEEDAGENT_DIR) { $env:SEEDAGENT_DIR } else { "D:\Workspace\seedagent" }),
     [string]$NodeVersion = "23.11.0",
+    [string]$NodeExe = "",
     [string]$DeployDir = "D:\Applications\seedclaw",
     [switch]$StageOnly,
     [switch]$SkipStage,
@@ -80,21 +84,34 @@ else {
         if ($LASTEXITCODE -ne 0) { throw "seedagent build failed" }
     } finally { Pop-Location }
 
-    # ② 采集 node.exe：本机版本匹配则直接拷，否则下载 pinned 版本
+    # ② 采集 node.exe。优先级：-NodeExe 显式指定 > 本机 node 主版本匹配(23.x) > 下载 pinned 版本。
+    #    下载只发生一次（缓存到 scripts\.cache\），之后复用缓存。
+    #    原生模块 ABI 只锁主版本：v23.0.0 与 v23.11.0 同为 ABI 131，可互换。
     function Get-LocalNodePath([string]$WantVersion) {
         $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
         if (-not $nodeCmd) { return $null }
         $v = (& node -v) 2>$null
-        if ($v -eq "v$WantVersion") { return $nodeCmd.Source }
+        $wantMajor = ($WantVersion -split '\.')[0]
+        if ($v -match '^v(\d+)\.' -and $Matches[1] -eq $wantMajor) { return $nodeCmd.Source }
         return $null
     }
-    $nodeExe = Get-LocalNodePath $NodeVersion
+    if ($NodeExe) {
+        if (-not (Test-Path $NodeExe)) { throw "-NodeExe not found: $NodeExe" }
+        # 显式指定也校验主版本，防止误传 v18/v24 导致原生模块 ABI 不匹配
+        $v = (& $NodeExe -v) 2>$null
+        $wantMajor = ($NodeVersion -split '\.')[0]
+        if ($v -notmatch "^v$wantMajor\.") { throw "-NodeExe is $v, want v$wantMajor.x (原生模块 ABI 锁主版本)" }
+        $nodeExe = $NodeExe
+        Write-Host "==> node.exe (explicit): $NodeExe ($v)"
+    } else {
+        $nodeExe = Get-LocalNodePath $NodeVersion
+    }
     if (-not $nodeExe) {
         $cached = Join-Path $cache "node-v$NodeVersion.exe"
         if (-not (Test-Path $cached)) {
             New-Item -ItemType Directory -Force -Path $cache | Out-Null
             $url = "https://nodejs.org/dist/v$NodeVersion/win-x64/node.exe"
-            Write-Host "==> downloading $url"
+            Write-Host "==> downloading $url (仅首次，之后走缓存)"
             Invoke-WebRequest -Uri $url -OutFile $cached
         }
         $nodeExe = $cached
