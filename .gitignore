@@ -34,3 +34,4 @@ debug.keystore
 *.keystore 
 .worktrees/
 .workbuddy/
+.worktrees/
