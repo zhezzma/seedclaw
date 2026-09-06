@@ -78,6 +78,17 @@ const openConnectionModal = () => {
     if (modal) modal.showModal()
 }
 
+const onGatewayModeChange = (event: Event) => {
+    const mode = (event.target as HTMLSelectElement).value as 'local' | 'remote'
+    if (mode === 'local') {
+        editForm.value.apiBaseUrl = localServer.url ?? ''
+        editForm.value.token = localServer.token ?? ''
+    } else {
+        editForm.value.apiBaseUrl = configStore.remoteApiBaseUrl
+        editForm.value.token = configStore.remoteToken
+    }
+}
+
 const openAsrModal = () => {
     loadAsrFormForEngine(configStore.asrEngine || 'fun-asr')
     const modal = document.getElementById('asr_settings_modal') as HTMLDialogElement
@@ -413,7 +424,7 @@ const logout = async () => {
                     <label class="label">
                         <span class="label-text">{{ $t('settings.gatewayMode') }}</span>
                     </label>
-                    <select v-model="editForm.gatewayMode" class="select select-bordered w-full">
+                    <select v-model="editForm.gatewayMode" class="select select-bordered w-full" @change="onGatewayModeChange">
                         <option v-if="localServer.bundled" value="local">{{ $t('settings.gatewayModeLocal') }}</option>
                         <option value="remote">{{ $t('settings.gatewayModeRemote') }}</option>
                     </select>
