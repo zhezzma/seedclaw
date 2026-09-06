@@ -168,8 +168,8 @@ async function doRebind() {
                         :disabled="!st.canNext" @click="stage = 'create'">
                         {{ t('workspaceBinding.next') }}
                     </button>
-                    <!-- create 阶段 -->
-                    <button v-else class="btn btn-primary btn-sm" :disabled="isBusy || !st.form.id.trim()"
+                    <!-- create 阶段：st.lastResult 要求路径已校验（清空/改动未复验不得创建无绑定 agent） -->
+                    <button v-else class="btn btn-primary btn-sm" :disabled="isBusy || !st.form.id.trim() || !st.lastResult"
                         @click="doCreate">{{ t('workspaceBinding.createAndChat') }}</button>
                 </template>
             </div>

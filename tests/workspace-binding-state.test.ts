@@ -52,6 +52,34 @@ if (inVitest) {
             expect(apiState.get).toHaveBeenCalledWith(expect.stringContaining(encodeURIComponent("/srv/proj")), true);
         });
 
+        it("竞态：旧路径的迟到响应在 seq 作废后不生效", async () => {
+            let lateResolve!: (v: any) => void;
+            const late = new Promise<any>((r) => { lateResolve = r; });
+            apiState.get.mockImplementationOnce(() => late);
+            apiState.get.mockResolvedValueOnce(okPayload({ resolved: { path: "/srv/b", basename: "b", isGit: true } }));
+            const b = useWorkspaceBinding({ debounceMs: 0 });
+            b.setPath("/srv/a");
+            await vi.waitFor(() => expect(apiState.get).toHaveBeenCalledTimes(1));
+            b.setPath("/srv/b");
+            await vi.waitFor(() => expect(b.basename.value).toBe("b"));
+            // 此时旧请求仍未落定，手动放行其迟到响应（basename "a"）
+            lateResolve(okPayload({ resolved: { path: "/srv/a", basename: "a", isGit: true } }));
+            await new Promise((r) => setTimeout(r, 10));
+            expect(b.basename.value).toBe("b"); // 陈旧响应被丢弃
+            expect(b.error.value).toBeNull();
+        });
+
+        it("陈旧门控：非空重入同步清旧 result，窗口期内不门控按钮", async () => {
+            apiState.get.mockResolvedValueOnce(okPayload());
+            apiState.get.mockResolvedValueOnce(okPayload({ resolved: { path: "/srv/other", basename: "other", isGit: true } }));
+            const b = useWorkspaceBinding({ debounceMs: 0 });
+            b.setPath("/srv/proj");
+            await vi.waitFor(() => expect(b.basename.value).toBe("proj"));
+            b.setPath("/srv/other");
+            expect(b.result.value).toBeNull(); // 同步断言：路径一变旧结果即清
+            await vi.waitFor(() => expect(b.basename.value).toBe("other"));
+        });
+
         it("失败：解析 [code] 前缀为枚举", async () => {
             apiState.get.mockRejectedValue(new Error("[not_exists] workspaceDir 校验失败: /x"));
             const b = useWorkspaceBinding({ debounceMs: 0 });

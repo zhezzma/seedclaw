@@ -68,16 +68,20 @@ export function useWorkspaceBinding(options?: {
     }
 
     function setPath(v: string): void {
+        seq++; // 无条件作废在途请求：非空重入同样作废（模态复用窗口期，旧路径的迟到响应不得穿透 seq 检查）
         path.value = v;
         if (timer) clearTimeout(timer);
         if (!v.trim()) {
-            seq++; // 作废在途请求
             checking.value = false;
             result.value = null;
             error.value = null;
             return;
         }
         checking.value = true; // 非空输入进入防抖即置「校验中」，直到该次校验落定才复位
+        // 排程新校验即同步清旧结果：防抖+RTT 窗口内旧路径的 result 不得继续门控
+        // canNext/「更新绑定」/「创建并开始」（revalidate 不经此处，保留旧结果防信任块闪烁）
+        result.value = null;
+        error.value = null;
         timer = setTimeout(() => { void validate(v.trim()); }, debounceMs);
     }
 
