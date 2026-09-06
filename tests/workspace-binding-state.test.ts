@@ -52,20 +52,32 @@ if (inVitest) {
             expect(apiState.get).toHaveBeenCalledWith(expect.stringContaining(encodeURIComponent("/srv/proj")), true);
         });
 
-        it("竞态：旧路径的迟到响应在 seq 作废后不生效", async () => {
-            let lateResolve!: (v: any) => void;
-            const late = new Promise<any>((r) => { lateResolve = r; });
-            apiState.get.mockImplementationOnce(() => late);
-            apiState.get.mockResolvedValueOnce(okPayload({ resolved: { path: "/srv/b", basename: "b", isGit: true } }));
+        it("竞态：第二次校验发出前释放的迟到响应被 setPath 作废", async () => {
+            // 两个调用均为受控 deferred：B 的响应在断言 A 已被丢弃之后才放行，时序完全确定
+            const defer = () => {
+                let resolve!: (v: any) => void;
+                const promise = new Promise<any>((r) => { resolve = r; });
+                return { promise, resolve };
+            };
+            const a = defer();
+            const b2 = defer();
+            apiState.get.mockImplementationOnce(() => a.promise);
+            apiState.get.mockImplementationOnce(() => b2.promise);
             const b = useWorkspaceBinding({ debounceMs: 0 });
             b.setPath("/srv/a");
             await vi.waitFor(() => expect(apiState.get).toHaveBeenCalledTimes(1));
+            // 模态复用：A 的响应仍在途时切到 B 路径（此刻 setPath 作废 A；无该作废时 seq 仍是 A 的）
             b.setPath("/srv/b");
+            // 立即放行 A 的迟到响应——早于 B 的防抖定时器触发、即 validateB 尚未 ++seq
+            a.resolve(okPayload({ resolved: { path: "/srv/a", basename: "a", isGit: true } }));
+            for (let i = 0; i < 10; i++) await Promise.resolve(); // 仅冲刷微任务，不跨宏任务（B 的定时器不动）
+            // 窗口期内陈旧响应不得落地：B 尚未发出，result 只能是 null（回归时会短暂变成 basename "a"）
+            expect(apiState.get).toHaveBeenCalledTimes(1);
+            expect(b.result.value).toBeNull();
+            // 放行 B 的校验与响应，最终落定为 "b"
+            await vi.waitFor(() => expect(apiState.get).toHaveBeenCalledTimes(2));
+            b2.resolve(okPayload({ resolved: { path: "/srv/b", basename: "b", isGit: true } }));
             await vi.waitFor(() => expect(b.basename.value).toBe("b"));
-            // 此时旧请求仍未落定，手动放行其迟到响应（basename "a"）
-            lateResolve(okPayload({ resolved: { path: "/srv/a", basename: "a", isGit: true } }));
-            await new Promise((r) => setTimeout(r, 10));
-            expect(b.basename.value).toBe("b"); // 陈旧响应被丢弃
             expect(b.error.value).toBeNull();
         });
 
