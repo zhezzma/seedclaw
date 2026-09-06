@@ -7,6 +7,7 @@ use tauri::{
 };
 
 mod notify;
+mod server;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -78,6 +79,8 @@ pub fn run() {
             }
 
             app.manage(notify::init(app.handle()));
+            let server_manager = server::init(app.handle());
+            app.manage(server_manager);
             Ok(())
         })
         .on_window_event(|_window, event| match event {
@@ -94,7 +97,9 @@ pub fn run() {
             greet,
             notify::notify_connect,
             notify::notify_disconnect,
-            notify::notify_send
+            notify::notify_send,
+            server::server_status,
+            server::server_restart
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
