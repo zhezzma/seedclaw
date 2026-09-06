@@ -316,6 +316,10 @@ export default {
         openFolder: 'Open folder…',
         editBinding: 'Change',
         clearBinding: 'Clear binding',
+        trustDefaultLabel: 'Project trust default',
+        trustDefaultAsk: 'Ask (treated as untrusted without UI)',
+        trustDefaultAlways: 'Always trust',
+        trustDefaultNever: 'Never trust',
     },
     config: {
         title: 'Configuration',

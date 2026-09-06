@@ -175,6 +175,20 @@ const defaultThinkingLevel = computed({
     }
 })
 
+const defaultProjectTrust = computed({
+    get: () => props.agent?.defaultProjectTrust || 'ask',
+    set: async (val: string) => {
+        try {
+            await agentsState.updateAgent({
+                agentId: props.agent.id,
+                defaultProjectTrust: val
+            })
+        } catch (err: any) {
+            toast.error(err.message || String(err))
+        }
+    }
+})
+
 const steeringMode = computed({
     get: () => props.agent?.steeringMode || 'all',
     set: async (val: string) => {
@@ -465,6 +479,16 @@ const handleDeleteAgent = async () => {
                                 </div>
                                 <button class="btn btn-ghost btn-xs shrink-0"
                                     @click="showWorkspaceDialog = true">{{ $t('workspaceBinding.editBinding') }}</button>
+                            </div>
+                        </li>
+                        <li class="flex items-center justify-between p-4 bg-base-100">
+                            <span class="font-medium text-base-content/90">{{ $t('workspaceBinding.trustDefaultLabel') }}</span>
+                            <div class="flex-1 max-w-[250px] flex flex-col items-end gap-1">
+                                <select v-model="defaultProjectTrust" class="select select-bordered select-sm w-full font-sans">
+                                    <option value="ask">{{ $t('workspaceBinding.trustDefaultAsk') }}</option>
+                                    <option value="always">{{ $t('workspaceBinding.trustDefaultAlways') }}</option>
+                                    <option value="never">{{ $t('workspaceBinding.trustDefaultNever') }}</option>
+                                </select>
                             </div>
                         </li>
                         <li class="flex items-center justify-between p-4 bg-base-100">
