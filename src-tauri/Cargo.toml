@@ -50,4 +50,7 @@ openssl = { version = "0.10", features = ["vendored"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 tauri-plugin-single-instance = "2"
+# 子进程绑 Job Object（KILL_ON_JOB_CLOSE）：父进程任何方式退出（含崩溃/强杀/Ctrl+C）
+# 内核都会收掉 node 进程树，不依赖 RunEvent::Exit 钩子
+win32job = "2"
 

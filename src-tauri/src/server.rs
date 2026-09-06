@@ -2,7 +2,7 @@ use serde::Serialize;
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
@@ -91,6 +91,9 @@ pub struct ServerManager {
     intent: AtomicU8,
     /// 监控线程存活标志：run_loop 启动置位、所有退出路径复位；request_restart 据此判断可否重开监控
     monitor_running: AtomicBool,
+    /// 复用残留实例（探测 Ours，无子进程句柄）时通过 netstat 探得的监听 pid，
+    /// 仅供退出时清理；不写 status.pid（避免误导 request_restart 走监控重拉分支）
+    reused_pid: AtomicU32,
 }
 
 fn home_dir() -> PathBuf {
@@ -246,17 +249,53 @@ pub fn init(app: &AppHandle) -> ServerManager {
         status,
         intent: AtomicU8::new(INTENT_RUN),
         monitor_running: AtomicBool::new(false),
+        reused_pid: AtomicU32::new(0),
     }
 }
 
 /// 应用退出（RunEvent::Exit / 托盘 quit）时调用。
+/// 注意：本函数并非唯一保障——spawn 的子进程已绑 Windows Job Object
+/// （KILL_ON_JOB_CLOSE），父进程任何方式退出（崩溃/被强杀/Ctrl+C）内核都会
+/// 收掉整个 node 进程树；此处 taskkill 是正常退出路径的显式双保险，
+/// 并覆盖"复用的残留实例"（没有 Job、只有探测到的 pid）。
 pub fn shutdown(app: &AppHandle) {
     if let Some(mgr) = app.try_state::<ServerManager>() {
         mgr.set_intent_stop();
         if let Some(pid) = mgr.status().pid {
             kill_tree(pid);
         }
+        let reused = mgr.reused_pid.swap(0, Ordering::SeqCst);
+        if reused != 0 {
+            kill_tree(reused);
+        }
     }
+}
+
+/// 查询监听指定端口的进程 pid（netstat -ano 解析），用于接管复用的残留实例。
+#[cfg(target_os = "windows")]
+fn find_listener_pid(port: u16) -> Option<u32> {
+    use std::os::windows::process::CommandExt;
+    let output = std::process::Command::new("netstat")
+        .args(["-ano", "-p", "tcp"])
+        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&output.stdout);
+    let suffix = format!(":{}", port);
+    for line in text.lines() {
+        let cols: Vec<&str> = line.split_whitespace().collect();
+        // TCP  <local>  <remote>  LISTENING  <pid>
+        if cols.len() == 5
+            && cols[0].eq_ignore_ascii_case("TCP")
+            && cols[3].eq_ignore_ascii_case("LISTENING")
+            && cols[1].ends_with(&suffix)
+        {
+            if let Ok(pid) = cols[4].parse::<u32>() {
+                return Some(pid);
+            }
+        }
+    }
+    None
 }
 
 enum PortProbe {
@@ -296,6 +335,24 @@ fn probe_port(port: u16, token: &str) -> PortProbe {
     } else {
         PortProbe::Foreign
     }
+}
+
+/// 把子进程绑进 Job Object（KILL_ON_JOB_CLOSE）：父进程退出（无论何种方式）
+/// 时内核自动终止 Job 内全部进程——对崩溃、被强杀、Ctrl+C 等"不经过
+/// RunEvent::Exit"的退出路径是唯一可靠的清理手段。
+/// 成功后句柄被 mem::forget 故意泄漏保活：句柄关闭即杀树，因此必须活到
+/// 本进程结束（进程退出时由 OS 统一回收）；泄漏量 = spawn 次数，可忽略。
+#[cfg(target_os = "windows")]
+fn attach_job(child: &std::process::Child) -> Result<(), String> {
+    use std::os::windows::io::AsRawHandle;
+    let mut info = win32job::ExtendedLimitInfo::new();
+    info.limit_kill_on_job_close();
+    let job = win32job::Job::create_with_limit_info(&info)
+        .map_err(|e| format!("create job: {e}"))?;
+    job.assign_process(child.as_raw_handle() as isize)
+        .map_err(|e| format!("assign process: {e}"))?;
+    std::mem::forget(job);
+    Ok(())
 }
 
 fn spawn_child(
@@ -384,7 +441,12 @@ fn run_loop(app: AppHandle) {
     let url = format!("http://127.0.0.1:{port}");
 
     if reused {
-        // 桌面端上次崩溃留下的孤儿实例（同 token）：直接复用，无 pid 可管
+        // 桌面端上次异常退出留下的残留实例（同 token）：直接复用。
+        // netstat 探得监听 pid 存 reused_pid，退出时 shutdown 一并清理，
+        // 避免"客户端停止后服务端继续存活"
+        if let Some(pid) = find_listener_pid(port) {
+            mgr.reused_pid.store(pid, Ordering::SeqCst);
+        }
         mgr.update_status(Some(&app), |st| {
             st.state = ServerPhase::Running;
             st.port = Some(port);
@@ -405,6 +467,13 @@ fn run_loop(app: AppHandle) {
         match spawn_child(&server_dir, &home, port, &token) {
             Ok(mut child) => {
                 let pid = child.id();
+                // 绑定 Job Object：本进程无论以何种方式退出（正常退出/崩溃/被强杀/
+                // Ctrl+C），内核关闭 Job 句柄时都会杀掉 node 进程树。
+                // 句柄故意泄漏保活到进程结束（mem::forget），泄漏量 = spawn 次数。
+                #[cfg(target_os = "windows")]
+                if let Err(e) = attach_job(&child) {
+                    eprintln!("[server] attach_job failed (fall back to taskkill on exit): {e}");
+                }
                 let started = std::time::Instant::now();
                 mgr.update_status(Some(&app), |st| {
                     st.state = ServerPhase::Running;
