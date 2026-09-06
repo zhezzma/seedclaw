@@ -68,18 +68,18 @@ SeedClaw 是 Tauri 2 桌面应用，目前 seedagent 服务端是外部独立进
    - `GET /`（无鉴权存活探针）有响应但 `/api/health` 带 token 返回 401 → 端口上是别人的服务，换下一个候选（18789 起递增，最多 10 个：18789~18798）；
    - 连接被拒 → 端口空闲，选用；全部被占 → 状态置 `failed` 并给出明确错误。
 5. spawn `node.exe dist/index.js`，参数：`--port <port> --data-dir <DATA_DIR> --bearer-token <token>`；Windows 加 `CREATE_NO_WINDOW`；`NODE_ENV=production`；stdout/stderr 重定向追加到 `~/.seedagent/logs/desktop-stdout.log`（按启动截断）。
-6. 健康检查：每 500ms 轮询 `GET /`（seedagent 的无鉴权存活探针，`src/index.ts:116`），HTTP 200 即视为进程已监听；再以 `GET /api/health` 带 token 确认身份。30s 超时 → 状态置 `failed`，保留日志路径供前端展示。
-7. 就绪后 emit `server://status`，前端据此连接。
+6. spawn 成功 → 状态置 `running`（进程存活语义），emit `server://status`。前端拿到 url/token 即配置连接，服务端 1~3 秒的启动窗口由既有机制消化：WS 通知连接本就有 1s→15s 指数退避重连（`notify.rs`），REST 请求失败有 toast + 调用方重试。**不做 HTTP 健康检查轮询。**
+7. 子进程退出监控（非 HTTP）：Rust 持有 child 句柄，独立线程阻塞 `wait`；进程退出且非用户主动停止 → 指数退避自动重启（1s 起、上限 15s）；连续 5 次快速退出 → 停止重启，状态置 `failed`，记录退出码与日志路径。
 
 ### 5.2 生命周期
 
 - **退出**：托盘退出 / 窗口销毁时 `taskkill /PID <pid> /T /F` 杀进程树（seedagent 会派生 subagent 子进程，必须杀树）。
-- **崩溃**：退出码非 0 且非用户主动停止 → 指数退避自动重启（1s 起、上限 15s）；连续 5 次失败停止重启，状态置 `failed`。
+- **崩溃**：由子进程退出监控触发（见 §5.1 步骤 7），与 HTTP 无关。
 - **重启命令**：`server_restart` invoke，杀树 → 回到步骤 4。
 
 ### 5.3 对前端的接口
 
-- invoke：`server_status` → `{ state: starting|running|failed|unavailable, port, url, token, pid, lastError }`（`unavailable` = resources 缺失，如 dev 构建或非打包形态）；`server_restart`。
+- invoke：`server_status` → `{ state: starting|running|restarting|failed|unavailable, port, url, token, pid, lastError }`（`running` = 进程存活；`unavailable` = resources 缺失，如 dev 构建或非打包形态）；`server_restart`。
 - 事件：`server://status`，状态变化即推。
 
 ## 6. seedagent 侧小改动（约 20 行）
@@ -108,7 +108,7 @@ SeedClaw 是 Tauri 2 桌面应用，目前 seedagent 服务端是外部独立进
 ### 7.3 启动流程
 
 - App 挂载时（Tauri 环境）invoke `server_status` **拉取**一次当前状态——不能只依赖事件，`reload()` 后会错过启动早期的事件；此后以 `server://status` 事件增量更新。
-- `local` 模式下，状态到达 `running` 前连接相关 UI 显示「服务启动中」，避免旧 token/url 请求报错刷屏。
+- `local` 模式下拿到 url/token 即配置连接，不做启动门控；启动窗口期的失败由既有 WS 退避重连与 REST 容错消化。若实际体验出现启动期错误 toast 刷屏，后续可加「stdout 监听 server-listening 日志行」作为零成本就绪信号（见 §10）。
 - `SetupView`（首次设置向导）：Tauri 桌面端默认 `gatewayMode = 'local'` 直接进入主界面；Web 版保持现状。
 
 ### 7.4 关于「保存后是否刷新」
@@ -136,11 +136,12 @@ SeedClaw 是 Tauri 2 桌面应用，目前 seedagent 服务端是外部独立进
 
 - **脚本**：模拟无本机 Node 环境（改 PATH）验证下载路径；`-StageOnly` 产物完整性（node.exe 可执行、dist/index.js 存在、node_modules 无 devDependencies 大件）。
 - **Rust 单元测试**（`cargo test`）：端口选择状态机、desktop.json 读写与 token 持久化。
-- **手动集成清单**：首次启动（自动生成 token/选端口/健康检查/前端自动连接）；二次启动复用；服务端崩溃自动重启；退出杀进程树（含 subagent 子进程）；本地↔远程切换 + reload；`-StageOnly` + `tauri dev` 联调；重装升级数据保留。
+- **手动集成清单**：首次启动（自动生成 token/选端口/前端自动连接）；二次启动复用；服务端崩溃退出监控自动重启；退出杀进程树（含 subagent 子进程）；本地↔远程切换 + reload；`-StageOnly` + `tauri dev` 联调；重装升级数据保留。
 - **seedagent**：`--port/--data-dir/--bearer-token` 参数的 vitest 用例（覆盖 `.env` 冲突场景：参数值必须赢）。
 
 ## 10. 后续扩展（不在本期）
 
 1. CI：`publish-desktop` / `release` workflow 增加 seedagent checkout（pinned ref）+ staging 步骤，三平台矩阵出完整包。
 2. macOS / Linux：staging 脚本跨平台化（Node runtime 按目标三元组下载），Rust 侧平台分支（进程树终止用进程组）。
-3. 方案 B（单可执行文件）作为体积优化实验。
+3. 就绪信号优化（仅当启动期错误 toast 造成困扰时）：Rust 监听子进程 stdout 中 server 监听成功的日志行，作为事件式就绪信号，仍不做 HTTP 轮询。
+4. 方案 B（单可执行文件）作为体积优化实验。
