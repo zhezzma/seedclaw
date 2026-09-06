@@ -18,3 +18,8 @@ test('isLocalGateway: 远程 / 局域网 / 非法 / 空 → false', () => {
     assert.equal(isLocalGateway('not a url'), false)
     assert.equal(isLocalGateway(''), false)
 })
+
+test('isLocalGateway: 127 前缀欺骗域名（非 IPv4 形状）→ false', () => {
+    assert.equal(isLocalGateway('http://127.0.0.1.evil.com'), false)
+    assert.equal(isLocalGateway('http://127.1.2.3.com:80'), false)
+})
