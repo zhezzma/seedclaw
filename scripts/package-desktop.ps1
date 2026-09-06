@@ -1,11 +1,10 @@
 ﻿#Requires -Version 5.1
 <#
-桌面打包：构建 seedagent → 采集 Node 23 运行时 → staging 到 src-tauri/resources/seedagent → tauri build
+桌面打包：构建 seedagent → 采集 Node 23 运行时 → staging 到 src-tauri/resources/seedagent → tauri build → 部署
 用法：
-  powershell -File scripts/package-desktop.ps1                      # 完整打包（staging + build + 收集）
-  powershell -File scripts/package-desktop.ps1 -StageOnly           # 只 staging（供 tauri dev 联调内置服务）
-  powershell -File scripts/package-desktop.ps1 -SkipStage           # 复用已有 staging，直接 build
-  powershell -File scripts/package-desktop.ps1 -RebuildServer       # 强制重跑 seedagent 构建
+  powershell -File scripts/package-desktop.ps1                      # 完整打包（每次强制重建 seedagent + staging + build + 部署）
+  powershell -File scripts/package-desktop.ps1 -StageOnly           # 只做 staging（构建 seedagent + 填充 resources），供 tauri dev 联调内置服务
+  powershell -File scripts/package-desktop.ps1 -SkipStage           # 跳过 staging（复用 resources 里已有产物，也不重建 seedagent），直接 build + 部署
   powershell -File scripts/package-desktop.ps1 -SkipDeploy          # 只出包，不部署到 D:\Applications\seedclaw
 #>
 param(
@@ -14,7 +13,6 @@ param(
     [string]$DeployDir = "D:\Applications\seedclaw",
     [switch]$StageOnly,
     [switch]$SkipStage,
-    [switch]$RebuildServer,
     [switch]$SkipDeploy
 )
 $ErrorActionPreference = 'Stop'
@@ -49,19 +47,14 @@ else {
         throw "seedagent not found at $SeedagentDir (use -SeedagentDir or env SEEDAGENT_DIR)"
     }
 
-    # 1. 构建 seedagent（dist 缺失或 -RebuildServer 时）
-    $distIndex = Join-Path $SeedagentDir 'dist\index.js'
-    if ($RebuildServer -or -not (Test-Path $distIndex)) {
-        Write-Host "==> building seedagent"
-        Push-Location $SeedagentDir
-        try {
-            if (-not (Test-Path (Join-Path $SeedagentDir 'node_modules'))) { npm ci }
-            npm run build
-            if ($LASTEXITCODE -ne 0) { throw "seedagent build failed" }
-        } finally { Pop-Location }
-    } else {
-        Write-Host "==> seedagent dist up-to-date (skip build; use -RebuildServer to force)"
-    }
+    # 1. 构建 seedagent（每次强制重跑，保证打进包的 dist 是最新的）
+    Write-Host "==> building seedagent"
+    Push-Location $SeedagentDir
+    try {
+        if (-not (Test-Path (Join-Path $SeedagentDir 'node_modules'))) { npm ci }
+        npm run build
+        if ($LASTEXITCODE -ne 0) { throw "seedagent build failed" }
+    } finally { Pop-Location }
 
     # 2. 采集 node.exe：本机版本匹配则直接拷，否则下载 pinned 版本
     function Get-LocalNodePath([string]$WantVersion) {
