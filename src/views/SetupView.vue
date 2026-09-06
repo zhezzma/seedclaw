@@ -196,6 +196,7 @@ const checkNextSteps = async () => {
         }
 
         // All good, go Home
+        configStore.save({ setupDone: true })
         router.push('/')
     } catch (e) {
         console.error("Failed to check next steps", e)
@@ -294,6 +295,7 @@ const handleAgentSubmit = async () => {
         await agentsState.createAgent(data)
 
         // Finish
+        configStore.save({ setupDone: true })
         router.push('/')
     } catch (e: any) {
         error.value = e.message || t('setup.agentStep.errorCreate')

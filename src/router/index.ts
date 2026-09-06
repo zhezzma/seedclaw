@@ -111,8 +111,10 @@ router.beforeEach(async (to, _from, next) => {
         }
     }
 
-    // If user is on setup page but already configured
-    if (to.name === 'setup' && configStore.isConfigured) {
+    // If user is on setup page but already finished the wizard.
+    // bundled 本地模式下 apiBaseUrl 由服务托管、恒为 isConfigured，
+    // 弹回主界面必须看 setupDone，否则引导页永远进不去
+    if (to.name === 'setup' && configStore.isConfigured && configStore.setupDone) {
         next({ name: 'home' })
         return
     }

@@ -19,6 +19,9 @@ export interface UiSettings {
     remoteToken: string
     deviceName: string
     lastActiveSessionKey: string
+    /** 首次引导是否已完成：bundled 本地模式下 apiBaseUrl 由服务托管、恒为已配置，
+     *  是否弹回主界面只能以"跑完过向导"为准（否则永远进不了引导页） */
+    setupDone: boolean
     theme: 'light' | 'dark'
     isSidebarOpen: boolean
     isSidebarCollapsed: boolean
@@ -237,6 +240,7 @@ const getDefaultSettings = (): UiSettings => ({
     remoteToken: '',
     deviceName: 'SeedClaw',
     lastActiveSessionKey: '',
+    setupDone: false,
     theme: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
     isSidebarOpen: false,
     isSidebarCollapsed: false,
