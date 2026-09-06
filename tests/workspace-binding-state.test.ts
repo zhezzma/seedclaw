@@ -1,0 +1,104 @@
+// 本文件为 vitest 风格（vi.mock/vi.waitFor），仓库未安装 vitest 依赖，
+// 按交接口径运行：`npx -y vitest run tests/workspace-binding-state.test.ts`。
+// 但 `node --test`（回归基线 399 绿）默认会发现 tests/*.test.ts，而 node 环境无法
+// 解析 "vitest" 包（ERR_MODULE_NOT_FOUND 会让回归变红）。故此处做运行器自守卫：
+// 仅在 vitest 环境下加载 vitest 并注册用例；node --test 下注册一个说明性占位用例。
+const inVitest = process.env.VITEST !== undefined;
+
+const okPayload = (over: any = {}) => ({
+    resolved: { path: "/srv/proj", basename: "proj", isGit: true },
+    pi: { hasSettings: false, hasSkills: false, hasExtensions: false, hasPrompts: false, hasSystemMd: false, trustRequiring: false, trusted: null },
+    boundAgents: [],
+    warnings: [],
+    ...over,
+});
+
+if (inVitest) {
+    const { beforeEach, describe, expect, it, vi } = await import("vitest");
+
+    const apiState = { get: vi.fn(), post: vi.fn() };
+
+    // useWorkspaceBinding.ts 写 `import { apiGet, apiPost } from './api-client'`，
+    // 从测试文件视角 mock 该模块路径。
+    // apiGet/apiPost 真实合约（api-client.ts）：成功 resolve payload 本体；失败/网络 reject Error。
+    // 注：守卫块内不能用会被提升、且必须位于模块顶层的 vi.mock，改用运行时注册的 vi.doMock，
+    // 并在其后动态 import 被测模块，保证其依赖解析到上面的 mock。
+    vi.doMock("../src/composables/api-client", () => ({
+        apiGet: apiState.get,
+        apiPost: apiState.post,
+    }));
+
+    const { useWorkspaceBinding } = await import("../src/composables/useWorkspaceBinding");
+
+    describe("useWorkspaceBinding", () => {
+        beforeEach(() => { vi.clearAllMocks(); });
+
+        it("空路径不触发请求，状态为初始", async () => {
+            const b = useWorkspaceBinding({ debounceMs: 0 });
+            b.setPath("");
+            await vi.waitFor(() => expect(apiState.get).not.toHaveBeenCalled());
+            expect(b.error.value).toBeNull();
+            expect(b.result.value).toBeNull();
+        });
+
+        it("合法路径：结果/基本信息就绪，basename 可用", async () => {
+            apiState.get.mockResolvedValue(okPayload({ boundAgents: [{ id: "coder", name: "Coder" }] }));
+            const b = useWorkspaceBinding({ debounceMs: 0 });
+            b.setPath("/srv/proj");
+            await vi.waitFor(() => expect(b.checking.value).toBe(false));
+            expect(b.basename.value).toBe("proj");
+            expect(b.boundAgents.value).toEqual([{ id: "coder", name: "Coder" }]);
+            expect(b.error.value).toBeNull();
+            expect(apiState.get).toHaveBeenCalledWith(expect.stringContaining(encodeURIComponent("/srv/proj")), true);
+        });
+
+        it("失败：解析 [code] 前缀为枚举", async () => {
+            apiState.get.mockRejectedValue(new Error("[not_exists] workspaceDir 校验失败: /x"));
+            const b = useWorkspaceBinding({ debounceMs: 0 });
+            b.setPath("/x");
+            await vi.waitFor(() => expect(b.error.value).toBe("not_exists"));
+            expect(b.result.value).toBeNull();
+        });
+
+        it("reject（网络）→ error=network", async () => {
+            apiState.get.mockRejectedValue(new Error("offline"));
+            const b = useWorkspaceBinding({ debounceMs: 0 });
+            b.setPath("/srv/proj");
+            await vi.waitFor(() => expect(b.error.value).toBe("network"));
+        });
+
+        it("needsTrust：trustRequiring 且 trusted=false 且有 agentId", async () => {
+            apiState.get.mockResolvedValue(okPayload({
+                pi: { hasSettings: true, hasSkills: false, hasExtensions: false, hasPrompts: false, hasSystemMd: false, trustRequiring: true, trusted: false },
+            }));
+            const b = useWorkspaceBinding({ debounceMs: 0, agentId: () => "coder" });
+            b.setPath("/srv/proj");
+            await vi.waitFor(() => expect(b.needsTrust.value).toBe(true));
+        });
+
+        it("trustProject 调 trust 端点并重新校验", async () => {
+            apiState.get.mockResolvedValue(okPayload({
+                resolved: { path: "/srv/proj", basename: "proj", isGit: false },
+                pi: { hasSettings: true, hasSkills: false, hasExtensions: false, hasPrompts: false, hasSystemMd: false, trustRequiring: true, trusted: false },
+            }));
+            const b = useWorkspaceBinding({ debounceMs: 0, agentId: () => "coder" });
+            b.setPath("/srv/proj");
+            await vi.waitFor(() => expect(b.needsTrust.value).toBe(true));
+            apiState.post.mockResolvedValue({ ok: true, payload: { cwd: "/srv/proj", trusted: true } });
+            apiState.get.mockResolvedValue(okPayload({
+                pi: { hasSettings: true, hasSkills: false, hasExtensions: false, hasPrompts: false, hasSystemMd: false, trustRequiring: true, trusted: true },
+            }));
+            await b.trustProject();
+            expect(apiState.post).toHaveBeenCalledWith("/api/agents/coder/workspace/trust", {
+                cwd: "/srv/proj", decision: "trust",
+            });
+            await vi.waitFor(() => expect(b.needsTrust.value).toBe(false));
+        });
+    });
+} else {
+    const { test } = await import("node:test");
+    test("useWorkspaceBinding 状态机（vitest 专用用例集）", () => {
+        // 占位：用例需 vitest 运行器（模块 mock），见文件头说明。
+        // 运行：npx -y vitest run tests/workspace-binding-state.test.ts
+    });
+}
