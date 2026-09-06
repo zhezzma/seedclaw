@@ -95,7 +95,9 @@ jobs:
       - name: setup node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Windows 腿用 23：seedagent 构建要求 Node 23（原生模块 ABI 锁主版本），
+          # 且打包脚本按主版本匹配直接拷贝 runner 的 node.exe 作为内置运行时
+          node-version: ${{ matrix.platform == 'windows-latest' && '23' || '20' }}
           cache: npm
 
       - name: install Rust stable
@@ -114,6 +116,27 @@ jobs:
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
 
+      # ── 内置服务端（仅 Windows）────────────────────────────────────
+      # GITHUB_TOKEN 只对 seedclaw 本仓库有权限，同账号也不行；
+      # 跨仓库克隆私有 seedagent 需要 PAT secret：SEEDAGENT_TOKEN
+      # （fine-grained PAT，对 zhezzma/seedagent 授予 Contents: Read-only）
+      - name: Checkout seedagent (bundled server source, windows only)
+        if: matrix.platform == 'windows-latest'
+        uses: actions/checkout@v4
+        with:
+          repository: zhezzma/seedagent
+          ref: main
+          path: seedagent
+          token: ${{ secrets.SEEDAGENT_TOKEN }}
+
+      # 装配：构建 seedagent → 采集 node.exe → 填充 src-tauri/resources/seedagent/
+      # （tauri.conf.json 的 resources glob 会随包携带；macOS/Linux 不装配，
+      #   构建里没有服务端 → bundled=false → 网关强制远程模式，属预期降级）
+      - name: Stage bundled server (windows only)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: ./scripts/package-desktop.ps1 -StageOnly -SeedagentDir "$env:GITHUB_WORKSPACE/seedagent"
+
       - name: Build Desktop App
         uses: tauri-apps/tauri-action@v0
         env:
@@ -127,13 +150,20 @@ jobs:
           prerelease: true
           args: ${{ matrix.args }}
 
+      # 便携版必须带上 resources（内置服务端），且 node_modules 深路径超 260 字符，
+      # 用 robocopy 拷贝 + bsdtar 压缩（与 package-desktop.ps1 同策略）
       - name: Package Windows portable build
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
-          $portablePath = "seedclaw-windows-portable-x64.zip"
-          Compress-Archive -Path "src-tauri/target/release/seedclaw.exe" -DestinationPath $portablePath -Force
-          Get-Item $portablePath | Format-List FullName, Length
+          $portableDir = "portable-bundle"
+          if (Test-Path $portableDir) { Remove-Item -Recurse -Force $portableDir }
+          New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
+          Copy-Item "src-tauri/target/release/seedclaw.exe" $portableDir
+          robocopy "src-tauri/resources" "$portableDir/resources" /E /NFL /NDL /NJH /NJS | Out-Null
+          if ($LASTEXITCODE -ge 8) { throw "robocopy resources failed (exit $LASTEXITCODE)" }
+          tar -a -c -f seedclaw-windows-portable-x64.zip -C $portableDir seedclaw.exe resources
+          Get-Item seedclaw-windows-portable-x64.zip | Format-List FullName, Length
 
       - name: Upload Artifacts
         uses: softprops/action-gh-release@v1
