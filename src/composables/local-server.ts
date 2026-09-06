@@ -50,7 +50,33 @@ function syncSettings() {
 
 function applyStatus(s: Partial<ServerStatus>) {
     Object.assign(localServer, s)
+    if (localServer.state === 'running') everRunning = true
     syncSettings()
+}
+
+/** 本次页面会话中服务端是否至少 Running 过一次（之后的崩溃重启不再挡 UI，走既有容错）。 */
+let everRunning = false
+
+/** local 模式下服务端是否仍在初始启动窗口内（ bundled 且从未 Running 过）。 */
+export function isLocalServerBooting(): boolean {
+    if (!isTauri || !localServer.bundled) return false
+    if (effectiveGatewayMode() !== 'local') return false
+    if (everRunning) return false
+    return localServer.state === 'starting' || localServer.state === 'restarting'
+}
+
+/** 初始启动失败（从未 Running 过）：由启动失败界面接管；运行后崩溃走既有容错不挡 UI。 */
+export function isLocalServerBootFailed(): boolean {
+    if (!isTauri || !localServer.bundled) return false
+    if (effectiveGatewayMode() !== 'local') return false
+    return !everRunning && localServer.state === 'failed'
+}
+
+/** 等待内置服务端离开初始启动窗口（Running 或 Failed）；非 local 模式立即返回。 */
+export async function waitForLocalServerReady(): Promise<void> {
+    while (isLocalServerBooting()) {
+        await new Promise((r) => setTimeout(r, 150))
+    }
 }
 
 let loaded = false

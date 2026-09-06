@@ -343,6 +343,18 @@ fn probe_port(port: u16, token: &str) -> PortProbe {
     }
 }
 
+/// 端口是否已可建立 TCP 连接（node 的 serve() 开始监听 ≈ API 可用）。
+/// 纯连接级探测，非 HTTP 健康检查：不产生请求，只验证监听已就绪。
+fn port_is_open(port: u16) -> bool {
+    let Ok(mut addrs) = ("127.0.0.1", port).to_socket_addrs() else {
+        return false;
+    };
+    let Some(addr) = addrs.next() else {
+        return false;
+    };
+    TcpStream::connect_timeout(&addr, Duration::from_millis(200)).is_ok()
+}
+
 /// 把子进程绑进 Job Object（KILL_ON_JOB_CLOSE）：父进程退出（无论何种方式）
 /// 时内核自动终止 Job 内全部进程——对崩溃、被强杀、Ctrl+C 等"不经过
 /// RunEvent::Exit"的退出路径是唯一可靠的清理手段。
@@ -481,13 +493,56 @@ fn run_loop(app: AppHandle) {
                     eprintln!("[server] attach_job failed (fall back to taskkill on exit): {e}");
                 }
                 let started = std::time::Instant::now();
+                // 先报 Starting（带 pid/port，url 留空）：node 冷启动需要 1~5s 才开始
+                // 监听端口，此期间前端显示启动画面且不发任何请求
                 mgr.update_status(Some(&app), |st| {
-                    st.state = ServerPhase::Running;
+                    st.state = ServerPhase::Starting;
                     st.port = Some(port);
-                    st.url = Some(url.clone());
                     st.pid = Some(pid);
-                    st.last_error = None;
                 });
+                // 轮询等待端口真正监听（纯 TCP 连接探测）：监听成功才置 Running，
+                // 保证前端拿到 url 时服务已可用——避免启动窗口期的连接拒绝报错
+                let mut listening = false;
+                let listen_deadline = started + Duration::from_secs(30);
+                loop {
+                    if mgr.intent.load(Ordering::SeqCst) == INTENT_STOP {
+                        let _ = child.wait();
+                        mgr.monitor_running.store(false, Ordering::SeqCst);
+                        return;
+                    }
+                    if child.try_wait().map(|s| s.is_some()).unwrap_or(false) {
+                        break; // 进程在监听前就退出/被杀 → 交给下方 wait 分支按退避机制处理
+                    }
+                    if std::time::Instant::now() >= listen_deadline {
+                        break;
+                    }
+                    if port_is_open(port) {
+                        listening = true;
+                        break;
+                    }
+                    std::thread::sleep(Duration::from_millis(250));
+                }
+                if !listening && child.try_wait().map(|s| s.is_none()).unwrap_or(false) {
+                    // 30s 仍未监听且进程还活着：杀掉转 Failed（留着只会占端口不干活）
+                    kill_tree(pid);
+                    let _ = child.wait();
+                    mgr.update_status(Some(&app), |st| {
+                        st.state = ServerPhase::Failed;
+                        st.pid = None;
+                        st.last_error = Some("服务进程 30s 内未开始监听端口".into());
+                    });
+                    mgr.monitor_running.store(false, Ordering::SeqCst);
+                    return;
+                }
+                if listening {
+                    mgr.update_status(Some(&app), |st| {
+                        st.state = ServerPhase::Running;
+                        st.port = Some(port);
+                        st.url = Some(url.clone());
+                        st.pid = Some(pid);
+                        st.last_error = None;
+                    });
+                }
                 let exit = child.wait();
                 let uptime = started.elapsed();
                 let code = exit.ok().and_then(|s| s.code()).unwrap_or(-1);
@@ -605,5 +660,17 @@ mod tests {
         let t2 = load_or_create_token(&home);
         assert_eq!(t1, t2);
         let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn port_is_open_detects_listener() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        assert!(port_is_open(port));
+        // 释放后连接应被拒绝；先用重绑验证端口确已空闲，避免极端竞态误报
+        drop(listener);
+        if std::net::TcpListener::bind(("127.0.0.1", port)).is_ok() {
+            assert!(!port_is_open(port));
+        }
     }
 }

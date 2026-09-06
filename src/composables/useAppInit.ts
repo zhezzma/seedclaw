@@ -7,7 +7,7 @@ import { useCronState } from './useCronState'
 import { useModelsState } from './useModelsState'
 import { useSkillsState } from './useSkillsState'
 import { connectServer } from './notify-server-connection'
-import { ensureLocalServerLoaded } from './local-server'
+import { ensureLocalServerLoaded, waitForLocalServerReady, isLocalServerBootFailed } from './local-server'
 import { useExecApproval } from './useExecApproval'
 import { useCommandState } from './useCommandState'
 
@@ -33,6 +33,11 @@ export function useAppInit() {
         // init() 在 App setup 里与路由守卫并发执行，若不等待，首启时 localStorage
         // 里残留的旧远程 apiBaseUrl 会被下面的数据加载抢先使用
         await ensureLocalServerLoaded()
+        // 再等内置服务端端口真正监听（node 冷启动 1~5s，Rust 侧 30s 超时转 failed）：
+        // 窗口期内不发任何 API 请求，避免连接拒绝报错刷屏；启动画面由 App 门控展示。
+        // 初始启动失败时跳过数据加载，由失败界面的「重启服务」（reload 重走本 init）接管
+        await waitForLocalServerReady()
+        if (isLocalServerBootFailed()) return
 
         await Promise.all([
             agentsState.loadAgents(),

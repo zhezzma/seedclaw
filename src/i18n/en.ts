@@ -755,6 +755,8 @@ export default {
         localServerManagedHint: 'The local server is managed by the app; URL and token are read-only',
         localServerLogHint: 'Log directory',
         copyLogPath: 'Copy log path',
+        localServerBootTitle: 'Starting local server',
+        localServerBootHint: 'This may take a few seconds on first launch',
         tokenPlaceholder: 'Enter your Token',
         baseUrlPlaceholder: 'e.g. https://voice.godgodgame.com',
         engineTokenPlaceholder: 'Enter the token for the current engine',
