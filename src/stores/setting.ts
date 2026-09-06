@@ -14,6 +14,9 @@ export interface EngineConfig<T extends string> {
 export interface UiSettings {
     apiBaseUrl: string
     token: string
+    gatewayMode: 'local' | 'remote'
+    remoteApiBaseUrl: string
+    remoteToken: string
     deviceName: string
     lastActiveSessionKey: string
     theme: 'light' | 'dark'
@@ -229,6 +232,9 @@ const migrateLegacyVoiceSettings = (parsed: any, next: UiSettings): UiSettings =
 const getDefaultSettings = (): UiSettings => ({
     apiBaseUrl: '',
     token: '',
+    gatewayMode: 'local',
+    remoteApiBaseUrl: '',
+    remoteToken: '',
     deviceName: 'SeedClaw',
     lastActiveSessionKey: '',
     theme: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
@@ -293,6 +299,12 @@ const loadConfig = (): UiSettings => {
                     ...(parsedWsPanel.statusGroups ?? {}),
                 },
             }
+            // 迁移：老版本没有 gatewayMode；已配置远程地址的保持 remote 并保留原值，否则默认 local
+            if (parsed.gatewayMode !== 'local' && parsed.gatewayMode !== 'remote') {
+                parsed.gatewayMode = (typeof parsed.apiBaseUrl === 'string' && parsed.apiBaseUrl.trim() !== '') ? 'remote' : 'local'
+            }
+            if (typeof parsed.remoteApiBaseUrl !== 'string') parsed.remoteApiBaseUrl = parsed.apiBaseUrl ?? ''
+            if (typeof parsed.remoteToken !== 'string') parsed.remoteToken = parsed.token ?? ''
             const merged: UiSettings = {
                 ...defaults,
                 ...parsed,
