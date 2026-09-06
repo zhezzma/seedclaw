@@ -60,8 +60,8 @@ SeedClaw 是 Tauri 2 桌面应用，目前 seedagent 服务端是外部独立进
 
 ### 5.1 启动序列
 
-1. 应用启动（已有 `tauri-plugin-single-instance`，天然防双实例双服务）。
-2. 解析数据目录 `~/.seedagent`（全平台统一；Windows 为 `%USERPROFILE%\.seedagent`），确保目录存在。
+1. 应用启动（已有 `tauri-plugin-single-instance`，天然防双实例双服务）。首先检测 resources/seedagent 是否存在，得到 `bundled`；`bundled=false` 则后续步骤全部跳过（不建目录、不 spawn），只对 `server_status` 查询返回 `{ bundled: false, state: 'unavailable' }`。
+2. `bundled=true` 时：解析数据目录 `~/.seedagent`（全平台统一；Windows 为 `%USERPROFILE%\.seedagent`），确保目录存在。
 3. 读取/生成 `~/.seedagent/desktop.json`：`{ bearerToken: uuid-v4 }`，token 首次生成后固定复用。token 不写入 `.env`——`~/.seedagent/.env` 是用户手写 API key 的地方，桌面端只读不写，避免与用户手动部署的 `BEARER_TOKEN` 打架。
 4. 选端口：候选顺序 = `~/.seedagent/.env` 中的 `PORT`（若用户显式指定，尊重其意向）→ 18789~18798。端口探测用 seedagent 现有端点（一次性探测，非轮询）：
    - `GET /api/health` 带 token 返回 200 → 是自己残留的旧实例（同 token），**直接复用**，不重复 spawn；
@@ -79,7 +79,7 @@ SeedClaw 是 Tauri 2 桌面应用，目前 seedagent 服务端是外部独立进
 
 ### 5.3 对前端的接口
 
-- invoke：`server_status` → `{ state: starting|running|restarting|failed|unavailable, port, url, token, pid, lastError }`（`running` = 进程存活；`unavailable` = resources 缺失，如 dev 构建或非打包形态）；`server_restart`。
+- invoke：`server_status` → `{ bundled: boolean, state, port, url, token, pid, lastError }`。`bundled` = resources/seedagent 是否存在（启动时检测一次）；`bundled=false` 时不做任何 spawn、state 恒为 `unavailable`——Android、未 staging 的 dev 构建、Web 版都属此类（同一 Rust 代码在 Android 上编译，资源目录里没有 seedagent，自然返回 false，不 panic、不报错）。`server_restart` 仅 `bundled=true` 时有意义。
 - 事件：`server://status`，状态变化即推。
 
 ## 6. seedagent 侧改动（env-loader，约 15 行）
@@ -99,13 +99,14 @@ SeedClaw 是 Tauri 2 桌面应用，目前 seedagent 服务端是外部独立进
 
 - `UiSettings` 新增：`gatewayMode: 'local' | 'remote'`、`remoteApiBaseUrl: string`、`remoteToken: string`。
 - 迁移：已有 `apiBaseUrl` 非空 → `remote`（原值挪入 `remoteApiBaseUrl`/`remoteToken`）；为空 → `local`。
+- **模式可用性守卫**：`effectiveMode = bundled && gatewayMode === 'local' ? 'local' : 'remote'`。`bundled=false`（Android / dev / Web）时强制 `remote` 且不可切 `local`；持久化的 `gatewayMode` 与实际能力不符时以守卫结果为准（不写回存储）。
 - `apiBaseUrl`/`token` 保持现有字段语义不变（消费方 `api-client.ts`、`notify-client.ts`、SSE 等零改动）：
   - `remote` 模式 = 用户手填值（编辑 `remoteApiBaseUrl`，保存时同步到 `apiBaseUrl`）；
   - `local` 模式 = 由 `server://status` 事件写入的运行时值（url = `http://127.0.0.1:<port>`，token = desktop.json 中的 uuid）。
 
 ### 7.2 连接设置 UI（`SettingsView.vue` 连接弹窗）
 
-- 顶部下拉：「本地服务 / 远程服务器」。
+- 顶部下拉：「本地服务 / 远程服务器」。**仅当 `bundled=true` 时可选「本地服务」**；`bundled=false`（Android / dev / Web）不显示本地选项，仅远程手填，与现状一致。`bundled` 在连接弹窗打开时从 `server_status` 已有的状态读取。
 - **本地**：URL 与 token 输入框 disabled，下方状态行展示 `运行中 · 127.0.0.1:<port>` / `启动中…` / `失败：<原因>`（附「重启服务」「查看日志」按钮，日志路径 `~/.seedagent/logs/`）。
 - **远程**：现有手填表单，值读写 `remoteApiBaseUrl`/`remoteToken`。
 - 保存：沿用现状 `saveConnection()` 后 `window.location.reload()` 的机制（见 §7.4）。
@@ -114,7 +115,7 @@ SeedClaw 是 Tauri 2 桌面应用，目前 seedagent 服务端是外部独立进
 
 - App 挂载时（Tauri 环境）invoke `server_status` **拉取**一次当前状态——不能只依赖事件，`reload()` 后会错过启动早期的事件；此后以 `server://status` 事件增量更新。
 - `local` 模式下拿到 url/token 即配置连接，不做启动门控；启动窗口期的失败由既有 WS 退避重连与 REST 容错消化。若实际体验出现启动期错误 toast 刷屏，后续可加「stdout 监听 server-listening 日志行」作为零成本就绪信号（见 §10）。
-- `SetupView`（首次设置向导）：Tauri 桌面端默认 `gatewayMode = 'local'` 直接进入主界面；Web 版保持现状。
+- `SetupView`（首次设置向导）：Tauri 且 `bundled=true` → 默认 `gatewayMode = 'local'` 跳过向导直接进入主界面；`bundled=false`（Android）或 Web 版保持现状向导流程。
 
 ### 7.4 关于「保存后是否刷新」
 
@@ -133,7 +134,8 @@ SeedClaw 是 Tauri 2 桌面应用，目前 seedagent 服务端是外部独立进
 | 残留旧实例（升级后重启应用） | 同 token 探测命中 → 复用；`server_restart` 或退出时统一杀树 |
 | MSI 装进 Program Files（只读） | 服务端代码从只读 resources 目录运行，可变数据全在 `~/.seedagent`，不写安装目录 |
 | 升级 | 重装覆盖 resources；`~/.seedagent` 数据与 token 不动 |
-| resources 缺失（`tauri dev` / 未 staging 的构建） | 状态 `unavailable`，前端提示并可切 `remote` 模式；dev 联调可先跑 `package-desktop.ps1 -StageOnly` |
+| resources 缺失（`tauri dev` / 未 staging 的构建） | `bundled=false`，网关强制 `remote` 模式、不显示本地选项；dev 联调可先跑 `package-desktop.ps1 -StageOnly` |
+| Android / Web 构建 | 同上 `bundled=false`：不 spawn、不显示本地选项，行为与现状完全一致 |
 | 用户另有手动部署的 seedagent | 内置实例独立端口 + 独立 token（desktop.json），互不干扰；手动部署的 `.env`/数据不受影响 |
 | Node ABI | node_modules 原生模块锁 Node 23，staging 时校验 runtime 大版本，不符即报错 |
 
