@@ -792,7 +792,7 @@ async function applyDefaultSessionBehavior() {
                                 <details ref="welcomeAgentDropdownRef" class="dropdown px-2 pt-1.5">
                                     <summary class="btn btn-ghost btn-sm gap-1.5 list-none px-2 h-auto min-h-0 font-normal">
                                         <FolderIcon class="h-4 w-4 opacity-70" />
-                                        <span class="font-medium">{{ selectedAgentName || $t('agent.assistant') }}</span>
+                                        <span class="font-medium">{{ agentsState.agentsList.length ? (selectedAgentName || $t('agent.assistant')) : $t('agent.noAgents') }}</span>
                                         <ChevronDownIcon class="h-3.5 w-3.5 shrink-0 opacity-60" />
                                     </summary>
                                     <ul
