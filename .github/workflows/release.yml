@@ -43,9 +43,9 @@ jobs:
             args: ""
             bundleServer: false
           # Windows 双版本并行构建：无 server（纯客户端）与含 server（内置服务端）
-          # 含 server 版经 tauri.server.conf.json 改 productName（安装包名不同，
-          # 不与无 server 版在 Release 里互相覆盖）与 identifier（独立数据目录/
-          # 单实例锁，两版可并存安装）
+          # 含 server 版经构建时生成的 overlay（见 Stage bundled server 步骤）改
+          # productName（安装包名不同，不与无 server 版在 Release 里互相覆盖）
+          # 与 identifier（独立数据目录/单实例锁，两版可并存安装）
           - platform: "windows-latest"
             args: ""
             bundleServer: false
@@ -93,13 +93,20 @@ jobs:
           path: seedagent
           token: ${{ secrets.SEEDAGENT_TOKEN }}
 
-      # 装配：构建 seedagent → 采集 node.exe → 填充 src-tauri/resources/seedagent/
-      # （tauri.server.conf.json overlay 的 resources glob 会随包携带；不含 server
-      #   的构建没有这份资源 → bundled=false → 网关强制远程模式，属预期降级）
+      # 装配：构建 seedagent → 采集 node.exe → 填充 src-tauri/resources/seedagent/，
+      # 并生成发布版 overlay（仅本腿、构建时生成，不落仓库）：Server Edition
+      # 身份 + 服务端 resources glob。不含 server 的构建没有这份资源 →
+      # bundled=false → 网关强制远程模式，属预期降级
       - name: Stage bundled server
         if: matrix.bundleServer
         shell: pwsh
-        run: ./scripts/package-desktop.ps1 -StageOnly -SeedagentDir "$env:GITHUB_WORKSPACE/seedagent"
+        run: |
+          ./scripts/package-desktop.ps1 -StageOnly -SeedagentDir "$env:GITHUB_WORKSPACE/seedagent"
+          @{
+            productName = "SeedClaw Server"
+            identifier = "com.godgodgame.seedclaw.server"
+            bundle = @{ resources = @("resources/seedagent/**/*") }
+          } | ConvertTo-Json -Depth 3 | Set-Content -Path "src-tauri/tauri.server-edition.conf.json" -Encoding utf8NoBOM
 
       - name: Build Desktop App
         uses: tauri-apps/tauri-action@v0
@@ -109,7 +116,7 @@ jobs:
         with:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}
           # 含 server 版叠加 productName/identifier 补丁，安装包名与无 server 版区分
-          args: ${{ matrix.args }}${{ matrix.bundleServer && ' --config src-tauri/tauri.server.conf.json' || '' }}
+          args: ${{ matrix.args }}${{ matrix.bundleServer && ' --config src-tauri/tauri.server-edition.conf.json' || '' }}
 
       # 便携版：含 server 版必须带上 resources（node_modules 深路径超 260 字符，
       # 用 robocopy 拷贝 + bsdtar 压缩，与 package-desktop.ps1 同策略）；
