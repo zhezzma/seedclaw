@@ -6,13 +6,16 @@
   powershell -File scripts/package-desktop.ps1 -StageOnly           # 只 staging（供 tauri dev 联调内置服务）
   powershell -File scripts/package-desktop.ps1 -SkipStage           # 复用已有 staging，直接 build
   powershell -File scripts/package-desktop.ps1 -RebuildServer       # 强制重跑 seedagent 构建
+  powershell -File scripts/package-desktop.ps1 -SkipDeploy          # 只出包，不部署到 D:\Applications\seedclaw
 #>
 param(
     [string]$SeedagentDir = $(if ($env:SEEDAGENT_DIR) { $env:SEEDAGENT_DIR } else { "D:\Workspace\seedagent" }),
     [string]$NodeVersion = "23.11.0",
+    [string]$DeployDir = "D:\Applications\seedclaw",
     [switch]$StageOnly,
     [switch]$SkipStage,
-    [switch]$RebuildServer
+    [switch]$RebuildServer,
+    [switch]$SkipDeploy
 )
 $ErrorActionPreference = 'Stop'
 
@@ -138,6 +141,26 @@ try {
     & "$env:SystemRoot\System32\tar.exe" -a -c -f $portableZip seedclaw.exe resources
     if ($LASTEXITCODE -ne 0) { throw "portable zip failed (tar exit $LASTEXITCODE)" }
 } finally { Pop-Location }
-Remove-LongPath $portable
 Write-Host "==> portable zip: dist-windows\seedclaw-portable-windows.zip"
+
+# 7. 部署便携版到指定目录（参考 build_windows.ps1）
+if (-not $SkipDeploy) {
+    Write-Host "==> deploying to $DeployDir ..."
+
+    # 先结束部署目录里运行中的进程（seedclaw.exe 及其拉起的 node.exe），
+    # 否则 exe/node_modules 被锁，robocopy 覆盖会失败。只杀路径在部署目录内的，不动别处的 node。
+    Get-Process -Name seedclaw, node -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -and ($_.Path -like "$DeployDir*") } |
+        ForEach-Object {
+            Write-Host "    killing $($_.ProcessName) (pid $($_.Id))"
+            Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+        }
+    Start-Sleep -Milliseconds 800
+
+    # /MIR 镜像同步：部署目录与便携版完全一致（清掉旧文件）；robocopy 走 \\?\ 长路径 API
+    robocopy $portable $DeployDir /MIR /NFL /NDL /NJH /NJS | Out-Null
+    if ($LASTEXITCODE -ge 8) { throw "deploy robocopy failed (exit $LASTEXITCODE)" }
+    Write-Host "==> deploy OK: $DeployDir"
+}
+Remove-LongPath $portable
 Write-Host "==> done. Artifacts in $outDir"
