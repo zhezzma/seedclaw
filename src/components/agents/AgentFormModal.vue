@@ -16,6 +16,7 @@ import {
     TagIcon,
     SwatchIcon
 } from '@heroicons/vue/24/outline'
+import WorkspacePathField from '../workspace/WorkspacePathField.vue'
 
 
 const props = defineProps<{
@@ -46,6 +47,7 @@ const formData = ref({
     description: '',
     defaultModel: '',
     defaultProvider: '',
+    workspaceDir: '',
     identityName: '',
     identityCreature: '',
     identityVibe: '',
@@ -53,6 +55,24 @@ const formData = ref({
     avatarFile: null as File | null,
     avatarPreview: ''
 })
+
+// Workspace 联动预填（spec §5.1）：校验通过后按 basename 预填 id/name，
+// 仅当对应字段为空且未被用户手动改过时生效（touched 脏标记防覆盖）。
+const workspaceFieldRef = ref<InstanceType<typeof WorkspacePathField> | null>(null)
+const idTouched = ref(false)
+const nameTouched = ref(false)
+
+const slugOf = (b: string) => b.replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "")
+
+const onWorkspaceValidated = ({ basename }: { basename: string }) => {
+    if (!basename) return
+    // 字段联动（spec §5.1）：仅当字段为空且未被手动改过时预填
+    if (props.mode === 'add' && !idTouched.value && !formData.value.id) {
+        const slug = slugOf(basename)
+        if (slug) formData.value.id = slug
+    }
+    if (!nameTouched.value && !formData.value.name) formData.value.name = basename
+}
 
 const isBusy = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -90,6 +110,9 @@ watch(() => props.show, (newVal) => {
                 description: props.agentData.description || '',
                 defaultModel: props.agentData.defaultModel || '',
                 defaultProvider: props.agentData.defaultProvider || '',
+                // 必须用 raw 原始值（服务端 GET 详情提供 workspaceDirRaw）；
+                // 用解析/规范化值会把默认 agent 一保存就绑到自身 workspace
+                workspaceDir: props.agentData?.workspaceDirRaw || '',
                 identityName: identity.name || '',
                 identityCreature: identity.creature || '',
                 // Map theme to vibe if vibe is empty, compatible with old data
@@ -98,6 +121,8 @@ watch(() => props.show, (newVal) => {
                 avatarFile: null,
                 avatarPreview: props.agentData.avatar || ''
             }
+            idTouched.value = false
+            nameTouched.value = false
         } else {
             // Reset form for add mode
             formData.value = {
@@ -106,6 +131,7 @@ watch(() => props.show, (newVal) => {
                 description: '',
                 defaultModel: '',
                 defaultProvider: '',
+                workspaceDir: '',
                 identityName: '',
                 identityCreature: '',
                 identityVibe: '',
@@ -113,6 +139,8 @@ watch(() => props.show, (newVal) => {
                 avatarFile: null,
                 avatarPreview: ''
             }
+            idTouched.value = false
+            nameTouched.value = false
         }
     }
 })
@@ -188,6 +216,9 @@ const submitForm = async () => {
         if (formData.value.description) data.append('description', formData.value.description)
         if (formData.value.defaultModel) data.append('defaultModel', formData.value.defaultModel)
         if (formData.value.defaultProvider) data.append('defaultProvider', formData.value.defaultProvider)
+
+        // 无条件 append：编辑模式清空路径提交 "" 时，服务端按空串=解除绑定处理（Task 2 语义）
+        data.append('workspaceDir', formData.value.workspaceDir || '')
 
         if (formData.value.identityName) data.append('identityName', formData.value.identityName)
         if (formData.value.identityCreature) data.append('identityCreature', formData.value.identityCreature)
@@ -345,6 +376,12 @@ const submitForm = async () => {
 
                         <!-- Main Info Section -->
                         <div class="flex flex-col gap-4">
+                            <!-- Workspace Directory Field (spec §5.1) -->
+                            <div class="form-control">
+                                <WorkspacePathField ref="workspaceFieldRef" v-model="formData.workspaceDir"
+                                    @validated="onWorkspaceValidated" />
+                            </div>
+
                             <!-- ID Field -->
                             <div class="form-control w-full">
                                 <label class="label pt-0 pb-1.5">
@@ -356,7 +393,7 @@ const submitForm = async () => {
                                 </label>
                                 <input v-model="formData.id" type="text" :placeholder="t('agent.form.idPlaceholder')"
                                     class="input input-bordered w-full font-mono text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                                    :disabled="mode === 'edit'"
+                                    :disabled="mode === 'edit'" @input="idTouched = true"
                                     :class="{ 'input-error': mode === 'add' && !isFormValid && formData.id.length > 0 }" />
 
                             </div>
@@ -370,7 +407,7 @@ const submitForm = async () => {
                                     </span>
                                 </label>
                                 <input v-model="formData.name" type="text"
-                                    :placeholder="t('agent.form.namePlaceholder')"
+                                    :placeholder="t('agent.form.namePlaceholder')" @input="nameTouched = true"
                                     class="input input-bordered w-full focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all" />
                             </div>
                         </div>

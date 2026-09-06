@@ -28,6 +28,7 @@ export interface AgentInfo {
     description?: string
     agentDir?: string
     workspaceDir?: string
+    workspaceDirRaw?: string | null
     avatar?: string
     defaultProvider?: string
     defaultModel?: string
