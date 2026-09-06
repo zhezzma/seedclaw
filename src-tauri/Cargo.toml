@@ -37,6 +37,7 @@ url = "2.5"
 tauri-plugin-notifications = { version = "0.5.0-rc.13", default-features = false }
 tauri-plugin-log = "2"
 tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
 
 
 # WebSocket 使用 native-tls (在 Windows/Linux 上使用系统 SSL，Android 上我们需要手动编译 OpenSSL)
