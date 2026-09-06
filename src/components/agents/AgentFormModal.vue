@@ -17,6 +17,7 @@ import {
     SwatchIcon
 } from '@heroicons/vue/24/outline'
 import WorkspacePathField from '../workspace/WorkspacePathField.vue'
+import type { WorkspaceResolvePayload } from '../../composables/useWorkspaceBinding'
 
 
 const props = defineProps<{
@@ -62,9 +63,16 @@ const workspaceFieldRef = ref<InstanceType<typeof WorkspacePathField> | null>(nu
 const idTouched = ref(false)
 const nameTouched = ref(false)
 
+// 新建模式「信任并启用」勾选：路径含 .pi 信任要求配置时展示，
+// 勾选则以 workspaceTrust=trust 随创建请求持久化信任决策（免创建后再信任）
+const workspaceTrustRequiring = ref(false)
+const workspaceTrustChecked = ref(true)
+
 const slugOf = (b: string) => b.replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "")
 
-const onWorkspaceValidated = ({ basename }: { basename: string }) => {
+const onWorkspaceValidated = ({ basename, result }: { basename: string; result: WorkspaceResolvePayload | null }) => {
+    // 校验失败/清空时 result 为 null，需同步复位勾选可见性
+    workspaceTrustRequiring.value = !!result?.pi?.trustRequiring
     if (!basename) return
     // 字段联动（spec §5.1）：仅当字段为空且未被手动改过时预填
     if (props.mode === 'add' && !idTouched.value && !formData.value.id) {
@@ -123,6 +131,7 @@ watch(() => props.show, (newVal) => {
             }
             idTouched.value = false
             nameTouched.value = false
+            workspaceTrustRequiring.value = false
         } else {
             // Reset form for add mode
             formData.value = {
@@ -141,6 +150,8 @@ watch(() => props.show, (newVal) => {
             }
             idTouched.value = false
             nameTouched.value = false
+            workspaceTrustRequiring.value = false
+            workspaceTrustChecked.value = true
         }
     }
 })
@@ -222,6 +233,12 @@ const submitForm = async () => {
         // 不 append，避免无关编辑（改名/头像）把既有绑定静默清掉。
         if (formData.value.workspaceDir || 'workspaceDirRaw' in (props.agentData ?? {})) {
             data.append('workspaceDir', formData.value.workspaceDir || '')
+        }
+
+        // 新建 + 勾选「信任并启用」：随创建请求提交 workspaceTrust=trust，
+        // 服务端仅在 workspaceDir 非空且校验通过时接受
+        if (props.mode === 'add' && formData.value.workspaceDir && workspaceTrustChecked.value) {
+            data.append('workspaceTrust', 'trust')
         }
 
         if (formData.value.identityName) data.append('identityName', formData.value.identityName)
@@ -385,6 +402,16 @@ const submitForm = async () => {
                                 <WorkspacePathField ref="workspaceFieldRef" v-model="formData.workspaceDir"
                                     :agent-id="mode === 'edit' ? agentData?.id : undefined"
                                     @validated="onWorkspaceValidated" />
+                            </div>
+
+                            <!-- 信任并启用（仅新建）：路径含 .pi 信任要求配置时展示 -->
+                            <div v-if="mode === 'add' && formData.workspaceDir && workspaceTrustRequiring"
+                                class="form-control">
+                                <label class="label cursor-pointer justify-start gap-2">
+                                    <input v-model="workspaceTrustChecked" type="checkbox"
+                                        class="checkbox checkbox-sm checkbox-primary" />
+                                    <span class="label-text text-xs">{{ t('workspaceBinding.trustOnCreate') }}</span>
+                                </label>
                             </div>
 
                             <!-- ID Field -->

@@ -297,6 +297,7 @@ export default {
         boundMultiple: '该目录已绑定以下智能体：',
         trustHint: '该目录包含项目配置（设置/技能/扩展），信任后才会加载',
         trustAction: '信任并启用',
+        trustOnCreate: '信任并启用该项目配置（.pi 设置/技能/扩展）',
         trusted: '已信任',
         rebindTitle: '修改工作空间',
         rebindAction: '更新绑定',

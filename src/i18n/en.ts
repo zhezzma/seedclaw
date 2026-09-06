@@ -297,6 +297,7 @@ export default {
         boundMultiple: 'This directory is already bound to:',
         trustHint: 'Contains project config (settings/skills/extensions); load after trusting',
         trustAction: 'Trust & enable',
+        trustOnCreate: 'Trust & enable project config (.pi settings/skills/extensions)',
         trusted: 'Trusted',
         rebindTitle: 'Change workspace',
         rebindAction: 'Update binding',
