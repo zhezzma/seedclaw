@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed, onMounted } from 'vue'
+import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useAgentsState } from '../../composables/useAgentsState'
 import { useModelsState } from '../../composables/useModelsState'
 import { useToast } from '../../composables/useToast'
@@ -14,9 +14,11 @@ import {
     CpuChipIcon,
     FaceSmileIcon,
     TagIcon,
-    SwatchIcon
+    SwatchIcon,
+    ChevronUpIcon
 } from '@heroicons/vue/24/outline'
 import WorkspacePathField from '../workspace/WorkspacePathField.vue'
+import ModelSelectMenuContent from '../models/ModelSelectMenuContent.vue'
 import type { WorkspaceResolvePayload } from '../../composables/useWorkspaceBinding'
 
 
@@ -48,8 +50,9 @@ const formData = ref({
     description: '',
     defaultModel: '',
     defaultProvider: '',
+    defaultThinkingLevel: 'off',
     workspaceDir: '',
-    identityName: '',
+    identityName: 'seedagent',
     identityCreature: '',
     identityVibe: '',
     identityEmoji: '🤖',
@@ -118,6 +121,7 @@ watch(() => props.show, (newVal) => {
                 description: props.agentData.description || '',
                 defaultModel: props.agentData.defaultModel || '',
                 defaultProvider: props.agentData.defaultProvider || '',
+                defaultThinkingLevel: props.agentData?.defaultThinkingLevel || 'off',
                 // 必须用 raw 原始值（服务端 GET 详情提供 workspaceDirRaw）；
                 // 用解析/规范化值会把默认 agent 一保存就绑到自身 workspace
                 workspaceDir: props.agentData?.workspaceDirRaw || '',
@@ -140,8 +144,9 @@ watch(() => props.show, (newVal) => {
                 description: '',
                 defaultModel: '',
                 defaultProvider: '',
+                defaultThinkingLevel: 'off',
                 workspaceDir: '',
-                identityName: '',
+                identityName: 'seedagent',
                 identityCreature: '',
                 identityVibe: '',
                 identityEmoji: generateRandomEmoji(),
@@ -197,6 +202,43 @@ const selectedModelValue = computed({
     }
 })
 
+// 模型下拉（复用底部输入框共用的 ModelSelectMenuContent）：手动 ref 开合，
+// 触发按钮 @click.stop + document 点击按包含关系关外，菜单内点击（搜索/选项）不关
+const modelMenuOpen = ref(false)
+const modelMenuRef = ref<HTMLElement | null>(null)
+
+// 触发按钮展示标签：与 ModelSelectMenuContent.currentModelLabel 同规则解析 composite（未知模型回退原值）
+const selectedModelLabel = computed(() => {
+    const val = selectedModelValue.value
+    if (!val) return ''
+    for (const group of availableModels.value) {
+        const matched = group.models.find((m) => `${group.provider}/${m.id}` === val)
+        if (matched) return `${group.provider} / ${matched.name}`
+    }
+    return val
+})
+
+const onModelSelect = (modelId: string) => {
+    modelMenuOpen.value = false
+    // 经 selectedModelValue 桥接写回：composite 自动拆 provider/model，'' 清空两者
+    selectedModelValue.value = modelId
+}
+
+const handleModelMenuDocClick = (event: MouseEvent) => {
+    if (!modelMenuOpen.value) return
+    if (!modelMenuRef.value?.contains(event.target as Node)) {
+        modelMenuOpen.value = false
+    }
+}
+
+onMounted(() => {
+    document.addEventListener('click', handleModelMenuDocClick)
+})
+
+onBeforeUnmount(() => {
+    document.removeEventListener('click', handleModelMenuDocClick)
+})
+
 const triggerFileInput = () => {
     fileInput.value?.click()
 }
@@ -227,6 +269,8 @@ const submitForm = async () => {
         if (formData.value.description) data.append('description', formData.value.description)
         if (formData.value.defaultModel) data.append('defaultModel', formData.value.defaultModel)
         if (formData.value.defaultProvider) data.append('defaultProvider', formData.value.defaultProvider)
+        // 思考等级始终提交（off 为合法默认值），服务端解析 + 枚举校验
+        data.append('defaultThinkingLevel', formData.value.defaultThinkingLevel)
 
         // workspaceDirRaw 契约守卫：当前网关的编辑详情必含 workspaceDirRaw，此时始终
         // append（空串 = 明确解除绑定）；仅旧网关载荷缺该字段且表单值为空（未触碰）时
@@ -472,15 +516,45 @@ const submitForm = async () => {
                                 <label class="label pt-0 pb-1.5">
                                     <span class="label-text font-medium">{{ t('agent.form.defaultModel') }}</span>
                                 </label>
-                                <select v-model="selectedModelValue" class="select select-bordered w-full">
-                                    <option value="">{{ t('agent.form.modelPlaceholder') }}</option>
-                                    <optgroup v-for="group in availableModels" :key="group.provider"
-                                        :label="group.provider">
-                                        <option v-for="model in group.models" :key="model.id"
-                                            :value="`${group.provider}/${model.id}`">
-                                            {{ model.name }}
-                                        </option>
-                                    </optgroup>
+                                <!-- 复用底部输入框共用的模型选择菜单（ModelSelectMenuContent），
+                                    触发按钮样式对齐表单其余输入框；点 X 清空经桥接置空 provider/model -->
+                                <div ref="modelMenuRef" class="dropdown dropdown-top w-full"
+                                    :class="{ 'dropdown-open': modelMenuOpen }">
+                                    <button type="button" @click.stop="modelMenuOpen = !modelMenuOpen"
+                                        class="input input-bordered w-full flex items-center justify-between gap-2 text-left font-normal cursor-pointer">
+                                        <span class="truncate min-w-0"
+                                            :class="{ 'opacity-40': !selectedModelValue }">{{
+                                                selectedModelValue ? selectedModelLabel :
+                                                t('agent.form.modelPlaceholder') }}</span>
+                                        <span v-if="selectedModelValue" role="button" :title="t('common.clear')"
+                                            class="btn btn-ghost btn-xs btn-circle shrink-0"
+                                            @click.stop="selectedModelValue = ''">
+                                            <XMarkIcon class="w-3.5 h-3.5" />
+                                        </span>
+                                        <ChevronUpIcon class="w-4 h-4 shrink-0 opacity-50 transition-transform"
+                                            :class="{ 'rotate-180': modelMenuOpen }" />
+                                    </button>
+                                    <div v-if="modelMenuOpen"
+                                        class="dropdown-content shadow-xl bg-base-100 rounded-box border border-base-300 z-[100] w-full max-h-96 overflow-hidden flex flex-col mb-2">
+                                        <ModelSelectMenuContent :available-models="availableModels"
+                                            :current-model="selectedModelValue" @select="onModelSelect" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 思考等级：与 AgentOverview 设置页同款枚举（off..max） -->
+                            <div class="form-control w-full mt-4">
+                                <label class="label pt-0 pb-1.5">
+                                    <span class="label-text font-medium">{{ t('chat.thinkingLevel') }}</span>
+                                </label>
+                                <select v-model="formData.defaultThinkingLevel" class="select select-bordered w-full">
+                                    <option value="off">{{ t('chat.thinkingLevels.off') }}</option>
+                                    <option value="minimal">{{ t('chat.thinkingLevels.minimal') }}</option>
+                                    <option value="low">{{ t('chat.thinkingLevels.low') }}</option>
+                                    <option value="medium">{{ t('chat.thinkingLevels.medium') }}</option>
+                                    <option value="high">{{ t('chat.thinkingLevels.high') }}</option>
+                                    <option value="xhigh">{{ t('chat.thinkingLevels.xhigh') }}</option>
+                                    <option value="max">{{ t('chat.thinkingLevels.max') }}</option>
                                 </select>
                             </div>
                         </div>
