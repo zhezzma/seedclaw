@@ -15,7 +15,6 @@ import {
     PhoneIcon,
     BellIcon,
     BellSlashIcon,
-    ChevronLeftIcon,
     ArrowPathIcon,
     RectangleGroupIcon,
     QueueListIcon
@@ -48,21 +47,6 @@ const route = useRoute()
 const chatState = useChatState()
 const { t } = useI18n()
 const { loadCommands, setCurrentAgent } = useCommandState()
-const splitRouteNames = ['tasks', 'archived'] as const
-const handleBack = () => {
-    const splitListRouteName = splitRouteNames.find(name => name === route.name)
-    const hasUsableHistoryEntry = window.history.length > 1 && typeof window.history.state?.back === 'string'
-
-    // 分栏详情页优先走 history.back()，避免 /tasks -> /tasks/:id -> /tasks
-    // 或 /archived -> /archived/:id -> /archived 这种链路污染移动端返回栈。
-    // 但对于深链直达等没有可用历史记录的情况，需要安全回退到对应列表路由。
-    if (splitListRouteName && !hasUsableHistoryEntry) {
-        router.push({ name: splitListRouteName })
-        return
-    }
-
-    router.back()
-}
 const settingsStore = useUiSettingsStore()
 const panel = useWorkspacePanel()
 
@@ -231,11 +215,7 @@ defineExpose({
     <ViewHeader>
         <!-- Back Button or Hamburger -->
         <template #left>
-            <button v-if="splitRouteNames.includes(route.name as typeof splitRouteNames[number])" @click="handleBack"
-                class="btn btn-ghost btn-xs btn-circle  lg:hidden">
-                <ChevronLeftIcon class="h-5 w-5" />
-            </button>
-            <div v-else class="flex-none lg:hidden">
+            <div class="flex-none lg:hidden">
                 <label for="sidebar-drawer" class="btn btn-ghost btn-xs btn-circle drawer-button">
                     <Bars3Icon class="h-5 w-5" />
                 </label>

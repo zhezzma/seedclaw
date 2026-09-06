@@ -2,20 +2,13 @@ import { reactive, watch } from 'vue'
 
 import { ApiError, apiGet, apiPost, apiDelete } from './api-client'
 import { useInputHistoryStore } from '../stores/inputHistory'
-import {
-    resolveCachedSessionCategory,
-    resolveCachedSessionRouteState,
-    type SessionCategory,
-    type SessionRouteState,
-} from '../utils/notification-routing'
+import type { SessionCategory } from './session-route-state'
 import {
     moveSessionToRouteState,
     normalizeSessionRouteState,
     removeSessionFromResult,
+    type SessionRouteState,
 } from './session-route-state'
-import { hasSessionInLists } from '../utils/task-sessions-routing'
-
-export type { SessionCategory, SessionRouteState } from '../utils/notification-routing'
 
 // ==================== Types ====================
 export interface SessionRow {
@@ -46,8 +39,11 @@ export interface SessionsResult {
 
 // ==================== State ====================
 export interface SessionsState {
+    /** 普通会话（侧栏「对话」tab 数据源） */
     sessionsResult: SessionsResult | null
+    /** 计划会话（侧栏「计划」tab + cron 执行目标候选） */
     taskSessionsResult: SessionsResult | null
+    /** 已归档会话（侧栏「归档」tab 数据源） */
     archivedSessionsResult: SessionsResult | null
 }
 
@@ -85,24 +81,6 @@ const findSessionLocal = (id: string) =>
     || state.taskSessionsResult?.sessions?.find((s: SessionRow) => s.id === id)
     || state.archivedSessionsResult?.sessions?.find((s: SessionRow) => s.id === id)
 
-const resolveSessionCategoryFromCache = (id: string): SessionCategory | undefined => {
-    return resolveCachedSessionCategory(
-        id,
-        state.sessionsResult?.sessions || [],
-        state.taskSessionsResult?.sessions || [],
-        state.archivedSessionsResult?.sessions || [],
-    )
-}
-
-const resolveSessionRouteStateFromCache = (id: string): SessionRouteState | undefined => {
-    return resolveCachedSessionRouteState(
-        id,
-        state.sessionsResult?.sessions || [],
-        state.taskSessionsResult?.sessions || [],
-        state.archivedSessionsResult?.sessions || [],
-    )
-}
-
 // sessions 变更时自动重建索引（模块级全局 watcher）
 watch(() => [state.sessionsResult, state.taskSessionsResult, state.archivedSessionsResult], rebuildIndex, { immediate: true, deep: false })
 
@@ -111,25 +89,35 @@ const loadSessions = async (_opts?: any) => {
     state.sessionsResult = result || { sessions: [] }
 }
 
-const loadTaskSessions = async (page = 1, pageSize = 50): Promise<SessionsResult> => {
+// 懒加载请求序号：归档/取消归档会本地搬运桶内容，晚到的旧响应不得覆盖新状态
+let taskSessionsRequestId = 0
+let archivedSessionsRequestId = 0
+
+// 侧栏 tab 懒加载依赖返回值区分成败：失败返回 null（桶保持旧值），成功返回结果或空列表
+const loadTaskSessions = async (page = 1, pageSize = 50): Promise<SessionsResult | null> => {
+    const requestId = ++taskSessionsRequestId
     try {
         const result = await apiGet<SessionsResult>(`/api/sessions/tasks?page=${page}&pageSize=${pageSize}`)
+        // 过期响应直接丢弃（内容可能不含期间发生的本地搬运），但按成功返回让 loadedTabs 正常落盘
+        if (requestId !== taskSessionsRequestId) return result || { sessions: [] }
         state.taskSessionsResult = result || { sessions: [] }
         return result || { sessions: [] }
     } catch (error) {
         console.error('Failed to load task sessions', error)
-        return { sessions: [] }
+        return null
     }
 }
 
-const loadArchivedSessions = async (page = 1, pageSize = 50): Promise<SessionsResult> => {
+const loadArchivedSessions = async (page = 1, pageSize = 50): Promise<SessionsResult | null> => {
+    const requestId = ++archivedSessionsRequestId
     try {
         const result = await apiGet<SessionsResult>(`/api/sessions/archived?page=${page}&pageSize=${pageSize}`)
+        if (requestId !== archivedSessionsRequestId) return result || { sessions: [] }
         state.archivedSessionsResult = result || { sessions: [] }
         return result || { sessions: [] }
     } catch (error) {
         console.error('Failed to load archived sessions', error)
-        return { sessions: [] }
+        return null
     }
 }
 
@@ -244,38 +232,8 @@ const deleteSession = async (key: string) => {
     return { deleted: true }
 }
 
-const deleteSessions = async (keys: string[]) => {
-    const results = await Promise.all(keys.map(async key => {
-        try {
-            await apiDelete(`/api/sessions/${encodeURIComponent(key)}`)
-            return key
-        } catch {
-            return null
-        }
-    }))
-    const deletedKeys = results.filter((k): k is string => k !== null)
-    if (deletedKeys.length > 0) {
-        for (const key of deletedKeys) {
-            state.sessionsResult = removeSessionFromResult(state.sessionsResult, key)
-            state.taskSessionsResult = removeSessionFromResult(state.taskSessionsResult, key)
-            state.archivedSessionsResult = removeSessionFromResult(state.archivedSessionsResult, key)
-            sessionsIndex.delete(key)
-        }
-        useInputHistoryStore().removeManySessionHistories(deletedKeys)
-    }
-    return { deleted: true, deletedCount: deletedKeys.length }
-}
-
-const hasSession = (key: string) => {
-    return hasSessionInLists(
-        key,
-        [
-            ...(state.sessionsResult?.sessions || []),
-            ...(state.archivedSessionsResult?.sessions || []),
-        ],
-        state.taskSessionsResult?.sessions || [],
-    )
-}
+// 首页恢复：lastActiveSessionKey 可指向普通/计划/已归档任一列表中的会话，三桶都视为存在
+const hasSession = (key: string) => Boolean(findSessionLocal(key))
 
 const commitNewSession = async (agentId: string, inputText?: string): Promise<string> => {
     const body = inputText ? { firstMessage: inputText } : undefined
@@ -287,42 +245,8 @@ const commitNewSession = async (agentId: string, inputText?: string): Promise<st
 const fetchSessionInfo = (id: string) =>
     apiGet<SessionRow>(`/api/sessions/${encodeURIComponent(id)}/info`)
 
-const resolveNotificationSessionRouteState = async (id: string): Promise<SessionRouteState | undefined> => {
-    const cachedRouteState = resolveSessionRouteStateFromCache(id)
-    if (cachedRouteState) return cachedRouteState
-
-    const cached = sessionsIndex.get(id)
-    if (cached) {
-        return {
-            sessionCategory: cached.sessionCategory,
-            archived: cached.archived,
-        }
-    }
-
-    try {
-        const session = await fetchSessionInfo(id)
-        if (!session) return undefined
-        const resolvedRouteState = {
-            sessionCategory: session.sessionCategory === 'task' ? 'task' : 'default',
-            archived: Boolean(session.archived),
-        } satisfies SessionRouteState
-        upsertSessionByRouteState(session, resolvedRouteState)
-        return resolvedRouteState
-    } catch (error) {
-        console.warn('Failed to resolve session route state by id', id, error)
-        return undefined
-    }
-}
-
-const resolveNotificationSessionCategory = async (id: string): Promise<SessionCategory | undefined> => {
-    const cachedCategory = resolveSessionCategoryFromCache(id)
-    if (cachedCategory) return cachedCategory
-    return (await resolveNotificationSessionRouteState(id))?.sessionCategory
-}
-
 const getSessionById = async (
     id: string,
-    category?: SessionCategory,
     options?: { forceRefresh?: boolean; throwOnError?: boolean },
 ): Promise<SessionRow | undefined> => {
     // forceRefresh 绕过本地缓存，直接向后端确认 session 是否还存在（用于前台恢复场景）
@@ -333,14 +257,7 @@ const getSessionById = async (
         const session = await fetchSessionInfo(id)
         if (!session) return undefined
 
-        const resolvedRouteState = {
-            sessionCategory: category === 'task'
-                ? 'task'
-                : (session.sessionCategory === 'task' ? 'task' : 'default'),
-            archived: Boolean(session.archived),
-        } satisfies SessionRouteState
-
-        upsertSessionByRouteState(session, resolvedRouteState)
+        upsertSessionByRouteState(session)
         return sessionsIndex.get(id) || session
     } catch (error: unknown) {
         if (options?.throwOnError) {
@@ -365,14 +282,11 @@ const _sessionsState = Object.assign(state, {
     pinSession,
     unpinSession,
     deleteSession,
-    deleteSessions,
     hasSession,
     findSessionLocal,
     commitNewSession,
     triggerSessionRename,
     getSessionById,
-    resolveNotificationSessionCategory,
-    resolveNotificationSessionRouteState,
 })
 
 export function useSessionsState() {

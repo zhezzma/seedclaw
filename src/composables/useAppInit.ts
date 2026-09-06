@@ -3,7 +3,6 @@ import { useUiSettingsStore } from '../stores/setting'
 import { useAgentsState } from './useAgentsState'
 import { useChatState } from './useChatState'
 import { useSessionsState } from './useSessionsState'
-import { useGotify } from './useGotify'
 import { useCronState } from './useCronState'
 import { useModelsState } from './useModelsState'
 import { useSkillsState } from './useSkillsState'
@@ -21,7 +20,6 @@ export function useAppInit() {
     const sessionsState = useSessionsState()
     const { loadModels } = useModelsState()
     const { initConvexConnection } = useSkillsState()
-    const { initGotify } = useGotify()
     const chatState = useChatState()
     const { loadCommands, setCurrentAgent } = useCommandState()
     useCronState()
@@ -48,7 +46,6 @@ export function useAppInit() {
 
         initConvexConnection()
         connectServer()
-        initGotify()
     }
 
     return {

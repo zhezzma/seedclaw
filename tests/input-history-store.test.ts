@@ -94,23 +94,6 @@ test('removes stored history when a session is deleted locally', async () => {
     )
 })
 
-test('removes stored history when multiple sessions are deleted locally', async () => {
-    const store = await createStore()
-
-    store.pushHistory('session-a', 'cmd-1')
-    store.pushHistory('session-b', 'cmd-2')
-    store.pushHistory('session-c', 'cmd-3')
-    store.removeManySessionHistories(['session-a', 'session-c'])
-
-    assert.deepEqual(store.getHistory('session-a'), [])
-    assert.deepEqual(store.getHistory('session-b'), ['cmd-2'])
-    assert.deepEqual(store.getHistory('session-c'), [])
-    assert.equal(
-        storage.getItem('seedclaw_input_history'),
-        JSON.stringify({ 'session-b': ['cmd-2'] }),
-    )
-})
-
 test('deduplicates consecutive entries and enforces max length per session', async () => {
     const store = await createStore()
 

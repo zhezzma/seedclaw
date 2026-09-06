@@ -1,4 +1,9 @@
-import type { SessionRouteState } from '../utils/notification-routing.ts'
+export type SessionCategory = 'default' | 'task'
+
+export interface SessionRouteState {
+    sessionCategory?: SessionCategory
+    archived?: boolean
+}
 
 export interface SessionRouteRow extends SessionRouteState {
     id: string

@@ -4,7 +4,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Runtime};
-use tauri_plugin_notification::NotificationExt;
+use tauri_plugin_notifications::NotificationsExt;
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
@@ -36,34 +36,34 @@ impl<R: Runtime> NotifyContext<R> {
         Self { app_handle: app }
     }
 
-    /// Send a system notification and emit an event to the frontend
+    /// Send a system notification carrying the sessionKey extra.
+    ///
+    /// extra 携带 sessionKey：全平台点击通知后由插件的 notificationClicked
+    /// 事件回传，前端据此精确跳转 /chat/:sessionKey。
     fn trigger_notification(&self, session_key: &str, title: &str, body: &str) {
         // Generate a unique notification ID from session_key
         let mut hasher = DefaultHasher::new();
         session_key.hash(&mut hasher);
         let id = hasher.finish() as i32;
 
-        // Send system notification (Android / Desktop)
-        let _ = self
+        let builder = self
             .app_handle
-            .notification()
+            .notifications()
             .builder()
             .title(title)
             .body(body)
             .id(id)
-            .show();
+            .extra("sessionKey", session_key);
 
-        // Emit event to frontend so it can map notification ID -> session key
-        let _ = self.app_handle.emit(
-            "notify://notification-sent",
-            serde_json::json!({
-                "id": id,
-                "sessionKey": session_key
-            }),
-        );
+        // show() 是 async：桌面端在后台线程等待点击回调，移动端走移动插件 IPC
+        tauri::async_runtime::spawn(async move {
+            if let Err(e) = builder.show().await {
+                eprintln!("[Rust Notify] Failed to show notification: {e}");
+            }
+        });
     }
 
-    /// Parse incoming WS message and trigger notification for task_complete / task_error
+    /// Parse incoming WS message and trigger system notification for `notification` events
     fn check_notification(&self, text: &str) {
         let msg: Value = match serde_json::from_str(text) {
             Ok(v) => v,

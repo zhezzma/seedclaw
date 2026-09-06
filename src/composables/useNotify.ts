@@ -1,40 +1,40 @@
 import { useToast } from './useToast'
 import router from '../router'
 import { isTauri, onServerMessage, type WsMessage } from './notify-server-connection'
-import { useSessionsState } from './useSessionsState'
-import { buildSessionLocation } from '../utils/notification-routing'
-import { buildTaskSessionNotificationRoutePlan } from '../utils/task-sessions-routing'
+import { onNotificationClicked } from '@choochmeque/tauri-plugin-notifications-api'
+import { markNotificationNavigation } from './useNotificationReloadGuard'
 
-const openSessionFromNotification = async (sessionKey: string) => {
+/**
+ * 通知点击精确跳转：/chat/:sessionKey。
+ * - Tauri：系统通知由 Rust 侧发送（携带 sessionKey extra），点击后由社区通知插件
+ *   的 notificationClicked 事件回传，覆盖 Android/iOS 冷启动与热后台。
+ * - 浏览器 PWA：Web Notification onclick 直接路由。
+ */
+const navigateToSession = (sessionKey: string) => {
     if (!sessionKey) return
+    // 打开重载抑制窗口：移动端点通知回前台时 App.vue 的 reload 流程需让路
+    markNotificationNavigation()
+    router.push({ name: 'chat', params: { sessionkey: sessionKey } })
+}
 
-    const sessionRouteState = await useSessionsState().resolveNotificationSessionRouteState(sessionKey)
-    if (sessionRouteState?.sessionCategory === 'task') {
-        // 与 App.vue 中的移动端通知链路保持一致：
-        // 非任务列表上下文先补 /tasks，再进入详情，保证返回链路稳定。
-        const plan = buildTaskSessionNotificationRoutePlan(
-            sessionKey,
-            router.currentRoute.value.name,
-            typeof router.currentRoute.value.params.sessionkey === 'string'
-                ? router.currentRoute.value.params.sessionkey
-                : undefined,
-        )
-        for (const location of plan) {
-            await router.push(location)
-        }
-        return
+const initNotificationClickNavigation = async () => {
+    if (!isTauri) return
+    try {
+        // set_click_listener_active 由插件内部触发：冷启动时补发 pending 点击
+        await onNotificationClicked((data) => {
+            navigateToSession(String(data?.data?.sessionKey || ''))
+        })
+    } catch (e) {
+        console.warn('Failed to subscribe notificationClicked', e)
     }
-
-    await router.push(buildSessionLocation(sessionKey, sessionRouteState))
 }
 
 const showInAppNotification = (title: string, body: string, sessionKey: string) => {
     const { info } = useToast()
-    console.log('Falling back to in-app notification')
     info(title ? `${title}: ${body}` : body, {
         duration: 10000,
         onClick: () => {
-            void openSessionFromNotification(sessionKey)
+            navigateToSession(sessionKey)
         }
     })
 }
@@ -47,13 +47,11 @@ const showNativeNotification = (title: string, body: string, sessionKey: string)
             requireInteraction: true
         })
 
-        n.onclick = (event) => {
+        n.onclick = (event: Event) => {
             event.preventDefault()
             window.focus()
             n.close()
-            if (router) {
-                void openSessionFromNotification(sessionKey)
-            }
+            navigateToSession(sessionKey)
         }
     } catch (e) {
         console.error('Native notification error:', e)
@@ -63,7 +61,9 @@ const showNativeNotification = (title: string, body: string, sessionKey: string)
 
 export const triggerNotify = (title: string, body: string, sessionKey: string) => {
     try {
-        console.log('trigger notification check', title, body)
+        // Tauri 环境：Rust 侧已通过系统通知插件发送（带 sessionKey extra，支持点击精确跳转），
+        // 前端不再重复弹通知，仅非 Tauri 浏览器环境使用 Web Notification。
+        if (isTauri) return
 
         if (!('Notification' in window)) {
             showInAppNotification(title, body, sessionKey)
@@ -103,8 +103,14 @@ function handleServerMessage(msg: WsMessage) {
 
 onServerMessage(handleServerMessage)
 
-const _notifyState = {}
+// 点击监听随 useNotify() 注册（useAppInit 启动时调用）：冷启动 pending 点击
+// 的补发依赖此监听，不能只靠模块导入副作用，避免被误当作无用调用清理。
+let clickNavigationInitialized = false
 
 export function useNotify() {
-    return _notifyState
+    if (!clickNavigationInitialized) {
+        clickNavigationInitialized = true
+        void initNotificationClickNavigation()
+    }
+    return {}
 }

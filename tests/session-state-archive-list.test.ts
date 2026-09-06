@@ -7,11 +7,12 @@ import { moveSessionToRouteState, normalizeSessionRouteState, prependSessionToRe
 
 const root = path.resolve(import.meta.dirname, '..')
 const sessionsStateSource = readFileSync(path.join(root, 'src/composables/useSessionsState.ts'), 'utf8')
-const routerSource = readFileSync(path.join(root, 'src/router/index.ts'), 'utf8')
 
 test('session state defines archived sessions state and archive helpers', () => {
   assert.match(sessionsStateSource, /archivedSessionsResult:\s*SessionsResult \| null/)
-  assert.match(sessionsStateSource, /const loadArchivedSessions = async \(page = 1, pageSize = 50\): Promise<SessionsResult> =>/)
+  // 失败返回 null（桶保持旧值），侧栏懒加载据此重试；两个懒加载桶同步签名
+  assert.match(sessionsStateSource, /const loadArchivedSessions = async \(page = 1, pageSize = 50\): Promise<SessionsResult \| null> =>/)
+  assert.match(sessionsStateSource, /const loadTaskSessions = async \(page = 1, pageSize = 50\): Promise<SessionsResult \| null> =>/)
   assert.match(sessionsStateSource, /const archiveSession = async \(id: string\) =>/)
   assert.match(sessionsStateSource, /const unarchiveSession = async \(id: string\) =>/)
   assert.match(sessionsStateSource, /archived\?: boolean/)
@@ -49,6 +50,7 @@ test('moveSessionToRouteState removes stale default copies when a session become
 
   assert.deepEqual(nextState.sessionsResult?.sessions, [])
   assert.equal(nextState.sessionsResult?.total, 0)
+  // 归档桶内对象应携带 archived: true 且其余字段保留
   assert.deepEqual(nextState.archivedSessionsResult?.sessions, [{ ...session, archived: true }])
   assert.equal(nextState.archivedSessionsResult?.total, 4)
 })
@@ -72,6 +74,8 @@ test('moveSessionToRouteState removes stale archived copies when a session becom
 })
 
 test('moveSessionToRouteState keeps task sessions in the task bucket even when archived', () => {
+  // task 优先于 archived：归档的计划会话留在计划桶（带 archived 标志），
+  // 与后端 /api/sessions/tasks 含归档项、/api/sessions/archived 仅 default 的语义一致
   const taskSession = { id: 'sess-task', sessionCategory: 'task' as const, archived: false }
   const nextState = moveSessionToRouteState(
     {
@@ -89,31 +93,46 @@ test('moveSessionToRouteState keeps task sessions in the task bucket even when a
   assert.equal(nextState.taskSessionsResult?.total, 1)
 })
 
-test('prependSessionToResult preserves total for existing sessions and increments for new sessions', () => {
-  const existing = { id: 'sess-1', sessionCategory: 'default' as const, archived: false }
-  const nextExisting = prependSessionToResult(
-    { sessions: [existing, { id: 'sess-2', sessionCategory: 'default' as const, archived: false }], total: 10 },
-    { ...existing, archived: true },
-  )
-  const nextNew = prependSessionToResult(
-    { sessions: [existing], total: 10 },
-    { id: 'sess-3', sessionCategory: 'default' as const, archived: false },
-  )
-  const nextFallback = prependSessionToResult(
-    { sessions: [existing] },
-    { id: 'sess-4', sessionCategory: 'default' as const, archived: false },
-  )
-
-  assert.equal(nextExisting.total, 10)
-  assert.deepEqual(nextExisting.sessions, [{ ...existing, archived: true }, { id: 'sess-2', sessionCategory: 'default', archived: false }])
-  assert.equal(nextNew.total, 11)
-  assert.deepEqual(nextNew.sessions, [{ id: 'sess-3', sessionCategory: 'default', archived: false }, existing])
-  assert.equal(nextFallback.total, 2)
+test('normalizeSessionRouteState normalizes undefined to default/unarchived', () => {
+  assert.deepEqual(normalizeSessionRouteState(undefined), {
+    sessionCategory: 'default',
+    archived: false,
+  })
+  assert.deepEqual(normalizeSessionRouteState({ sessionCategory: 'task', archived: true }), {
+    sessionCategory: 'task',
+    archived: true,
+  })
 })
 
-test('router defines archived route and archived-aware route guard', () => {
-  assert.match(routerSource, /path: 'archived\/:sessionkey\?'/)
-  assert.match(routerSource, /name: 'archived'/)
-  assert.match(routerSource, /to\.name === 'archived' \? 'archived'/)
-  assert.match(routerSource, /resolveNotificationSessionRouteState\(sessionKey\)/)
+test('prependSessionToResult dedupes and adjusts total when session already present', () => {
+  const session = { id: 'sess-1', sessionCategory: 'default' as const, archived: false }
+  const result = { sessions: [session], total: 5 }
+
+  // 同 ID 再次 prepend：新对象替换旧对象（归档搬桶依赖此语义），total 不变
+  const prepended = prependSessionToResult(result, { ...session, archived: true })
+
+  assert.deepEqual(prepended.sessions, [{ ...session, archived: true }])
+  assert.equal(prepended.total, 5)
+
+  // 新 ID prepend：插到队首，total +1
+  const other = { id: 'sess-2', sessionCategory: 'default' as const, archived: false }
+  const grown = prependSessionToResult(result, other)
+  assert.deepEqual(grown.sessions, [other, session])
+  assert.equal(grown.total, 6)
+
+  // total 缺失时按列表长度计
+  const fallback = prependSessionToResult({ sessions: [session] }, other)
+  assert.equal(fallback.total, 2)
+})
+
+test('session state keeps three buckets for sidebar tabs without notification routing helpers', () => {
+  // 三个桶分别是侧栏 tabs（对话/计划/归档）的数据源
+  assert.ok(sessionsStateSource.includes('/** 普通会话（侧栏「对话」tab 数据源） */'))
+  assert.ok(sessionsStateSource.includes('/** 计划会话（侧栏「计划」tab + cron 执行目标候选） */'))
+  assert.ok(sessionsStateSource.includes('/** 已归档会话（侧栏「归档」tab 数据源） */'))
+  // 通知分流函数已删除
+  assert.doesNotMatch(sessionsStateSource, /resolveNotificationSessionRouteState/)
+  assert.doesNotMatch(sessionsStateSource, /resolveNotificationSessionCategory/)
+  // getSessionById 不再携带 category（所有会话统一走 /chat）
+  assert.doesNotMatch(sessionsStateSource, /getSessionById, category/)
 })

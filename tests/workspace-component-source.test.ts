@@ -294,8 +294,6 @@ test('HomeView: 接入 WorkspacePanel + WorkspaceViewer + 快捷键', () => {
     assert.match(src, /wsViewer\.close\(\)/, 'session/agent switch must close viewer')
     assert.match(src, /discardedDirty/, 'must toast discardedDirty when closing dirty viewer')
     assert.doesNotMatch(src, /if \(!prev\)\s/, 'must NOT skip null→value transition with !prev guard on session watch')
-    // split-view 路由下选中 session 后 panel 仍可见
-    assert.match(src, /typeSelectedKey/, 'showWorkspacePanel must consider typeSelectedKey for split-view routes')
     // 移动端 drawer
     assert.match(src, /workspace-drawer/, 'must mount mobile right-drawer (id=workspace-drawer)')
     assert.match(src, /drawer-end/, 'mobile workspace drawer must slide from the right')

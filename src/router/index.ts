@@ -1,7 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
-import { useSessionsState } from '../composables/useSessionsState'
-import { resolveSessionRouteRedirect } from '../utils/notification-routing'
 import { NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
 
 // Layouts
@@ -42,16 +40,6 @@ const router = createRouter({
                 {
                     path: 'chat/:sessionkey?',
                     name: 'chat',
-                    component: HomeView
-                },
-                {
-                    path: 'tasks/:sessionkey?',
-                    name: 'tasks',
-                    component: HomeView
-                },
-                {
-                    path: 'archived/:sessionkey?',
-                    name: 'archived',
                     component: HomeView
                 },
                 {
@@ -123,19 +111,6 @@ router.beforeEach(async (to, _from, next) => {
     if (to.name === 'setup' && configStore.isConfigured) {
         next({ name: 'home' })
         return
-    }
-
-    const routeName = to.name === 'tasks'
-        ? 'tasks'
-        : (to.name === 'archived' ? 'archived' : (to.name === 'chat' ? 'chat' : undefined))
-    const sessionKey = typeof to.params.sessionkey === 'string' ? to.params.sessionkey : undefined
-    if (routeName && sessionKey) {
-        const latestRouteState = await useSessionsState().resolveNotificationSessionRouteState(sessionKey)
-        const redirect = resolveSessionRouteRedirect(routeName, latestRouteState, sessionKey)
-        if (redirect.shouldRedirect && redirect.location) {
-            next(redirect.location)
-            return
-        }
     }
 
     next()

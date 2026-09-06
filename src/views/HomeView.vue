@@ -19,7 +19,6 @@ import ChatInput from '../components/chat/ChatInput.vue'
 import SessionTreeModal from '../components/chat/SessionTreeModal.vue'
 import SubagentTraceDrawer from '../components/chat/SubagentTraceDrawer.vue'
 import VoiceChatOverlay from '../components/chat/VoiceChatOverlay.vue'
-import SessionSidebar from '../components/chat/SessionSidebar.vue'
 import AppSidebar from '../components/AppSidebar.vue'
 import MediaPreviewOverlay from '../components/chat/MediaPreviewOverlay.vue'
 import WorkspacePanel from '../components/workspace/WorkspacePanel.vue'
@@ -31,7 +30,7 @@ import { writeClipboard } from '../utils/clipboard.ts'
 import { useChatState } from '../composables/useChatState'
 import { useChatInput } from '../composables/useChatInput'
 import { useCommandState } from '../composables/useCommandState'
-import { SessionRow, useSessionsState, type SessionsResult } from '../composables/useSessionsState'
+import { SessionRow, useSessionsState } from '../composables/useSessionsState'
 import { useAgentsState } from '../composables/useAgentsState'
 import { useToast } from '../composables/useToast'
 import { useWorkspacePanel } from '../composables/useWorkspacePanel'
@@ -125,17 +124,13 @@ const currentSessionName = computed(() => {
     const sessionKey = chatState.sessionKey
     if (!sessionKey) return ''
 
-    // 从 sessionsState 中取最新数据（patchSession / triggerSessionRename 会更新这里）
-    const sessions = routeMode.value === 'tasks'
-        ? sessionsState.taskSessionsResult?.sessions
-        : (routeMode.value === 'archived'
-            ? sessionsState.archivedSessionsResult?.sessions
-            : sessionsState.sessionsResult?.sessions)
-    if (sessions) {
-        const found = sessions.find((s: SessionRow) => s.id === sessionKey)
-        if (found) {
-            return found.name || truncateText(found.firstMessage, 9)
-        }
+    // 从 sessionsState 三个桶中依次查找（patchSession / triggerSessionRename 会更新这里）
+    const found =
+        sessionsState.sessionsResult?.sessions.find((s: SessionRow) => s.id === sessionKey)
+        || sessionsState.taskSessionsResult?.sessions.find((s: SessionRow) => s.id === sessionKey)
+        || sessionsState.archivedSessionsResult?.sessions.find((s: SessionRow) => s.id === sessionKey)
+    if (found) {
+        return found.name || truncateText(found.firstMessage, 9)
     }
 
     // Fallback 到 chatState.currentSession
@@ -144,91 +139,6 @@ const currentSessionName = computed(() => {
     return session.name || truncateText(session.firstMessage, 9)
 })
 
-// Split-view Route Logic
-const routeMode = computed<'chat' | 'tasks' | 'archived'>(() => {
-    if (route.name === 'tasks') return 'tasks'
-    if (route.name === 'archived') return 'archived'
-    return 'chat'
-})
-const isTaskSessionsRoute = computed(() => routeMode.value === 'tasks')
-const isArchivedSessionsRoute = computed(() => routeMode.value === 'archived')
-const isSplitViewRoute = computed(() => routeMode.value === 'tasks' || routeMode.value === 'archived')
-const currentSessions = computed(() => {
-    if (routeMode.value === 'tasks') {
-        return sessionsState.taskSessionsResult?.sessions || []
-    }
-    if (routeMode.value === 'archived') {
-        return sessionsState.archivedSessionsResult?.sessions || []
-    }
-    return sessionsState.sessionsResult?.sessions || []
-})
-const splitViewTitle = computed(() => isArchivedSessionsRoute.value
-    ? t('home.archivedSessionList')
-    : t('home.taskSessionList'))
-const splitViewEmptyState = computed(() => isArchivedSessionsRoute.value
-    ? t('home.noArchivedSessions')
-    : t('home.noTaskSessions'))
-const splitViewRowActions = computed(() => {
-    if (!isArchivedSessionsRoute.value) return undefined
-    return [
-        {
-            key: 'unarchive',
-            label: t('sidebar.unarchive'),
-        },
-        {
-            key: 'delete',
-            label: t('common.delete'),
-            tone: 'danger' as const,
-        },
-    ]
-})
-
-watch(() => route.name, async (routeName) => {
-    if (routeName === 'tasks') {
-        await sessionsState.loadTaskSessions()
-    }
-    if (routeName === 'archived') {
-        await sessionsState.loadArchivedSessions()
-    }
-}, { immediate: true })
-
-const handleSplitSessionSelect = (key: string) => {
-    router.push({
-        name: routeMode.value,
-        params: { sessionkey: key },
-    })
-}
-
-const handleSplitSessionDelete = async (key: string) => {
-    const result = await sessionsState.deleteSession(key)
-    if (result?.deleted && chatState.sessionKey === key) {
-        router.push({ name: routeMode.value })
-    }
-}
-
-const handleSplitClearAll = async (keys: string[]) => {
-    if (keys.length === 0) return
-
-    const selectedKey = typeof route.params.sessionkey === 'string'
-        ? route.params.sessionkey
-        : null
-
-    const result = await sessionsState.deleteSessions(keys)
-    if (result?.deleted && selectedKey && keys.includes(selectedKey)) {
-        router.push({ name: routeMode.value })
-    }
-}
-
-const handleSplitSessionRowAction = async ({ key, action }: { key: string, action: string }) => {
-    if (action === 'unarchive') {
-        await sessionsState.unarchiveSession(key)
-        if (chatState.sessionKey === key) {
-            router.push({ name: 'archived' })
-        }
-    }
-}
-
-const typeSelectedKey = ref("")
 const isCreatingSession = ref(false)
 const showSessionTreeModal = ref(false)
 const sessionTreeBusy = ref(false)
@@ -294,25 +204,6 @@ const handleJumpToTreeEntry = async (entryId: string) => {
         sessionTreeBusy.value = false
     }
 }
-
-// Auto-select first session
-watch(() => [route.name, currentSessions.value, route.params.sessionkey], (values) => {
-    const currentRouteName = values[0] as string | null
-    const sessions = values[1] as any[]
-    const currentKey = values[2] as string | null
-    if ((currentRouteName === 'tasks' || currentRouteName === 'archived') && currentKey && sessions && sessions.length > 0) {
-        typeSelectedKey.value = currentKey
-    }
-    else {
-        typeSelectedKey.value = ""
-    }
-}, { immediate: true })
-
-const showMobileSessionList = computed(() => {
-    if (!isSplitViewRoute.value) return false
-    return !typeSelectedKey.value
-})
-
 
 /**
  * 解析并执行控制命令：/follow-up | /steer | /abort。
@@ -674,17 +565,10 @@ function handleWorkspaceShortcut(e: KeyboardEvent) {
 }
 
 // Workspace Panel 可见性：
-// - 需要面板已打开且选中了 agent
-// - 主聊天路由：直接可见
-// - tasks / archived split-view 路由：仅在选中 session（= 聊天区已渲染）时可见，
-//   否则只有 session 列表 + 空状态，panel 嵌上去也没意义。
-//
-// canShow 不含 isOpen：供移动端 drawer DOM 始终挂载，让 daisyUI drawer-toggle
-// 动画能走；isOpen 仅影响 PC 内联 panel 是否 mount。
-const canShowWorkspacePanel = computed(() =>
-    !!chatState.agentsSelectedId
-    && (!isSplitViewRoute.value || !!typeSelectedKey.value),
-)
+// - 需要已选中 agent（面板内容依赖 agent workspace）
+// - canShow 不含 isOpen：供移动端 drawer DOM 始终挂载，让 daisyUI drawer-toggle
+//   动画能走；isOpen 仅影响 PC 内联 panel 是否 mount。
+const canShowWorkspacePanel = computed(() => !!chatState.agentsSelectedId)
 const showWorkspacePanel = computed(() =>
     wsPanel.isOpen.value && canShowWorkspacePanel.value,
 )
@@ -793,8 +677,7 @@ watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath
             restoreIfSaved()
             return
         }
-        const category = route.name === 'tasks' ? 'task' : undefined
-        await chatState.setSessionKey(sessionkey, category)
+        await chatState.setSessionKey(sessionkey)
         setCurrentAgent(chatState.agentsSelectedId || undefined)
         await loadCommands(chatState.agentsSelectedId || undefined)
         return
@@ -809,11 +692,6 @@ watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath
 
 // Helper function to apply default session behavior based on settings
 async function applyDefaultSessionBehavior() {
-    if (isSplitViewRoute.value) {
-        console.log('[HomeView] Split-view route, skipping default chat behavior')
-        return
-    }
-
     // Default behavior based on settings
     if (settingsStore.homePageBehavior === 'new_session') {
         router.replace({ path: NEW_SESSION_PATH })
@@ -845,29 +723,8 @@ async function applyDefaultSessionBehavior() {
             </div>
         </div>
 
-        <!-- Split-view Sessions List Column (Desktop: visible on split routes; Mobile: visible when no detail selected) -->
-        <div v-if="isSplitViewRoute" class="w-full lg:w-80 bg-base-100 border-r border-base-200 flex flex-col shrink-0"
-            :class="{ 'hidden lg:flex': !showMobileSessionList, 'flex': showMobileSessionList }">
-            <SessionSidebar :title="splitViewTitle" :sessions="currentSessions" :selected-key="typeSelectedKey"
-                :row-actions="splitViewRowActions"
-                @select="handleSplitSessionSelect" @delete="handleSplitSessionDelete"
-                @clear-all="handleSplitClearAll"
-                @row-action="handleSplitSessionRowAction" />
-        </div>
-
-
-        <!-- Empty split-view list state -->
-        <div v-if="isSplitViewRoute && !typeSelectedKey" class="flex-1 flex flex-col items-center justify-center p-4">
-            <div class="text-center text-base-content/60">
-                <div class="text-center">
-                    <h1 class="text-3xl font-bold mb-2">{{ splitViewTitle }}</h1>
-                    <p class="text-base-content/60">{{ splitViewEmptyState }}</p>
-                </div>
-            </div>
-        </div>
         <!-- Chat Area: 始终保留 ChatHeader + ChatInput；Main 区域在 viewer 打开时被替换 -->
-        <div v-else class="flex-1 flex flex-col h-full min-w-0"
-            :class="{ 'hidden lg:flex': isSplitViewRoute && showMobileSessionList }">
+        <div class="flex-1 flex flex-col h-full min-w-0">
 
             <!-- Header 始终可见：agent dropdown / panel toggle / 主题 / wide mode 都依赖它 -->
             <ChatHeader ref="chatHeaderRef" :selected-agent="selectedAgent" :agents="agentsState.agentsList"

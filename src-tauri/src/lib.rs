@@ -1,5 +1,4 @@
-use std::sync::Mutex;
-use tauri::{AppHandle, Manager, State, WindowEvent};
+use tauri::{Manager, WindowEvent};
 
 #[cfg(desktop)]
 use tauri::{
@@ -7,32 +6,7 @@ use tauri::{
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
 };
 
-mod gotify;
 mod notify;
-
-struct AppState {
-    gotify: Mutex<Option<gotify::GotifyManager>>,
-}
-
-#[tauri::command]
-fn start_gotify(app: AppHandle, state: State<'_, AppState>, url: String, token: String) {
-    let mut gotify_guard = state.gotify.lock().unwrap();
-    if let Some(manager) = gotify_guard.as_ref() {
-        manager.stop();
-    }
-
-    let manager = gotify::GotifyManager::new(app.clone());
-    manager.start(url, token);
-    *gotify_guard = Some(manager);
-}
-
-#[tauri::command]
-fn stop_gotify(state: State<'_, AppState>) {
-    let mut gotify_guard = state.gotify.lock().unwrap();
-    if let Some(manager) = gotify_guard.take() {
-        manager.stop();
-    }
-}
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -61,7 +35,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_websocket::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_notifications::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             #[cfg(desktop)]
@@ -115,13 +89,8 @@ pub fn run() {
             WindowEvent::CloseRequested { .. } => {}
             _ => {}
         })
-        .manage(AppState {
-            gotify: Mutex::new(None),
-        })
         .invoke_handler(tauri::generate_handler![
             greet,
-            start_gotify,
-            stop_gotify,
             notify::notify_connect,
             notify::notify_disconnect,
             notify::notify_send

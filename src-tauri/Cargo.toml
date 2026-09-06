@@ -27,15 +27,20 @@ tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
 futures-util = "0.3"
 url = "2.5"
-tauri-plugin-notification = "2"
+# 通知插件（社区版）：官方版 Android 点击链路不回传 extra（sourceJson 缺陷，plugins-workspace#2150），
+# 该 fork 修复了全平台点击回传（notificationClicked 事件带 extra），供精确跳转 /chat/:id。
+# 必须关闭默认 notify-rust 后端：否则 Windows/macOS 编译到 notify-rust 实现，仅支持进程存活时的
+# 点击回传，无冷启动（应用未运行时点通知）链路。关闭后 Windows/macOS 使用原生 Toast /
+# UNUserNotifications 后端（支持冷启动点击）；Linux 无原生实现，fork 自动回落 notify-rust。
+# 注意：macOS 原生后端要求从 .app bundle 运行，tauri dev 直接跑裸二进制会初始化失败
+# （fork 报错信息亦建议 dev 场景改用 notify-rust feature）。
+tauri-plugin-notifications = { version = "0.5.0-rc.13", default-features = false }
 tauri-plugin-log = "2"
 tauri-plugin-fs = "2"
 
 
 # WebSocket 使用 native-tls (在 Windows/Linux 上使用系统 SSL，Android 上我们需要手动编译 OpenSSL)
-# 当收到消息时，插件内部的代码逻辑是写死的——它会立即把消息通过 IPC 通道发送给前端 WebView。
-# 除非你把这个插件的源码下载下来，修改它的 Rust 代码（Fork），否则你无法在它收到消息的那一刻，插入一句 show_notification()。
-# 所以如果处理通知要在rust层使用tungstenite
+# WS 消息需在 Rust 层直接处理（check_notification → 系统通知），因此用 tungstenite 而非 tauri-plugin-websocket 的 JS 通道
 tauri-plugin-websocket = { version = "2", default-features = false, features = ["native-tls"] }
 # Android 平台特有配置：强制编译 OpenSSL (vendored)，因为 Android 系统不提供标准 OpenSSL 库
 [target.'cfg(target_os = "android")'.dependencies]

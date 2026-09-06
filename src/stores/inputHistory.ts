@@ -98,20 +98,6 @@ export const useInputHistoryStore = defineStore('input-history', {
             this.persist()
         },
 
-        removeManySessionHistories(sessionKeys: string[]) {
-            let changed = false
-            for (const sessionKey of sessionKeys) {
-                const key = sessionKey.trim()
-                if (!key || !(key in this.histories)) continue
-                delete this.histories[key]
-                changed = true
-            }
-
-            if (changed) {
-                this.persist()
-            }
-        },
-
         clearAll() {
             this.histories = {}
             this.persist()

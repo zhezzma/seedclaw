@@ -20,7 +20,6 @@ import {
     SpeakerWaveIcon,
     DocumentTextIcon,
     ArrowTopRightOnSquareIcon,
-    BellIcon,
     LanguageIcon,
 } from '@heroicons/vue/24/outline'
 import ViewHeader from '@/components/ViewHeader.vue'
@@ -53,8 +52,6 @@ const editForm = ref({
     homePageBehavior: 'new_session' as 'last_active_session' | 'new_session',
     busySendBehavior: 'follow' as BusySendBehavior,
     externalUrl: '',
-    gotifyUrl: '',
-    gotifyToken: '',
 })
 
 const cloneConfig = <T extends string>(config: EngineConfig<T>): EngineConfig<T> => ({ ...config })
@@ -67,23 +64,6 @@ const loadAsrFormForEngine = (engine: ASREngineType) => {
 const loadTtsFormForEngine = (engine: TTSEngineType) => {
     editForm.value.ttsEngine = engine
     editForm.value.ttsConfig = cloneConfig(configStore.getTtsConfig(engine))
-}
-
-const openGotifyModal = () => {
-    editForm.value = {
-        ...editForm.value,
-        gotifyUrl: configStore.gotifyUrl,
-        gotifyToken: configStore.gotifyToken,
-    }
-    const modal = document.getElementById('gotify_settings_modal') as HTMLDialogElement
-    if (modal) modal.showModal()
-}
-
-const saveGotify = () => {
-    configStore.save({
-        gotifyUrl: editForm.value.gotifyUrl,
-        gotifyToken: editForm.value.gotifyToken,
-    })
 }
 
 const openConnectionModal = () => {
@@ -253,27 +233,6 @@ const logout = async () => {
                                         <option value="en">English</option>
                                     </select>
                                 </div>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-
-                <div class="space-y-2">
-                    <h4 class="text-sm font-medium text-base-content/60 px-2">{{ $t('settings.notifications') }}</h4>
-                    <div class="card bg-base-100 shadow-sm">
-                        <ul class="divide-y divide-base-300">
-                            <li class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors"
-                                @click="openGotifyModal">
-                                <div class="flex items-center gap-3">
-                                    <BellIcon class="h-5 w-5 text-base-content/60" />
-                                    <div>
-                                        <span class="font-medium">{{ $t('settings.gotify') }}</span>
-                                        <p class="text-xs text-base-content/50">{{ configStore.gotifyUrl ||
-                                            $t('settings.notConfigured')
-                                            }}</p>
-                                    </div>
-                                </div>
-                                <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
                             </li>
                         </ul>
                     </div>
@@ -526,39 +485,6 @@ const logout = async () => {
                 <form method="dialog">
                     <button class="btn btn-ghost mr-2">{{ $t('common.cancel') }}</button>
                     <button class="btn btn-primary" @click="saveTts">{{ $t('common.save') }}</button>
-                </form>
-            </div>
-        </div>
-        <form method="dialog" class="modal-backdrop">
-            <button>close</button>
-        </form>
-    </dialog>
-    <dialog id="gotify_settings_modal" class="modal">
-        <div class="modal-box">
-            <h3 class="font-bold text-lg mb-4">{{ $t('settings.gotify') }}</h3>
-            <div class="form-control w-full space-y-4">
-                <div>
-                    <label class="label">
-                        <span class="label-text">{{ $t('settings.serverAddress') }}</span>
-                    </label>
-                    <input type="text" v-model="editForm.gotifyUrl" :placeholder="$t('settings.gotifyUrlPlaceholder')"
-                        class="input input-bordered w-full" />
-                </div>
-                <div>
-                    <label class="label">
-                        <span class="label-text">{{ $t('settings.clientToken') }}</span>
-                    </label>
-                    <input type="password" v-model="editForm.gotifyToken" placeholder="Client Token (C...)"
-                        class="input input-bordered w-full" />
-                    <label class="label">
-                        <span class="label-text-alt opacity-50">{{ $t('settings.clientTokenDesc') }}</span>
-                    </label>
-                </div>
-            </div>
-            <div class="modal-action">
-                <form method="dialog">
-                    <button class="btn btn-ghost mr-2">{{ $t('common.cancel') }}</button>
-                    <button class="btn btn-primary" @click="saveGotify">{{ $t('common.save') }}</button>
                 </form>
             </div>
         </div>

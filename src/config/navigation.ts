@@ -6,9 +6,7 @@ import {
     CubeIcon,
     ChatBubbleLeftRightIcon,
     DocumentTextIcon,
-    ArchiveBoxIcon,
     ClockIcon,
-    CalendarDaysIcon,
     PuzzlePieceIcon
 } from '@heroicons/vue/24/outline'
 
@@ -20,9 +18,7 @@ import {
     CubeIcon as CubeIconSolid,
     ChatBubbleLeftRightIcon as ChatBubbleLeftRightIconSolid,
     DocumentTextIcon as DocumentTextIconSolid,
-    ArchiveBoxIcon as ArchiveBoxIconSolid,
     ClockIcon as ClockIconSolid,
-    CalendarDaysIcon as CalendarDaysIconSolid,
     PuzzlePieceIcon as PuzzlePieceIconSolid
 } from '@heroicons/vue/24/solid'
 
@@ -84,22 +80,6 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         route: 'cron',
         showInSidebar: true,
         showInBottomNav: true
-    },
-    {
-        label: 'sidebar.taskSessions',
-        icon: CalendarDaysIcon,
-        activeIcon: CalendarDaysIconSolid,
-        route: 'tasks',
-        showInSidebar: true,
-        showInBottomNav: true
-    },
-    {
-        label: 'sidebar.archived',
-        icon: ArchiveBoxIcon,
-        activeIcon: ArchiveBoxIconSolid,
-        route: 'archived',
-        showInSidebar: true,
-        showInBottomNav: false
     },
     {
         label: 'sidebar.skills',

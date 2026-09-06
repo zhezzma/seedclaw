@@ -1,6 +1,6 @@
 import { reactive, computed, type ComputedRef } from 'vue'
 
-import { SessionRow, type SessionCategory, useSessionsState } from './useSessionsState'
+import { SessionRow, useSessionsState } from './useSessionsState'
 import { useUiSettingsStore } from '../stores/setting'
 import { apiGet, apiPost } from './api-client'
 import { startChatSSE, attachSessionSSE, startRetrySSE, startEditSSE, type SSEConnection } from './sse-client'
@@ -613,7 +613,7 @@ const loadChatHistory = async (sessionKey?: string) => {
  * 3. 通过 session.agentId 推导 agentsSelectedId 和 currentAgent
  * 4. 加载聊天历史
  */
-const setSessionKey = async (key: string, category?: SessionCategory) => {
+const setSessionKey = async (key: string) => {
     // 在设置 sessionKey 之前先判断是否需要加载历史
     // 因为设置 sessionKey 后，UI 会通过 getter 读取数据，自动创建 sessionsMap entry
     const needsLoad = !state.sessionsMap.has(key)
@@ -628,7 +628,7 @@ const setSessionKey = async (key: string, category?: SessionCategory) => {
 
     // 获取 session 信息并设置 currentSession / currentAgent
     const sessionsState = useSessionsState()
-    const session = await sessionsState.getSessionById(key, category)
+    const session = await sessionsState.getSessionById(key)
     state.currentSession = session || null
     if (session?.agentId) {
         state.agentsSelectedId = session.agentId

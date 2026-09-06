@@ -30,8 +30,6 @@ export interface UiSettings {
     autoSendCommands: boolean
     busySendBehavior: BusySendBehavior
     homePageBehavior: 'new_session' | 'last_active_session'
-    gotifyUrl: string
-    gotifyToken: string
     assistantMsgMerge: boolean
     language: 'zh' | 'en'
     showAllProviders: boolean  // 是否显示没有 apiKey 的提供商
@@ -247,8 +245,6 @@ const getDefaultSettings = (): UiSettings => ({
     autoSendCommands: true,
     busySendBehavior: 'follow',
     homePageBehavior: 'new_session',
-    gotifyUrl: '',
-    gotifyToken: '',
     assistantMsgMerge: true,
     language: 'zh',
     showAllProviders: true,

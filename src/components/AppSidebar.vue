@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-    MagnifyingGlassIcon,
     Cog6ToothIcon,
     PlusIcon,
     ChatBubbleLeftRightIcon,
-    TrashIcon,
     ArrowTopRightOnSquareIcon,
     ChevronDoubleLeftIcon,
     ChevronDoubleRightIcon,
@@ -30,6 +28,44 @@ type SessionMenuItem = {
     key: string
     label: string
     tone?: 'default' | 'danger'
+}
+
+// 侧栏会话列表 tab：对话 / 计划 / 归档
+export type SidebarSessionTab = 'chats' | 'plans' | 'archived'
+
+const sessionTab = ref<SidebarSessionTab>('chats')
+
+// 需懒加载的 tab 与对应 loader（loader 失败返回 null，据此移除标记下次重试）；
+// chats 不在此列：数据由启动链 useAppInit.loadSessions 加载，无需懒加载
+const TAB_LOADERS: Partial<Record<SidebarSessionTab, () => Promise<unknown>>> = {
+    plans: () => sessionsState.loadTaskSessions(),
+    archived: () => sessionsState.loadArchivedSessions(),
+}
+// 已懒加载过的 tab；失败不标记，下次切换重试
+const loadedTabs = new Set<SidebarSessionTab>()
+// 在途懒加载的 tab 集合：spinner 跟随当前显示 tab 的在途状态，
+// 避免并发切换时先完成的 loader 把仍在途 tab 的 spinner 提前关掉
+const loadingTabs = reactive(new Set<SidebarSessionTab>())
+// 当前 tab 是否首次加载在途
+const tabLoading = computed(() => loadingTabs.has(sessionTab.value))
+
+const switchSessionTab = async (tab: SidebarSessionTab) => {
+    sessionTab.value = tab
+    const loader = TAB_LOADERS[tab]
+    if (!loader || loadedTabs.has(tab)) return
+    loadedTabs.add(tab)
+    loadingTabs.add(tab)
+    try {
+        // loader 失败返回 null（桶保持旧值）；成功返回结果（含空列表）
+        if (await loader() == null) {
+            loadedTabs.delete(tab)
+        }
+    } catch {
+        // loader 违约 reject 时同样释放标记，允许下次重试
+        loadedTabs.delete(tab)
+    } finally {
+        loadingTabs.delete(tab)
+    }
 }
 
 const route = useRoute()
@@ -66,15 +102,44 @@ const activeSessionKey = computed(() => {
     return chatState.sessionKey || (route.params.sessionkey as string) || ''
 })
 
+// ---------- 侧栏 tab 跟随当前会话 ----------
+// 通知点击/路由跳转 /chat/:id 后，tab 自动切到该会话所属桶。
+// key 所属桶（桶间互斥由 moveSessionToRouteState 保证）；
+// 桶未加载或无此会话时返回 null，不盲切
+const sessionTabOfKey = (key: string): SidebarSessionTab | null => {
+    if (sessionsState.sessionsResult?.sessions?.some(s => s.id === key)) return 'chats'
+    if (sessionsState.taskSessionsResult?.sessions?.some(s => s.id === key)) return 'plans'
+    if (sessionsState.archivedSessionsResult?.sessions?.some(s => s.id === key)) return 'archived'
+    return null
+}
 
-// Filter sessions for display (exclude agent main sessions if needed, logic copied)
+// 每次会话跳转只跟随一次：之后用户手动切到其他 tab 浏览不被拉回。
+// 冷启动点通知时桶数据由 setSessionKey → getSessionById 单查回填，
+// 命中晚于路由跳转，因此同时监听三桶引用变化补切
+let followedKey: string | null = null
+watch([activeSessionKey, () => sessionsState.sessionsResult, () => sessionsState.taskSessionsResult, () => sessionsState.archivedSessionsResult], () => {
+    const key = activeSessionKey.value
+    if (!key || followedKey === key) return
+    const tab = sessionTabOfKey(key)
+    if (!tab) return
+    followedKey = key
+    if (tab !== sessionTab.value) void switchSessionTab(tab)
+})
+
+
+// 当前 tab 展示的会话列表（行渲染统一结构：key/label/pinned/archived）
 const displaySessions = computed(() => {
-    return sessionsState.sessionsResult?.sessions
-        .map((s: SessionRow) => ({
-            key: s.id,
-            label: s?.name || truncateText(s.firstMessage, 9),
-            pinned: Boolean(s.pinned),
-        }))
+    const raw = sessionTab.value === 'chats'
+        ? sessionsState.sessionsResult?.sessions
+        : sessionTab.value === 'plans'
+            ? sessionsState.taskSessionsResult?.sessions
+            : sessionsState.archivedSessionsResult?.sessions
+    return raw?.map((s: SessionRow) => ({
+        key: s.id,
+        label: s?.name || truncateText(s.firstMessage, 9),
+        pinned: Boolean(s.pinned),
+        archived: Boolean(s.archived),
+    }))
 })
 
 const closeSidebarDrawer = () => {
@@ -105,6 +170,7 @@ const handleDeleteSession = async (session: { key: string, label: string }) => {
     }
 }
 
+// 归档/取消归档后：若归档的是当前会话，回首页；若在归档 tab 取消归档，会话自动搬回对话/计划桶
 const handleArchiveSession = async (session: { key: string, label: string }) => {
     await sessionsState.archiveSession(session.key)
 
@@ -113,29 +179,54 @@ const handleArchiveSession = async (session: { key: string, label: string }) => 
     }
 }
 
-const getSessionMenuItems = (session: { pinned?: boolean }): SessionMenuItem[] => [
-    {
-        key: 'rename',
-        label: t('sidebar.rename'),
-    },
-    {
-        key: session.pinned ? 'unpin' : 'pin',
-        label: session.pinned ? t('sidebar.unpin') : t('sidebar.pin'),
-    },
-    {
+const handleUnarchiveSession = async (session: { key: string, label: string }) => {
+    await sessionsState.unarchiveSession(session.key)
+}
+
+// 各 tab 的行菜单配置：
+// - 对话：置顶/取消置顶仅普通会话有效（后端 pin 只作用于普通列表）
+// - 归档仅对话 tab 的普通会话可用：任务会话（计划 tab）不支持归档
+// - 已归档行（归档 tab 全部 + 计划 tab 中已归档项）显示取消归档
+const getSessionMenuItems = (session: { pinned?: boolean, archived?: boolean }): SessionMenuItem[] => {
+    const items: SessionMenuItem[] = [
+        {
+            key: 'rename',
+            label: t('sidebar.rename'),
+        },
+    ]
+
+    if (sessionTab.value === 'chats') {
+        items.push({
+            key: session.pinned ? 'unpin' : 'pin',
+            label: session.pinned ? t('sidebar.unpin') : t('sidebar.pin'),
+        })
+    }
+
+    items.push({
         key: 'info',
         label: t('sidebar.viewInfo'),
-    },
-    {
-        key: 'archive',
-        label: t('sidebar.archive'),
-    },
-    {
+    })
+
+    if (session.archived) {
+        items.push({
+            key: 'unarchive',
+            label: t('sidebar.unarchive'),
+        })
+    } else if (sessionTab.value === 'chats') {
+        // 归档仅对话 tab 可用；任务会话（计划 tab）不支持归档
+        items.push({
+            key: 'archive',
+            label: t('sidebar.archive'),
+        })
+    }
+
+    items.push({
         key: 'delete',
         label: t('common.delete'),
         tone: 'danger',
-    },
-]
+    })
+    return items
+}
 
 // 会话行右键菜单：通过 ref 打开对应行的 SessionActionMenu
 const sessionMenuRefs = new Map<string, { openMenu: () => void }>()
@@ -187,7 +278,7 @@ const openSessionInfo = async (session: { key: string, label: string }) => {
     infoLoading.value = true
     infoSession.value = sessionsState.findSessionLocal(session.key) || null
     try {
-        const detail = await sessionsState.getSessionById(session.key, undefined, { forceRefresh: true })
+        const detail = await sessionsState.getSessionById(session.key, { forceRefresh: true })
         if (detail) infoSession.value = detail
     } finally {
         infoLoading.value = false
@@ -220,23 +311,13 @@ const handleSessionMenuSelect = async (session: { key: string, label: string }, 
         return
     }
 
-    if (action === 'delete') {
-        await handleDeleteSession(session)
-    }
-}
-
-const handleDeleteAllSessions = async () => {
-    const sessions = displaySessions.value
-    if (!sessions || sessions.length === 0) return
-
-    if (!await confirm(t('sidebar.deleteAllChatsConfirm', { n: sessions.length }))) {
+    if (action === 'unarchive') {
+        await handleUnarchiveSession(session)
         return
     }
 
-    const keys = sessions.map(s => s.key)
-    await sessionsState.deleteSessions(keys)
-    if (chatState.sessionKey && keys.includes(chatState.sessionKey)) {
-        router.push({ name: 'home' })
+    if (action === 'delete') {
+        await handleDeleteSession(session)
     }
 }
 
@@ -317,32 +398,35 @@ const handleNavClick = (item: any) => {
             <div class="border-t border-base-300"></div>
         </div>
 
-        <!-- Conversations Header -->
-        <div class="shrink-0 px-4 pt-2 pb-2 flex items-center justify-between" :class="isCollapsed && 'lg:hidden'">
-            <span class="text-sm font-medium text-base-content/70 uppercase tracking-wider">{{ $t('sidebar.recentChats')
-                }}</span>
-            <div class="flex gap-1">
-                <button v-if="displaySessions && displaySessions.length > 0"
-                    class="btn btn-ghost btn-circle btn-xs hover:bg-error/20 hover:text-error"
-                    :title="$t('sidebar.clearAll')" @click="handleDeleteAllSessions">
-                    <TrashIcon class="h-4 w-4" />
-                </button>
-                <!-- <button class="btn btn-ghost btn-circle btn-xs hover:bg-base-300">
-                    <MagnifyingGlassIcon class="h-4 w-4" />
-                </button> -->
+        <!-- Session Tabs: 对话 / 计划 / 归档 -->
+        <div class="shrink-0 px-3 pt-2 pb-1" :class="isCollapsed && 'lg:hidden'">
+            <div role="tablist" class="tabs tabs-boxed tabs-xs">
+                <button role="tab" type="button" class="tab"
+                    :class="{ 'tab-active': sessionTab === 'chats' }"
+                    :aria-selected="sessionTab === 'chats'"
+                    @click="switchSessionTab('chats')">{{ $t('sidebar.tabChats') }}</button>
+                <button role="tab" type="button" class="tab"
+                    :class="{ 'tab-active': sessionTab === 'plans' }"
+                    :aria-selected="sessionTab === 'plans'"
+                    @click="switchSessionTab('plans')">{{ $t('sidebar.tabPlans') }}</button>
+                <button role="tab" type="button" class="tab"
+                    :class="{ 'tab-active': sessionTab === 'archived' }"
+                    :aria-selected="sessionTab === 'archived'"
+                    @click="switchSessionTab('archived')">{{ $t('sidebar.tabArchived') }}</button>
             </div>
         </div>
 
         <!-- Conversations List - scrollable -->
         <div class="flex-1 overflow-y-auto px-3 pb-4 min-h-0" :class="isCollapsed && 'lg:hidden'">
-            <!-- Loading state -->
-            <!-- <div v-if="sessionsState.sessionsLoading" class="flex items-center justify-center py-4">
+            <!-- Loading state: 当前 tab 首次懒加载在途 -->
+            <div v-if="tabLoading"
+                class="flex items-center justify-center py-4">
                 <span class="loading loading-spinner loading-sm"></span>
-            </div> -->
+            </div>
             <!-- Empty state -->
-            <div v-if="!displaySessions || displaySessions.length === 0"
+            <div v-else-if="!displaySessions || displaySessions.length === 0"
                 class="text-center py-4 text-base-content/50 text-sm">
-                {{ $t('sidebar.noChats') }}
+                {{ $t(sessionTab === 'chats' ? 'sidebar.noChats' : sessionTab === 'plans' ? 'sidebar.noPlans' : 'sidebar.noArchived') }}
             </div>
             <!-- Sessions list -->
             <div v-else class="space-y-1">
