@@ -103,12 +103,15 @@ router.beforeEach(async (to, _from, next) => {
     await ensureLocalServerLoaded()
     const configStore = useUiSettingsStore()
 
-    // If route requires config and user is not configured
-    if (to.meta.requiresConfig && !configStore.isConfigured) {
-        if (effectiveGatewayMode() !== 'local') {
-            next({ name: 'setup' })
-            return
-        }
+    // If route requires config and user is not set up.
+    // bundled 本地模式下 apiBaseUrl 由服务托管（syncSettings 抢先写入，
+    // isConfigured 恒 true），是否首次引导只能看 setupDone；
+    // remote（Android/Web/纯客户端）保持原 isConfigured 判断。
+    const mode = effectiveGatewayMode()
+    const needsSetup = mode === 'local' ? !configStore.setupDone : !configStore.isConfigured
+    if (to.meta.requiresConfig && needsSetup) {
+        next({ name: 'setup' })
+        return
     }
 
     // If user is on setup page but already finished the wizard.
