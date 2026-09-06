@@ -79,7 +79,7 @@ SeedClaw 是 Tauri 2 桌面应用，目前 seedagent 服务端是外部独立进
 
 ### 5.3 对前端的接口
 
-- invoke：`server_status` → `{ bundled: boolean, state, port, url, token, pid, lastError }`。`bundled` = resources/seedagent 是否存在（启动时检测一次）；`bundled=false` 时不做任何 spawn、state 恒为 `unavailable`——Android、未 staging 的 dev 构建、Web 版都属此类（同一 Rust 代码在 Android 上编译，资源目录里没有 seedagent，自然返回 false，不 panic、不报错）。`server_restart` 仅 `bundled=true` 时有意义。
+- invoke：`server_status` → `{ bundled: boolean, state, port, url, token, pid, lastError, dataDir }`（`dataDir` = `~/.seedagent` 绝对路径，供前端展示/复制日志路径）。`bundled` = resources/seedagent 是否存在（启动时检测一次）；`bundled=false` 时不做任何 spawn、state 恒为 `unavailable`——Android、未 staging 的 dev 构建、Web 版都属此类（同一 Rust 代码在 Android 上编译，资源目录里没有 seedagent，自然返回 false，不 panic、不报错）。`server_restart` 仅 `bundled=true` 时有意义。
 - 事件：`server://status`，状态变化即推。
 
 ## 6. seedagent 侧改动（env-loader，约 15 行）
@@ -107,7 +107,7 @@ SeedClaw 是 Tauri 2 桌面应用，目前 seedagent 服务端是外部独立进
 ### 7.2 连接设置 UI（`SettingsView.vue` 连接弹窗）
 
 - 顶部下拉：「本地服务 / 远程服务器」。**仅当 `bundled=true` 时可选「本地服务」**；`bundled=false`（Android / dev / Web）不显示本地选项，仅远程手填，与现状一致。`bundled` 在连接弹窗打开时从 `server_status` 已有的状态读取。
-- **本地**：URL 与 token 输入框 disabled，下方状态行展示 `运行中 · 127.0.0.1:<port>` / `启动中…` / `失败：<原因>`（附「重启服务」「查看日志」按钮，日志路径 `~/.seedagent/logs/`）。
+- **本地**：URL 与 token 输入框 disabled，下方状态行展示 `运行中 · 127.0.0.1:<port>` / `启动中…` / `失败：<原因>`（附「重启服务」按钮与「复制日志路径」按钮，日志在 `~/.seedagent/logs/`）。
 - **远程**：现有手填表单，值读写 `remoteApiBaseUrl`/`remoteToken`。
 - 保存：沿用现状 `saveConnection()` 后 `window.location.reload()` 的机制（见 §7.4）。
 
