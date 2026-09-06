@@ -37,3 +37,4 @@ debug.keystore
 .worktrees/
 
 src-tauri/resources/
+scripts/.cache/
