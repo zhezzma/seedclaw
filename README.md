@@ -1,8 +1,8 @@
-# SeedClaw (OpenClaw Desktop)
+# SeedClaw
 
-SeedClaw 是 OpenClaw 的桌面端实现，基于 Tauri 构建，专为高性能、低延迟的本地 AI
-智能体交互而设计。它结合了现代 Web 前端技术与 Rust 后端能力，提供了一个安全、
-可扩展的智能体交互环境。
+SeedClaw 是一个基于 Tauri 构建的跨平台 AI 智能体客户端，支持 Windows / macOS /
+Linux 桌面端、Web 与 Android。它结合了现代 Web 前端技术与 Rust 后端能力，
+提供了一个安全、可扩展的智能体交互环境。
 
 **服务端为 [seedagent](https://github.com/zhezzma/seedagent)**——独立的 Node.js
 多 Agent 服务，通过 HTTP + WebSocket 提供会话、聊天、技能、定时任务等 API。
