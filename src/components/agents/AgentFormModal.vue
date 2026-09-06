@@ -89,13 +89,6 @@ const onWorkspaceValidated = ({ basename, result }: { basename: string; result: 
 const isBusy = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 
-// Load models if not loaded
-onMounted(() => {
-    if (modelsState.providers.value.length === 0) {
-        modelsState.loadModels()
-    }
-})
-
 // Random emoji list
 const AGENT_EMOJIS = ['🤖', '🦥', '🦊', '🐱', '🐶', '🦉', '🐼', '🚀', '🎯', '💡', '🔥', '🌈', '🎨', '🎭']
 
