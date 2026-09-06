@@ -217,8 +217,12 @@ const submitForm = async () => {
         if (formData.value.defaultModel) data.append('defaultModel', formData.value.defaultModel)
         if (formData.value.defaultProvider) data.append('defaultProvider', formData.value.defaultProvider)
 
-        // 无条件 append：编辑模式清空路径提交 "" 时，服务端按空串=解除绑定处理（Task 2 语义）
-        data.append('workspaceDir', formData.value.workspaceDir || '')
+        // workspaceDirRaw 契约守卫：当前网关的编辑详情必含 workspaceDirRaw，此时始终
+        // append（空串 = 明确解除绑定）；仅旧网关载荷缺该字段且表单值为空（未触碰）时
+        // 不 append，避免无关编辑（改名/头像）把既有绑定静默清掉。
+        if (formData.value.workspaceDir || 'workspaceDirRaw' in (props.agentData ?? {})) {
+            data.append('workspaceDir', formData.value.workspaceDir || '')
+        }
 
         if (formData.value.identityName) data.append('identityName', formData.value.identityName)
         if (formData.value.identityCreature) data.append('identityCreature', formData.value.identityCreature)
