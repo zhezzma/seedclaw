@@ -3,7 +3,7 @@ name: Deploy SeedClaw Web
 on:
   push:
     branches:
-      - seedagent
+      - main
   workflow_dispatch:
 
 jobs:

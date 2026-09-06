@@ -3,7 +3,7 @@ name: SeedClaw Seedagent Latest Build
 on:
   push:
     branches:
-      - seedagent
+      - main
   workflow_dispatch:
 
 concurrency:

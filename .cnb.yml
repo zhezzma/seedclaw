@@ -6,5 +6,5 @@ master:
       stages:
         - name: 环境检查
           script: echo $GITHUB_TOKEN_GK && echo $GITHUB_TOKEN && node -v && npm -v
-        - name: 将master分支同步更新到github的master分支
-          script: git push https://$GITHUB_TOKEN_GK:$GITHUB_TOKEN@github.com/zhezzma/seedclaw.git HEAD:seedagent
+        - name: 将master分支同步更新到github的main分支
+          script: git push https://$GITHUB_TOKEN_GK:$GITHUB_TOKEN@github.com/zhezzma/seedclaw.git HEAD:main
