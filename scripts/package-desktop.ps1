@@ -15,21 +15,23 @@ src-tauri\resources\seedagent\ 目录的过程。该目录会被 tauri 打进安
   ① 构建 seedagent（在 $SeedagentDir 里 npm run build，每次强制重跑，保证 dist 最新）
   ② 采集 Node 运行时（本机版本匹配则拷贝，否则下载并缓存到 scripts\.cache\）
   ③ 装配（staging）：清空重建 src-tauri\resources\seedagent\，填入上述内容并校验
-  ④ tauri build：前端 + Rust 打包，resources 随包携带
-  ⑤ 收集产物：NSIS/MSI 安装包 → dist-windows\；便携版（裸 exe + resources）压成 zip
+  ④ tauri build：默认 --no-bundle 只编译裸 seedclaw.exe（快）；-Installers 时才打 MSI/NSIS
+     安装包（WiX/NSIS 要压缩近 3 万个文件，5~20 分钟，日常迭代别开）
+  ⑤ 收集产物：默认只准备便携版目录（exe + resources）；-Installers 额外收集安装包并压便携版 zip
   ⑥ 部署：便携版内容镜像到 $DeployDir（先结束部署目录内运行中的 seedclaw/node 进程）
 
 【用法】
-  powershell -File scripts/package-desktop.ps1               # 全流程 ①→⑥（默认部署到 D:\Applications\seedclaw）
+  powershell -File scripts/package-desktop.ps1               # 默认：①-④→⑥，只做便携版并部署（日常迭代用）
+  powershell -File scripts/package-desktop.ps1 -Installers   # 额外打 MSI/NSIS 安装包 + 便携版 zip（分发给别人时用）
   powershell -File scripts/package-desktop.ps1 -StageOnly    # 只跑到 ③ 就停（只装配不打包），配合 npm run tauri dev 联调内置服务
   powershell -File scripts/package-desktop.ps1 -SkipStage    # 跳过 ①②③（复用已装配好的 resources），从 ④ 开始
-  powershell -File scripts/package-desktop.ps1 -SkipDeploy   # 跑完 ①-⑤ 但不执行 ⑥
+  powershell -File scripts/package-desktop.ps1 -SkipDeploy   # 不执行 ⑥；默认模式下便携版目录保留在 dist-windows\portable
 
 【参数】
   -SeedagentDir  seedagent 仓库路径（默认 D:\Workspace\seedagent，或环境变量 SEEDAGENT_DIR）
   -NodeVersion   Node 运行时版本（默认 23.11.0，须 23.x，原生模块 ABI 锁主版本）
   -NodeExe       显式指定本机 node.exe 路径（校验主版本为 23.x 后直接使用，不走下载）；
-                 例如 nvm 用户：-NodeExe "$env:USERPROFILE\AppData\Roaming\nvm\v23.0.0\node.exe"
+                 例如 nvm 用户：-NodeExe "$env:USERPROFILE\AppData\Roaming\nvm\v23.0.0\node.exe" 或者 -NodeExe "D:\Applications\Scoop\persist\nvm\nodejs\v23.0.0\node.exe"
                  （或者直接 `nvm use 23.x` 后让脚本自动识别，无需此参数）
   -DeployDir     部署目录（默认 D:\Applications\seedclaw）
   注意：-StageOnly 与 -SkipStage 互斥，不要同时传（同时传等于什么也不做直接退出）。
@@ -41,7 +43,8 @@ param(
     [string]$DeployDir = "D:\Applications\seedclaw",
     [switch]$StageOnly,
     [switch]$SkipStage,
-    [switch]$SkipDeploy
+    [switch]$SkipDeploy,
+    [switch]$Installers
 )
 $ErrorActionPreference = 'Stop'
 
@@ -144,20 +147,28 @@ if ($StageOnly) {
     exit 0
 }
 
-# ④ tauri build（仅桌面）
-Write-Host "==> npm run tauri build"
+# ④ tauri build：默认 --no-bundle 只出裸 exe（快）；-Installers 才打 MSI/NSIS 安装包
 Push-Location $root
 try {
-    npm run tauri build
+    if ($Installers) {
+        Write-Host "==> npm run tauri build (含 MSI/NSIS 安装包，压缩约 5~20 分钟)"
+        npm run tauri build
+    } else {
+        Write-Host "==> npm run tauri build --no-bundle (只出便携版; -Installers 可打安装包)"
+        npm run tauri build -- --no-bundle
+    }
     if ($LASTEXITCODE -ne 0) { throw "tauri build failed" }
 } finally { Pop-Location }
 
-# ⑤ 收集产物：NSIS/MSI + 便携版（裸 exe + resources 目录，resource_dir 按 exe 同目录解析）
+# ⑤ 收集产物：便携版目录始终准备（部署源）；安装包收集与 zip 仅 -Installers 时做
 $outDir = Join-Path $root 'dist-windows'
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
-$bundleDir = Join-Path $root 'src-tauri\target\release\bundle'
-Get-ChildItem "$bundleDir\nsis\*.exe", "$bundleDir\msi\*.msi" -ErrorAction SilentlyContinue |
-    ForEach-Object { Copy-Item $_.FullName $outDir -Force; Write-Host "==> collected $($_.Name)" }
+
+if ($Installers) {
+    $bundleDir = Join-Path $root 'src-tauri\target\release\bundle'
+    Get-ChildItem "$bundleDir\nsis\*.exe", "$bundleDir\msi\*.msi" -ErrorAction SilentlyContinue |
+        ForEach-Object { Copy-Item $_.FullName $outDir -Force; Write-Host "==> collected $($_.Name)" }
+}
 
 $portable = Join-Path $outDir 'portable'
 Remove-LongPath $portable
@@ -167,17 +178,20 @@ Copy-Item (Join-Path $root 'src-tauri\target\release\seedclaw.exe') $portable
 robocopy (Join-Path $root 'src-tauri\resources') (Join-Path $portable 'resources') /E /NFL /NDL /NJH /NJS | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "robocopy resources failed (exit $LASTEXITCODE)" }
 
-# Compress-Archive 对深路径同样会失败，用系统自带 bsdtar 生成 zip（绝对路径调用，避免 PATH 里 GNU tar 抢占）
-$portableZip = Join-Path $outDir 'seedclaw-portable-windows.zip'
-if (Test-Path $portableZip) { Remove-Item -Force $portableZip }
-Push-Location $portable
-try {
-    & "$env:SystemRoot\System32\tar.exe" -a -c -f $portableZip seedclaw.exe resources
-    if ($LASTEXITCODE -ne 0) { throw "portable zip failed (tar exit $LASTEXITCODE)" }
-} finally { Pop-Location }
-Write-Host "==> portable zip: dist-windows\seedclaw-portable-windows.zip"
+if ($Installers) {
+    # Compress-Archive 对深路径同样会失败，用系统自带 bsdtar 生成 zip（绝对路径调用，避免 PATH 里 GNU tar 抢占）
+    $portableZip = Join-Path $outDir 'seedclaw-portable-windows.zip'
+    if (Test-Path $portableZip) { Remove-Item -Force $portableZip }
+    Push-Location $portable
+    try {
+        & "$env:SystemRoot\System32\tar.exe" -a -c -f $portableZip seedclaw.exe resources
+        if ($LASTEXITCODE -ne 0) { throw "portable zip failed (tar exit $LASTEXITCODE)" }
+    } finally { Pop-Location }
+    Write-Host "==> portable zip: dist-windows\seedclaw-portable-windows.zip"
+}
 
 # ⑥ 部署便携版到指定目录（参考 build_windows.ps1）
+$deployed = $false
 if (-not $SkipDeploy) {
     Write-Host "==> deploying to $DeployDir ..."
 
@@ -195,6 +209,9 @@ if (-not $SkipDeploy) {
     robocopy $portable $DeployDir /MIR /NFL /NDL /NJH /NJS | Out-Null
     if ($LASTEXITCODE -ge 8) { throw "deploy robocopy failed (exit $LASTEXITCODE)" }
     Write-Host "==> deploy OK: $DeployDir"
+    $deployed = $true
 }
-Remove-LongPath $portable
+# 部署成功或已压 zip 后清掉临时便携目录；-SkipDeploy 且默认模式（无 zip）时保留产物
+if ($deployed -or $Installers) { Remove-LongPath $portable }
+else { Write-Host "==> portable kept at: $portable" }
 Write-Host "==> done. Artifacts in $outDir"
