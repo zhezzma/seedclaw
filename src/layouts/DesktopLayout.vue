@@ -9,7 +9,7 @@ const configStore = useUiSettingsStore()
     <div class="flex h-full bg-base-100 overflow-hidden">
         <!-- Sidebar -->
         <div class="h-full shrink-0 border-r border-base-200 transition-[width] duration-200"
-            :class="configStore.isSidebarCollapsed ? 'w-16' : 'w-64'">
+            :class="configStore.isSidebarCollapsed ? 'w-16' : 'w-72'">
             <AppSidebar />
         </div>
 

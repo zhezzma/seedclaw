@@ -263,36 +263,37 @@ onUnmounted(() => {
                 <div v-else
                     class="bg-base-100 rounded-xl shadow-sm border border-base-200 overflow-hidden flex flex-col h-full">
                     <div class="overflow-x-auto w-full">
-                        <table class="table table-sm w-full">
+                        <!-- table-fixed：列宽固定，消息列占剩余空间自动换行，杜绝横向滚动条 -->
+                        <table class="table table-sm w-full table-fixed [&_th]:py-2.5 [&_td]:py-2.5">
                             <thead class="bg-base-200/50 text-base-content/70">
                                 <tr>
-                                    <th class="w-40 pl-6 font-semibold">{{ $t('common.time') }}</th>
-                                    <th class="w-24 text-center font-semibold">{{ $t('log.level') }}</th>
+                                    <th class="w-24 sm:w-40 pl-4 sm:pl-6 font-semibold">{{ $t('common.time') }}</th>
+                                    <th class="hidden md:table-cell w-24 text-center font-semibold">{{ $t('log.level') }}</th>
                                     <th class="font-semibold">{{ $t('common.message') }}</th>
-                                    <th class="w-20 text-center font-semibold">{{ $t('log.meta') }}</th>
+                                    <th class="hidden md:table-cell w-20 text-center font-semibold">{{ $t('log.meta') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="text-sm">
                                 <tr v-for="(log, index) in filteredLogs" :key="index"
                                     class="group hover:bg-base-200/40 transition-colors border-b border-base-100 last:border-0">
                                     <td
-                                        class="pl-6 whitespace-nowrap font-mono text-xs opacity-60 group-hover:opacity-100 transition-opacity">
+                                        class="pl-4 sm:pl-6 whitespace-nowrap font-mono text-xs opacity-60 group-hover:opacity-100 transition-opacity truncate">
                                         {{ formatTime(log.timestamp) }}
                                     </td>
-                                    <td class="text-center">
+                                    <td class="hidden md:table-cell text-center">
                                         <div
                                             :class="['badge badge-sm font-bold uppercase gap-1 border-0 shadow-sm', getLevelBadgeClass(log.level as LogLevel)]">
                                             <component :is="getLevelIcon(log.level as LogLevel)" class="w-3 h-3" />
                                             {{ log.level }}
                                         </div>
                                     </td>
-                                    <td class="min-w-[300px]">
+                                    <td>
                                         <div
-                                            class="font-mono text-xs text-base-content/80 break-all py-1 leading-relaxed selection:bg-primary/20 selection:text-primary">
+                                            class="font-mono text-xs text-base-content/80 break-all py-0.5 leading-snug selection:bg-primary/20 selection:text-primary">
                                             {{ log.message }}
                                         </div>
                                     </td>
-                                    <td class="text-center">
+                                    <td class="hidden md:table-cell text-center">
                                         <div v-if="log.meta && Object.keys(log.meta).length > 0"
                                             class="dropdown dropdown-end dropdown-left dropdown-hover">
                                             <div tabindex="0" role="button"
@@ -330,7 +331,7 @@ onUnmounted(() => {
 
                 <!-- Pagination -->
                 <div
-                    class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-6 bg-base-100 p-3 rounded-xl border border-base-200 shadow-sm">
+                    class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-4 bg-base-100 py-1 px-3 rounded-xl border border-base-200 shadow-sm">
                     <span class="text-xs font-medium text-base-content/60 order-2 sm:order-1">
                         {{ $t('log.page') }} <span class="font-bold text-base-content">{{ logsState.page }}</span> {{
                             $t('log.of') }} <span class="font-bold text-base-content">{{ logsState.totalPages }}</span>

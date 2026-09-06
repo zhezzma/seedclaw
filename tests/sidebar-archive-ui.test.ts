@@ -25,9 +25,10 @@ test('sidebar renders three session tabs and lazy-loads per tab', () => {
     assert.match(sidebarSource, /archived: \(\) => sessionsState\.loadArchivedSessions\(\)/)
     assert.doesNotMatch(sidebarSource, /chats: \(\) => sessionsState\.loadSessions\(\)/)
     assert.match(sidebarSource, /const loadedTabs = new Set<SidebarSessionTab>\(\)/)
-    assert.match(sidebarSource, /\$t\('sidebar\.tabChats'\)/)
-    assert.match(sidebarSource, /\$t\('sidebar\.tabPlans'\)/)
-    assert.match(sidebarSource, /\$t\('sidebar\.tabArchived'\)/)
+    // tab 标签由 SESSION_TABS 配置驱动，labelKey 指向 i18n
+    assert.match(sidebarSource, /labelKey: 'sidebar\.tabChats'/)
+    assert.match(sidebarSource, /labelKey: 'sidebar\.tabPlans'/)
+    assert.match(sidebarSource, /labelKey: 'sidebar\.tabArchived'/)
 })
 
 test('sidebar batch delete button is removed', () => {

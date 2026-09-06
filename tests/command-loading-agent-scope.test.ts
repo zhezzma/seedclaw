@@ -6,10 +6,10 @@ import path from 'node:path'
 
 const testDir = path.dirname(fileURLToPath(import.meta.url))
 const appInitPath = path.resolve(testDir, '../src/composables/useAppInit.ts')
-const chatHeaderPath = path.resolve(testDir, '../src/components/chat/ChatHeader.vue')
+const homeViewPath = path.resolve(testDir, '../src/views/HomeView.vue')
 
 const appInitSource = readFileSync(appInitPath, 'utf8')
-const chatHeaderSource = readFileSync(chatHeaderPath, 'utf8')
+const homeViewSource = readFileSync(homeViewPath, 'utf8')
 
 test('initial command loading is scoped to the selected agent instead of loading all agent prompts', () => {
     assert.match(
@@ -21,8 +21,8 @@ test('initial command loading is scoped to the selected agent instead of loading
 
 test('switching the new-session agent reloads commands for that agent only', () => {
     assert.match(
-        chatHeaderSource,
+        homeViewSource,
         /loadCommands\(agentId\)/,
-        'changing agent in the new-session header should reload command suggestions for that agent',
+        'changing agent in the new-session welcome dropdown should reload command suggestions for that agent',
     )
 })

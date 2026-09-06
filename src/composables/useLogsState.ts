@@ -72,10 +72,9 @@ const loadLogs = async (opts?: { reset?: boolean; quiet?: boolean; date?: string
 
         const page = opts?.page || state.page
         const limit = opts?.limit || state.logsLimit
-        const pageSize = 15
         params.set('page', String(page))
         params.set('limit', String(limit))
-        params.set('pageSize', String(pageSize))
+        params.set('pageSize', String(limit))
 
         const queryString = params.toString()
         const path = `/api/logs${queryString ? '?' + queryString : ''}`

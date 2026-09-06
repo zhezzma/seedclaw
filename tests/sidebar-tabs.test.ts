@@ -6,16 +6,70 @@ import path from 'node:path'
 const root = path.resolve(import.meta.dirname, '..')
 const sidebarSource = readFileSync(path.join(root, 'src/components/AppSidebar.vue'), 'utf8')
 
-test('sidebar defines three session tabs with daisyUI tabs-boxed styling', () => {
+test('sidebar defines three session tabs with pill segmented-control styling', () => {
     assert.match(sidebarSource, /export type SidebarSessionTab = 'chats' \| 'plans' \| 'archived'/)
-    assert.match(sidebarSource, /tabs tabs-boxed/)
-    assert.match(sidebarSource, /:class="\{ 'tab-active': sessionTab === 'chats' \}"/)
-    assert.match(sidebarSource, /:class="\{ 'tab-active': sessionTab === 'plans' \}"/)
-    assert.match(sidebarSource, /:class="\{ 'tab-active': sessionTab === 'archived' \}"/)
+    // 三个 tab 由 SESSION_TABS 配置驱动（v-for 渲染），各有 label 与图标
+    assert.match(sidebarSource, /const SESSION_TABS: Array<\{ key: SidebarSessionTab, labelKey: string, icon: any \}> = \[/)
+    assert.match(sidebarSource, /\{ key: 'chats', labelKey: 'sidebar\.tabChats', icon: ChatBubbleLeftRightIcon \}/)
+    assert.match(sidebarSource, /\{ key: 'plans', labelKey: 'sidebar\.tabPlans', icon: CalendarDaysIcon \}/)
+    assert.match(sidebarSource, /\{ key: 'archived', labelKey: 'sidebar\.tabArchived', icon: ArchiveBoxIcon \}/)
+    // 胶囊分段控件：圆角灰底容器，选中项白底描边阴影
+    assert.match(sidebarSource, /rounded-full bg-base-300\/60 p-1/)
+    assert.match(sidebarSource, /sessionTab === tab\.key\s*\n\s*\? 'bg-base-100 border-base-300\/80 shadow-sm text-base-content'/)
     // 每个 tab 都有可访问性选中态
-    assert.match(sidebarSource, /:aria-selected="sessionTab === 'chats'"/)
-    assert.match(sidebarSource, /:aria-selected="sessionTab === 'plans'"/)
-    assert.match(sidebarSource, /:aria-selected="sessionTab === 'archived'"/)
+    assert.match(sidebarSource, /:aria-selected="sessionTab === tab\.key"/)
+    // 旧 daisyUI tabs-boxed 结构不应残留
+    assert.doesNotMatch(sidebarSource, /tabs tabs-boxed/)
+    assert.doesNotMatch(sidebarSource, /tab-active/)
+})
+
+test('sidebar group toggle renders sessions grouped by agent', () => {
+    // #分组 开关在 tab 分段控件右侧，aria-pressed 表达开启态
+    // 开关状态持久化到 UI 设置 store（localStorage），刷新后保留
+    const settingsSource = readFileSync(path.join(root, 'src/stores/setting.ts'), 'utf8')
+    assert.match(settingsSource, /isSidebarGrouped: boolean/)
+    assert.match(settingsSource, /isSidebarGrouped: false/)
+    assert.match(settingsSource, /toggleSidebarGrouped\(\) \{\s*this\.isSidebarGrouped = !this\.isSidebarGrouped\s*this\.persist\(\)/)
+    assert.match(sidebarSource, /const groupByAgent = computed\(\(\) => configStore\.isSidebarGrouped\)/)
+    assert.match(sidebarSource, /const toggleGroupByAgent = \(\) => \{\s*configStore\.toggleSidebarGrouped\(\)/)
+    assert.match(sidebarSource, /:aria-pressed="groupByAgent"/)
+    assert.match(sidebarSource, /:title="\$t\('sidebar\.group'\)"/)
+    // 分组键：agentName 优先；任务会话接口只带 agentId，本地经 agent 列表解析名称。
+    // 只取 name 字段（如「万能助手」），不取 identity.name（人设名，如「小段」），最终回退 agentId
+    assert.match(sidebarSource, /const agentDisplayName = \(s: SessionRow\): string => \{/)
+    assert.match(sidebarSource, /agentsState\.agentsList\?\.find\(a => a\.id === s\.agentId\)/)
+    assert.match(sidebarSource, /return agent\?\.name \|\| s\.agentId \|\| ''/)
+    assert.doesNotMatch(sidebarSource, /identity\?\.name/)
+    assert.match(sidebarSource, /agent: agentDisplayName\(s\),/)
+    assert.match(sidebarSource, /const sessionGroups = computed\(\(\) => \{/)
+    assert.match(sidebarSource, /label: session\.agent \|\| t\('sidebar\.ungrouped'\)/)
+    // 渲染模型单一 v-for：组头与行交错，行模板不按两种视图复制
+    assert.match(sidebarSource, /v-for="session in sessionListItems"/)
+    assert.match(sidebarSource, /v-if="session\.kind === 'group'"/)
+    // 组头可点击展开/收起：收起状态按 tab 独立记忆（互不干扰）+ toggle + 键盘可达 + aria-expanded
+    assert.match(sidebarSource, /const collapsedGroups = ref<Record<SidebarSessionTab, Set<string>>>\(\{/)
+    assert.match(sidebarSource, /const toggleGroup = \(key: string\) => \{\s*const tab = sessionTab\.value\s*const next = new Set\(collapsedGroups\.value\[tab\]\)/)
+    assert.match(sidebarSource, /const isGroupCollapsed = \(key: string\) => collapsedGroups\.value\[sessionTab\.value\]\.has\(key\)/)
+    assert.match(sidebarSource, /@click="toggleGroup\(session\.groupKey\)"/)
+    assert.match(sidebarSource, /:aria-expanded="!isGroupCollapsed\(session\.groupKey\)"/)
+    // 收起的组只渲染组头，会话行不进列表
+    assert.match(sidebarSource, /const collapsed = collapsedGroups\.value\[sessionTab\.value\]/)
+    assert.match(sidebarSource, /if \(collapsed\.has\(group\.key\)\) continue/)
+    // 文件夹图标随展开状态切换：开 FolderOpenIcon / 合 FolderIcon
+    assert.match(sidebarSource, /isGroupCollapsed\(session\.groupKey\) \? FolderIcon : FolderOpenIcon/)
+    // 分组关闭时输出纯行列表，空态/加载态判断仍基于 displaySessions
+    assert.match(sidebarSource, /if \(!groupByAgent\.value\) \{/)
+    assert.match(sidebarSource, /<div v-else-if="!displaySessions \|\| displaySessions\.length === 0"/)
+})
+
+test('sidebar grouping i18n keys exist in zh and en locales', () => {
+    const zhSource = readFileSync(path.join(root, 'src/i18n/zh.ts'), 'utf8')
+    const enSource = readFileSync(path.join(root, 'src/i18n/en.ts'), 'utf8')
+    for (const source of [zhSource, enSource]) {
+        assert.match(source, /ungrouped: '/)
+    }
+    assert.match(zhSource, /group: '分组'/)
+    assert.match(enSource, /group: 'Group'/)
 })
 
 test('sidebar tab switch lazily loads the matching data bucket and retries on failure', () => {

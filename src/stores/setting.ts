@@ -19,6 +19,7 @@ export interface UiSettings {
     theme: 'light' | 'dark'
     isSidebarOpen: boolean
     isSidebarCollapsed: boolean
+    isSidebarGrouped: boolean
     isWideMode: boolean
     showBottomNav: boolean
     sessionsActiveDays: number
@@ -29,7 +30,6 @@ export interface UiSettings {
     silenceDuration: number
     autoSendCommands: boolean
     busySendBehavior: BusySendBehavior
-    homePageBehavior: 'new_session' | 'last_active_session'
     assistantMsgMerge: boolean
     language: 'zh' | 'en'
     showAllProviders: boolean  // 是否显示没有 apiKey 的提供商
@@ -234,6 +234,7 @@ const getDefaultSettings = (): UiSettings => ({
     theme: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
     isSidebarOpen: false,
     isSidebarCollapsed: false,
+    isSidebarGrouped: false,
     isWideMode: true,
     showBottomNav: false,
     sessionsActiveDays: 3,
@@ -244,7 +245,6 @@ const getDefaultSettings = (): UiSettings => ({
     silenceDuration: 2000,
     autoSendCommands: true,
     busySendBehavior: 'follow',
-    homePageBehavior: 'new_session',
     assistantMsgMerge: true,
     language: 'zh',
     showAllProviders: true,
@@ -431,6 +431,11 @@ export const useUiSettingsStore = defineStore('ui-settings', {
 
         toggleSidebarCollapsed() {
             this.isSidebarCollapsed = !this.isSidebarCollapsed
+            this.persist()
+        },
+
+        toggleSidebarGrouped() {
+            this.isSidebarGrouped = !this.isSidebarGrouped
             this.persist()
         },
 

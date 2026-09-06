@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import type { SessionUsage } from '../../composables/useChatState'
 import {
     Bars3Icon,
-    ChevronDownIcon,
-    CheckIcon,
     SunIcon,
     MoonIcon,
     ArrowsPointingOutIcon,
@@ -24,16 +22,12 @@ import { isConnected } from '../../composables/notify-server-connection'
 import { useWorkspacePanel } from '../../composables/useWorkspacePanel'
 
 import ViewHeader from '../ViewHeader.vue'
-import { isNewSession, NEW_SESSION_ROUTE_NAME } from '../../utils/route-helpers'
+import { NEW_SESSION_ROUTE_NAME } from '../../utils/route-helpers'
 import { useChatState } from '../../composables/useChatState'
-import { AgentInfo, useAgentsState } from '~/src/composables/useAgentsState'
-import { useCommandState } from '../../composables/useCommandState'
 import { apiGet, apiPost } from '../../composables/api-client'
 
-const props = defineProps<{
+defineProps<{
     sessionName?: string
-    selectedAgent: AgentInfo | null
-    agents: AgentInfo[]
 }>()
 
 
@@ -43,22 +37,16 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
-const route = useRoute()
 const chatState = useChatState()
 const { t } = useI18n()
-const { loadCommands, setCurrentAgent } = useCommandState()
 const settingsStore = useUiSettingsStore()
 const panel = useWorkspacePanel()
 
 
-const dropdownRef = ref<HTMLDetailsElement | null>(null)
 const showUsageTip = ref(false)
 const notifyEnabled = ref(false)
 const notifyLoading = ref(false)
 
-const showAgentDropdown = computed(() => isNewSession(route))
-
-const selectedAgentId = computed(() => props.selectedAgent?.id || '')
 const isSession = computed(() => Boolean(chatState.sessionKey))
 
 const buildNotifyAgentQuery = (agentId: string) => {
@@ -115,18 +103,6 @@ watch(
     { immediate: true }
 )
 
-// 选择 Agent（新会话下拉菜单）→ 通过 chatState.selectAgent 统一管理
-const selectAgent = async (agentId: string) => {
-    if (isNewSession(route)) {
-        chatState.selectAgent(agentId)
-        setCurrentAgent(agentId)
-        await loadCommands(agentId)
-    }
-    if (dropdownRef.value) {
-        dropdownRef.value.open = false
-    }
-}
-
 const createNewSession = () => {
     router.push({ name: NEW_SESSION_ROUTE_NAME })
 }
@@ -139,11 +115,8 @@ const refreshPage = () => {
     window.location.reload()
 }
 
-// Close dropdown / tooltip when clicking outside
+// Close tooltip when clicking outside
 const handleClickOutside = (event: MouseEvent) => {
-    if (dropdownRef.value && !dropdownRef.value.contains(event.target as Node)) {
-        dropdownRef.value.open = false
-    }
     showUsageTip.value = false
 }
 
@@ -222,28 +195,10 @@ defineExpose({
             </div>
         </template>
 
-        <!-- Title / Agent Dropdown -->
+        <!-- Title（顶栏 agent 下拉已移除；新会话页不显示，会话页显示会话名 + agent 徽章） -->
         <template #title>
             <div class="flex-1 flex items-center min-w-0">
-                <!-- Agent dropdown (for agent main sessions) -->
-                <details v-if="showAgentDropdown && selectedAgent" class="dropdown" ref="dropdownRef">
-                    <summary class="btn btn-ghost gap-1 list-none px-2 h-auto min-h-0">
-                        <span class="font-semibold text-lg truncate max-w-[150px] sm:max-w-xs">{{
-                            selectedAgent?.name || $t('agent.assistant') }}</span>
-                        <ChevronDownIcon class="h-4 w-4 shrink-0" />
-                    </summary>
-                    <ul class="dropdown-content menu bg-base-200 rounded-box z-50 w-52 p-2 shadow-lg">
-                        <li v-for="agent in agents" :key="agent.id">
-                            <a @click="selectAgent(agent.id)" class="flex justify-between items-center"
-                                :class="{ 'active': selectedAgentId === agent.id }">
-                                <span>{{ agent.name }}</span>
-                                <CheckIcon v-if="selectedAgentId === agent.id" class="h-4 w-4" />
-                            </a>
-                        </li>
-                    </ul>
-                </details>
-                <!-- Session name (for specific sessions like agent:xxx:session:xxx) -->
-                <div v-else class="lg:pl-5 font-semibold flex items-center gap-2 min-w-0 flex-1">
+                <div v-if="isSession" class="lg:pl-5 font-semibold flex items-center gap-2 min-w-0 flex-1">
                     <span class="truncate max-w-[150px] lg:max-w-none text-lg">{{ sessionName }}</span>
                     <span v-if="chatState.agentsSelectedId"
                         class="badge badge-sm badge-ghost shrink-0 max-w-[10ch] overflow-hidden align-middle"

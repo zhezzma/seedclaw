@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 
 import {
     CameraIcon,
@@ -11,29 +12,33 @@ import {
     ChevronUpIcon,
     CommandLineIcon,
     CpuChipIcon,
-    SparklesIcon,
     LightBulbIcon,
     XMarkIcon
 } from '@heroicons/vue/24/outline'
 import { useChatInput, COMMANDS, type CommandItem } from '../../composables/useChatInput'
 import { useModelsState } from '../../composables/useModelsState'
-import { useChatState } from '../../composables/useChatState'
+import { useChatState, type ChatSendOverrides } from '../../composables/useChatState'
 import { useUiSettingsStore } from '../../stores/setting'
 import { computed } from 'vue'
 import { useToast } from '~/src/composables/useToast'
 import { useMediaPreview } from '../../composables/useMediaPreview'
 import ModelSelectMenuContent from '../models/ModelSelectMenuContent.vue'
+import { isNewSession } from '../../utils/route-helpers'
 
 const props = defineProps<{
     isBusy: boolean
     disabled: boolean
+    /** 新会话页居中布局：去掉外层 padding/border，顶部预留 agent 选择插槽 */
+    centered?: boolean
 }>()
 
+const route = useRoute()
 const chatState = useChatState()
 const settingsStore = useUiSettingsStore()
 const { availableModels } = useModelsState()
 const { t } = useI18n()
-const isBusy = computed(() => chatState.chatSending || Boolean(chatState.chatRunId))
+// props.isBusy 来自 HomeView（同一 chatState 推导）；再 OR 上本地直读，任一来源为 busy 都生效
+const isBusy = computed(() => props.isBusy || chatState.chatSending || Boolean(chatState.chatRunId))
 const emit = defineEmits<{
     (e: 'send'): void
 }>()
@@ -41,12 +46,10 @@ const emit = defineEmits<{
 const {
     inputText,
     isRecording,
-    selectedModel,
     commandDropdownOpen,
     modelDropdownOpen,
     attachments,
     selectCommand,
-    selectModel,
     handleMicClick,
     handleInputFocus,
     stopRecording,
@@ -73,9 +76,17 @@ type ThinkingLevel = typeof THINKING_LEVELS[number]
 
 const thinkingDropdownOpen = ref(false)
 
+// 新会话（/new）：模型/思考选择不即时下发，只记录到本地，随首条消息一并提交
+const isPendingMode = computed(() => isNewSession(route))
+const pendingModel = ref('')
+const pendingThinkingLevel = ref<ThinkingLevel | null>(null)
+
 // 当前模型：优先从 session 获取，否则从 agent 默认值获取
 // 使用 computed 而非 ref + watch，确保 session 属性变更时能正确响应
 const currentModel = computed(() => {
+    if (isPendingMode.value && pendingModel.value) {
+        return pendingModel.value
+    }
     const session = chatState.currentSession
     if (session && session.modelProvider && session.model) {
         return `${session.modelProvider}/${session.model}`
@@ -132,6 +143,9 @@ const supportedThinkingLevels = computed<readonly ThinkingLevel[]>(() => {
 // 思考级别：优先从 session 获取，否则从 agent 默认值获取
 // 使用 computed 确保 /thinking 命令修改 session.thinkingLevel 后能正确响应
 const thinkingLevel = computed<ThinkingLevel>(() => {
+    if (isPendingMode.value && pendingThinkingLevel.value) {
+        return pendingThinkingLevel.value
+    }
     const session = chatState.currentSession
     const sessionLevel = session?.thinkingLevel
     if (sessionLevel && (THINKING_LEVELS as readonly string[]).includes(sessionLevel)) {
@@ -149,6 +163,11 @@ const selectThinkingLevel = (level: ThinkingLevel) => {
     thinkingDropdownOpen.value = false
     if (isBusy.value) {
         useToast().warning(t('chat.waitMessage'))
+        return
+    }
+    // 新会话：仅本地记录，等首条消息一起提交（服务端在 /chat 时应用）
+    if (isPendingMode.value) {
+        pendingThinkingLevel.value = level
         return
     }
     inputText.value = `/thinking ${level}`
@@ -219,10 +238,26 @@ const handleCommandSelect = (cmd: CommandItem) => {
     }
 }
 
+/** 取走新会话页暂存的模型/思考选择并清空（仅在发送首条消息时调用） */
+const consumePendingOverrides = (): ChatSendOverrides => {
+    const overrides: ChatSendOverrides = {
+        model: pendingModel.value || undefined,
+        thinkingLevel: pendingThinkingLevel.value || undefined,
+    }
+    pendingModel.value = ''
+    pendingThinkingLevel.value = null
+    return overrides
+}
+
 const handleModelSelect = (modelId: string) => {
     modelDropdownOpen.value = false
     if (isBusy.value) {
         useToast().warning(t('chat.waitMessage'))
+        return
+    }
+    // 新会话：仅本地记录，等首条消息一起提交（服务端在 /chat 时应用）
+    if (isPendingMode.value) {
+        pendingModel.value = modelId
         return
     }
     inputText.value = `/model ${modelId}`
@@ -285,17 +320,16 @@ const handleToolbarClickOutside = (event: MouseEvent) => {
 
 defineExpose({
     inputText,
-    selectedModel,
     attachments,
+    consumePendingOverrides,
     handleToolbarClickOutside
 })
 </script>
 
 <template>
-    <div class="p-4 border-t border-base-300 bg-base-100">
+    <div :class="centered ? 'p-0 bg-transparent' : 'p-4 border-t border-base-300 bg-base-100'">
         <div
             class="bg-base-200/50 rounded-[2rem] p-2 pr-2 shadow-sm border border-base-300/50 flex flex-col gap-1 relative focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/50 transition-all duration-300">
-            <!-- Preview Area -->
             <!-- Preview Area -->
             <div v-if="attachments.length > 0"
                 class="flex gap-2 px-3 pt-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-base-300 scrollbar-track-transparent">
@@ -329,7 +363,9 @@ defineExpose({
                 </div>
             </div>
 
-            <!-- Input Top -->
+            <!-- Top slot: 新会话页放 agent 选择下拉，与输入框同一张卡片 -->
+            <slot name="top"></slot>
+
             <!-- 命令补全浮层 -->
             <div v-if="commandSuggestionsVisible"
                 class="absolute left-3 right-3 bottom-full mb-2 w-auto max-w-[calc(100vw-1.5rem)] sm:right-auto sm:w-96 sm:max-w-none max-h-64 bg-base-100 border border-base-300 rounded-xl shadow-xl z-[200] overflow-hidden flex flex-col">
@@ -378,8 +414,9 @@ defineExpose({
                         <CameraIcon class="h-5 w-5" />
                     </button>
 
-                    <!-- Command -->
-                    <div class="dropdown dropdown-top" :class="{ 'dropdown-open': commandDropdownOpen }">
+                    <!-- Command（新会话页居中卡片不显示；会话页保持原样） -->
+                    <div v-if="!centered" class="dropdown dropdown-top"
+                        :class="{ 'dropdown-open': commandDropdownOpen }">
                         <button
                             @click.stop="commandDropdownOpen = !commandDropdownOpen; modelDropdownOpen = false; thinkingDropdownOpen = false"
                             class="btn btn-ghost btn-sm  gap-1 font-normal rounded-full border border-base-content/20 hover:border-base-content/40 hover:bg-base-300  transition-all"

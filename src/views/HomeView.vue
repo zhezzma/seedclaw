@@ -4,7 +4,7 @@ import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
-import { ChevronDoubleDownIcon } from '@heroicons/vue/24/outline'
+import { ChevronDoubleDownIcon, ChevronDownIcon, CheckIcon, FolderIcon } from '@heroicons/vue/24/outline'
 
 import { useChatMessages, type DisplayMessage } from '../composables/useChatMessages'
 import { useMediaPreview } from '../composables/useMediaPreview'
@@ -27,7 +27,7 @@ import WorkspaceContextMenu from '../components/workspace/ContextMenu.vue'
 
 import { isNewSession, NEW_SESSION_PATH, NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
 import { writeClipboard } from '../utils/clipboard.ts'
-import { useChatState } from '../composables/useChatState'
+import { useChatState, splitModelId, type ChatSendOverrides } from '../composables/useChatState'
 import { useChatInput } from '../composables/useChatInput'
 import { useCommandState } from '../composables/useCommandState'
 import { SessionRow, useSessionsState } from '../composables/useSessionsState'
@@ -67,6 +67,17 @@ const messagesContainerRef = ref<HTMLDivElement | null>(null)
 const chatHeaderRef = ref<InstanceType<typeof ChatHeader> | null>(null)
 const chatInputRef = ref<InstanceType<typeof ChatInput> | null>(null)
 const virtualMessageListRef = ref<InstanceType<typeof VirtualMessageList> | null>(null)
+const welcomeAgentDropdownRef = ref<HTMLDetailsElement | null>(null)
+
+// 欢迎页 agent 下拉选择（与原 ChatHeader 下拉行为一致：selectAgent + 命令列表跟随）
+const selectWelcomeAgent = async (agentId: string) => {
+    chatState.selectAgent(agentId)
+    setCurrentAgent(agentId)
+    await loadCommands(agentId)
+    if (welcomeAgentDropdownRef.value) {
+        welcomeAgentDropdownRef.value.open = false
+    }
+}
 
 // Chat messages composable
 const {
@@ -116,8 +127,20 @@ const {
 // TTS
 const { currentReadingMsgId, readAloud: ttsReadAloud } = useTTS()
 
-// 当前选中的 Agent（直接从 chatState 获取，无需额外 watch）
-const selectedAgent = computed(() => chatState.currentAgent)
+// 欢迎页 agent 下拉的显示名（顶栏下拉已移除，输入卡片内提供 agent 选择）
+const selectedAgentName = computed(() => chatState.currentAgent?.name || '')
+
+// 是否处于新会话欢迎页（模板与发送逻辑共用）
+const isNewSessionPage = computed(() => isNewSession(route))
+
+// 按当前时段生成问候语（新会话欢迎页）
+const greetingKey = computed(() => {
+    const hour = new Date().getHours()
+    if (hour < 6) return 'home.greetingNight'
+    if (hour < 12) return 'home.greetingMorning'
+    if (hour < 18) return 'home.greetingAfternoon'
+    return 'home.greetingEvening'
+})
 
 // 当前会话名称（优先从 sessionsState 获取最新值，因为 patchSession 会更新它）
 const currentSessionName = computed(() => {
@@ -317,6 +340,8 @@ const handleSend = async () => {
     // Determine session key
     let targetSessionKey = chatState.sessionKey
     const isNew = isNewSession(route)
+    // 欢迎页暂存的模型/思考选择（仅新会话首条消息携带）
+    let chatOverrides: ChatSendOverrides | undefined
 
     if (isNew) {
         // 新会话：使用 chatState 中的 agentsSelectedId
@@ -333,6 +358,24 @@ const handleSend = async () => {
             isCreatingSession.value = false
             console.error('Failed to create session', e)
             return
+        }
+
+        // 取走欢迎页暂存的模型/思考选择，随首条消息一并提交；
+        // 同时补到本地会话缓存，避免聊天页显示回退到 agent 默认值。
+        // updateSessionLocal 是 Object.assign 合并，patch 只放有值的键，
+        // 避免 undefined 覆盖服务端返回的默认值，也保证只选思考级别时同样回填
+        chatOverrides = chatInputRef.value?.consumePendingOverrides()
+        const overridePatch: Partial<SessionRow> = {}
+        const overrideSplit = chatOverrides?.model ? splitModelId(chatOverrides.model) : null
+        if (overrideSplit) {
+            overridePatch.modelProvider = overrideSplit.provider
+            overridePatch.model = overrideSplit.model
+        }
+        if (chatOverrides?.thinkingLevel) {
+            overridePatch.thinkingLevel = chatOverrides.thinkingLevel
+        }
+        if (Object.keys(overridePatch).length > 0) {
+            sessionsState.updateSessionLocal(targetSessionKey, overridePatch)
         }
     }
 
@@ -360,8 +403,8 @@ const handleSend = async () => {
         inputText += appendedText
     }
 
-    // Send message with explicit sessionKey
-    await chatState.sendMessage(inputText, [...imageAttachments], targetSessionKey)
+    // Send message with explicit sessionKey (+ 新会话页暂存的模型/思考覆盖)
+    await chatState.sendMessage(inputText, [...imageAttachments], targetSessionKey, chatOverrides)
 
     // 自动命名策略：仅当消息非空、不是 / 或 ! 开头的命令、且 session 还没有 name 时触发
     const trimmedUserText = originalUserText.trimStart()
@@ -534,6 +577,9 @@ watch(isBusy, (busy, prevBusy) => {
 const handleClickOutside = (event: MouseEvent) => {
     chatHeaderRef.value?.handleClickOutside(event)
     chatInputRef.value?.handleToolbarClickOutside(event)
+    if (welcomeAgentDropdownRef.value && !welcomeAgentDropdownRef.value.contains(event.target as Node)) {
+        welcomeAgentDropdownRef.value.open = false
+    }
 }
 
 // Workspace panel 快捷键：
@@ -690,23 +736,9 @@ watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath
 
 
 
-// Helper function to apply default session behavior based on settings
+// 首页默认行为：始终打开新会话页
 async function applyDefaultSessionBehavior() {
-    // Default behavior based on settings
-    if (settingsStore.homePageBehavior === 'new_session') {
-        router.replace({ path: NEW_SESSION_PATH })
-    } else {
-        // Default: last active session
-        const targetKey = settingsStore.lastActiveSessionKey
-        if (targetKey && sessionsState.hasSession(targetKey)) {
-            console.log('Default: last active session', targetKey)
-            chatState.setSessionKey(targetKey)
-            router.replace({ name: 'chat', params: { sessionkey: targetKey } })
-        } else {
-            // If session doesn't exist, go to new session
-            router.replace({ path: NEW_SESSION_PATH })
-        }
-    }
+    router.replace({ path: NEW_SESSION_PATH })
 }
 </script>
 
@@ -726,9 +758,8 @@ async function applyDefaultSessionBehavior() {
         <!-- Chat Area: 始终保留 ChatHeader + ChatInput；Main 区域在 viewer 打开时被替换 -->
         <div class="flex-1 flex flex-col h-full min-w-0">
 
-            <!-- Header 始终可见：agent dropdown / panel toggle / 主题 / wide mode 都依赖它 -->
-            <ChatHeader ref="chatHeaderRef" :selected-agent="selectedAgent" :agents="agentsState.agentsList"
-                @start-voice-chat="startVoiceChat" @open-session-tree="openSessionTree"
+            <!-- Header 始终可见：panel toggle / 主题 / 会话树 / 通知都依赖它 -->
+            <ChatHeader ref="chatHeaderRef" @start-voice-chat="startVoiceChat" @open-session-tree="openSessionTree"
                 :session-name="currentSessionName" />
 
             <!-- Main content area: chat messages OR viewer -->
@@ -741,12 +772,35 @@ async function applyDefaultSessionBehavior() {
                     <span class="loading loading-spinner loading-lg"></span>
                 </div>
 
-                <!-- Welcome message when no messages -->
-                <div v-else-if="isNewSession(route) || isCreatingSession"
-                    class="flex-1 flex flex-col items-center justify-center p-4">
-                    <div class="text-center">
-                        <h1 class="text-3xl font-bold mb-2">{{ $t('home.welcomeTitle') }}</h1>
-                        <p class="text-base-content/60">{{ $t('home.welcomeDesc') }}</p>
+                <!-- 新会话欢迎页：居中问候语 + agent 下拉 + 输入框 -->
+                <div v-else-if="isNewSessionPage || isCreatingSession"
+                    class="flex-1 flex flex-col items-center justify-center px-4 py-6 overflow-y-auto">
+                    <div class="w-full max-w-2xl sm:max-w-3xl lg:max-w-4xl flex flex-col gap-8">
+                        <h1 class="text-3xl font-bold text-center">{{ $t(greetingKey) }}</h1>
+
+                        <ChatInput ref="chatInputRef" centered :is-busy="isBusy" :disabled="false" @send="handleSend">
+                            <template #top>
+                                <details ref="welcomeAgentDropdownRef" class="dropdown px-2 pt-1.5">
+                                    <summary class="btn btn-ghost btn-sm gap-1.5 list-none px-2 h-auto min-h-0 font-normal">
+                                        <FolderIcon class="h-4 w-4 opacity-70" />
+                                        <span class="font-medium">{{ selectedAgentName || $t('agent.assistant') }}</span>
+                                        <ChevronDownIcon class="h-3.5 w-3.5 shrink-0 opacity-60" />
+                                    </summary>
+                                    <ul
+                                        class="dropdown-content menu bg-base-100 rounded-box z-50 w-52 p-2 shadow-lg border border-base-300">
+                                        <li v-for="agent in agentsState.agentsList" :key="agent.id">
+                                            <a @click="selectWelcomeAgent(agent.id)"
+                                                class="flex justify-between items-center"
+                                                :class="{ 'active': chatState.agentsSelectedId === agent.id }">
+                                                <span>{{ agent.name }}</span>
+                                                <CheckIcon v-if="chatState.agentsSelectedId === agent.id"
+                                                    class="h-4 w-4" />
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </details>
+                            </template>
+                        </ChatInput>
                     </div>
                 </div>
 
@@ -771,8 +825,10 @@ async function applyDefaultSessionBehavior() {
                 </div>
             </div>
 
-            <!-- ChatInput 始终可见：viewer 打开时用户仍可与 agent 讨论 diff/文件内容 -->
-            <ChatInput ref="chatInputRef" :is-busy="isBusy" :disabled="false" @send="handleSend" />
+            <!-- ChatInput：非新会话页固定在底部（新会话页的输入框居中展示在欢迎区）。
+                 viewer 打开时也保留，用户仍可与 agent 讨论 diff/文件内容 -->
+            <ChatInput v-if="!isNewSessionPage && !isCreatingSession" ref="chatInputRef" :is-busy="isBusy"
+                :disabled="false" @send="handleSend" />
 
             <!-- Voice Chat Overlay -->
             <VoiceChatOverlay :is-open="isVoiceChatActive" :status="voiceStatus" :transcript="transcript"

@@ -47,7 +47,6 @@ const suppressCommandSuggestionsOnce = ref(false)
 
 // ——— 其他 UI 状态 ———
 const isRecording = ref(false)
-const selectedModel = ref('glm')
 const commandDropdownOpen = ref(false)
 const modelDropdownOpen = ref(false)
 
@@ -94,11 +93,6 @@ const confirmCommandSuggestion = (cmd: CommandInfo) => {
 /** 关闭命令补全浮层 */
 const closeSuggestions = () => {
     commandSuggestionsVisible.value = false
-}
-
-const selectModel = (model: string) => {
-    selectedModel.value = model
-    modelDropdownOpen.value = false
 }
 
 // ——— 语音识别（模块级单例）———
@@ -348,12 +342,10 @@ const appendText = (text: string) => {
 const _chatInputState = {
     inputText,
     isRecording,
-    selectedModel,
     commandDropdownOpen,
     modelDropdownOpen,
     attachments,
     selectCommand,
-    selectModel,
     handleMicClick,
     handleInputFocus,
     handleKeydown,

@@ -3,7 +3,7 @@ import { reactive, computed, type ComputedRef } from 'vue'
 import { SessionRow, useSessionsState } from './useSessionsState'
 import { useUiSettingsStore } from '../stores/setting'
 import { apiGet, apiPost } from './api-client'
-import { startChatSSE, attachSessionSSE, startRetrySSE, startEditSSE, type SSEConnection } from './sse-client'
+import { startChatSSE, attachSessionSSE, startRetrySSE, startEditSSE, type ChatPromptBody, type SSEConnection } from './sse-client'
 import { AgentInfo, useAgentsState } from './useAgentsState'
 import { applyAttachMessageState, getLastMessageEntryId, shouldAttachSession } from '../utils/chat-attach'
 import { findToolBlockInMessages } from '../utils/tool-event-target'
@@ -164,7 +164,24 @@ function getSessionData(key: string): ChatSessionData {
 
 // ==================== Actions ====================
 
-const sendMessage = async (message?: string, attachments?: ChatAttachment[], sessionKey?: string) => {
+/**
+ * 随消息一并提交给服务端的会话状态覆盖。
+ * 新会话页的模型/思考选择不即时下发，在首条消息发送时一起生效。
+ */
+export interface ChatSendOverrides {
+    /** 'provider/modelId' 格式 */
+    model?: string
+    thinkingLevel?: string
+}
+
+/** 拆分 'provider/modelId'；modelId 本身可含 '/'（如 openrouter 的 vendor 前缀），第一段为 provider */
+export function splitModelId(model: string): { provider: string; model: string } | null {
+    const sep = model.indexOf('/')
+    if (sep <= 0) return null
+    return { provider: model.slice(0, sep), model: model.slice(sep + 1) }
+}
+
+const sendMessage = async (message?: string, attachments?: ChatAttachment[], sessionKey?: string, overrides?: ChatSendOverrides) => {
     const targetKey = sessionKey || state.sessionKey
     if (!targetKey) {
         console.error('[useChatState] sendMessage called without sessionKey')
@@ -214,9 +231,20 @@ const sendMessage = async (message?: string, attachments?: ChatAttachment[], ses
     sessionData.chatStream = [] // Initialize as array
 
     // Start SSE
-    const body: { prompt: string; images?: string[] } = { prompt: text }
+    const body: ChatPromptBody = { prompt: text }
     if (images.length > 0) {
         body.images = images
+    }
+    // 覆盖的模型格式见 splitModelId
+    if (overrides?.model) {
+        const split = splitModelId(overrides.model)
+        if (split) {
+            body.provider = split.provider
+            body.model = split.model
+        }
+    }
+    if (overrides?.thinkingLevel) {
+        body.thinkingLevel = overrides.thinkingLevel
     }
 
     // Abort any existing SSE for this session

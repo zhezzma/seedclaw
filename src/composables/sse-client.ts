@@ -36,12 +36,21 @@ export type SSEEventHandler = (event: SSEEvent) => void
 
 // ==================== SSE Client ====================
 
+/** POST /api/chat/:sessionId/chat 请求体 */
+export interface ChatPromptBody {
+    prompt: string
+    images?: string[]
+    provider?: string
+    model?: string
+    thinkingLevel?: string
+}
+
 /**
  * Start an SSE streaming chat session
  */
 export function startChatSSE(
     sessionId: string,
-    body: { prompt: string; images?: string[] },
+    body: ChatPromptBody,
     onEvent: SSEEventHandler,
     onError?: (error: Error) => void
 ): SSEConnection {

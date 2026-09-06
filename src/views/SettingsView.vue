@@ -21,6 +21,9 @@ import {
     DocumentTextIcon,
     ArrowTopRightOnSquareIcon,
     LanguageIcon,
+    ClockIcon,
+    ChatBubbleLeftRightIcon,
+    LinkIcon,
 } from '@heroicons/vue/24/outline'
 import ViewHeader from '@/components/ViewHeader.vue'
 import { useConfirm } from '../composables/useConfirm'
@@ -33,8 +36,6 @@ const { confirm } = useConfirm()
 const editForm = ref({
     apiBaseUrl: '',
     token: '',
-    sessionsActiveDays: 3,
-    silenceDuration: 1500,
     asrEngine: 'fun-asr' as ASREngineType,
     ttsEngine: 'edge' as TTSEngineType,
     asrConfig: {
@@ -49,9 +50,6 @@ const editForm = ref({
         token: '',
         model: '',
     },
-    homePageBehavior: 'new_session' as 'last_active_session' | 'new_session',
-    busySendBehavior: 'follow' as BusySendBehavior,
-    externalUrl: '',
 })
 
 const cloneConfig = <T extends string>(config: EngineConfig<T>): EngineConfig<T> => ({ ...config })
@@ -71,11 +69,6 @@ const openConnectionModal = () => {
         ...editForm.value,
         apiBaseUrl: configStore.apiBaseUrl,
         token: configStore.token,
-        sessionsActiveDays: configStore.sessionsActiveDays,
-        silenceDuration: configStore.silenceDuration,
-        homePageBehavior: configStore.homePageBehavior || 'last_active_session',
-        busySendBehavior: configStore.busySendBehavior || 'follow',
-        externalUrl: configStore.externalUrl || '',
     }
     const modal = document.getElementById('basic_settings_modal') as HTMLDialogElement
     if (modal) modal.showModal()
@@ -105,14 +98,30 @@ const saveConnection = () => {
     configStore.save({
         apiBaseUrl: editForm.value.apiBaseUrl,
         token: editForm.value.token,
-        sessionsActiveDays: Number(editForm.value.sessionsActiveDays),
-        silenceDuration: Number(editForm.value.silenceDuration),
-        busySendBehavior: editForm.value.busySendBehavior,
-        externalUrl: editForm.value.externalUrl,
     })
     if (window.location.protocol !== 'file:') {
         window.location.reload()
     }
+}
+
+const saveSessionsActiveDays = (event: Event) => {
+    const days = Math.max(1, Math.floor(Number((event.target as HTMLInputElement).value) || 1))
+    configStore.save({ sessionsActiveDays: days })
+}
+
+const saveSilenceDuration = (event: Event) => {
+    const ms = Math.max(0, Math.floor(Number((event.target as HTMLInputElement).value) || 0))
+    configStore.save({ silenceDuration: ms })
+}
+
+const saveBusySendBehavior = (event: Event) => {
+    configStore.save({
+        busySendBehavior: (event.target as HTMLSelectElement).value as BusySendBehavior,
+    })
+}
+
+const saveExternalUrl = (event: Event) => {
+    configStore.save({ externalUrl: (event.target as HTMLInputElement).value.trim() })
 }
 
 const saveAsr = () => {
@@ -193,13 +202,56 @@ const logout = async () => {
                                 <div class="flex items-center gap-3">
                                     <ServerIcon class="h-5 w-5 text-base-content/60" />
                                     <div>
-                                        <span class="font-medium">{{ $t('settings.basic') }}</span>
+                                        <span class="font-medium">{{ $t('settings.gatewaySettings') }}</span>
                                         <p class="text-xs text-base-content/50 truncate max-w-48">{{
                                             configStore.apiBaseUrl
                                         }}</p>
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
+                            </li>
+
+                            <li class="flex items-center justify-between gap-4 p-4">
+                                <div class="flex items-center gap-3">
+                                    <ClockIcon class="h-5 w-5 text-base-content/60" />
+                                    <div>
+                                        <span class="font-medium">{{ $t('settings.sessionActiveDays') }}</span>
+                                        <p class="text-xs text-base-content/50">{{
+                                            $t('settings.sessionActiveDaysDesc') }}</p>
+                                    </div>
+                                </div>
+                                <input type="number" class="input input-bordered input-sm w-24"
+                                    :value="configStore.sessionsActiveDays" min="1"
+                                    @change="saveSessionsActiveDays" />
+                            </li>
+
+                            <li class="flex items-center justify-between gap-4 p-4">
+                                <div class="flex items-center gap-3">
+                                    <ChatBubbleLeftRightIcon class="h-5 w-5 text-base-content/60" />
+                                    <div>
+                                        <span class="font-medium">{{ $t('settings.busySendBehavior') }}</span>
+                                        <p class="text-xs text-base-content/50">{{
+                                            $t('settings.busySendBehaviorDesc') }}</p>
+                                    </div>
+                                </div>
+                                <select class="select select-bordered select-sm max-w-44"
+                                    :value="configStore.busySendBehavior" @change="saveBusySendBehavior">
+                                    <option value="steer">{{ $t('settings.busySendBehaviorSteer') }}</option>
+                                    <option value="follow">{{ $t('settings.busySendBehaviorFollow') }}</option>
+                                </select>
+                            </li>
+
+                            <li class="flex items-center justify-between gap-4 p-4">
+                                <div class="flex items-center gap-3">
+                                    <LinkIcon class="h-5 w-5 text-base-content/60" />
+                                    <div>
+                                        <span class="font-medium">{{ $t('settings.externalUrl') }}</span>
+                                        <p class="text-xs text-base-content/50">{{ $t('settings.externalUrlDesc') }}</p>
+                                    </div>
+                                </div>
+                                <input type="text" class="input input-bordered input-sm w-40"
+                                    :value="configStore.externalUrl" :placeholder="$t('settings.externalUrlPlaceholder')"
+                                    @change="saveExternalUrl" />
                             </li>
 
                             <li class="flex items-center justify-between p-4">
@@ -265,6 +317,19 @@ const logout = async () => {
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
                             </li>
+
+                            <li class="flex items-center justify-between gap-4 p-4">
+                                <div class="flex items-center gap-3">
+                                    <ClockIcon class="h-5 w-5 text-base-content/60" />
+                                    <div>
+                                        <span class="font-medium">{{ $t('settings.silenceDuration') }}</span>
+                                        <p class="text-xs text-base-content/50">{{
+                                            $t('settings.silenceDurationDesc') }}</p>
+                                    </div>
+                                </div>
+                                <input type="number" class="input input-bordered input-sm w-28"
+                                    :value="configStore.silenceDuration" @change="saveSilenceDuration" />
+                            </li>
                         </ul>
                     </div>
                 </div>
@@ -313,18 +378,8 @@ const logout = async () => {
 
     <dialog id="basic_settings_modal" class="modal">
         <div class="modal-box">
-            <h3 class="font-bold text-lg mb-4">{{ $t('settings.basic') }}</h3>
+            <h3 class="font-bold text-lg mb-4">{{ $t('settings.gatewaySettings') }}</h3>
             <div class="form-control w-full space-y-4">
-                <div>
-                    <label class="label">
-                        <span class="label-text">{{ $t('settings.deviceName') }}</span>
-                    </label>
-                    <input type="text" :value="configStore.deviceName" disabled
-                        class="input input-bordered w-full opacity-70 cursor-not-allowed" />
-                    <label class="label">
-                        <span class="label-text-alt opacity-50">{{ $t('settings.deviceNameDesc') }}</span>
-                    </label>
-                </div>
                 <div>
                     <label class="label">
                         <span class="label-text">{{ $t('settings.gatewayUrl') }}</span>
@@ -338,48 +393,6 @@ const logout = async () => {
                     </label>
                     <input type="text" v-model="editForm.token" :placeholder="$t('settings.tokenPlaceholder')"
                         class="input input-bordered w-full" />
-                </div>
-                <div>
-                    <label class="label">
-                        <span class="label-text">{{ $t('settings.sessionActiveDays') }}</span>
-                    </label>
-                    <input type="number" v-model="editForm.sessionsActiveDays" class="input input-bordered w-full"
-                        placeholder="3" min="1" />
-                    <label class="label">
-                        <span class="label-text-alt opacity-50">{{ $t('settings.sessionActiveDaysDesc') }}</span>
-                    </label>
-                </div>
-                <div>
-                    <label class="label">
-                        <span class="label-text">{{ $t('settings.silenceDuration') }}</span>
-                    </label>
-                    <input type="number" v-model="editForm.silenceDuration" class="input input-bordered w-full"
-                        placeholder="1500" />
-                    <label class="label">
-                        <span class="label-text-alt opacity-50">{{ $t('settings.silenceDurationDesc') }}</span>
-                    </label>
-                </div>
-                <div>
-                    <label class="label">
-                        <span class="label-text">{{ $t('settings.busySendBehavior') }}</span>
-                    </label>
-                    <select v-model="editForm.busySendBehavior" class="select select-bordered w-full">
-                        <option value="steer">{{ $t('settings.busySendBehaviorSteer') }}</option>
-                        <option value="follow">{{ $t('settings.busySendBehaviorFollow') }}</option>
-                    </select>
-                    <label class="label">
-                        <span class="label-text-alt opacity-50">{{ $t('settings.busySendBehaviorDesc') }}</span>
-                    </label>
-                </div>
-                <div>
-                    <label class="label">
-                        <span class="label-text">{{ $t('settings.externalUrl') }}</span>
-                    </label>
-                    <input type="text" v-model="editForm.externalUrl"
-                        :placeholder="$t('settings.externalUrlPlaceholder')" class="input input-bordered w-full" />
-                    <label class="label">
-                        <span class="label-text-alt opacity-50">{{ $t('settings.externalUrlDesc') }}</span>
-                    </label>
                 </div>
             </div>
             <div class="modal-action">

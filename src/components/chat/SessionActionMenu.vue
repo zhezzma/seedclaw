@@ -163,7 +163,7 @@ export default defineComponent({
             ref="triggerRef"
             :aria-expanded="isOpen"
             aria-haspopup="menu"
-            class="btn btn-ghost btn-sm  min-h-0 px-2 rounded-full opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity hover:bg-base-300"
+            class="btn btn-ghost btn-sm  min-h-0 h-6 px-1.5 rounded-full opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity hover:bg-base-300"
             :title="title || $t('sidebar.more')" :aria-label="title || $t('sidebar.more')" @click="toggleMenu">
             <EllipsisVerticalIcon class="h-4 w-4" />
         </button>

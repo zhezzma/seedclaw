@@ -8,7 +8,12 @@ import {
     ArrowTopRightOnSquareIcon,
     ChevronDoubleLeftIcon,
     ChevronDoubleRightIcon,
+    CalendarDaysIcon,
+    ArchiveBoxIcon,
+    HashtagIcon,
+    FolderOpenIcon,
 } from '@heroicons/vue/24/outline'
+import { FolderIcon } from '@heroicons/vue/24/solid'
 import { SIDEBAR_ITEMS } from '../config/navigation'
 import SessionActionMenu from './chat/SessionActionMenu.vue'
 import SessionInfoModal from './chat/SessionInfoModal.vue'
@@ -19,6 +24,7 @@ import { NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
 
 import { SessionRow, useSessionsState } from '../composables/useSessionsState'
 import { useChatState } from '../composables/useChatState'
+import { useAgentsState } from '../composables/useAgentsState'
 import { useNavActive } from '../composables/useNavActive'
 import { useUiSettingsStore } from '../stores/setting'
 import { useI18n } from 'vue-i18n'
@@ -34,6 +40,16 @@ type SessionMenuItem = {
 export type SidebarSessionTab = 'chats' | 'plans' | 'archived'
 
 const sessionTab = ref<SidebarSessionTab>('chats')
+
+// 胶囊分段控件的 tab 配置（图标随 tab 显示）
+const SESSION_TABS: Array<{ key: SidebarSessionTab, labelKey: string, icon: any }> = [
+    { key: 'chats', labelKey: 'sidebar.tabChats', icon: ChatBubbleLeftRightIcon },
+    { key: 'plans', labelKey: 'sidebar.tabPlans', icon: CalendarDaysIcon },
+    { key: 'archived', labelKey: 'sidebar.tabArchived', icon: ArchiveBoxIcon },
+]
+
+// 会话行左侧图标跟随当前 tab，与分段控件图标一致
+const rowIcon = computed(() => SESSION_TABS.find(tab => tab.key === sessionTab.value)?.icon ?? ChatBubbleLeftRightIcon)
 
 // 需懒加载的 tab 与对应 loader（loader 失败返回 null，据此移除标记下次重试）；
 // chats 不在此列：数据由启动链 useAppInit.loadSessions 加载，无需懒加载
@@ -74,6 +90,7 @@ const { confirm } = useConfirm()
 
 const sessionsState = useSessionsState()
 const chatState = useChatState()
+const agentsState = useAgentsState()
 
 // 行内重命名状态
 const renamingKey = ref<string | null>(null)
@@ -127,8 +144,28 @@ watch([activeSessionKey, () => sessionsState.sessionsResult, () => sessionsState
 })
 
 
-// 当前 tab 展示的会话列表（行渲染统一结构：key/label/pinned/archived）
-const displaySessions = computed(() => {
+// 会话行的统一渲染投影（三桶共用）
+type DisplaySession = {
+    key: string
+    label: string
+    pinned: boolean
+    archived: boolean
+    /** 分组键用 agentId：显示名可重复/可改，不能作为分组身份 */
+    agentId: string
+    agent: string
+}
+
+// agent 显示名：任务会话接口只带 agentId 不带 agentName，本地从 agent 列表解析。
+// 只取 name（如「万能助手」）——不取 identity.name（那是人设名，如「小段」），
+// 与对话 tab 直接显示 agentName 的结果保持一致
+const agentDisplayName = (s: SessionRow): string => {
+    if (s.agentName) return s.agentName
+    const agent = agentsState.agentsList?.find(a => a.id === s.agentId)
+    return agent?.name || s.agentId || ''
+}
+
+// 当前 tab 展示的会话列表
+const displaySessions = computed<DisplaySession[]>(() => {
     const raw = sessionTab.value === 'chats'
         ? sessionsState.sessionsResult?.sessions
         : sessionTab.value === 'plans'
@@ -139,7 +176,87 @@ const displaySessions = computed(() => {
         label: s?.name || truncateText(s.firstMessage, 9),
         pinned: Boolean(s.pinned),
         archived: Boolean(s.archived),
-    }))
+        agentId: s.agentId || '',
+        agent: agentDisplayName(s),
+    })) ?? []
+})
+
+// ---------- 按 agent 分组显示 ----------
+// 开关持久化到 UI 设置（localStorage），刷新后保留
+const groupByAgent = computed(() => configStore.isSidebarGrouped)
+const toggleGroupByAgent = () => {
+    configStore.toggleSidebarGrouped()
+}
+
+// 分组模型：按 agentId 分组（同名 agent 不合并），保持列表首现顺序；
+// 组头显示 agent 显示名，无 agent 的会话归入「未分组」组
+const sessionGroups = computed(() => {
+    const groups: Array<{ key: string, label: string, sessions: DisplaySession[] }> = []
+    const indexOf = new Map<string, number>()
+    for (const session of displaySessions.value) {
+        const idx = indexOf.get(session.agentId)
+        if (idx !== undefined) {
+            groups[idx].sessions.push(session)
+            continue
+        }
+        indexOf.set(session.agentId, groups.length)
+        groups.push({
+            key: session.agentId,
+            label: session.agent || t('sidebar.ungrouped'),
+            sessions: [session],
+        })
+    }
+    return groups
+})
+
+// 列表渲染模型：分组开 → 组头与行交错；关 → 纯行。
+// 组头/行共用一个 v-for，行模板无需按两种视图复制
+type SessionGroupItem = { kind: 'group', key: string, label: string, groupKey: string }
+type SessionRowItem = { kind: 'session', key: string, label: string, pinned: boolean, archived: boolean }
+type SessionListItem = SessionGroupItem | SessionRowItem
+const toSessionItem = (session: DisplaySession): SessionRowItem => ({
+    kind: 'session',
+    key: session.key,
+    label: session.label,
+    pinned: session.pinned,
+    archived: session.archived,
+})
+
+// 组的展开/收起状态：按 tab 独立记忆互不干扰（仅会话内记忆，不持久化）；
+// 点组头切换，文件夹图标随状态切换
+const collapsedGroups = ref<Record<SidebarSessionTab, Set<string>>>({
+    chats: new Set(),
+    plans: new Set(),
+    archived: new Set(),
+})
+const toggleGroup = (key: string) => {
+    const tab = sessionTab.value
+    const next = new Set(collapsedGroups.value[tab])
+    if (next.has(key)) {
+        next.delete(key)
+    } else {
+        next.add(key)
+    }
+    collapsedGroups.value = { ...collapsedGroups.value, [tab]: next }
+}
+// 当前 tab 下某组是否收起
+const isGroupCollapsed = (key: string) => collapsedGroups.value[sessionTab.value].has(key)
+
+const sessionListItems = computed<SessionListItem[]>(() => {
+    if (!groupByAgent.value) {
+        return displaySessions.value.map(toSessionItem)
+    }
+    const collapsed = collapsedGroups.value[sessionTab.value]
+    const items: SessionListItem[] = []
+    for (const group of sessionGroups.value) {
+        items.push({ kind: 'group', key: `group:${group.key}`, label: group.label, groupKey: group.key })
+        // 收起的组只保留组头，会话行不进列表
+        if (collapsed.has(group.key)) continue
+        for (const session of group.sessions) {
+            items.push(toSessionItem(session))
+        }
+    }
+    return items
 })
 
 const closeSidebarDrawer = () => {
@@ -337,18 +454,28 @@ const handleNavClick = (item: any) => {
     <div class="flex flex-col h-full bg-base-200/50 pt-[env(safe-area-inset-top)]">
         <!-- Header -->
         <div class="shrink-0 px-5 py-3 flex items-center justify-between"
-            :class="isCollapsed && 'lg:px-0 lg:justify-center'">
+            :class="isCollapsed && 'lg:flex-col lg:items-center lg:gap-2 lg:px-0'">
             <div class="flex items-center gap-2">
                 <span class="text-2xl">🦀</span>
                 <span class="text-lg font-bold tracking-tight" :class="isCollapsed && 'lg:hidden'">SeedClaw</span>
             </div>
-            <div class="flex gap-1" :class="isCollapsed && 'lg:hidden'">
+            <div class="flex gap-1">
                 <a v-if="configStore.externalUrl" :href="configStore.externalUrl" target="_blank"
-                    rel="noopener noreferrer" class="btn btn-ghost btn-circle btn-sm hover:bg-base-300">
+                    rel="noopener noreferrer" class="btn btn-ghost btn-circle btn-sm hover:bg-base-300"
+                    :class="isCollapsed && 'lg:hidden'">
                     <ArrowTopRightOnSquareIcon class="h-5 w-5" />
                 </a>
-                <button @click="router.push('/settings')" class="btn btn-ghost btn-circle btn-sm hover:bg-base-300">
+                <button @click="router.push('/settings')" class="btn btn-ghost btn-circle btn-sm hover:bg-base-300"
+                    :class="isCollapsed && 'lg:hidden'">
                     <Cog6ToothIcon class="h-5 w-5" />
+                </button>
+                <!-- 收起/展开（桌面端，仅图标） -->
+                <button @click="toggleCollapsed"
+                    class="btn btn-ghost btn-circle btn-sm hover:bg-base-300 hidden lg:inline-flex"
+                    :title="isCollapsed ? $t('sidebar.expand') : $t('sidebar.collapse')"
+                    :aria-label="isCollapsed ? $t('sidebar.expand') : $t('sidebar.collapse')">
+                    <ChevronDoubleRightIcon v-if="isCollapsed" class="h-5 w-5" />
+                    <ChevronDoubleLeftIcon v-else class="h-5 w-5" />
                 </button>
             </div>
         </div>
@@ -398,22 +525,28 @@ const handleNavClick = (item: any) => {
             <div class="border-t border-base-300"></div>
         </div>
 
-        <!-- Session Tabs: 对话 / 计划 / 归档 -->
-        <div class="shrink-0 px-3 pt-2 pb-1" :class="isCollapsed && 'lg:hidden'">
-            <div role="tablist" class="tabs tabs-boxed tabs-xs">
-                <button role="tab" type="button" class="tab"
-                    :class="{ 'tab-active': sessionTab === 'chats' }"
-                    :aria-selected="sessionTab === 'chats'"
-                    @click="switchSessionTab('chats')">{{ $t('sidebar.tabChats') }}</button>
-                <button role="tab" type="button" class="tab"
-                    :class="{ 'tab-active': sessionTab === 'plans' }"
-                    :aria-selected="sessionTab === 'plans'"
-                    @click="switchSessionTab('plans')">{{ $t('sidebar.tabPlans') }}</button>
-                <button role="tab" type="button" class="tab"
-                    :class="{ 'tab-active': sessionTab === 'archived' }"
-                    :aria-selected="sessionTab === 'archived'"
-                    @click="switchSessionTab('archived')">{{ $t('sidebar.tabArchived') }}</button>
+        <!-- Session Tabs: 对话 / 计划 / 归档（胶囊分段控件）+ 分组开关 -->
+        <div class="shrink-0 px-3 pt-2 pb-1 flex items-center gap-1" :class="isCollapsed && 'lg:hidden'">
+            <div role="tablist" class="flex flex-1 min-w-0 items-center gap-0.5 rounded-full bg-base-300/60 p-1">
+                <button v-for="tab in SESSION_TABS" :key="tab.key" role="tab" type="button"
+                    class="flex flex-1 min-w-0 items-center justify-center gap-1 rounded-full px-2 py-1 text-xs font-medium whitespace-nowrap cursor-pointer border transition-all duration-200"
+                    :class="sessionTab === tab.key
+                        ? 'bg-base-100 border-base-300/80 shadow-sm text-base-content'
+                        : 'border-transparent text-base-content/55 hover:text-base-content'"
+                    :aria-selected="sessionTab === tab.key"
+                    @click="switchSessionTab(tab.key)">
+                    <component :is="tab.icon" class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <span class="truncate">{{ $t(tab.labelKey) }}</span>
+                </button>
             </div>
+            <button type="button" @click="toggleGroupByAgent"
+                class="flex shrink-0 items-center rounded-full px-2 py-1 cursor-pointer border transition-all duration-200"
+                :class="groupByAgent
+                    ? 'bg-primary/10 border-primary/20 text-primary'
+                    : 'border-transparent text-base-content/55 hover:text-base-content hover:bg-base-300/60'"
+                :aria-pressed="groupByAgent" :title="$t('sidebar.group')" :aria-label="$t('sidebar.group')">
+                <HashtagIcon class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            </button>
         </div>
 
         <!-- Conversations List - scrollable -->
@@ -428,44 +561,47 @@ const handleNavClick = (item: any) => {
                 class="text-center py-4 text-base-content/50 text-sm">
                 {{ $t(sessionTab === 'chats' ? 'sidebar.noChats' : sessionTab === 'plans' ? 'sidebar.noPlans' : 'sidebar.noArchived') }}
             </div>
-            <!-- Sessions list -->
+            <!-- Sessions list: 分组开时组头与行交错，否则纯行 -->
             <div v-else class="space-y-1">
-                <a v-for="session in displaySessions" :key="session.key" @click="selectSession(session.key)"
-                    @contextmenu.prevent="openSessionContextMenu(session.key)"
-                    class="flex items-center gap-3 px-3 py-1.5 rounded-xl cursor-pointer transition-colors group"
-                    :class="activeSessionKey === session.key
-                        ? 'bg-primary/10 dark:bg-primary/15 hover:bg-primary/15 dark:hover:bg-primary/20'
-                        : 'hover:bg-base-300'">
-                    <template v-if="session.pinned">
-                        <span class="h-5 w-5 shrink-0 inline-flex items-center justify-center" :title="$t('sidebar.pin')" aria-hidden="true">📌</span>
-                        <span class="sr-only">{{ $t('sidebar.pin') }}</span>
-                    </template>
-                    <ChatBubbleLeftRightIcon v-else class="h-5 w-5 shrink-0"
-                        :class="activeSessionKey === session.key ? 'text-primary opacity-80' : 'opacity-50'" />
-                    <input v-if="renamingKey === session.key" :ref="setRenameInput" v-model="renameText" type="text"
-                        class="input input-xs input-bordered flex-1 min-w-0 h-7 rounded-lg" @click.stop @contextmenu.stop
-                        @keydown.enter.prevent="confirmRename" @keydown.esc.prevent="cancelRename"
-                        @blur="confirmRename" />
-                    <template v-else>
-                        <span class="text-sm truncate flex-1"
-                            :class="activeSessionKey === session.key ? 'font-semibold text-primary' : ''">{{
-                            session.label }}</span>
-                        <SessionActionMenu :ref="(el) => setSessionMenuRef(session.key, el)"
-                            :actions="getSessionMenuItems(session)" :menu-id="`recent:${session.key}`"
-                            :title="$t('sidebar.more')" @select="handleSessionMenuSelect(session, $event)" />
-                    </template>
-                </a>
+                <template v-for="session in sessionListItems" :key="session.key">
+                    <!-- 分组头：agent 名（仅分组模式），点击展开/收起该组会话 -->
+                    <div v-if="session.kind === 'group'" role="button" tabindex="0"
+                        class="flex items-center gap-2 mt-2.5 mb-1 px-2 py-1 rounded-lg bg-base-300/50 text-sm font-semibold text-base-content/60 cursor-pointer select-none hover:bg-base-300/70 transition-colors"
+                        :title="session.label" :aria-expanded="!isGroupCollapsed(session.groupKey)"
+                        @click="toggleGroup(session.groupKey)"
+                        @keydown.enter.prevent="toggleGroup(session.groupKey)"
+                        @keydown.space.prevent="toggleGroup(session.groupKey)">
+                        <component :is="isGroupCollapsed(session.groupKey) ? FolderIcon : FolderOpenIcon"
+                            class="h-4 w-4 shrink-0" aria-hidden="true" />
+                        <span class="truncate">{{ session.label }}</span>
+                    </div>
+                    <a v-else @click="selectSession(session.key)"
+                        @contextmenu.prevent="openSessionContextMenu(session.key)"
+                        class="flex items-center gap-2 px-3 py-1 rounded-xl cursor-pointer transition-colors group"
+                        :class="activeSessionKey === session.key
+                            ? 'bg-primary/10 dark:bg-primary/15 hover:bg-primary/15 dark:hover:bg-primary/20'
+                            : 'hover:bg-base-300'">
+                        <template v-if="session.pinned">
+                            <span class="h-4 w-4 shrink-0 inline-flex items-center justify-center" :title="$t('sidebar.pin')" aria-hidden="true">📌</span>
+                            <span class="sr-only">{{ $t('sidebar.pin') }}</span>
+                        </template>
+                        <component :is="rowIcon" v-else class="h-4 w-4 shrink-0"
+                            :class="activeSessionKey === session.key ? 'text-primary opacity-80' : 'opacity-50'" />
+                        <input v-if="renamingKey === session.key" :ref="setRenameInput" v-model="renameText" type="text"
+                            class="input input-xs input-bordered flex-1 min-w-0 h-6 rounded-lg" @click.stop @contextmenu.stop
+                            @keydown.enter.prevent="confirmRename" @keydown.esc.prevent="cancelRename"
+                            @blur="confirmRename" />
+                        <template v-else>
+                            <span class="text-sm truncate flex-1"
+                                :class="activeSessionKey === session.key ? 'font-semibold text-primary' : ''">{{
+                                session.label }}</span>
+                            <SessionActionMenu :ref="(el) => setSessionMenuRef(session.key, el)"
+                                :actions="getSessionMenuItems(session)" :menu-id="`recent:${session.key}`"
+                                :title="$t('sidebar.more')" @select="handleSessionMenuSelect(session, $event)" />
+                        </template>
+                    </a>
+                </template>
             </div>
-        </div>
-
-        <!-- Collapse toggle (Desktop only) -->
-        <div class="shrink-0 mt-auto hidden lg:block border-t border-base-300 p-2">
-            <button @click="toggleCollapsed" class="btn btn-ghost btn-sm w-full gap-2 hover:bg-base-300"
-                :class="isCollapsed && 'px-0'" :title="isCollapsed ? $t('sidebar.expand') : $t('sidebar.collapse')">
-                <ChevronDoubleRightIcon v-if="isCollapsed" class="h-5 w-5" />
-                <ChevronDoubleLeftIcon v-else class="h-5 w-5" />
-                <span class="font-medium text-sm" :class="isCollapsed && 'hidden'">{{ $t('sidebar.collapse') }}</span>
-            </button>
         </div>
     </div>
 
