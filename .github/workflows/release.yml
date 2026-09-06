@@ -38,10 +38,20 @@ jobs:
         include:
           - platform: "macos-latest"
             args: "--target universal-apple-darwin"
+            bundleServer: false
           - platform: "ubuntu-22.04"
             args: ""
+            bundleServer: false
+          # Windows 双版本并行构建：无 server（纯客户端）与含 server（内置服务端）
+          # 含 server 版经 tauri.server.conf.json 改 productName（安装包名不同，
+          # 不与无 server 版在 Release 里互相覆盖）与 identifier（独立数据目录/
+          # 单实例锁，两版可并存安装）
           - platform: "windows-latest"
             args: ""
+            bundleServer: false
+          - platform: "windows-latest"
+            args: ""
+            bundleServer: true
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -50,9 +60,9 @@ jobs:
       - name: setup node
         uses: actions/setup-node@v4
         with:
-          # Windows 腿用 23：seedagent 构建要求 Node 23（原生模块 ABI 锁主版本），
+          # 含 server 腿用 23：seedagent 构建要求 Node 23（原生模块 ABI 锁主版本），
           # 且打包脚本按主版本匹配直接拷贝 runner 的 node.exe 作为内置运行时
-          node-version: ${{ matrix.platform == 'windows-latest' && '23' || '20' }}
+          node-version: ${{ matrix.bundleServer && '23' || '20' }}
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -70,12 +80,12 @@ jobs:
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
 
-      # ── 内置服务端（仅 Windows）────────────────────────────────────
+      # ── 内置服务端（bundleServer 腿）──────────────────────────────
       # GITHUB_TOKEN 只对 seedclaw 本仓库有权限，同账号也不行；
       # 跨仓库克隆私有 seedagent 需要 PAT secret：SEEDAGENT_TOKEN
       # （fine-grained PAT，对 zhezzma/seedagent 授予 Contents: Read-only）
-      - name: Checkout seedagent (bundled server source, windows only)
-        if: matrix.platform == 'windows-latest'
+      - name: Checkout seedagent (bundled server source)
+        if: matrix.bundleServer
         uses: actions/checkout@v4
         with:
           repository: zhezzma/seedagent
@@ -84,10 +94,10 @@ jobs:
           token: ${{ secrets.SEEDAGENT_TOKEN }}
 
       # 装配：构建 seedagent → 采集 node.exe → 填充 src-tauri/resources/seedagent/
-      # （tauri.conf.json 的 resources glob 会随包携带；macOS/Linux 不装配，
-      #   构建里没有服务端 → bundled=false → 网关强制远程模式，属预期降级）
-      - name: Stage bundled server (windows only)
-        if: matrix.platform == 'windows-latest'
+      # （tauri.conf.json 的 resources glob 会随包携带；不含 server 的构建里没有
+      #   这份资源 → bundled=false → 网关强制远程模式，属预期降级）
+      - name: Stage bundled server
+        if: matrix.bundleServer
         shell: pwsh
         run: ./scripts/package-desktop.ps1 -StageOnly -SeedagentDir "$env:GITHUB_WORKSPACE/seedagent"
 
@@ -98,22 +108,32 @@ jobs:
           NODE_OPTIONS: "--max-old-space-size=6144"
         with:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}
-          args: ${{ matrix.args }}
+          # 含 server 版叠加 productName/identifier 补丁，安装包名与无 server 版区分
+          args: ${{ matrix.args }}${{ matrix.bundleServer && ' --config src-tauri/tauri.server.conf.json' || '' }}
 
-      # 便携版必须带上 resources（内置服务端），且 node_modules 深路径超 260 字符，
-      # 用 robocopy 拷贝 + bsdtar 压缩（与 package-desktop.ps1 同策略）
+      # 便携版：含 server 版必须带上 resources（node_modules 深路径超 260 字符，
+      # 用 robocopy 拷贝 + bsdtar 压缩，与 package-desktop.ps1 同策略）；
+      # 无 server 版保持仅 exe。zip 名按版本区分，避免同 Release 互相覆盖
       - name: Package Windows portable build
         if: matrix.platform == 'windows-latest'
         shell: pwsh
+        env:
+          BUNDLE_SERVER: ${{ matrix.bundleServer }}
         run: |
+          $suffix = if ($env:BUNDLE_SERVER -eq 'true') { '-server' } else { '' }
+          $zipName = "seedclaw${suffix}-windows-portable-x64.zip"
           $portableDir = "portable-bundle"
           if (Test-Path $portableDir) { Remove-Item -Recurse -Force $portableDir }
           New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
           Copy-Item "src-tauri/target/release/seedclaw.exe" $portableDir
-          robocopy "src-tauri/resources" "$portableDir/resources" /E /NFL /NDL /NJH /NJS | Out-Null
-          if ($LASTEXITCODE -ge 8) { throw "robocopy resources failed (exit $LASTEXITCODE)" }
-          tar -a -c -f seedclaw-windows-portable-x64.zip -C $portableDir seedclaw.exe resources
-          Get-Item seedclaw-windows-portable-x64.zip | Format-List FullName, Length
+          if ($env:BUNDLE_SERVER -eq 'true') {
+            robocopy "src-tauri/resources" "$portableDir/resources" /E /NFL /NDL /NJH /NJS | Out-Null
+            if ($LASTEXITCODE -ge 8) { throw "robocopy resources failed (exit $LASTEXITCODE)" }
+            tar -a -c -f $zipName -C $portableDir seedclaw.exe resources
+          } else {
+            tar -a -c -f $zipName -C $portableDir seedclaw.exe
+          }
+          Get-Item $zipName | Format-List FullName, Length
 
       - name: Upload Artifacts
         uses: softprops/action-gh-release@v1
