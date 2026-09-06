@@ -81,6 +81,7 @@ pub fn run() {
             app.manage(notify::init(app.handle()));
             let server_manager = server::init(app.handle());
             app.manage(server_manager);
+            server::start_background(app.handle());
             Ok(())
         })
         .on_window_event(|_window, event| match event {
@@ -101,6 +102,11 @@ pub fn run() {
             server::server_status,
             server::server_restart
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                server::shutdown(app);
+            }
+        });
 }

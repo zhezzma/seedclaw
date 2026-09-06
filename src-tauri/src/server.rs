@@ -1,7 +1,10 @@
 use serde::Serialize;
+use std::io::{Read, Write};
+use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Mutex;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
 /// 从 ~/.seedagent/.env 解析用户显式指定的 PORT 意向（桌面端只读不写该文件）。
@@ -23,9 +26,7 @@ pub fn read_env_port(home: &Path) -> Option<u16> {
 pub fn port_candidates(preferred: Option<u16>) -> Vec<u16> {
     let mut out = Vec::new();
     if let Some(p) = preferred {
-        if !(18789..=18798).contains(&p) {
-            out.push(p);
-        }
+        out.push(p);
     }
     for p in 18789..=18798 {
         if !out.contains(&p) {
@@ -108,10 +109,11 @@ fn node_binary_name() -> &'static str {
     "node"
 }
 
-/// server 目录候选，覆盖三种形态：
+/// server 目录候选，覆盖四种形态：
 /// 1. NSIS 安装目录（tauri.conf resources 映射保留源相对路径 → <install>/resources/seedagent）
 /// 2. 便携/其他打包布局（<exe_dir>/seedagent）
-/// 3. dev（cwd=src-tauri，staging 原地生效）
+/// 3. dev（cwd=仓库根，staging 到 src-tauri/resources/seedagent）
+/// 4. dev（cwd=src-tauri，staging 原地生效 → cwd/resources/seedagent）
 fn resolve_server_dir(resource_dir: &Path) -> Option<PathBuf> {
     [
         resource_dir.join("resources").join("seedagent"),
@@ -119,6 +121,10 @@ fn resolve_server_dir(resource_dir: &Path) -> Option<PathBuf> {
         std::env::current_dir()
             .unwrap_or_default()
             .join("src-tauri")
+            .join("resources")
+            .join("seedagent"),
+        std::env::current_dir()
+            .unwrap_or_default()
             .join("resources")
             .join("seedagent"),
     ]
@@ -230,6 +236,191 @@ pub fn shutdown(app: &AppHandle) {
     }
 }
 
+enum PortProbe {
+    /// 带 token 的 /api/health 返回 200 —— 自己残留的旧实例，直接复用
+    Ours,
+    /// 有 HTTP 响应但不是我们的实例 —— 端口被别人占用
+    Foreign,
+    /// 连接被拒 —— 端口空闲
+    Free,
+}
+
+/// 一次性端口探测（纯 socket，零依赖；仅 127.0.0.1 明文 HTTP）。
+fn probe_port(port: u16, token: &str) -> PortProbe {
+    let addr = ("127.0.0.1", port);
+    let Ok(mut addrs) = addr.to_socket_addrs() else {
+        return PortProbe::Foreign;
+    };
+    let Some(sock_addr) = addrs.next() else {
+        return PortProbe::Foreign;
+    };
+    let Ok(mut stream) = TcpStream::connect_timeout(&sock_addr, Duration::from_millis(300)) else {
+        return PortProbe::Free;
+    };
+    let req = format!(
+        "GET /api/health HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer {token}\r\nConnection: close\r\n\r\n"
+    );
+    if stream.write_all(req.as_bytes()).is_err() {
+        return PortProbe::Foreign;
+    }
+    let mut buf = [0u8; 128];
+    let n = stream.read(&mut buf).unwrap_or(0);
+    let head = String::from_utf8_lossy(&buf[..n]);
+    if head.starts_with("HTTP/1.1 200") || head.starts_with("HTTP/1.0 200") {
+        PortProbe::Ours
+    } else {
+        PortProbe::Foreign
+    }
+}
+
+fn spawn_child(
+    server_dir: &Path,
+    home: &Path,
+    port: u16,
+    token: &str,
+) -> std::io::Result<std::process::Child> {
+    let logs = home.join("logs");
+    std::fs::create_dir_all(&logs)?;
+    let stdout = std::fs::OpenOptions::new()
+        .create(true).write(true).truncate(true)
+        .open(logs.join("desktop-stdout.log"))?;
+    let stderr = std::fs::OpenOptions::new()
+        .create(true).write(true).truncate(true)
+        .open(logs.join("desktop-stderr.log"))?;
+    let mut cmd = std::process::Command::new(server_dir.join(node_binary_name()));
+    cmd.arg("dist/index.js")
+        .current_dir(server_dir)
+        .env("PORT", port.to_string())
+        .env("BEARER_TOKEN", token)
+        .env("DATA_DIR", home)
+        .env("NODE_ENV", "production")
+        .stdout(std::process::Stdio::from(stdout))
+        .stderr(std::process::Stdio::from(stderr));
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    cmd.spawn()
+}
+
+/// setup 里调用：spawn + 退出监控（阻塞线程，不占 async 运行时）。
+pub fn start_background(app: &AppHandle) {
+    let app = app.clone();
+    std::thread::spawn(move || run_loop(app));
+}
+
+fn run_loop(app: AppHandle) {
+    let mgr = match app.try_state::<ServerManager>() {
+        Some(m) => m,
+        None => return,
+    };
+    if !mgr.bundled {
+        return;
+    }
+    let home = mgr.home.clone();
+    let token = mgr.token.clone();
+    let server_dir = match &mgr.server_dir {
+        Some(d) => d.clone(),
+        None => return,
+    };
+
+    // 选端口：.env PORT 意向 → 18789~18798，一次性探测
+    let mut chosen: Option<u16> = None;
+    let mut reused = false;
+    for port in port_candidates(read_env_port(&home)) {
+        match probe_port(port, &token) {
+            PortProbe::Ours => {
+                chosen = Some(port);
+                reused = true;
+                break;
+            }
+            PortProbe::Free => {
+                chosen = Some(port);
+                break;
+            }
+            PortProbe::Foreign => continue,
+        }
+    }
+    let Some(port) = chosen else {
+        mgr.update_status(Some(&app), |st| {
+            st.state = ServerPhase::Failed;
+            st.last_error = Some("端口 18789~18798 全被占用".into());
+        });
+        return;
+    };
+    let url = format!("http://127.0.0.1:{port}");
+
+    if reused {
+        // 桌面端上次崩溃留下的孤儿实例（同 token）：直接复用，无 pid 可管
+        mgr.update_status(Some(&app), |st| {
+            st.state = ServerPhase::Running;
+            st.port = Some(port);
+            st.url = Some(url);
+        });
+        return;
+    }
+
+    let mut backoff = Duration::from_secs(1);
+    let mut consecutive_failures: u32 = 0;
+    loop {
+        match spawn_child(&server_dir, &home, port, &token) {
+            Ok(mut child) => {
+                let pid = child.id();
+                let started = std::time::Instant::now();
+                mgr.update_status(Some(&app), |st| {
+                    st.state = ServerPhase::Running;
+                    st.port = Some(port);
+                    st.url = Some(url.clone());
+                    st.pid = Some(pid);
+                    st.last_error = None;
+                });
+                let exit = child.wait();
+                let uptime = started.elapsed();
+                let code = exit.ok().and_then(|s| s.code()).unwrap_or(-1);
+
+                if mgr.intent.load(Ordering::SeqCst) == INTENT_STOP {
+                    return; // 正常退出路径，进程已结束
+                }
+                if mgr.intent.load(Ordering::SeqCst) == INTENT_RESTART {
+                    mgr.intent.store(INTENT_RUN, Ordering::SeqCst);
+                    consecutive_failures = 0;
+                    backoff = Duration::from_secs(1);
+                    continue; // 用户请求的重启：立即重拉
+                }
+
+                if uptime >= Duration::from_secs(30) {
+                    consecutive_failures = 0;
+                } else {
+                    consecutive_failures += 1;
+                }
+                if consecutive_failures >= 5 {
+                    mgr.update_status(Some(&app), |st| {
+                        st.state = ServerPhase::Failed;
+                        st.pid = None;
+                        st.last_error = Some(format!("连续快速退出 5 次，最后退出码 {code}"));
+                    });
+                    return;
+                }
+                mgr.update_status(Some(&app), |st| {
+                    st.state = ServerPhase::Restarting;
+                    st.pid = None;
+                    st.last_error = Some(format!("进程退出（码 {code}），{}s 后重启", backoff.as_secs()));
+                });
+                std::thread::sleep(backoff);
+                backoff = std::cmp::min(backoff * 2, Duration::from_secs(15));
+            }
+            Err(e) => {
+                mgr.update_status(Some(&app), |st| {
+                    st.state = ServerPhase::Failed;
+                    st.last_error = Some(format!("spawn 失败: {e}"));
+                });
+                return;
+            }
+        }
+    }
+}
+
 #[tauri::command]
 pub fn server_status(state: tauri::State<'_, ServerManager>) -> ServerStatus {
     state.status()
@@ -282,6 +473,12 @@ mod tests {
         assert_eq!(port_candidates(Some(18789)).first(), Some(&18789));
         assert_eq!(port_candidates(Some(18789)).len(), 10);
         assert_eq!(port_candidates(None).len(), 10);
+    }
+
+    #[test]
+    fn port_candidates_in_range_preferred_first() {
+        // 区间内的意向端口也必须排在候选首位（PORT 意向优先）
+        assert_eq!(port_candidates(Some(18795)).first(), Some(&18795));
     }
 
     #[test]
