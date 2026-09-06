@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **两个仓库**：seedclaw（`D:\Workspace\seedclaw`）与 seedagent（`D:\Workspace\seedagent`）。seedclaw 的一切工作在 worktree 分支 `feat/bundled-server` 进行（用 superpowers:using-git-worktrees 创建）；seedagent 在分支 `feat/desktop-env-loader` 进行（直接在该仓库创建分支即可）。两仓库各自独立提交。
+- **两个仓库**：seedclaw（`D:\Workspace\seedclaw`）与 seedagent（`D:\Workspace\seedagent`）。seedclaw 的一切工作在 worktree 分支 `feat/bundled-server` 进行（用 superpowers:using-git-worktrees 创建）；seedagent 在外部 worktree `D:\Workspace\worktrees\seedagent-desktop-env-loader`（分支 `feat/desktop-env-loader`）进行——**不要**动 `D:\Workspace\seedagent` 主检出（那里有未提交的其他任务改动）。两仓库各自独立提交。
 - Windows 先行；`~/.seedagent` 全平台统一（Windows 为 `%USERPROFILE%\.seedagent`）。
 - Node 运行时锁 23.x（原生模块 ABI），打包脚本默认 `23.11.0`。
 - **不做 HTTP 健康检查轮询**；就绪靠既有 WS 退避重连，崩溃靠子进程退出监控。
@@ -42,7 +42,9 @@
 - [ ] **Step 1: 创建分支**
 
 ```bash
-cd /d/Workspace/seedagent && git checkout -b feat/desktop-env-loader
+# worktree 已由协调者创建（主检出有脏文件，勿动）
+cd /d/Workspace/worktrees/seedagent-desktop-env-loader && git branch --show-current
+# 预期输出: feat/desktop-env-loader
 ```
 
 - [ ] **Step 2: 写失败测试**
@@ -138,7 +140,7 @@ describe('env-loader', () => {
 
 - [ ] **Step 3: 跑测试确认失败**
 
-Run: `cd /d/Workspace/seedagent && npx vitest run tests/config/env-loader.test.ts`
+Run: `cd /d/Workspace/worktrees/seedagent-desktop-env-loader && npx vitest run tests/config/env-loader.test.ts`
 Expected: 第 1 个用例 FAIL（现状 `override: true` 会把 `PROC_ONLY` 覆盖成 `from-file`）；第 3 个用例 FAIL（现状仍加载 `~/.env`）。第 2 个可能 PASS。
 
 - [ ] **Step 4: 改 env-loader**
@@ -210,7 +212,7 @@ Expected: 3 个用例全 PASS。
 
 - [ ] **Step 6: 回归——全量测试 + 类型检查**
 
-Run: `npx vitest run && npm run typecheck`
+Run: `cd /d/Workspace/worktrees/seedagent-desktop-env-loader && npx vitest run && npm run typecheck`
 Expected: 全部 PASS（若仓库既有测试因环境变量行为受影响，逐个核对是否与本改动语义相关，相关则修正测试，无关则上报）。
 
 - [ ] **Step 7: Commit**
