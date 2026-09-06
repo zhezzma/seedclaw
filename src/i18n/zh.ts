@@ -755,8 +755,6 @@ export default {
         localServerManagedHint: '本地服务由应用自动管理，地址与令牌不可修改',
         localServerLogHint: '日志目录',
         copyLogPath: '复制日志路径',
-        localServerBootTitle: '正在启动本地服务',
-        localServerBootHint: '首次启动可能需要几秒钟',
         tokenPlaceholder: '请输入您的 Token',
         baseUrlPlaceholder: '例如: https://voice.godgodgame.com',
         engineTokenPlaceholder: '请输入当前引擎的 Token',

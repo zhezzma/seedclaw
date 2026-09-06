@@ -13,8 +13,8 @@ import { shouldReloadAfterForeground } from './utils/notification-routing'
 import { listen } from '@tauri-apps/api/event'
 import { localServer, isLocalServerBooting, isLocalServerBootFailed, restartLocalServer } from './composables/local-server'
 
-// 内置服务端启动门控：local 模式下端口监听前显示启动画面（数据加载已在 useAppInit 暂停）；
-// 初始启动失败给出重启入口（reload 重走 init）。运行过一次后不再门控（崩溃走既有容错）。
+// 内置服务端启动门控：local 模式下端口监听前 UI 照常渲染，仅盖淡磨砂 veil（数据加载已在 useAppInit 暂停）；
+// 初始启动失败才显示错误与重启入口（reload 重走 init）。运行过一次后不再门控（崩溃走既有容错）。
 const bootGateVisible = computed(() => isLocalServerBooting())
 const bootFailedVisible = computed(() => isLocalServerBootFailed())
 const onBootRestart = async () => {
@@ -159,13 +159,13 @@ onUnmounted(() => {
 
 <template>
     <div class="fixed inset-0 bg-base-100 overflow-hidden text-base-content font-sans">
-        <!-- 内置服务端启动门控：Starting（含重启窗口）显示启动画面，初始 Failed 显示重启入口 -->
-        <div v-if="bootGateVisible" class="h-full w-full flex flex-col items-center justify-center gap-4">
-            <span class="loading loading-spinner loading-lg text-primary"></span>
-            <p class="text-base font-medium">{{ $t('settings.localServerBootTitle') }}</p>
-            <p class="text-sm text-base-content/60">{{ $t('settings.localServerBootHint') }}</p>
-        </div>
-        <div v-else-if="bootFailedVisible" class="h-full w-full flex flex-col items-center justify-center gap-3 px-6">
+        <RouterView />
+        <MessagePlugin />
+        <ExecApprovalModal />
+        <ConfirmPlugin />
+        <!-- 内置服务端启动门控：Starting 时 UI 照常渲染，只盖一层淡磨砂透出内容（数据加载已暂停，无请求报错）；
+             初始 Failed 才显示错误与重启入口 -->
+        <div v-if="bootFailedVisible" class="absolute inset-0 z-40 bg-base-100/80 backdrop-blur-[2px] flex flex-col items-center justify-center gap-3 px-6">
             <p class="text-base font-medium text-error">{{ $t('settings.localServerFailed') }}</p>
             <p v-if="localServer.lastError" class="text-sm text-base-content/60 text-center max-w-md">{{ localServer.lastError }}</p>
             <div class="flex gap-2 mt-2">
@@ -173,12 +173,7 @@ onUnmounted(() => {
                 <button class="btn btn-ghost btn-sm" @click="onBootCopyLog">{{ $t('settings.copyLogPath') }}</button>
             </div>
         </div>
-        <template v-else>
-            <RouterView />
-            <MessagePlugin />
-            <ExecApprovalModal />
-            <ConfirmPlugin />
-        </template>
+        <div v-else-if="bootGateVisible" class="absolute inset-0 z-40 bg-base-100/30 backdrop-blur-[2px] pointer-events-none"></div>
     </div>
 </template>
 
