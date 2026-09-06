@@ -2,7 +2,7 @@ use serde::Serialize;
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
@@ -89,6 +89,8 @@ pub struct ServerManager {
     token: String,
     status: Mutex<ServerStatus>,
     intent: AtomicU8,
+    /// 监控线程存活标志：run_loop 启动置位、所有退出路径复位；request_restart 据此判断可否重开监控
+    monitor_running: AtomicBool,
 }
 
 fn home_dir() -> PathBuf {
@@ -145,21 +147,34 @@ impl ServerManager {
         self.intent.store(INTENT_STOP, Ordering::SeqCst);
     }
 
-    /// 前端「重启服务」按钮：复用实例（无 pid）时仅广播当前状态，不强制动作。
+    /// 前端「重启服务」按钮：
+    /// - Running（有 pid）：置 RESTART 意图并杀树，监控线程感知后立即重拉（计数/退避复位）；
+    /// - Failed 终态（无 pid、监控已退出）：认领存活标志并重开监控线程，回到启动序列（重新探测端口 + spawn）；
+    /// - Restarting 退避窗口（无 pid、监控存活）：仅广播当前状态（≤15s 内已计划重拉）；
+    /// - 复用孤儿实例（无 pid、监控已退出、Running）：v1 限制——仅广播状态，不强制动作。
     pub fn request_restart(&self, app: &AppHandle) {
-        {
-            let st = self.status.lock().unwrap();
-            if !st.bundled {
-                return;
-            }
-            if st.pid.is_none() {
-                emit_status(app, &st);
-                return;
-            }
+        let st = self.status.lock().unwrap().clone();
+        if !st.bundled {
+            return;
         }
-        self.set_intent_restart();
-        if let Some(pid) = self.status.lock().unwrap().pid {
+        if let Some(pid) = st.pid {
+            self.set_intent_restart();
             kill_tree(pid);
+            return;
+        }
+        if st.state == ServerPhase::Failed
+            && self
+                .monitor_running
+                .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+                .is_ok()
+        {
+            // Failed 恢复：清意图为 RUN，重开监控线程（run_loop 会重新探测端口并 spawn）
+            self.intent.store(INTENT_RUN, Ordering::SeqCst);
+            let app = app.clone();
+            std::thread::spawn(move || run_loop(app));
+        } else {
+            // Restarting 退避窗口内监控仍存活（已计划重拉）；复用孤儿实例为 v1 已知限制：均仅广播当前状态
+            emit_status(app, &st);
         }
     }
 
@@ -223,7 +238,15 @@ pub fn init(app: &AppHandle) -> ServerManager {
         data_dir: if bundled { Some(home.to_string_lossy().into_owned()) } else { None },
     });
 
-    ServerManager { bundled, home, server_dir, token, status, intent: AtomicU8::new(INTENT_RUN) }
+    ServerManager {
+        bundled,
+        home,
+        server_dir,
+        token,
+        status,
+        intent: AtomicU8::new(INTENT_RUN),
+        monitor_running: AtomicBool::new(false),
+    }
 }
 
 /// 应用退出（RunEvent::Exit / 托盘 quit）时调用。
@@ -257,6 +280,8 @@ fn probe_port(port: u16, token: &str) -> PortProbe {
     let Ok(mut stream) = TcpStream::connect_timeout(&sock_addr, Duration::from_millis(300)) else {
         return PortProbe::Free;
     };
+    // 读超时：接受连接却不响应的监听者不能挂死探测（读取失败/超时按 Foreign 处理）
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(1000)));
     let req = format!(
         "GET /api/health HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer {token}\r\nConnection: close\r\n\r\n"
     );
@@ -315,14 +340,20 @@ fn run_loop(app: AppHandle) {
         Some(m) => m,
         None => return,
     };
+    // 监控存活标志：线程启动即置位，所有退出路径复位（request_restart 据此判断可否重开监控）
+    mgr.monitor_running.store(true, Ordering::SeqCst);
     if !mgr.bundled {
+        mgr.monitor_running.store(false, Ordering::SeqCst);
         return;
     }
     let home = mgr.home.clone();
     let token = mgr.token.clone();
     let server_dir = match &mgr.server_dir {
         Some(d) => d.clone(),
-        None => return,
+        None => {
+            mgr.monitor_running.store(false, Ordering::SeqCst);
+            return;
+        }
     };
 
     // 选端口：.env PORT 意向 → 18789~18798，一次性探测
@@ -347,6 +378,7 @@ fn run_loop(app: AppHandle) {
             st.state = ServerPhase::Failed;
             st.last_error = Some("端口 18789~18798 全被占用".into());
         });
+        mgr.monitor_running.store(false, Ordering::SeqCst);
         return;
     };
     let url = format!("http://127.0.0.1:{port}");
@@ -358,12 +390,18 @@ fn run_loop(app: AppHandle) {
             st.port = Some(port);
             st.url = Some(url);
         });
+        mgr.monitor_running.store(false, Ordering::SeqCst);
         return;
     }
 
     let mut backoff = Duration::from_secs(1);
     let mut consecutive_failures: u32 = 0;
     loop {
+        // 退避睡眠期间可能已触发退出：spawn 前复查 STOP 意图，避免制造孤儿进程
+        if mgr.intent.load(Ordering::SeqCst) == INTENT_STOP {
+            mgr.monitor_running.store(false, Ordering::SeqCst);
+            return;
+        }
         match spawn_child(&server_dir, &home, port, &token) {
             Ok(mut child) => {
                 let pid = child.id();
@@ -380,6 +418,7 @@ fn run_loop(app: AppHandle) {
                 let code = exit.ok().and_then(|s| s.code()).unwrap_or(-1);
 
                 if mgr.intent.load(Ordering::SeqCst) == INTENT_STOP {
+                    mgr.monitor_running.store(false, Ordering::SeqCst);
                     return; // 正常退出路径，进程已结束
                 }
                 if mgr.intent.load(Ordering::SeqCst) == INTENT_RESTART {
@@ -400,6 +439,7 @@ fn run_loop(app: AppHandle) {
                         st.pid = None;
                         st.last_error = Some(format!("连续快速退出 5 次，最后退出码 {code}"));
                     });
+                    mgr.monitor_running.store(false, Ordering::SeqCst);
                     return;
                 }
                 mgr.update_status(Some(&app), |st| {
@@ -415,6 +455,7 @@ fn run_loop(app: AppHandle) {
                     st.state = ServerPhase::Failed;
                     st.last_error = Some(format!("spawn 失败: {e}"));
                 });
+                mgr.monitor_running.store(false, Ordering::SeqCst);
                 return;
             }
         }
