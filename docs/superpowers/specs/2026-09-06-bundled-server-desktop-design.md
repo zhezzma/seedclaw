@@ -62,12 +62,12 @@ SeedClaw 是 Tauri 2 桌面应用，目前 seedagent 服务端是外部独立进
 
 1. 应用启动（已有 `tauri-plugin-single-instance`，天然防双实例双服务）。
 2. 解析数据目录 `~/.seedagent`（全平台统一；Windows 为 `%USERPROFILE%\.seedagent`），确保目录存在。
-3. 读取/生成 `~/.seedagent/desktop.json`：`{ bearerToken: uuid-v4, lastPort: number }`。token 首次生成后固定复用。
-4. 选端口：优先尝试 `lastPort`（初始 18789）。端口探测用 seedagent 现有端点：
+3. 读取/生成 `~/.seedagent/desktop.json`：`{ bearerToken: uuid-v4 }`，token 首次生成后固定复用。token 不写入 `.env`——`~/.seedagent/.env` 是用户手写 API key 的地方，桌面端只读不写，避免与用户手动部署的 `BEARER_TOKEN` 打架。
+4. 选端口：候选顺序 = `~/.seedagent/.env` 中的 `PORT`（若用户显式指定，尊重其意向）→ 18789~18798。端口探测用 seedagent 现有端点（一次性探测，非轮询）：
    - `GET /api/health` 带 token 返回 200 → 是自己残留的旧实例（同 token），**直接复用**，不重复 spawn；
-   - `GET /`（无鉴权存活探针）有响应但 `/api/health` 带 token 返回 401 → 端口上是别人的服务，换下一个候选（18789 起递增，最多 10 个：18789~18798）；
+   - `GET /`（无鉴权存活探针）有响应但 `/api/health` 带 token 返回 401 → 端口上是别人的服务，换下一个候选；
    - 连接被拒 → 端口空闲，选用；全部被占 → 状态置 `failed` 并给出明确错误。
-5. spawn `node.exe dist/index.js`，参数：`--port <port> --data-dir <DATA_DIR> --bearer-token <token>`；Windows 加 `CREATE_NO_WINDOW`；`NODE_ENV=production`；stdout/stderr 重定向追加到 `~/.seedagent/logs/desktop-stdout.log`（按启动截断）。
+5. spawn `node.exe dist/index.js`，以**进程环境变量**注入 `PORT` / `BEARER_TOKEN` / `DATA_DIR`（配合 §6 的 env-loader 语义修正，优先级最高，不被任何 `.env` 覆盖）；cwd = resources/seedagent；Windows 加 `CREATE_NO_WINDOW`；`NODE_ENV=production`；stdout/stderr 重定向追加到 `~/.seedagent/logs/desktop-stdout.log`（按启动截断）。
 6. spawn 成功 → 状态置 `running`（进程存活语义），emit `server://status`。前端拿到 url/token 即配置连接，服务端 1~3 秒的启动窗口由既有机制消化：WS 通知连接本就有 1s→15s 指数退避重连（`notify.rs`），REST 请求失败有 toast + 调用方重试。**不做 HTTP 健康检查轮询。**
 7. 子进程退出监控（非 HTTP）：Rust 持有 child 句柄，独立线程阻塞 `wait`；进程退出且非用户主动停止 → 指数退避自动重启（1s 起、上限 15s）；连续 5 次快速退出 → 停止重启，状态置 `failed`，记录退出码与日志路径。
 
@@ -82,11 +82,16 @@ SeedClaw 是 Tauri 2 桌面应用，目前 seedagent 服务端是外部独立进
 - invoke：`server_status` → `{ state: starting|running|restarting|failed|unavailable, port, url, token, pid, lastError }`（`running` = 进程存活；`unavailable` = resources 缺失，如 dev 构建或非打包形态）；`server_restart`。
 - 事件：`server://status`，状态变化即推。
 
-## 6. seedagent 侧小改动（约 20 行）
+## 6. seedagent 侧改动（env-loader，约 15 行）
 
-`src/index.ts` 增加命令行参数解析：`--port`、`--data-dir`、`--bearer-token`，优先级最高。
+替代原「CLI 参数」方案，改 `src/config/env-loader.ts` 两处：
 
-原因：env-loader 使用 `dotenv.config({ override: true })` 且按序后加载覆盖先加载（`~/deploy/.env`、`~/.seedagent/.env`、`~/.env` 都可能覆盖进程环境变量），单纯 spawn 时注入 `PORT`/`BEARER_TOKEN` 会被用户机器上的历史 `.env` 覆盖，导致服务监听端口与桌面端预期不一致。CLI 参数不受 dotenv 影响，是唯一可靠的注入通道。
+1. **删除搜索路径** `~/deploy/.env(.local)` 与 `~/.env(.local)`——手动部署时代的遗留路径。保留项目目录、cwd 与 `~/.seedagent/.env(.local)`（后者是用户配置位，也是桌面端读取 PORT 意向的位置）。
+2. **修正覆盖语义**：现状 `dotenv.config({ override: true })` 逐个加载，后文件覆盖前文件**且覆盖已存在的进程环境变量**——这是注入不可靠的根因。改为：所有文件先按序解析合并（文件之间 later-wins 语义不变），再**只填充进程环境中尚未设置的键**。进程环境变量（桌面端 spawn 注入、Docker `ENV`、systemd `Environment=`）优先级最高。
+
+选此而非 CLI 参数的原因：改动更小、修的是根因（`.env` 本不应覆盖进程环境变量）；`~/.seedagent/.env` 保持为用户手写配置的唯一入口，桌面端只读它的 `PORT`、不写它。
+
+回归核对（实现时确认）：HF Space Docker 镜像（容器内无上述 `.env` 文件，行为不变）与 systemd 部署（单元仅设少量环境变量，`.env` 填充未设置键的语义与现状等价）。
 
 ## 7. 前端改动（seedclaw）
 
@@ -137,7 +142,7 @@ SeedClaw 是 Tauri 2 桌面应用，目前 seedagent 服务端是外部独立进
 - **脚本**：模拟无本机 Node 环境（改 PATH）验证下载路径；`-StageOnly` 产物完整性（node.exe 可执行、dist/index.js 存在、node_modules 无 devDependencies 大件）。
 - **Rust 单元测试**（`cargo test`）：端口选择状态机、desktop.json 读写与 token 持久化。
 - **手动集成清单**：首次启动（自动生成 token/选端口/前端自动连接）；二次启动复用；服务端崩溃退出监控自动重启；退出杀进程树（含 subagent 子进程）；本地↔远程切换 + reload；`-StageOnly` + `tauri dev` 联调；重装升级数据保留。
-- **seedagent**：`--port/--data-dir/--bearer-token` 参数的 vitest 用例（覆盖 `.env` 冲突场景：参数值必须赢）。
+- **seedagent**：env-loader 的 vitest 用例——文件之间 later-wins 保留；进程环境已存在的键（模拟桌面端 spawn 注入的 `PORT`）不被 `.env` 覆盖；被删除的搜索路径不再生效。
 
 ## 10. 后续扩展（不在本期）
 
