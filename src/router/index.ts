@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
 import { NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
+import { ensureLocalServerLoaded, effectiveGatewayMode } from '../composables/local-server'
 
 // Layouts
 import MainLayout from '../layouts/MainLayout.vue'
@@ -99,12 +100,15 @@ const router = createRouter({
 
 // Navigation guard to check config
 router.beforeEach(async (to, _from, next) => {
+    await ensureLocalServerLoaded()
     const configStore = useUiSettingsStore()
 
     // If route requires config and user is not configured
     if (to.meta.requiresConfig && !configStore.isConfigured) {
-        next({ name: 'setup' })
-        return
+        if (effectiveGatewayMode() !== 'local') {
+            next({ name: 'setup' })
+            return
+        }
     }
 
     // If user is on setup page but already configured
