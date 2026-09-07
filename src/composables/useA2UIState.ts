@@ -251,7 +251,27 @@ export function executeFunctionCall(fn: FunctionCall, dataModel: Record<string, 
     }
     case 'openUrl': {
       const url = String(resolveArg(args.url) || '')
-      if (url) window.open(url, '_blank')
+      if (!url) return undefined
+      // A2UI 内容来自模型/服务端：仅放行 http(s)，防 javascript: 等 scheme 在应用内执行
+      let parsed: URL
+      try {
+        parsed = new URL(url)
+      } catch {
+        console.warn('[A2UI] openUrl ignored invalid url:', url)
+        return undefined
+      }
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        console.warn('[A2UI] openUrl blocked non-http(s) url:', url)
+        return undefined
+      }
+      // 用 <a target="_blank"> 同路径（WebView 新窗口机制），window.open 在 Tauri WebView 内不可靠
+      const a = document.createElement('a')
+      a.href = url
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
       return undefined
     }
     default:

@@ -195,10 +195,6 @@ const saveTts = () => {
     })
 }
 
-const openHelpDocs = () => {
-    window.open('https://github.com/zhezzma/seedclaw', '_blank')
-}
-
 const navigateToLogs = () => {
     router.push('/logs')
 }
@@ -399,13 +395,15 @@ const logout = async () => {
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
                             </li>
 
-                            <li @click="openHelpDocs"
-                                class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors">
-                                <div class="flex items-center gap-3">
-                                    <QuestionMarkCircleIcon class="h-5 w-5 text-base-content/60" />
-                                    <span class="font-medium">{{ $t('settings.usageHelp') }}</span>
-                                </div>
-                                <ArrowTopRightOnSquareIcon class="h-5 w-5 text-base-content/40" />
+                            <li>
+                                <a href="https://github.com/zhezzma/seedclaw" target="_blank" rel="noopener noreferrer"
+                                    class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors">
+                                    <div class="flex items-center gap-3">
+                                        <QuestionMarkCircleIcon class="h-5 w-5 text-base-content/60" />
+                                        <span class="font-medium">{{ $t('settings.usageHelp') }}</span>
+                                    </div>
+                                    <ArrowTopRightOnSquareIcon class="h-5 w-5 text-base-content/40" />
+                                </a>
                             </li>
                         </ul>
                     </div>
