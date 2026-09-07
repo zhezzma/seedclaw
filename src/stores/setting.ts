@@ -28,7 +28,6 @@ export interface UiSettings {
     isSidebarGrouped: boolean
     isWideMode: boolean
     showBottomNav: boolean
-    sessionsActiveDays: number
     asrEngine: ASREngineType
     ttsEngine: TTSEngineType
     asrConfigs: EngineConfig<ASREngineType>[]
@@ -247,7 +246,6 @@ const getDefaultSettings = (): UiSettings => ({
     isSidebarGrouped: false,
     isWideMode: true,
     showBottomNav: false,
-    sessionsActiveDays: 3,
     asrEngine: 'fun-asr',
     ttsEngine: 'edge',
     asrConfigs: defaultAsrConfigs(),

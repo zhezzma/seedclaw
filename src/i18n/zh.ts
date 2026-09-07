@@ -733,8 +733,6 @@ export default {
         token: '访问令牌 (Token)',
         baseUrl: 'Base URL',
         engineToken: 'Token',
-        sessionActiveDays: '会话活跃天数',
-        sessionActiveDaysDesc: '超过此天数的会话将不会被读取',
         silenceDuration: '语音发送等待 (毫秒)',
         silenceDurationDesc: '说话停顿多少毫秒后自动发送',
         busySendBehavior: '回复中发送行为',

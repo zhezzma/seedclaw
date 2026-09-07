@@ -134,11 +134,6 @@ const onCopyLogPath = () => {
     navigator.clipboard.writeText(dir)
 }
 
-const saveSessionsActiveDays = (event: Event) => {
-    const days = Math.max(1, Math.floor(Number((event.target as HTMLInputElement).value) || 1))
-    configStore.save({ sessionsActiveDays: days })
-}
-
 const saveSilenceDuration = (event: Event) => {
     const ms = Math.max(0, Math.floor(Number((event.target as HTMLInputElement).value) || 0))
     configStore.save({ silenceDuration: ms })
@@ -235,20 +230,6 @@ const logout = async () => {
                                     </div>
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
-                            </li>
-
-                            <li class="flex items-center justify-between gap-4 p-4">
-                                <div class="flex items-center gap-3">
-                                    <ClockIcon class="h-5 w-5 text-base-content/60" />
-                                    <div>
-                                        <span class="font-medium">{{ $t('settings.sessionActiveDays') }}</span>
-                                        <p class="text-xs text-base-content/50">{{
-                                            $t('settings.sessionActiveDaysDesc') }}</p>
-                                    </div>
-                                </div>
-                                <input type="number" class="input input-bordered input-sm w-24"
-                                    :value="configStore.sessionsActiveDays" min="1"
-                                    @change="saveSessionsActiveDays" />
                             </li>
 
                             <li class="flex items-center justify-between gap-4 p-4">

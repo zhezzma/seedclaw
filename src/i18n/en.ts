@@ -733,8 +733,6 @@ export default {
         token: 'Access Token',
         baseUrl: 'Base URL',
         engineToken: 'Token',
-        sessionActiveDays: 'Session Active Days',
-        sessionActiveDaysDesc: 'Sessions older than this will not be read',
         silenceDuration: 'Voice Send Wait (ms)',
         silenceDurationDesc: 'Auto-send after silence for milliseconds',
         busySendBehavior: 'Busy Send Behavior',
