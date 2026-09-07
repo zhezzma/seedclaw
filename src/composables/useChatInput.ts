@@ -41,6 +41,8 @@ const attachments = ref<{ id: string; name: string; dataUrl: string; mimeType: s
 
 // ——— 命令补全 ———
 const commandSuggestionsVisible = ref(false)
+/** 是否允许 `/` 触发命令补全：新会话页 centered 输入框会关闭它（面板与 Enter/方向键路由共用同一状态，必须在源头关） */
+const commandSuggestionsEnabled = ref(true)
 const commandSuggestions = ref<CommandInfo[]>([])
 const commandSuggestionIndex = ref(0)
 const suppressCommandSuggestionsOnce = ref(false)
@@ -64,7 +66,8 @@ watch(inputText, (val) => {
     const fromHistoryNavigation = suppressCommandSuggestionsOnce.value
     suppressCommandSuggestionsOnce.value = false
 
-    if (shouldOpenCommandSuggestions(val, fromHistoryNavigation)) {
+    if (commandSuggestionsEnabled.value
+        && shouldOpenCommandSuggestions(val, fromHistoryNavigation)) {
         const prefix = val.slice(1)
         commandSuggestions.value = filterCommands.value(prefix)
         commandSuggestionsVisible.value = commandSuggestions.value.length > 0
@@ -369,6 +372,7 @@ const _chatInputState = {
     appendText,
     commands: COMMANDS,
     commandSuggestionsVisible,
+    commandSuggestionsEnabled,
     commandSuggestions,
     commandSuggestionIndex,
     confirmCommandSuggestion,

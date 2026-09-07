@@ -58,11 +58,18 @@ const {
     addAttachment,
     removeAttachment,
     commandSuggestionsVisible,
+    commandSuggestionsEnabled,
     commandSuggestions,
     commandSuggestionIndex,
     confirmCommandSuggestion,
     closeSuggestions,
 } = useChatInput()
+
+// 新会话页(centered)：禁用 `/` 触发命令补全浮层。必须在状态源头关，
+// 否则内部 Enter 仍会走“确认补全”而非发送。两种输入框互斥挂载，各自 mount 时按 props 纠正全局开关。
+commandSuggestionsEnabled.value = !props.centered
+// 开关只阻止“打开”，不复位已开的浮层：从会话页带着打开的面板切到 /new 时补一行保险
+if (!commandSuggestionsEnabled.value) closeSuggestions()
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
