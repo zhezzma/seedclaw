@@ -133,3 +133,42 @@ export async function restartLocalServer(): Promise<void> {
     const { invoke } = await import('@tauri-apps/api/core')
     await invoke('server_restart')
 }
+
+/**
+ * 切换网关模式并落盘（设置弹窗与侧栏快捷按钮共用）。
+ * - local：写 gatewayMode，内置服务端就绪时同步托管地址到 apiBaseUrl/token
+ * - remote：写 gatewayMode 与 remote* 字段，并把连接信息写入 apiBaseUrl/token
+ *   （remote 参数缺省时沿用已保存的远程配置，供快捷切换场景使用）
+ * 完成后整页 reload（file: 协议除外），与原设置弹窗行为一致。
+ */
+export function applyGatewayMode(
+    mode: 'local' | 'remote',
+    remote?: { url: string, token: string },
+) {
+    const settings = useUiSettingsStore()
+    if (mode === 'local') {
+        // 切本地时若内置服务端已有地址，立即写入 apiBaseUrl/token：
+        // 否则 reload 后 App 启动抢跑的数据加载会先用旧远程值拉数据，
+        // 出现"刷新后仍显示远程数据、需再手动刷新"的问题
+        settings.save({
+            gatewayMode: 'local',
+            ...(localServer.url && localServer.token ? {
+                apiBaseUrl: localServer.url,
+                token: localServer.token,
+            } : {}),
+        })
+    } else {
+        const url = (remote?.url ?? settings.remoteApiBaseUrl).trim()
+        const token = remote?.token ?? settings.remoteToken
+        settings.save({
+            gatewayMode: 'remote',
+            remoteApiBaseUrl: url,
+            remoteToken: token,
+            apiBaseUrl: url,
+            token,
+        })
+    }
+    if (window.location.protocol !== 'file:') {
+        window.location.reload()
+    }
+}

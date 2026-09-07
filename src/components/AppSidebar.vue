@@ -12,6 +12,8 @@ import {
     ArchiveBoxIcon,
     HashtagIcon,
     FolderOpenIcon,
+    ServerStackIcon,
+    CloudIcon,
 } from '@heroicons/vue/24/outline'
 import { FolderIcon } from '@heroicons/vue/24/solid'
 import { SIDEBAR_ITEMS } from '../config/navigation'
@@ -20,6 +22,8 @@ import SessionInfoModal from './chat/SessionInfoModal.vue'
 
 import { useConfirm } from '../composables/useConfirm'
 import { NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
+import { localServer, effectiveGatewayMode, applyGatewayMode } from '../composables/local-server'
+import { useToast } from '../composables/useToast'
 
 
 import { SessionRow, useSessionsState } from '../composables/useSessionsState'
@@ -107,8 +111,30 @@ const infoLoading = ref(false)
 const infoSession = ref<SessionRow | null>(null)
 const { t } = useI18n()
 const configStore = useUiSettingsStore()
+const toast = useToast()
 
 const isCollapsed = computed(() => configStore.isSidebarCollapsed)
+
+// ---------- 网关模式快捷切换（仅打包了内置服务端的构建显示） ----------
+const isLocalMode = computed(() => effectiveGatewayMode() === 'local')
+
+const gatewayToggleTitle = computed(() =>
+    isLocalMode.value ? t('sidebar.gatewayTipLocal') : t('sidebar.gatewayTipRemote'))
+
+const toggleGatewayMode = () => {
+    const target = isLocalMode.value ? 'remote' : 'local'
+    // 守卫：目标模式不可用时提示且不切换（避免 reload 后进入未配置/连不上的状态）；
+    // failed 时即使残留 url/token 也不放行，否则 reload 后直接落到启动失败页
+    if (target === 'local' && (localServer.state === 'failed' || !localServer.url || !localServer.token)) {
+        toast.warning(t('sidebar.localServerNotReady'))
+        return
+    }
+    if (target === 'remote' && !configStore.remoteApiBaseUrl.trim()) {
+        toast.warning(t('sidebar.remoteNotConfigured'))
+        return
+    }
+    applyGatewayMode(target)
+}
 
 const toggleCollapsed = () => {
     configStore.toggleSidebarCollapsed()
@@ -465,6 +491,18 @@ const handleNavClick = (item: any) => {
                     :class="isCollapsed && 'lg:hidden'">
                     <ArrowTopRightOnSquareIcon class="h-5 w-5" />
                 </a>
+                <!-- 网关模式快捷切换：仅打包了内置服务端的客户端显示，图标随当前模式变化 -->
+                <button v-if="localServer.bundled" @click="toggleGatewayMode" :title="gatewayToggleTitle"
+                    :aria-label="gatewayToggleTitle"
+                    class="btn btn-ghost btn-circle btn-sm hover:bg-base-300 relative"
+                    :class="isCollapsed && 'lg:hidden'">
+                    <ServerStackIcon v-if="isLocalMode" class="h-5 w-5 text-primary" />
+                    <CloudIcon v-else class="h-5 w-5" />
+                    <!-- 本地服务运行中：右上角绿点 -->
+                    <span v-if="isLocalMode && localServer.state === 'running'"
+                        class="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-success"
+                        aria-hidden="true"></span>
+                </button>
                 <button @click="router.push('/settings')" class="btn btn-ghost btn-circle btn-sm hover:bg-base-300"
                     :class="isCollapsed && 'lg:hidden'">
                     <Cog6ToothIcon class="h-5 w-5" />

@@ -27,7 +27,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import ViewHeader from '@/components/ViewHeader.vue'
 import { useConfirm } from '../composables/useConfirm'
-import { localServer, effectiveGatewayMode, restartLocalServer } from '../composables/local-server'
+import { localServer, effectiveGatewayMode, restartLocalServer, applyGatewayMode } from '../composables/local-server'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -111,29 +111,10 @@ const onTtsEngineChange = (event: Event) => {
 
 const saveConnection = () => {
     const mode = editForm.value.gatewayMode
-    if (mode === 'local') {
-        // 切本地时若内置服务端已有地址，立即写入 apiBaseUrl/token：
-        // 否则 reload 后 App 启动抢跑的数据加载会先用旧远程值拉数据，
-        // 出现"刷新后仍显示远程数据、需再手动刷新"的问题
-        configStore.save({
-            gatewayMode: 'local',
-            ...(localServer.url && localServer.token ? {
-                apiBaseUrl: localServer.url,
-                token: localServer.token,
-            } : {}),
-        })
-    } else {
-        configStore.save({
-            gatewayMode: 'remote',
-            remoteApiBaseUrl: editForm.value.apiBaseUrl.trim(),
-            remoteToken: editForm.value.token,
-            apiBaseUrl: editForm.value.apiBaseUrl.trim(),
-            token: editForm.value.token,
-        })
-    }
-    if (window.location.protocol !== 'file:') {
-        window.location.reload()
-    }
+    // 落盘与 reload 逻辑在 local-server.applyGatewayMode（与侧栏快捷切换按钮共用）
+    applyGatewayMode(mode, mode === 'remote'
+        ? { url: editForm.value.apiBaseUrl.trim(), token: editForm.value.token }
+        : undefined)
 }
 
 const localStateText = () => {
