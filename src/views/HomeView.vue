@@ -800,11 +800,17 @@ async function applyDefaultSessionBehavior() {
                         <div class="welcome-blob welcome-blob-b"></div>
                         <div class="welcome-blob welcome-blob-c"></div>
                     </div>
-                    <div class="relative w-full max-w-2xl sm:max-w-3xl lg:max-w-4xl flex flex-col">
-                        <h1 class="welcome-title text-3xl font-bold text-center mt-[25%]">{{ $t(greetingKey) }}</h1>
+                    <!-- 内层撑满高度（flex-1）：让下面的空隙按“高度”参与布局，
+                         输入框才能像会话页那样锚定底边、向上扩展（见两处空隙注释） -->
+                    <div class="relative w-full max-w-2xl sm:max-w-3xl lg:max-w-4xl flex-1 flex flex-col">
+                        <h1 class="welcome-title text-3xl font-bold text-center mt-[20%]">{{ $t(greetingKey) }}</h1>
 
-                        <!-- 输入框距上方问候语的间距：移动端(百分比随屏宽缩小)加大，sm(平板/PC)保持原 25% -->
-                        <ChatInput ref="chatInputRef" centered class="welcome-fade welcome-delay mt-[40%] sm:mt-[25%]" :is-busy="isBusy"
+                        <!-- 弹性空隙：输入框长高时收缩这里，使输入框底边不动、向上扩展，
+                             与会话页底栏输入框行为一致；移动端键盘(resizes-content)弹出时
+                             整个 flex 链变矮，输入框随之上浮，不会被键盘盖住 -->
+                        <div class="flex-1 min-h-4" aria-hidden="true"></div>
+
+                        <ChatInput ref="chatInputRef" centered class="welcome-fade welcome-delay" :is-busy="isBusy"
                             :disabled="false" @send="handleSend">
                             <template #top>
                                 <details ref="welcomeAgentDropdownRef" class="dropdown px-2 pt-1.5">
@@ -835,6 +841,11 @@ async function applyDefaultSessionBehavior() {
                                 </details>
                             </template>
                         </ChatInput>
+
+                        <!-- 底部固定空隙（约屏高 1/3）：锚定输入框底边的视觉位置。
+                             必须是固定值而非 flex：只有它不随输入框长高而变化，
+                             增高才会全部向上释放；百分比基于高度，键盘弹出视口变矮时随之收缩 -->
+                        <div class="h-[40%] sm:h-[45%]" aria-hidden="true"></div>
                     </div>
                 </div>
 
