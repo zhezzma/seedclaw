@@ -5,6 +5,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+  # seedagent 仓库（GitHub 镜像）有推送时由其 trigger-seedclaw.yml 发出 dispatch，
+  # 内置服务端腿 checkout 的 zhezzma/seedagent@main 此时已是新代码；
+  # client_payload.sha 为 seedagent 的 main SHA（notes 中与 github.sha 区分）
+  repository_dispatch:
+    types: [seedagent-updated]
 
 concurrency:
   group: seedagent-build-latest
@@ -30,7 +35,7 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target ${{ github.sha }} \
             --title "SeedClaw Seedagent Latest Build" \
-            --notes "Automated latest build for seedagent at ${{ github.sha }}" \
+            --notes "Automated latest build for seedagent at ${{ github.event.client_payload.sha || github.sha }}" \
             --prerelease
 
   publish-web:
@@ -162,7 +167,7 @@ jobs:
         with:
           tagName: seedagent-build-latest
           releaseName: "SeedClaw Seedagent Latest Build"
-          releaseBody: "Automated latest desktop build for seedagent at ${{ github.sha }}"
+          releaseBody: "Automated latest desktop build for seedagent at ${{ github.event.client_payload.sha || github.sha }}"
           releaseDraft: false
           prerelease: true
           # 含 server 版叠加 productName/identifier 补丁，安装包名与无 server 版区分
