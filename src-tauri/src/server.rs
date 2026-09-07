@@ -388,12 +388,18 @@ fn spawn_child(
         .create(true).write(true).truncate(true)
         .open(logs.join("desktop-stderr.log"))?;
     let mut cmd = std::process::Command::new(server_dir.join(node_binary_name()));
-    cmd.arg("dist/index.js")
+    cmd.arg("seedserver.mjs")
         .current_dir(server_dir)
         .env("PORT", port.to_string())
         .env("BEARER_TOKEN", token)
         .env("DATA_DIR", home)
         .env("NODE_ENV", "production")
+        // 单文件 bundle 部署：显式指定代码根，供服务端定位 .env 与资源
+        // （见 seedagent src/config/paths.ts / env-loader.ts）
+        .env("SEEDAGENT_CODE_ROOT", server_dir.join("dist"))
+        // pi 工具（fd/rg）下载目录 = DATA_DIR/bin。bundle 内模块初始化顺序
+        // （compat 先于 config）可能导致进程内赋值太晚，这里直接在 spawn 前注入兜底
+        .env("PI_CODING_AGENT_DIR", home)
         .stdout(std::process::Stdio::from(stdout))
         .stderr(std::process::Stdio::from(stderr));
     #[cfg(target_os = "windows")]
