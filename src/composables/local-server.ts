@@ -5,6 +5,7 @@
  */
 import { reactive } from 'vue'
 import { useUiSettingsStore } from '../stores/setting'
+import { gatewaySwitchTargetUrl } from '../utils/route-helpers'
 import { isTauri } from './notify-server-connection'
 
 export interface ServerStatus {
@@ -140,6 +141,10 @@ export async function restartLocalServer(): Promise<void> {
  * - remote：写 gatewayMode 与 remote* 字段，并把连接信息写入 apiBaseUrl/token
  *   （remote 参数缺省时沿用已保存的远程配置，供快捷切换场景使用）
  * 完成后整页 reload（file: 协议除外），与原设置弹窗行为一致。
+ * reload 前若路由停在 /chat/<sessionKey>，先改写到 /new：两侧会话互不相通，
+ * 保留旧 key 会让 reload 后的路由指向对端不存在的会话。
+ * file: 协议分支不 reload 也不改写：保持 URL 与路由状态一致（该分支在
+ * Tauri v2 实际不可达，属遗留防御，勿单独给 file: 加 replaceState）。
  */
 export function applyGatewayMode(
     mode: 'local' | 'remote',
@@ -169,6 +174,16 @@ export function applyGatewayMode(
         })
     }
     if (window.location.protocol !== 'file:') {
+        const targetUrl = gatewaySwitchTargetUrl(window.location.pathname)
+        if (targetUrl) {
+            // 同步改写地址后立即 reload：vue-router 状态不需要（也来不及）同步；
+            // try 防御极端 webview 抛异常，确保后面的 reload 仍能执行
+            try {
+                history.replaceState(null, '', targetUrl)
+            } catch {
+                // 忽略：最坏情况是 reload 后仍停在旧 /chat/<key>
+            }
+        }
         window.location.reload()
     }
 }
