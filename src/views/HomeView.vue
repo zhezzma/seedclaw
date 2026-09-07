@@ -39,6 +39,7 @@ import { useWorkspaceViewer } from '../composables/useWorkspaceViewer'
 import { truncateText } from '../utils/format'
 import { collectSessionImageSources } from '../utils/session-image-gallery'
 import { buildBranchIndexes, findLeafId as findBranchLeafId, getBranchInfo as resolveBranchInfo } from '../utils/chatBranchNavigation'
+import { isCommandInvocation } from '../utils/command-invocation'
 
 const route = useRoute()
 const router = useRouter()
@@ -51,7 +52,7 @@ const { setSessionKeyResolver } = useChatInput()
 setSessionKeyResolver(() => chatState.sessionKey)
 const sessionsState = useSessionsState()
 const agentsState = useAgentsState()
-const { loadCommands, setCurrentAgent } = useCommandState()
+const { loadCommands, setCurrentAgent, allCommands, isLoaded } = useCommandState()
 
 const wsPanel = useWorkspacePanel()
 const wsViewer = useWorkspaceViewer()
@@ -415,9 +416,14 @@ const handleSend = async () => {
     // Send message with explicit sessionKey (+ 新会话页暂存的模型/思考覆盖)
     await chatState.sendMessage(inputText, [...imageAttachments], targetSessionKey, chatOverrides)
 
-    // 自动命名策略：仅当消息非空、不是 / 或 ! 开头的命令、且 session 还没有 name 时触发
+    // 自动命名策略：仅当消息非空、不会被后端当作命令、且 session 还没有 name 时触发。
+    // 后端只拦截已知命令，未知的 /xxx（如路径开头）会作为普通消息发给模型，
+    // 故按命令表精确匹配首 token；命令表未加载时保守回退为 startsWith 判断
     const trimmedUserText = originalUserText.trimStart()
-    const isCommand = trimmedUserText.startsWith('/') || trimmedUserText.startsWith('!')
+    const isCommand = isCommandInvocation(
+        trimmedUserText,
+        isLoaded.value ? allCommands.value.map(cmd => cmd.name) : null
+    )
     const currentSession = targetSessionKey ? sessionsState.findSessionLocal(targetSessionKey) : undefined
     if (targetSessionKey && originalUserText && !isCommand && !currentSession?.name) {
         sessionsState
