@@ -3,8 +3,9 @@
  * 新增面板类型：在此注册并在 i18n 补充文案；未知类型回退 PuzzlePieceIcon + 弹层内提示。
  */
 import type { Component } from 'vue'
-import { PuzzlePieceIcon, QrCodeIcon } from '@heroicons/vue/24/outline'
+import { PuzzlePieceIcon, QrCodeIcon, SignalIcon } from '@heroicons/vue/24/outline'
 import QrLoginPanel from './panels/QrLoginPanel.vue'
+import TunnelPanel from './panels/TunnelPanel.vue'
 
 export interface ExtensionPanelEntry {
     component: Component
@@ -15,6 +16,7 @@ export interface ExtensionPanelEntry {
 
 const panelRegistry: Record<string, ExtensionPanelEntry> = {
     'qr-login': { component: QrLoginPanel, icon: QrCodeIcon, labelKey: 'extensions.qrLogin.label' },
+    'tunnel': { component: TunnelPanel, icon: SignalIcon, labelKey: 'extensions.tunnel.label' },
 }
 
 /** 按 panelType 查注册表；未知类型返回 undefined（弹层内显示提示文案）。 */

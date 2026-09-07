@@ -55,7 +55,7 @@ $staging = Join-Path $root 'src-tauri\resources\seedagent'
 $cache = Join-Path $PSScriptRoot '.cache'
 
 function Assert-Staging([string]$Dir) {
-    foreach ($p in @('node.exe', 'seedserver.mjs', 'dist\extensions', 'node_modules')) {
+    foreach ($p in @('node.exe', 'seedserver.mjs', 'dist\extensions', 'node_modules', 'web\index.html')) {
         if (-not (Test-Path (Join-Path $Dir $p))) { throw "staging incomplete at ${Dir}: missing $p" }
     }
 }
@@ -146,6 +146,16 @@ else {
     Write-Host "==> building desktop bundle (build-desktop.mjs)"
     node (Join-Path $SeedagentDir 'scripts\build-desktop.mjs') $staging
     if ($LASTEXITCODE -ne 0) { throw "build-desktop failed" }
+
+    # ③.6 构建前端 SPA → staging web\（移动端隧道同源托管：seedserver 直接服务前端）
+    #     只跑 vite build（tauri build ④ 的 beforeBuildCommand 会另行全量构建 dist\，
+    #     两次构建同源同版本产物一致）；assetsDir=static 避开服务端 /assets 图片端点
+    Write-Host "==> vite build -> staging web\ (tunnel mobile UI)"
+    Push-Location $root
+    try {
+        npx vite build --outDir src-tauri\resources\seedagent\web --emptyOutDir
+        if ($LASTEXITCODE -ne 0) { throw "vite build (web/) failed" }
+    } finally { Pop-Location }
 
     # ③ 校验装配结果
     Assert-Staging $staging

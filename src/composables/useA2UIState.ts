@@ -191,6 +191,11 @@ export function executeFunctionCall(fn: FunctionCall, dataModel: Record<string, 
     case 'not': {
       return !resolveDynamicBoolean(args.value, dataModel)
     }
+    case 'equals': {
+      // 值相等比较（宽松 ==："18799" == 18799）；供 visible 条件等场景使用
+      // eslint-disable-next-line eqeqeq
+      return resolveArg(args.value) == resolveArg(args.other)
+    }
     case 'formatString': {
       const template = String(resolveArg(args.value) || '')
       return template.replace(/\$\{([^}]+)\}/g, (match, expr) => {
@@ -289,19 +294,37 @@ export function getWritePath(value: any): string | null {
 // ==================== 子组件解析 ====================
 
 /** 解析 ChildList 为组件 ID 数组 */
+/** 解析组件的 visible 条件（DynamicBoolean 或 {path, equals} 值比较）；缺省可见 */
+function resolveVisibility(comp: A2UIComponent | undefined, dataModel: Record<string, any>): boolean {
+  if (!comp || comp.visible === undefined || comp.visible === null) return true
+  const v = comp.visible
+  if (typeof v === 'boolean') return v
+  // {path, equals}：值比较简写（ChoicePicker 等单选数组取首元素的场景）
+  if (v != null && typeof v === 'object' && 'equals' in v) {
+    let actual = getByPath(dataModel, v.path)
+    if (Array.isArray(actual)) actual = actual[0]
+    // eslint-disable-next-line eqeqeq
+    return actual == v.equals
+  }
+  return resolveDynamicBoolean(v, dataModel)
+}
+
 export function resolveChildList(
   children: ChildList | undefined,
   dataModel: Record<string, any>,
   allComponents: Map<string, A2UIComponent>
 ): string[] {
   if (!children) return []
-  if (Array.isArray(children)) return children
-  // 动态模板：根据 data path 生成子组件
-  const { componentId, path } = children
-  const items = getByPath(dataModel, path)
-  if (!Array.isArray(items)) return []
-  // 返回动态生成的组件 ID（基于模板 ID + 索引）
-  return items.map((_: any, i: number) => `${componentId}__${i}`)
+  const base: string[] = Array.isArray(children) ? children : (() => {
+    // 动态模板：根据 data path 生成子组件
+    const { componentId, path } = children
+    const items = getByPath(dataModel, path)
+    if (!Array.isArray(items)) return []
+    // 返回动态生成的组件 ID（基于模板 ID + 索引）
+    return items.map((_: any, i: number) => `${componentId}__${i}`)
+  })()
+  // visible 条件过滤：不满足的子组件不渲染（各容器组件统一走这里）
+  return base.filter((id) => resolveVisibility(allComponents.get(id), dataModel))
 }
 
 // ==================== Action 执行 ====================

@@ -25,6 +25,12 @@ export default defineConfig(async () => ({
   },
   build: {
     chunkSizeWarningLimit: 1000,
+    // 哈希产物目录用 /static（vite 默认是 /assets）：seedagent 服务端有公开图片端点
+    // GET /assets/<path>（图片白名单，非图片一律 415）。移动端隧道场景下服务端会
+    // 同源托管本前端（web/ 目录），若产物也叫 /assets/*.js，加载时会被该端点拦截
+    // （非图片 → 415）→ 白屏。改叫 /static 与之错开；index.html 的引用路径由构建
+    // 时自动生成，改名无需手动同步（安卓/纯客户端打包同样自洽）。
+    assetsDir: 'static',
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
