@@ -48,7 +48,7 @@ const settingsStore = useUiSettingsStore()
 
 
 const chatState = useChatState()
-const { setSessionKeyResolver } = useChatInput()
+const { setSessionKeyResolver, restoreSessionDraft } = useChatInput()
 setSessionKeyResolver(() => chatState.sessionKey)
 const sessionsState = useSessionsState()
 const agentsState = useAgentsState()
@@ -727,6 +727,8 @@ watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath
             await loadCommands(defaultAgentId)
         }
         await chatState.createNewSession()
+        // 恢复 /new 页遗留的输入草稿
+        restoreSessionDraft()
         return
     }
 
@@ -739,6 +741,8 @@ watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath
             return
         }
         await chatState.setSessionKey(sessionkey)
+        // 恢复该会话的输入草稿
+        restoreSessionDraft()
         setCurrentAgent(chatState.agentsSelectedId || undefined)
         await loadCommands(chatState.agentsSelectedId || undefined)
         return

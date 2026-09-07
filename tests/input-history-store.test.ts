@@ -108,3 +108,76 @@ test('deduplicates consecutive entries and enforces max length per session', asy
     assert.equal(history[0], 'cmd-5')
     assert.equal(history[99], 'cmd-104')
 })
+
+test('persists per-session input draft into localStorage', async () => {
+    const store = await createStore()
+
+    store.setDraft('session-a', 'draft text')
+
+    assert.equal(store.getDraft('session-a'), 'draft text')
+    assert.equal(
+        storage.getItem('seedclaw_input_drafts'),
+        JSON.stringify({ 'session-a': 'draft text' }),
+    )
+})
+
+test('draft survives store reload from localStorage', async () => {
+    storage.setItem('seedclaw_input_drafts', JSON.stringify({
+        'session-a': 'draft text',
+        'session-b': 'other',
+    }))
+
+    const store = await createStore()
+
+    assert.equal(store.getDraft('session-a'), 'draft text')
+    assert.equal(store.getDraft('session-c'), '')
+})
+
+test('empty draft text removes the stored entry', async () => {
+    const store = await createStore()
+
+    store.setDraft('session-a', 'draft text')
+    store.setDraft('session-a', '')
+
+    assert.equal(store.getDraft('session-a'), '')
+    assert.equal(storage.getItem('seedclaw_input_drafts'), null)
+})
+
+test('removes stored draft when a session is deleted locally', async () => {
+    const store = await createStore()
+
+    store.setDraft('session-a', 'draft-a')
+    store.setDraft('session-b', 'draft-b')
+    store.removeSessionHistory('session-a')
+
+    assert.equal(store.getDraft('session-a'), '')
+    assert.equal(store.getDraft('session-b'), 'draft-b')
+})
+
+test('removes draft for sessions that never had history', async () => {
+    const store = await createStore()
+
+    store.setDraft('session-a', 'draft-a')
+    store.removeSessionHistory('session-a')
+
+    assert.equal(store.getDraft('session-a'), '')
+    assert.equal(storage.getItem('seedclaw_input_drafts'), null)
+})
+
+test('enforces max draft length', async () => {
+    const store = await createStore()
+
+    store.setDraft('session-a', 'x'.repeat(30000))
+
+    assert.equal(store.getDraft('session-a').length, 20000)
+})
+
+test('clearAll clears drafts as well', async () => {
+    const store = await createStore()
+
+    store.setDraft('session-a', 'draft-a')
+    store.clearAll()
+
+    assert.equal(store.getDraft('session-a'), '')
+    assert.equal(storage.getItem('seedclaw_input_drafts'), null)
+})
