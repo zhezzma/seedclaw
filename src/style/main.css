@@ -115,13 +115,19 @@
     opacity: 0.55;
 }
 
-.welcome-shimmer {
+/* 问候语：流光渐变文字 + 上浮入场叠加。
+   animation 是单属性，两个动画必须逗号合并声明在一个类里；
+   原 .welcome-shimmer/.welcome-rise 两个简写同挂会互相覆盖（后者胜），流光从未真正跑过 */
+.welcome-title {
     background-image: linear-gradient(100deg, var(--color-primary), var(--color-secondary), var(--color-accent), var(--color-primary));
     background-size: 200% auto;
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;
-    animation: welcome-shimmer 8s linear infinite;
+    opacity: 0;
+    animation:
+        welcome-shimmer 8s linear infinite,
+        welcome-rise 0.6s ease-out forwards;
 }
 
 .welcome-rise {
@@ -135,16 +141,17 @@
 
 @media (prefers-reduced-motion: reduce) {
     .welcome-blob,
-    .welcome-shimmer,
-    .welcome-rise {
+    .welcome-rise,
+    .welcome-title {
         animation: none;
     }
 
-    .welcome-shimmer {
+    .welcome-title {
         background-position: 0% center;
     }
 
-    .welcome-rise {
+    .welcome-rise,
+    .welcome-title {
         opacity: 1;
     }
 }
