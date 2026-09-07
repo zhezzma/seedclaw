@@ -803,7 +803,8 @@ async function applyDefaultSessionBehavior() {
                     <div class="relative w-full max-w-2xl sm:max-w-3xl lg:max-w-4xl flex flex-col">
                         <h1 class="welcome-shimmer welcome-rise text-3xl font-bold text-center mt-[25%]">{{ $t(greetingKey) }}</h1>
 
-                        <ChatInput ref="chatInputRef" centered class="welcome-rise welcome-rise-delay mt-[25%]" :is-busy="isBusy"
+                        <!-- 输入框距上方问候语的间距：移动端(百分比随屏宽缩小)加大，sm(平板/PC)保持原 25% -->
+                        <ChatInput ref="chatInputRef" centered class="welcome-rise welcome-rise-delay mt-[40%] sm:mt-[25%]" :is-busy="isBusy"
                             :disabled="false" @send="handleSend">
                             <template #top>
                                 <details ref="welcomeAgentDropdownRef" class="dropdown px-2 pt-1.5">
