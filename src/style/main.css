@@ -46,17 +46,40 @@
     }
 }
 
+/* 仅供 .welcome-title（h1）使用：它没有 fixed 后代，transform 上浮无副作用。
+   禁止把含 transform 的动画挂到 ChatInput 卡片上——原因见 .welcome-fade 注释 */
 @keyframes welcome-rise {
     from {
         opacity: 0;
         transform: translateY(14px);
     }
-    /* to 帧不能声明 transform：forwards 会永久保留 translateY(0)，
-       非 none 的 transform 会创建 stacking context 并成为 fixed 后代的包含块，
-       导致新会话页模型下拉(fixed bottom-24)被欢迎区 overflow-y-auto 在导航栏下沿裁切 */
     to {
         opacity: 1;
     }
+}
+
+/* 输入卡片入场只能用 opacity 淡入：含 transform 的动画在 fill:forwards 下永不卸载，
+   Chromium 按 will-change:transform 处理 → 卡片永久成为 fixed 后代的包含块，
+   模型下拉(fixed bottom-24)被锚到卡片底而非视口底，并在欢迎区 overflow-y-auto
+   顶边(导航栏下沿)被裁切。仅删 to 帧的 transform 残值不够（f0a20c8 教训），
+   必须完全不碰 transform。opacity 动画只产生 stacking context，不影响 fixed 定位基准 */
+.welcome-fade {
+    opacity: 0;
+    animation: welcome-fade 0.6s ease-out forwards;
+}
+
+@keyframes welcome-fade {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.welcome-delay {
+    animation-delay: 0.12s;
 }
 
 .welcome-aurora {
@@ -130,18 +153,9 @@
         welcome-rise 0.6s ease-out forwards;
 }
 
-.welcome-rise {
-    opacity: 0;
-    animation: welcome-rise 0.6s ease-out forwards;
-}
-
-.welcome-rise-delay {
-    animation-delay: 0.12s;
-}
-
 @media (prefers-reduced-motion: reduce) {
     .welcome-blob,
-    .welcome-rise,
+    .welcome-fade,
     .welcome-title {
         animation: none;
     }
@@ -150,7 +164,7 @@
         background-position: 0% center;
     }
 
-    .welcome-rise,
+    .welcome-fade,
     .welcome-title {
         opacity: 1;
     }

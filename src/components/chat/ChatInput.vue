@@ -404,7 +404,8 @@ defineExpose({
             </div>
 
 
-            <textarea ref="textareaRef" v-model="inputText" rows="1" :placeholder="$t('chat.inputPlaceholder')"
+            <textarea ref="textareaRef" v-model="inputText" rows="1"
+                :placeholder="centered ? $t('chat.inputPlaceholderHome') : $t('chat.inputPlaceholder')"
                 class="textarea textarea-ghost w-full resize-none focus:outline-none focus:bg-transparent text-base min-h-[44px] max-h-[200px] px-3 py-3 leading-6 placeholder:text-base-content/40 hide-scrollbar"
                 @keydown="handleInputKeydown" @focus="handleInputFocus" @input="adjustHeight" @paste="handlePaste"
                 :disabled="disabled"></textarea>

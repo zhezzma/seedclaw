@@ -561,6 +561,8 @@ export default {
         editUpdate: 'Update',
         waitMessage: 'Please wait for the current message to finish sending',
         inputPlaceholder: "Type a message or '/' to select a command",
+        // 新会话欢迎页专用：不支持 / 命令，文案换成更有邀请感的开场
+        inputPlaceholderHome: "Tell me your idea and I'll build it",
         uploadAttachment: 'Upload Attachment',
         connected: 'Connected',
         disconnected: 'Disconnected',

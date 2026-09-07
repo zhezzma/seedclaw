@@ -561,6 +561,8 @@ export default {
         editUpdate: '更新',
         waitMessage: '请等待当前消息发送完成',
         inputPlaceholder: "发消息或输入'/'选择命令",
+        // 新会话欢迎页专用：不支持 / 命令，文案换成更有邀请感的开场
+        inputPlaceholderHome: '说说你的想法，我来实现',
         uploadAttachment: '上传附件',
         connected: '已连接',
         disconnected: '未连接',
