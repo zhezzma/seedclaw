@@ -51,9 +51,11 @@
         opacity: 0;
         transform: translateY(14px);
     }
+    /* to 帧不能声明 transform：forwards 会永久保留 translateY(0)，
+       非 none 的 transform 会创建 stacking context 并成为 fixed 后代的包含块，
+       导致新会话页模型下拉(fixed bottom-24)被欢迎区 overflow-y-auto 在导航栏下沿裁切 */
     to {
         opacity: 1;
-        transform: translateY(0);
     }
 }
 
