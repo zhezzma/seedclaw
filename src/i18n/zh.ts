@@ -565,7 +565,7 @@ export default {
             hint: '将随当前回复自动发送',
             followBadge: '排队中',
             steerBadge: '插入中',
-            removeHint: '仅从列表移除，不影响已提交给服务端的消息',
+            removeHint: '从服务端队列移除，该消息将不再发送',
         },
         inputPlaceholder: "发消息或输入'/'选择命令",
         // 新会话欢迎页专用：不支持 / 命令，文案换成更有邀请感的开场

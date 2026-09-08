@@ -2,7 +2,7 @@ import { reactive, computed, type ComputedRef } from 'vue'
 
 import { SessionRow, useSessionsState } from './useSessionsState'
 import { useUiSettingsStore } from '../stores/setting'
-import { apiGet, apiPost } from './api-client'
+import { apiGet, apiPost, apiDelete } from './api-client'
 import { startChatSSE, attachSessionSSE, startRetrySSE, startEditSSE, type ChatPromptBody, type SSEConnection } from './sse-client'
 import { AgentInfo, useAgentsState } from './useAgentsState'
 import { applyAttachMessageState, getLastMessageEntryId, shouldAttachSession } from '../utils/chat-attach'
@@ -11,13 +11,16 @@ import { type KnownApi } from './useModelsState'
 import { useToast } from './useToast'
 import { clearAllSurfaces } from './useA2UISurfaces'
 import { createRuntimeId } from '../utils/runtime-id.ts'
+import { onServerMessage } from './notify-server-connection'
 import {
+    applyQueueSnapshot,
     consumeQueueHead,
+    consumeRemovedEcho,
     extractUserText,
-    pendingQueueStore,
-    reconcileQueue,
     type PendingItem,
     type PendingSendMode,
+    type RemovedEcho,
+    type ServerQueueEntry,
 } from '../utils/pending-queue'
 import router from '../router'
 
@@ -64,8 +67,12 @@ export interface SessionUsage {
 export interface ChatSessionData {
     chatMessages: ChatMessage[]
     chatToolMessages: ChatMessage[]
-    /** busy 期间 steer/follow-up 的本地排队队列（localStorage 持久化，刷新后恢复） */
+    /** busy 期间 steer/follow-up 的排队队列（服务端权威，快照整体替换） */
     pendingQueue: PendingItem[]
+    /** 队列快照版本号：applyQueueSnapshot 乱序防护门禁 */
+    queueRev?: number
+    /** 近期被快照移除的条目（WS 快照先于 SSE 回显时补齐正式气泡的比对缓存） */
+    queueRemovedEchoes?: RemovedEcho[]
     // Branch navigation uses a flat entry list, not a nested tree payload.
     sessionTree: SessionTreeEntry[] | null
     sessionLeafId: string | null
@@ -134,8 +141,7 @@ function attachToSessionIfNeeded(targetKey: string) {
             if (event.event === 'message_state') {
                 const currentSessionData = getSessionData(targetKey)
                 applyAttachMessageState(currentSessionData, event.data || {})
-                // attach 快照携带全量消息：与本地排队队列比对，已落盘条目出队
-                reconcilePendingQueue(targetKey)
+                // attach 快照携带服务端权威排队队列：刷新/切会话后与消息同帧恢复
 
                 if (event.data?.isStreaming) {
                     currentSessionData.chatRunId = currentSessionData.chatRunId || generateUUID()
@@ -159,7 +165,7 @@ function getSessionData(key: string): ChatSessionData {
         data = reactive<ChatSessionData>({
             chatMessages: [],
             chatToolMessages: [],
-            pendingQueue: pendingQueueStore.get(key),
+            pendingQueue: [],
             sessionTree: null,
             sessionLeafId: null,
             chatStream: null,
@@ -175,29 +181,19 @@ function getSessionData(key: string): ChatSessionData {
 }
 
 // ==================== Pending Queue（busy 期间 steer/follow-up 排队可视化） ====================
+// 服务端权威：本地只维护内存视图，三个同步通道（attach 快照 / WS queue_state 广播 /
+// DELETE 响应）到达即整体替换；回显命中仅做无 RTT 的即时出队，随后快照权威修正。
 
-/** 队列变更后统一落盘（空数组自动清除对应 session 键） */
-function persistPendingQueue(targetKey: string, items: PendingItem[]) {
-    pendingQueueStore.set(targetKey, items)
-}
-
-/** 入队 + 落盘（steer/follow API 成功后调用；消息回显命中或 reconcile 时出队） */
-function enqueuePendingItem(targetKey: string, text: string, mode: PendingSendMode) {
+/** 入队（steer/follow API 成功后调用；id 为服务端账本签发的 entryId）。
+ *  按 id 去重：服务端 registerQueued 的 WS 快照可能先于 HTTP 响应到达（跨连接无顺序
+ *  保证），快照已含本条目时跳过 append，避免同一气泡出现两次。
+ *  queueRev 门禁：本地已应用「比登记更新」的快照（消息入队后立即被 drain/删除），
+ *  append 会复活已消费条目的幻影气泡，直接跳过（后续无快照修正它，不能加）。 */
+function enqueuePendingItem(targetKey: string, id: string, text: string, mode: PendingSendMode, queueRev?: number) {
     const sd = getSessionData(targetKey)
-    const entry: PendingItem = { id: createRuntimeId('pending'), text, mode, timestamp: Date.now() }
-    sd.pendingQueue = [...sd.pendingQueue, entry]
-    persistPendingQueue(targetKey, sd.pendingQueue)
-}
-
-/** 全量消息比对：删除已 drain 落盘的条目（done 刷新 / loadChatHistory / attach 后调用） */
-function reconcilePendingQueue(targetKey: string) {
-    const sd = getSessionData(targetKey)
-    if (sd.pendingQueue.length === 0) return
-    const kept = reconcileQueue(sd.pendingQueue, sd.chatMessages)
-    if (kept.length !== sd.pendingQueue.length) {
-        sd.pendingQueue = kept
-        persistPendingQueue(targetKey, kept)
-    }
+    if (sd.pendingQueue.some(entry => entry.id === id)) return
+    if (typeof queueRev === 'number' && typeof sd.queueRev === 'number' && sd.queueRev > queueRev) return
+    sd.pendingQueue = [...sd.pendingQueue, { id, text, mode, timestamp: Date.now() }]
 }
 
 
@@ -395,14 +391,24 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
             const echoMsg = data?.message
             if (echoMsg?.role === 'user') {
                 const echoText = extractUserText(echoMsg.content)
+                // 即时出队（无 RTT）；模板展开改写导致未命中时，由服务端 queue_state 快照权威修正
                 const consumed = echoText ? consumeQueueHead(sessionData.pendingQueue, echoText) : null
                 if (consumed) {
                     sessionData.pendingQueue = consumed.rest
-                    persistPendingQueue(targetKey, consumed.rest)
                     sessionData.chatMessages = [...sessionData.chatMessages, {
                         role: 'user',
                         content: echoMsg.content,
                         timestamp: typeof echoMsg.timestamp === 'number' ? echoMsg.timestamp : consumed.item.timestamp,
+                        id: generateUUID(),
+                    }]
+                } else if (echoText && consumeRemovedEcho(sessionData, echoText)) {
+                    // 服务端 WS 删除快照恒先于本回显到达（账本监听器先注册，广播早于 SSE 转发），
+                    // 条目已被权威快照出队；回显即证明消息已实际投递 → 照常补齐正式气泡，
+                    // 避免长 run 期间消息在聊天区隐身（直到 done 全量刷新才出现）
+                    sessionData.chatMessages = [...sessionData.chatMessages, {
+                        role: 'user',
+                        content: echoMsg.content,
+                        timestamp: typeof echoMsg.timestamp === 'number' ? echoMsg.timestamp : Date.now(),
                         id: generateUUID(),
                     }]
                 }
@@ -615,8 +621,6 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
                 if (result?.messages) {
                     const sd = getSessionData(targetKey)
                     sd.chatMessages = result.messages
-                    // 全量消息比对：已 drain 落盘的排队条目出队（回显未命中的兜底，如模板展开）
-                    reconcilePendingQueue(targetKey)
                     // 服务端已持久化全部 toolResult entry，本地临时条目同步清空
                     //（同 loadChatHistory 规则）：不清会与持久化消息双重参与 1.1 合并，
                     // 幂等但永久残留，且随 sessionsMap 永不驱逐
@@ -642,10 +646,9 @@ const abortChat = async (sessionKey?: string) => {
         const sd = getSessionData(targetKey)
         try {
             const result = await apiPost<{ messages?: ChatMessage[], isStreaming?: boolean }>(`/api/chat/${targetKey}/abort`)
-            // 服务端 /abort 已同步清空 steer/followUp 队列，本地排队视图一并清空
+            // 服务端 /abort 已同步清空 steer/followUp 队列（含账本），本地排队视图一并清空
             if (sd.pendingQueue.length > 0) {
                 sd.pendingQueue = []
-                persistPendingQueue(targetKey, [])
             }
             if (result) {
                 if (result.messages) {
@@ -679,8 +682,7 @@ const loadChatHistory = async (sessionKey?: string) => {
         const sessionId = targetKey
         const result = await apiGet<{ messages: ChatMessage[], isStreaming?: boolean, partialText?: string }>(`/api/chat/${sessionId}/messages`)
         sd.chatMessages = result?.messages || []
-        // 页面刷新/切会话恢复：已 drain 落盘的排队条目出队（localStorage 队列在此刻收敛）
-        reconcilePendingQueue(sessionId)
+        // 页面刷新/切会话恢复：排队队列由紧随其后的 attach 快照（message_state）权威下发
         // 清空本地临时存储的 toolResult 消息，因为历史记录中应该已经包含（或者由 chatMessages 自行管理）
         sd.chatToolMessages = []
 
@@ -768,8 +770,10 @@ const steerMessage = async (message: string, sessionKey?: string): Promise<boole
 
     try {
         // 打断注入：服务端入 steering 队列，当前 run 内被消费；
-        // 落盘回显（message_start role=user）时由本地队列出队转正为正式气泡
-        await apiPost(`/api/chat/${targetKey}/steer`, { text: message })
+        // 入队成功返回服务端账本签发的 entryId（凭它做单条删除/对账）
+        const result = await apiPost<{ id?: string | null; queueRev?: number }>(`/api/chat/${targetKey}/steer`, { text: message })
+        if (!result?.id) return true // 未入队（扩展命令被立即执行）：无排队气泡，消息已生效
+        enqueuePendingItem(targetKey, result.id, message, 'steer', result.queueRev)
     } catch (err: any) {
         console.error('Failed to steer:', err)
         // 404/409 是 api-client 的静默错误码（无全局 toast），此处显式提示；
@@ -780,7 +784,6 @@ const steerMessage = async (message: string, sessionKey?: string): Promise<boole
         return false
     }
 
-    enqueuePendingItem(targetKey, message, 'steer')
     return true
 }
 
@@ -792,8 +795,10 @@ const followMessage = async (message: string, sessionKey?: string): Promise<bool
     }
 
     try {
-        // 控制面：排队到当前 run 结束后再投递；转正信号同 steer（回显 + reconcile 兜底）
-        await apiPost(`/api/chat/${targetKey}/follow-up`, { text: message })
+        // 控制面：排队到当前 run 结束后再投递；转正信号同 steer（回显 + 服务端快照修正）
+        const result = await apiPost<{ id?: string | null; queueRev?: number }>(`/api/chat/${targetKey}/follow-up`, { text: message })
+        if (!result?.id) return true // 未入队（扩展命令被立即执行）：无排队气泡，消息已生效
+        enqueuePendingItem(targetKey, result.id, message, 'follow', result.queueRev)
     } catch (err: any) {
         console.error('Failed to follow-up:', err)
         if ([404, 409].includes(err?.code)) {
@@ -802,19 +807,23 @@ const followMessage = async (message: string, sessionKey?: string): Promise<bool
         return false
     }
 
-    enqueuePendingItem(targetKey, message, 'follow')
     return true
 }
 
-/** 仅从界面移除排队条目（不影响服务端已提交的投递，除陈旧条目外不建议使用） */
-const removePendingItem = (id: string, sessionKey?: string) => {
+/** 删除排队单条：请求服务端从队列移除（真删除，消息不再发送），按响应快照对齐本地 */
+const removePendingItem = async (id: string, sessionKey?: string) => {
     const targetKey = sessionKey || state.sessionKey
     if (!targetKey) return
-    const sd = getSessionData(targetKey)
-    const next = sd.pendingQueue.filter(entry => entry.id !== id)
-    if (next.length === sd.pendingQueue.length) return
-    sd.pendingQueue = next
-    persistPendingQueue(targetKey, next)
+    try {
+        // 无论删除成功与否，响应都携带服务端权威快照（404 = 目标已不存在），照单同步
+        const result = await apiDelete<{ deleted: boolean, queueRev?: number, entries: ServerQueueEntry[] }>(
+            `/api/chat/${targetKey}/queue/${encodeURIComponent(id)}`,
+        )
+        applyQueueSnapshot(getSessionData(targetKey), result?.queueRev, result?.entries)
+    } catch (err) {
+        // 请求失败保持本地不变：服务端快照（WS 广播/attach）稍后会权威收敛
+        console.error('[useChatState] removePendingItem failed:', err)
+    }
 }
 
 
@@ -1086,6 +1095,18 @@ const _methods = {
     isForkingEntry,
 }
 const _chatState = Object.assign(state, _methods) as unknown as typeof state & UnwrapComputed<typeof _methods>
+
+// ==================== 服务端队列快照同步 ====================
+// 服务端 steer/followUp 影子账本任何变更（入队登记 / 回显出账 / 删除 / abort 清账）
+// 都会广播 queue_state 权威快照：多窗口收敛 + 断线重连后的陈旧视图修正。
+// 本地不再持久化队列（无 localStorage），快照经 queueRev 门禁后整体替换。
+onServerMessage((msg: any) => {
+    if (msg?.type !== 'event' || msg?.event !== 'queue_state') return
+    const sessionId = msg.payload?.sessionId
+    const sd = sessionId ? state.sessionsMap.get(sessionId) : undefined
+    if (!sd) return
+    applyQueueSnapshot(sd, msg.payload?.queueRev, msg.payload?.entries)
+})
 
 export function useChatState() {
     return _chatState

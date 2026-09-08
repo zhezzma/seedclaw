@@ -565,7 +565,7 @@ export default {
             hint: 'Sent automatically with the current reply',
             followBadge: 'Queued',
             steerBadge: 'Injecting',
-            removeHint: 'Removes from this list only; delivery to the server is not affected',
+            removeHint: 'Remove from the server queue; the message will not be sent',
         },
         inputPlaceholder: "Type a message or '/' to select a command",
         // 新会话欢迎页专用：不支持 / 命令，文案换成更有邀请感的开场

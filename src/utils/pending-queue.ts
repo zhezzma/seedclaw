@@ -1,32 +1,112 @@
 /**
- * 发送队列（pending queue）客户端模型
+ * 发送队列（pending queue）客户端模型——服务端权威，本地零持久化。
  *
- * busy 期间 steer / follow-up 的文本已在服务端排队，但尚未 drain 落盘。
- * 这里维护一份按 session 隔离的本地队列（localStorage 持久化），
- * 通过「user 回显精确匹配 + 全量消息多集比对」两个信号驱动转正：
- * - SSE message_start（role=user）回显命中 → 立即出队并把回显转成正式气泡；
- * - done / load / attach 后的全量消息 → reconcile 清掉已落盘条目（兜底）。
+ * busy 期间 steer / follow-up 的文本已在服务端排队。队列的唯一权威是
+ * seedagent 侧的影子账本（queue-registry）：入队时签发 id，客户端本地条目
+ * 的 id 即服务端签发的 entryId。
  *
- * 服务端队列生命周期（pi agent-session / agent-loop 源码已查证）：
- * - 每次 run 开头先 drain steering 队列（getSteeringMessages），agent 将停时 drain
- *   followUp 队列（getFollowUpMessages），agent_end 后 continuation 循环续跑余下条目；
- * - run 以 error/aborted 终止时队列不清空，留给下一次 run / continuation 消费；
- * - 唯一清空路径是 /abort（seedagent clearQueuesAndAbort），客户端在 abort 成功后同步清空。
- * 故本地条目「长期显示」是正确状态（服务端确实还排着），不存在需要 TTL 兑底的幽灵场景；
- * 会跨刷新残留的只有：多窗口 abort 不同步、服务端模板展开改写文本（✕ 手动清除兑底）。
+ * 客户端视图的三个同步通道（收到即整体替换，本地不做任何猜测性修剪）：
+ * - attach 快照：message_state 事件携带 pendingQueue（刷新/切会话/重连对齐）；
+ * - WS 广播：服务端账本任何变更（入队/回显出账/删除/abort 清账）广播
+ *   queue_state 快照，多窗口收敛；
+ * - DELETE 响应：单条删除后返回删除后的权威快照。
+ *
+ * 本模块仅保留两件本地职责：
+ * - consumeQueueHead：message_start(role=user) 回显命中队头时立即出队转正
+ *   （无 RTT 的即时反馈；随后到达的 queue_state 快照是权威修正）；
+ * - toPendingItems：服务端快照载荷 → 本地展示模型（mode 归一 + 展示时间戳）。
+ *
+ * 注意：回显文本是服务端展开后的文本，模板/skill 展开改写时 consumeQueueHead
+ * 精确匹配失效——条目残留由下一个 queue_state 快照权威修正，无害。
  */
-
-export const PENDING_QUEUE_STORAGE_KEY = 'seedclaw_pending_queue'
 
 export type PendingSendMode = 'follow' | 'steer'
 
 export interface PendingItem {
-    /** 前端生成（createRuntimeId('pending')），队列条目移除按钮按它定位 */
+    /** 服务端排队账本签发的 entryId（删除/对账的唯一凭据） */
     id: string
-    /** 原始文本；与服务端队列文本一致（服务端模板展开会改写时精确匹配失效，✕ 兜底） */
+    /** 原始文本（与服务端账本 raw 一致） */
     text: string
     mode: PendingSendMode
+    /** 本地展示用时间戳（快照下发时不携带，落地时取当下） */
     timestamp: number
+}
+
+/** 服务端队列条目载荷（queue-registry.QueueEntryView / queue_state 广播） */
+export interface ServerQueueEntry {
+    id: string
+    mode: 'steer' | 'followUp'
+    text: string
+}
+
+/**
+ * 快照落地目标（ChatSessionData 的结构子集）：版本门禁 + 整体替换。
+ *
+ * DELETE 响应与 WS 广播走不同 TCP 连接，到达顺序无保证：跨操作的旧快照
+ * 可能晚于新快照到达，无门禁时会复活已删条目。queueRev 由服务端账本
+ * 单调递增，只应用比本地新的快照；无 rev（异常路径/旧载荷）保守应用。
+ *
+ * 附带维护 queueRemovedEchoes（近期被快照移除的条目文本）：服务端 WS 删除
+ * 快照恒先于 SSE 回显到达（账本监听器先注册，_emit 同步广播早于 SSE 转发），
+ * message_start 的 consumeQueueHead 必然 miss——回显凭此缓存补齐正式气泡，
+ * 避免「条目被快照撤了、消息气泡也没了」的长 run 隐身窗口。
+ */
+export interface QueueSnapshotTarget {
+    queueRev?: number
+    pendingQueue: PendingItem[]
+    /** 近期被快照移除的条目（回显补齐气泡的比对缓存，applyQueueSnapshot 自动维护） */
+    queueRemovedEchoes?: RemovedEcho[]
+}
+
+export interface RemovedEcho {
+    /** 原始文本（与回显 extractUserText 结果比对） */
+    text: string
+    /** 移除时刻（ms）：过期剔除，防普通消息撞文误补气泡 */
+    at: number
+}
+
+/** 回显补齐缓存保留窗口：正常 drain→回显延迟为亚秒级，过期条目视为陈旧 */
+const REMOVED_ECHO_TTL_MS = 60_000
+const REMOVED_ECHO_CAP = 32
+
+export function applyQueueSnapshot(
+    target: QueueSnapshotTarget,
+    queueRev: number | undefined,
+    entries: ServerQueueEntry[] | null | undefined,
+): void {
+    if (typeof queueRev === 'number' && typeof target.queueRev === 'number' && queueRev <= target.queueRev) {
+        return
+    }
+    const next = toPendingItems(entries)
+    // 记录被本快照移除的条目（按 id 差集），供回显补齐气泡；过期条目顺带清琀
+    const now = Date.now()
+    const nextIds = new Set(next.map(item => item.id))
+    const removed = target.pendingQueue
+        .filter(item => !nextIds.has(item.id))
+        .map(item => ({ text: item.text, at: now }))
+    const aliveEchoes = (target.queueRemovedEchoes ?? []).filter(e => now - e.at < REMOVED_ECHO_TTL_MS)
+    target.queueRemovedEchoes = [...aliveEchoes, ...removed].slice(-REMOVED_ECHO_CAP)
+    if (typeof queueRev === 'number') {
+        target.queueRev = queueRev
+    }
+    target.pendingQueue = next
+}
+
+/**
+ * 回显补齐：consumeQueueHead miss 时，检查该文本是否刚被权威快照移除。
+ * 命中则消费一条缓存并返回 true（调用方照常 append 正式 user 气泡）。
+ * 只消费一条：同文本多条被连续 drain 时，每条回显各补一个气泡。
+ * TTL 外不命中：防普通 sendMessage 的回显文本恰与陈旧条目相同时重复补
+ * 气泡（乐观气泡已覆盖，误补会双气泡，done 全量刷新才自愈）。
+ */
+export function consumeRemovedEcho(target: QueueSnapshotTarget, text: string): boolean {
+    const buffer = target.queueRemovedEchoes
+    if (!buffer || !text) return false
+    const now = Date.now()
+    const idx = buffer.findIndex(e => e.text === text && now - e.at < REMOVED_ECHO_TTL_MS)
+    if (idx < 0) return false
+    target.queueRemovedEchoes = [...buffer.slice(0, idx), ...buffer.slice(idx + 1)]
+    return true
 }
 
 // ==================== 纯函数 ====================
@@ -52,7 +132,7 @@ export function extractUserText(content: unknown): string {
 /**
  * 服务端 steer / followUp 是两条独立队列：steer 在当前 run 内注入、followUp 在本轮
  * 结束后 drain，投递顺序不保证全局 FIFO。故按「各自队头 + 文本精确匹配」识别回显；
- * 两条队头同文本时取更早入队者（回退全局 FIFO）。未命中返回 null（交给 reconcile 兜底）。
+ * 两条队头同文本时取更早入队者（回退全局 FIFO）。未命中返回 null（交给服务端快照修正）。
  */
 export function consumeQueueHead(
     queue: PendingItem[],
@@ -73,136 +153,19 @@ export function consumeQueueHead(
     return { item: queue[idx], rest: [...queue.slice(0, idx), ...queue.slice(idx + 1)] }
 }
 
-/**
- * 与全量消息做多集匹配，返回应保留的队列（已 drain 的条目移除）。
- * 每条文本只消费历史里出现的次数：queue [x,x] + 消息里 1 条 x → 保留队尾那条。
- * 已知限制：历史里恰好有同文本旧消息时会误删新排队条目（刷新场景无法区分），
- * 下一次 done 全量刷新会补回真实消息，自愈。
- */
-export function reconcileQueue(
-    queue: PendingItem[],
-    messages: Array<{ role?: string; content: any }>,
-): PendingItem[] {
-    if (queue.length === 0) return queue
-
-    const counts = new Map<string, number>()
-    for (const msg of messages) {
-        if (msg?.role !== 'user') continue
-        const text = extractUserText(msg.content)
-        if (!text) continue
-        counts.set(text, (counts.get(text) || 0) + 1)
-    }
-
-    // 从队头起消费：FIFO 下被 drain 的正是最早入队的同文本条目
-    const kept: PendingItem[] = []
-    for (const entry of queue) {
-        const remain = counts.get(entry.text) || 0
-        if (remain > 0) {
-            counts.set(entry.text, remain - 1)
-        } else {
-            kept.push(entry)
-        }
-    }
-    return kept
+/** 服务端快照载荷 → 本地展示模型（mode 归一；timestamp 仅展示排序用） */
+export function toPendingItems(entries: ServerQueueEntry[] | null | undefined): PendingItem[] {
+    if (!Array.isArray(entries)) return []
+    return entries
+        .filter(entry =>
+            !!entry && typeof entry === 'object'
+            && typeof entry.id === 'string' && entry.id.length > 0
+            && typeof entry.text === 'string'
+            && (entry.mode === 'steer' || entry.mode === 'followUp'))
+        .map(entry => ({
+            id: entry.id,
+            mode: entry.mode === 'followUp' ? 'follow' as const : 'steer' as const,
+            text: entry.text,
+            timestamp: Date.now(),
+        }))
 }
-
-const isPendingSendMode = (value: unknown): value is PendingSendMode =>
-    value === 'follow' || value === 'steer'
-
-/** localStorage 记录解析防御（类型校验，模式对齐 inputHistory 的 normalize*） */
-export function normalizeQueueRecord(value: unknown): Record<string, PendingItem[]> {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-
-    const normalized: Record<string, PendingItem[]> = {}
-    for (const [sessionKey, items] of Object.entries(value as Record<string, unknown>)) {
-        if (!sessionKey || !Array.isArray(items)) continue
-
-        const cleaned = items
-            .filter((entry): entry is PendingItem =>
-                !!entry && typeof entry === 'object'
-                && typeof (entry as any).id === 'string' && (entry as any).id.length > 0
-                && typeof (entry as any).text === 'string' && (entry as any).text.trim().length > 0
-                && isPendingSendMode((entry as any).mode))
-            .map(entry => ({
-                id: entry.id,
-                text: entry.text,
-                mode: entry.mode,
-                timestamp: typeof entry.timestamp === 'number' && Number.isFinite(entry.timestamp)
-                    ? entry.timestamp
-                    : 0,
-            }))
-
-        if (cleaned.length > 0) {
-            normalized[sessionKey] = cleaned
-        }
-    }
-
-    return normalized
-}
-
-// ==================== 存储封装 ====================
-
-export interface PendingQueueStore {
-    get(sessionKey: string): PendingItem[]
-    set(sessionKey: string, items: PendingItem[]): void
-    remove(sessionKey: string): void
-}
-
-/** storage 可注入（node 测试用 MemoryStorage fake）；每次读-改-写只更新对应 session 键 */
-export function createPendingQueueStore(storage: Storage | null = null): PendingQueueStore {
-    const readRecord = (): Record<string, PendingItem[]> => {
-        try {
-            const raw = storage?.getItem(PENDING_QUEUE_STORAGE_KEY)
-            if (!raw) return {}
-            return normalizeQueueRecord(JSON.parse(raw))
-        } catch (error) {
-            console.error('Failed to load pending queue:', error)
-            return {}
-        }
-    }
-
-    const writeRecord = (record: Record<string, PendingItem[]>) => {
-        try {
-            if (!storage) return
-
-            if (Object.keys(record).length === 0) {
-                storage.removeItem(PENDING_QUEUE_STORAGE_KEY)
-            } else {
-                storage.setItem(PENDING_QUEUE_STORAGE_KEY, JSON.stringify(record))
-            }
-        } catch (error) {
-            console.error('Failed to persist pending queue:', error)
-        }
-    }
-
-    return {
-        get(sessionKey) {
-            if (!sessionKey) return []
-            return readRecord()[sessionKey] ?? []
-        },
-        set(sessionKey, items) {
-            if (!sessionKey) return
-
-            const record = readRecord()
-            if (items.length > 0) {
-                record[sessionKey] = items
-            } else {
-                delete record[sessionKey]
-            }
-            writeRecord(record)
-        },
-        remove(sessionKey) {
-            if (!sessionKey) return
-
-            const record = readRecord()
-            if (!(sessionKey in record)) return
-            delete record[sessionKey]
-            writeRecord(record)
-        },
-    }
-}
-
-/** 模块级单例：useChatState（读写）与 useSessionsState（删会话清理）共享同一份记录 */
-export const pendingQueueStore = createPendingQueueStore(
-    typeof localStorage === 'undefined' ? null : localStorage,
-)

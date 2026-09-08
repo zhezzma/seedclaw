@@ -30,7 +30,7 @@ const expanded = ref(false)
                 <ChevronDownIcon class="ml-auto h-3.5 w-3.5 shrink-0 transition-transform duration-200"
                     :class="{ 'rotate-180': expanded }" />
             </button>
-            <!-- 展开后逐条预览；✕ 仅从界面移除（服务端投递不受影响，见 removeHint） -->
+            <!-- 展开后逐条预览；✕ 请求服务端从队列删除该条（真删除，消息不再发送），按响应快照对齐本地 -->
             <div v-if="expanded" class="flex flex-col gap-1 pb-1.5 pt-1">
                 <div v-for="item in items" :key="item.id"
                     class="flex items-center gap-2 rounded-lg border border-base-300/50 bg-base-200/60 px-2 py-1">

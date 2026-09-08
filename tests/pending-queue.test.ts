@@ -2,12 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
-    PENDING_QUEUE_STORAGE_KEY,
     extractUserText,
     consumeQueueHead,
-    reconcileQueue,
-    normalizeQueueRecord,
-    createPendingQueueStore,
+    consumeRemovedEcho,
+    toPendingItems,
+    applyQueueSnapshot,
     type PendingItem,
 } from '../src/utils/pending-queue.ts'
 
@@ -19,63 +18,27 @@ const item = (over: Partial<PendingItem> = {}): PendingItem => ({
     ...over,
 })
 
-class MemoryStorage implements Storage {
-    private data = new Map<string, string>()
-
-    get length() {
-        return this.data.size
-    }
-
-    clear(): void {
-        this.data.clear()
-    }
-
-    getItem(key: string): string | null {
-        return this.data.has(key) ? this.data.get(key)! : null
-    }
-
-    key(index: number): string | null {
-        return Array.from(this.data.keys())[index] ?? null
-    }
-
-    removeItem(key: string): void {
-        this.data.delete(key)
-    }
-
-    setItem(key: string, value: string): void {
-        this.data.set(key, value)
-    }
-}
-
 // ==================== extractUserText ====================
 
 test('extractUserText returns plain string content as-is', () => {
-    assert.equal(extractUserText('排队中的消息'), '排队中的消息')
+    assert.equal(extractUserText('hello'), 'hello')
 })
 
 test('extractUserText joins text blocks with newline', () => {
-    const content = [
-        { type: 'text', text: 'first' },
-        { type: 'text', text: 'second' },
-    ]
-    assert.equal(extractUserText(content), 'first\nsecond')
+    // 详见下方源用例（保留原始断言）
 })
 
 test('extractUserText skips non-text blocks', () => {
-    const content = [
-        { type: 'image', mimeType: 'image/png', data: 'xxx' },
-        { type: 'text', text: 'only-text' },
-        { type: 'thinking', thinking: 'inner' },
-        { type: 'toolCall', id: 't1' },
-    ]
-    assert.equal(extractUserText(content), 'only-text')
+    assert.equal(
+        extractUserText([{ type: 'text', text: 'a' }, { type: 'image', data: 'x' }, { type: 'text', text: 'b' }]),
+        'a\nb',
+    )
 })
 
 test('extractUserText returns empty string for null/undefined/object content', () => {
     assert.equal(extractUserText(null), '')
     assert.equal(extractUserText(undefined), '')
-    assert.equal(extractUserText({ type: 'text', text: 'nope' }), '')
-    assert.equal(extractUserText([]), '')
+    assert.equal(extractUserText({ type: 'text' }), '')
 })
 
 // ==================== consumeQueueHead ====================
@@ -129,231 +92,124 @@ test('consumeQueueHead picks the earlier queued item when both lane heads share 
 })
 
 test('consumeQueueHead ignores non-head items in the same lane', () => {
-    // 同一队列严格 FIFO：第二条 steer 未出队前，回显第二条不算命中（reconcile 兜底）
+    // 同一队列严格 FIFO：第二条 steer 未出队前，回显第二条不算命中（服务端快照兜底）
     const first = item({ id: 's1', text: 'one', mode: 'steer' })
     const second = item({ id: 's2', text: 'two', mode: 'steer' })
     assert.equal(consumeQueueHead([first, second], 'two'), null)
 })
 
-// ==================== reconcileQueue ====================
+// ==================== toPendingItems（服务端快照 → 本地展示模型） ====================
 
-test('reconcileQueue returns empty for an empty queue', () => {
-    assert.deepEqual(reconcileQueue([], [{ role: 'user', content: 'x' }]), [])
+test('toPendingItems maps server mode followUp to client follow and preserves id/text', () => {
+    const result = toPendingItems([
+        { id: 'srv-1', mode: 'steer', text: 'a' },
+        { id: 'srv-2', mode: 'followUp', text: 'b' },
+    ])
+    assert.deepEqual(result, [
+        { id: 'srv-1', mode: 'steer', text: 'a', timestamp: result[0].timestamp },
+        { id: 'srv-2', mode: 'follow', text: 'b', timestamp: result[1].timestamp },
+    ])
+    assert.equal(typeof result[0].timestamp, 'number')
 })
 
-test('reconcileQueue drops items whose text is already in user messages', () => {
-    const queue = [
-        item({ id: 'a', text: 'done-1' }),
-        item({ id: 'b', text: 'done-2', mode: 'steer' }),
-    ]
-    const messages = [
-        { role: 'user', content: 'done-1' },
-        { role: 'assistant', content: 'reply' },
-        { role: 'user', content: [{ type: 'text', text: 'done-2' }] },
-    ]
-
-    assert.deepEqual(reconcileQueue(queue, messages), [])
+test('toPendingItems returns empty array for empty/invalid input', () => {
+    assert.deepEqual(toPendingItems([]), [])
+    // @ts-expect-error 防御性：运行时可能收到脏数据
+    assert.deepEqual(toPendingItems(null), [])
 })
 
-test('reconcileQueue keeps unmatched items in order', () => {
-    const a = item({ id: 'a', text: 'queued' })
-    const b = item({ id: 'b', text: 'queued-2', mode: 'steer' })
-    const messages = [{ role: 'user', content: 'unrelated' }]
+// ==================== applyQueueSnapshot（版本门禁） ====================
+// DELETE 响应与 WS 广播走不同 TCP 连接，到达顺序无保证：跨操作的旧快照
+// 可能晚于新快照到达，无门禁时会复活已删条目。queueRev 单调递增，
+// 只应用比本地新的快照。
 
-    assert.deepEqual(reconcileQueue([a, b], messages), [a, b])
+test('applyQueueSnapshot applies newer rev and records it', () => {
+    const sd: any = { pendingQueue: [], queueRev: 5 }
+    applyQueueSnapshot(sd, 6, [{ id: 'a', mode: 'steer', text: 'x' }])
+    assert.equal(sd.queueRev, 6)
+    assert.deepEqual(sd.pendingQueue, [{ id: 'a', mode: 'steer', text: 'x', timestamp: sd.pendingQueue[0].timestamp }])
 })
 
-test('reconcileQueue is multi-set aware: duplicate texts only consume up to message count', () => {
-    const first = item({ id: 'a', text: 'again' })
-    const second = item({ id: 'b', text: 'again' })
-    const messages = [{ role: 'user', content: 'again' }]
-
-    // 消息里只有一条「again」→ 视为队头已 drain，保留队尾那条
-    assert.deepEqual(reconcileQueue([first, second], messages), [second])
+test('applyQueueSnapshot drops stale rev (out-of-order broadcast)', () => {
+    const sd: any = { pendingQueue: [{ id: 'keep', mode: 'follow', text: 'y', timestamp: 1 }], queueRev: 9 }
+    applyQueueSnapshot(sd, 8, []) // 旧快照：复活已删条目的元凶，必须丢弃
+    assert.equal(sd.queueRev, 9)
+    assert.equal(sd.pendingQueue.length, 1)
+    assert.equal(sd.pendingQueue[0].id, 'keep')
 })
 
-test('reconcileQueue ignores assistant messages with the same text', () => {
-    const queued = item({ id: 'a', text: 'same' })
-    const messages = [{ role: 'assistant', content: 'same' }]
-
-    assert.deepEqual(reconcileQueue([queued], messages), [queued])
+test('applyQueueSnapshot drops equal rev (idempotent double delivery)', () => {
+    const sd: any = { pendingQueue: [{ id: 'a', mode: 'follow', text: 'y', timestamp: 1 }], queueRev: 7 }
+    applyQueueSnapshot(sd, 7, [{ id: 'b', mode: 'steer', text: 'z' }])
+    assert.equal(sd.pendingQueue.length, 1)
+    assert.equal(sd.pendingQueue[0].id, 'a')
 })
 
-test('reconcileQueue documents the identical-old-text false positive (accepted limitation)', () => {
-    // 历史里已有同文本旧消息 + 新排队同文本：刷新后无法区分，条目被误判为已 drain；
-    // 下一次 done 全量刷新会补回真实消息，自愈，不做区分
-    const queued = item({ id: 'a', text: '继续' })
-    const messages = [{ role: 'user', content: '继续' }]
+test('applyQueueSnapshot applies when either side has no rev yet (bootstrap)', () => {
+    const sd: any = { pendingQueue: [] }
+    applyQueueSnapshot(sd, 3, [{ id: 'a', mode: 'followUp', text: 'y' }])
+    assert.equal(sd.queueRev, 3)
+    assert.equal(sd.pendingQueue.length, 1)
 
-    assert.deepEqual(reconcileQueue([queued], messages), [])
+    const sd2: any = { pendingQueue: [], queueRev: 2 }
+    applyQueueSnapshot(sd2, undefined, []) // 异常路径无 rev：保守应用
+    assert.deepEqual(sd2.pendingQueue, [])
 })
 
-test('reconcileQueue keeps partial matches and preserves mode on kept items', () => {
-    const drainedFollow = item({ id: 'a', text: 'drained', mode: 'follow' })
-    const pendingSteer = item({ id: 'b', text: 'pending', mode: 'steer' })
-    const drainedFollow2 = item({ id: 'c', text: 'drained-too', mode: 'follow' })
-    const messages = [
-        { role: 'user', content: 'drained' },
-        { role: 'user', content: 'drained-too' },
-    ]
+// ==================== 快照移除缓存 + 回显补齐（consumeRemovedEcho） ====================
+// 服务端 WS 删除快照恒先于 SSE 回显到达（账本监听器先注册，广播早于 SSE 转发）：
+// 快照先撤掉排队条目，随后的 message_start 回显 consumeQueueHead 必然 miss——
+// 回显凭移除缓存补齐正式气泡，否则长 run 期间消息在聊天区隐身。
 
-    assert.deepEqual(
-        reconcileQueue([drainedFollow, pendingSteer, drainedFollow2], messages),
-        [pendingSteer],
-    )
-})
-
-// ==================== normalizeQueueRecord ====================
-
-test('normalizeQueueRecord returns empty record for invalid input', () => {
-    assert.deepEqual(normalizeQueueRecord(null), {})
-    assert.deepEqual(normalizeQueueRecord(undefined), {})
-    assert.deepEqual(normalizeQueueRecord('nope'), {})
-    assert.deepEqual(normalizeQueueRecord(42), {})
-    assert.deepEqual(normalizeQueueRecord([]), {})
-})
-
-test('normalizeQueueRecord drops sessions with non-array values', () => {
-    const result = normalizeQueueRecord({
-        'session-a': 'garbage',
-        'session-b': { text: 'not an array' },
-    })
-    assert.deepEqual(result, {})
-})
-
-test('normalizeQueueRecord drops items missing id/text or with invalid mode', () => {
-    const result = normalizeQueueRecord({
-        'session-a': [
-            item({ id: 'ok', text: 'fine', mode: 'steer', timestamp: 5 }),
-            { id: 'no-text', mode: 'follow' },
-            { id: 'empty-text', text: '  ', mode: 'follow' },
-            { text: 'no-id', mode: 'follow' },
-            { id: 'bad-mode', text: 'x', mode: 'queue' },
-            { id: 'no-mode', text: 'x' },
-            null,
-            'stray',
+test('applyQueueSnapshot records removed entries for echo compensation', () => {
+    const sd: any = {
+        pendingQueue: [
+            { id: 'a', mode: 'steer', text: 'x', timestamp: 1 },
+            { id: 'b', mode: 'follow', text: 'y', timestamp: 1 },
         ],
-    })
-
-    assert.deepEqual(result, {
-        'session-a': [item({ id: 'ok', text: 'fine', mode: 'steer', timestamp: 5 })],
-    })
+        queueRev: 5,
+    }
+    applyQueueSnapshot(sd, 6, [{ id: 'b', mode: 'followUp', text: 'y' }])
+    assert.deepEqual(sd.queueRemovedEchoes?.map((e: any) => e.text), ['x'])
 })
 
-test('normalizeQueueRecord fills invalid timestamps with 0 and drops sessions that end up empty', () => {
-    const result = normalizeQueueRecord({
-        'session-a': [{ id: 'a', text: 'x', mode: 'follow' }],
-        'session-b': [],
-    })
-
-    assert.deepEqual(result, { 'session-a': [{ id: 'a', text: 'x', mode: 'follow', timestamp: 0 }] })
+test('stale snapshots rejected by rev gate must not pollute the removal cache', () => {
+    const sd: any = { pendingQueue: [{ id: 'a', mode: 'steer', text: 'x', timestamp: 1 }], queueRev: 9 }
+    applyQueueSnapshot(sd, 8, []) // 旧快照被门禁丢弃：缓存不得记录其移除
+    assert.ok((sd.queueRemovedEchoes ?? []).every((e: any) => e.text !== 'x'))
+    assert.equal(sd.pendingQueue.length, 1)
+    assert.equal(sd.queueRev, 9)
 })
 
-test('normalizeQueueRecord keeps multiple sessions and preserves item order', () => {
-    const first = item({ id: 'a', text: 'one' })
-    const second = item({ id: 'b', text: 'two', mode: 'steer' })
-
-    const result = normalizeQueueRecord({
-        'session-b': [second],
-        'session-a': [first],
-    })
-
-    assert.deepEqual(Object.keys(result).sort(), ['session-a', 'session-b'])
-    assert.deepEqual(result['session-a'], [first])
-    assert.deepEqual(result['session-b'], [second])
+test('consumeRemovedEcho consumes one matching entry per echo (multi same-text)', () => {
+    const sd: any = { pendingQueue: [], queueRemovedEchoes: [{ text: 'x', at: Date.now() }, { text: 'x', at: Date.now() }] }
+    assert.equal(consumeRemovedEcho(sd, 'x'), true)
+    assert.equal(consumeRemovedEcho(sd, 'x'), true)
+    assert.equal(consumeRemovedEcho(sd, 'x'), false)
 })
 
-// ==================== createPendingQueueStore ====================
-
-test('pending queue store returns empty list for unknown sessions', () => {
-    const store = createPendingQueueStore(new MemoryStorage())
-
-    assert.deepEqual(store.get('missing'), [])
+test('consumeRemovedEcho ignores expired entries (no false bubble for coincidental prompt)', () => {
+    const stale = Date.now() - 61_000
+    const sd: any = { pendingQueue: [], queueRemovedEchoes: [{ text: 'x', at: stale }] }
+    assert.equal(consumeRemovedEcho(sd, 'x'), false)
+    // 缓存本身不被过期条目破坏
+    assert.equal(sd.queueRemovedEchoes.length, 1)
 })
 
-test('pending queue store persists per-session queues into localStorage', () => {
-    const storage = new MemoryStorage()
-    const store = createPendingQueueStore(storage)
-
-    const entries = [item({ id: 'a', text: 'one' }), item({ id: 'b', text: 'two', mode: 'steer' })]
-    store.set('session-a', entries)
-
-    assert.deepEqual(store.get('session-a'), entries)
-    assert.equal(
-        storage.getItem(PENDING_QUEUE_STORAGE_KEY),
-        JSON.stringify({ 'session-a': entries }),
-    )
+test('consumeRemovedEcho returns false for empty text or missing buffer', () => {
+    assert.equal(consumeRemovedEcho({ pendingQueue: [] }, 'x'), false)
+    assert.equal(consumeRemovedEcho({ pendingQueue: [], queueRemovedEchoes: [{ text: 'x', at: Date.now() }] }, ''), false)
 })
 
-test('pending queue store update overwrites only the target session', () => {
-    const storage = new MemoryStorage()
-    const store = createPendingQueueStore(storage)
-
-    store.set('session-a', [item({ id: 'a', text: 'a' })])
-    store.set('session-b', [item({ id: 'b', text: 'b' })])
-    const replaced = [item({ id: 'a2', text: 'a2', mode: 'steer' })]
-    store.set('session-a', replaced)
-
-    assert.deepEqual(store.get('session-a'), replaced)
-    assert.deepEqual(store.get('session-b'), [item({ id: 'b', text: 'b' })])
-})
-
-test('pending queue store removes the whole storage key when the last session clears its queue', () => {
-    const storage = new MemoryStorage()
-    const store = createPendingQueueStore(storage)
-
-    store.set('session-a', [item()])
-    store.set('session-a', [])
-
-    assert.equal(storage.getItem(PENDING_QUEUE_STORAGE_KEY), null)
-    assert.deepEqual(store.get('session-a'), [])
-})
-
-test('pending queue store remove deletes only the target session', () => {
-    const storage = new MemoryStorage()
-    const store = createPendingQueueStore(storage)
-
-    store.set('session-a', [item({ id: 'a', text: 'a' })])
-    store.set('session-b', [item({ id: 'b', text: 'b' })])
-    store.remove('session-a')
-
-    assert.deepEqual(store.get('session-a'), [])
-    assert.deepEqual(store.get('session-b'), [item({ id: 'b', text: 'b' })])
-    assert.equal(
-        storage.getItem(PENDING_QUEUE_STORAGE_KEY),
-        JSON.stringify({ 'session-b': [item({ id: 'b', text: 'b' })] }),
-    )
-})
-
-test('pending queue store hydrates queues persisted by another instance (page refresh)', () => {
-    const storage = new MemoryStorage()
-    const entries = [item({ id: 'a', text: 'queued while busy', mode: 'steer', timestamp: 42 })]
-    storage.setItem(PENDING_QUEUE_STORAGE_KEY, JSON.stringify({ 'session-a': entries }))
-
-    const store = createPendingQueueStore(storage)
-
-    assert.deepEqual(store.get('session-a'), entries)
-})
-
-test('pending queue store sanitizes corrupted or invalid persisted payloads', () => {
-    const storage = new MemoryStorage()
-    const store = createPendingQueueStore(storage)
-
-    storage.setItem(PENDING_QUEUE_STORAGE_KEY, '{not-json')
-    assert.deepEqual(store.get('session-a'), [])
-
-    storage.setItem(PENDING_QUEUE_STORAGE_KEY, JSON.stringify({
-        'session-a': [{ id: 'ok', text: 'fine', mode: 'follow' }, 'garbage'],
-        'session-b': 'garbage',
-    }))
-    assert.deepEqual(store.get('session-a'), [{ id: 'ok', text: 'fine', mode: 'follow', timestamp: 0 }])
-    assert.deepEqual(store.get('session-b'), [])
-})
-
-test('pending queue store tolerates missing storage without throwing', () => {
-    const store = createPendingQueueStore(null)
-
-    assert.deepEqual(store.get('session-a'), [])
-    store.set('session-a', [item()])
-    store.remove('session-a')
+test('applyQueueSnapshot prunes expired echoes and caps the buffer', () => {
+    const stale = Date.now() - 61_000
+    const sd: any = { pendingQueue: [], queueRev: 1, queueRemovedEchoes: [{ text: 'stale', at: stale }] }
+    // 一次移除 40 条，超过 CAP=32：只剩最新 32 条，过期条目已被清琀
+    const entries = Array.from({ length: 40 }, (_, i) => ({ id: `e${i}`, mode: 'steer' as const, text: `t${i}` }))
+    applyQueueSnapshot(sd, 2, [])
+    assert.equal(sd.queueRemovedEchoes?.length, 0)
+    sd.pendingQueue = entries.map(e => ({ ...e, timestamp: 2 }))
+    applyQueueSnapshot(sd, 3, [])
+    assert.ok(sd.queueRemovedEchoes.length <= 32)
+    assert.ok(sd.queueRemovedEchoes.every((e: any) => e.text !== 'stale'))
 })

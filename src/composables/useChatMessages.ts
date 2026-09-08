@@ -513,7 +513,7 @@ export function useChatMessages(state: ChatStateShape) {
 
 
         // 4. 排队中的 steer / follow-up（busy 期间发送）：追加在列表末尾；
-        //    回显命中（message_start 消费）或 reconcile 出队后无缝转正为正式气泡
+        //    回显命中（message_start 消费）或服务端 queue_state 快照修正后无缝转正为正式气泡
         const pendingQueue = state.pendingQueue || []
         for (const entry of pendingQueue) {
             displayMessages.push({
