@@ -55,7 +55,7 @@ $staging = Join-Path $root 'src-tauri\resources\seedagent'
 $cache = Join-Path $PSScriptRoot '.cache'
 
 function Assert-Staging([string]$Dir) {
-    foreach ($p in @('node.exe', 'seedserver.mjs', 'dist\extensions', 'node_modules', 'web\index.html')) {
+    foreach ($p in @('node.exe', 'seedserver.mjs', 'dist\extensions', 'node_modules', 'web\index.html', 'web\static')) {
         if (-not (Test-Path (Join-Path $Dir $p))) { throw "staging incomplete at ${Dir}: missing $p" }
     }
 }
@@ -153,7 +153,7 @@ else {
     Write-Host "==> vite build -> staging web\ (tunnel mobile UI)"
     Push-Location $root
     try {
-        npx vite build --outDir src-tauri\resources\seedagent\web --emptyOutDir
+        npx vite build --outDir "$staging\web" --emptyOutDir
         if ($LASTEXITCODE -ne 0) { throw "vite build (web/) failed" }
     } finally { Pop-Location }
 

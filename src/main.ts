@@ -22,8 +22,14 @@ app.use(createPinia())
 try {
     const bootstrap = !isTauri ? parseTunnelHash(window.location.hash) : null
     if (bootstrap) {
+        // 先抹 hash 再写 settings：抹除是安全动作（令牌不留在地址栏/历史），
+        // 独立成步——抹除失败仅告警，不得阻断 settings 写入
+        try {
+            history.replaceState(null, '', stripHashFromUrl(window.location.href))
+        } catch (e) {
+            console.warn('[tunnel] strip hash failed:', e)
+        }
         applyTunnelBootstrap(useUiSettingsStore(), window.location.origin, bootstrap)
-        history.replaceState(null, '', stripHashFromUrl(window.location.href))
     }
 } catch (e) {
     console.error('[tunnel] hash bootstrap failed:', e)

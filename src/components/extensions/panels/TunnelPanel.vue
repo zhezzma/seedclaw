@@ -44,6 +44,8 @@ const qrDataUrl = ref('')
 
 const POLL_INTERVAL_MS = 3000
 let pollTimer: ReturnType<typeof globalThis.setTimeout> | null = null
+/** 状态版本号：start/stop 写入权威结果后，在途轮询 GET 的过期响应不得覆盖 */
+let stateRev = 0
 
 const isLanMode = computed(() => state.value?.mode === 'lan')
 
@@ -59,12 +61,18 @@ const statusKey = computed(() => {
     }
 })
 
+/** 当前生效的局域网 IP：选中项已不在最新列表（网卡变化/列表清空）时回落首个，避免残留失效地址 */
+const activeLanIp = computed(() => {
+    const ips = state.value?.lanIps ?? []
+    return ips.includes(selectedLanIp.value) ? selectedLanIp.value : ips[0] ?? ''
+})
+
 /** 二维码/分享链接目标：局域网用本机 IP，隧道用 VPS 地址 */
 const shareUrl = computed(() => {
     const token = settings.token?.trim()
     if (!token) return null
     if (isLanMode.value) {
-        const ip = selectedLanIp.value || state.value?.lanIps?.[0]
+        const ip = activeLanIp.value
         if (!ip || !state.value?.serverPort) return null
         return `http://${ip}:${state.value.serverPort}/#token=${encodeURIComponent(token)}`
     }
@@ -76,7 +84,7 @@ const shareUrl = computed(() => {
 /** App 远程模式要填的裸地址（无 hash） */
 const appConnectUrl = computed(() => {
     if (isLanMode.value) {
-        const ip = selectedLanIp.value || state.value?.lanIps?.[0]
+        const ip = activeLanIp.value
         return ip && state.value?.serverPort ? `http://${ip}:${state.value.serverPort}` : ''
     }
     return state.value?.url ?? ''
@@ -85,8 +93,10 @@ const appConnectUrl = computed(() => {
 const tokenMissing = computed(() => !settings.token?.trim())
 
 async function refreshState(silent = true) {
+    const rev = stateRev
     try {
         const next = await apiGet<TunnelState>(`/api/extensions/${encodeURIComponent(props.extensionId)}/state`, silent)
+        if (rev !== stateRev) return // start/stop 已写入更权威的结果，丢弃过期响应
         state.value = next
         if (next.lanIps?.length && !next.lanIps.includes(selectedLanIp.value)) {
             selectedLanIp.value = next.lanIps[0]
@@ -100,11 +110,16 @@ async function refreshState(silent = true) {
 async function start() {
     if (starting.value) return
     starting.value = true
+    stateRev++ // 使在途轮询 GET 失效：POST 返回的权威结果不得被过期响应覆盖
     try {
         state.value = await apiPost<TunnelState>(`/api/extensions/${encodeURIComponent(props.extensionId)}/start`)
     } catch {
-        // 502（凭据缺失/预热失败）等错误提示由 api-client 统一 toast
+        // 502（凭据缺失/预热失败）由 api-client 统一 toast；apiBaseUrl 为空的同步抛错
+        //（fetchWithToast 之前）无 toast——仅 setup 未完成的裸浏览器场景命中，彼时全应用不可用
     } finally {
+        // POST 窗口（秒级预热）内发出的轮询 GET 携带新 rev、拦不住——写入后/失败时
+        // 再失效一轮，确保权威结果不被 POST 期间的过期快照覆盖；下轮轮询拿全新状态
+        stateRev++
         starting.value = false
     }
 }
@@ -113,11 +128,14 @@ async function start() {
 async function stop() {
     if (stopping.value) return
     stopping.value = true
+    stateRev++ // 同 start：POST 返回的权威结果不得被过期响应覆盖
     try {
         state.value = await apiPost<TunnelState>(`/api/extensions/${encodeURIComponent(props.extensionId)}/stop`)
     } catch {
-        // ignore（toast 已弹出）
+        // 常规错误由 api-client 统一 toast；409/404 属 SILENT_CODES 静默（服务端幂等，无需打断用户）
     } finally {
+        // 同 start：失效 POST 窗口内发出的轮询 GET
+        stateRev++
         stopping.value = false
     }
 }
@@ -153,7 +171,9 @@ onUnmounted(() => {
 })
 
 async function renderQr(text: string) {
-    qrDataUrl.value = await QRCode.toDataURL(text, { margin: 1, width: 320 })
+    const dataUrl = await QRCode.toDataURL(text, { margin: 1, width: 320 })
+    // 时序守护：await 期间 shareUrl 可能又变了（快速切 IP/状态翻转），旧二维码不得写入
+    if (shareUrl.value === text) qrDataUrl.value = dataUrl
 }
 
 // shareUrl 变化（模式切换 / ready / token 就绪）时重渲染二维码
@@ -176,7 +196,7 @@ watch(shareUrl, (url) => {
                 <!-- 多网卡：IP 切换 -->
                 <div v-if="state.lanIps.length > 1" class="flex flex-wrap justify-center gap-1.5 mb-4">
                     <button v-for="ip in state.lanIps" :key="ip" class="btn btn-xs"
-                        :class="ip === selectedLanIp ? 'btn-primary' : 'btn-outline'"
+                        :class="ip === activeLanIp ? 'btn-primary' : 'btn-outline'"
                         @click="selectedLanIp = ip">{{ ip }}</button>
                 </div>
 
@@ -196,12 +216,12 @@ watch(shareUrl, (url) => {
                 {{ t('extensions.tunnel.tokenMissing') }}
             </div>
 
-            <!-- App 连接信息 -->
-            <div v-if="appConnectUrl" class="mt-4 pt-3 border-t border-base-200 text-left">
+            <!-- App 连接信息（token 缺失时不渲染，避免「令牌：」空值残缺展示） -->
+            <div v-if="appConnectUrl && !tokenMissing" class="mt-4 pt-3 border-t border-base-200 text-left">
                 <p class="text-xs font-medium mb-2 text-base-content/70">{{ t('extensions.tunnel.appConnectTitle') }}</p>
                 <div class="text-xs font-mono space-y-1">
-                    <p class="break-all">URL：<span class="select-all text-primary">{{ appConnectUrl }}</span></p>
-                    <p class="break-all">{{ t('extensions.tunnel.tokenLabel') }}：<span class="select-all text-primary">{{ settings.token }}</span></p>
+                    <p class="break-all">{{ t('extensions.tunnel.urlLabel') }}<span class="select-all text-primary">{{ appConnectUrl }}</span></p>
+                    <p class="break-all">{{ t('extensions.tunnel.tokenLabel') }}<span class="select-all text-primary">{{ settings.token }}</span></p>
                 </div>
                 <p class="text-[10px] text-base-content/40 mt-2">{{ t('extensions.tunnel.appConnectHint') }}</p>
             </div>
@@ -236,8 +256,8 @@ watch(shareUrl, (url) => {
                 <div class="mt-4 pt-3 border-t border-base-200 text-left">
                     <p class="text-xs font-medium mb-2 text-base-content/70">{{ t('extensions.tunnel.appConnectTitle') }}</p>
                     <div class="text-xs font-mono space-y-1">
-                        <p class="break-all">URL：<span class="select-all text-primary">{{ appConnectUrl }}</span></p>
-                        <p class="break-all">{{ t('extensions.tunnel.tokenLabel') }}：<span class="select-all text-primary">{{ settings.token }}</span></p>
+                        <p class="break-all">{{ t('extensions.tunnel.urlLabel') }}<span class="select-all text-primary">{{ appConnectUrl }}</span></p>
+                        <p class="break-all">{{ t('extensions.tunnel.tokenLabel') }}<span class="select-all text-primary">{{ settings.token }}</span></p>
                     </div>
                     <p class="text-[10px] text-base-content/40 mt-2">{{ t('extensions.tunnel.appConnectHint') }}</p>
                 </div>

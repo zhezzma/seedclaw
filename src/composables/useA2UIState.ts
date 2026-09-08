@@ -192,9 +192,9 @@ export function executeFunctionCall(fn: FunctionCall, dataModel: Record<string, 
       return !resolveDynamicBoolean(args.value, dataModel)
     }
     case 'equals': {
-      // 值相等比较（宽松 ==："18799" == 18799）；供 visible 条件等场景使用
-      // eslint-disable-next-line eqeqeq
-      return resolveArg(args.value) == resolveArg(args.other)
+      // 值相等比较（宽松 ==："18799" == 18799）；与 resolveVisibility 简写共用 looseEquals，
+      // 保证两种写法语义一致（ChoicePicker 单选数组同样取首元素）
+      return looseEquals(resolveArg(args.value), resolveArg(args.other))
     }
     case 'formatString': {
       const template = String(resolveArg(args.value) || '')
@@ -293,22 +293,37 @@ export function getWritePath(value: any): string | null {
 
 // ==================== 子组件解析 ====================
 
-/** 解析 ChildList 为组件 ID 数组 */
-/** 解析组件的 visible 条件（DynamicBoolean 或 {path, equals} 值比较）；缺省可见 */
+/** 宽松相等（两侧数组取首元素）：resolveVisibility 简写与 equals FunctionCall 共用，保证语义一致。
+ *  多选数组仅首元素参与匹配，其余元素不可达；DSL 无 contains 算子，「包含」语义当前无法表达。 */
+function looseEquals(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a)) a = a[0]
+  if (Array.isArray(b)) b = b[0]
+  // 布尔规范化：CheckBox 等组件写入布尔 true，而 DSL 里 equals:"true" 是字符串——
+  // 直接 == 会永久失配（true == "true" 为 false），字段静默隐藏；布尔与字符串比较时统一转字符串
+  if (typeof a === 'boolean' && typeof b === 'string') return String(a) === b
+  if (typeof b === 'boolean' && typeof a === 'string') return a === String(b)
+  // eslint-disable-next-line eqeqeq
+  return a == b
+}
+
+/**
+ * 解析组件的 visible 条件（DynamicBoolean 或 {path, equals} 值比较）；缺省可见。
+ * 注意覆盖面：仅经 resolveChildList 过滤的 children（Row/Column/List）会应用 visible；
+ * 根组件、Card.child、Tabs.tab.child、Modal trigger/content 等单子组件路径不经过该过滤，
+ * 在这些位置声明 visible 不会生效。
+ */
 function resolveVisibility(comp: A2UIComponent | undefined, dataModel: Record<string, any>): boolean {
   if (!comp || comp.visible === undefined || comp.visible === null) return true
   const v = comp.visible
   if (typeof v === 'boolean') return v
-  // {path, equals}：值比较简写（ChoicePicker 等单选数组取首元素的场景）
+  // {path, equals}：值比较简写（looseEquals：ChoicePicker 等单选数组取首元素）
   if (v != null && typeof v === 'object' && 'equals' in v) {
-    let actual = getByPath(dataModel, v.path)
-    if (Array.isArray(actual)) actual = actual[0]
-    // eslint-disable-next-line eqeqeq
-    return actual == v.equals
+    return looseEquals(getByPath(dataModel, v.path), v.equals)
   }
   return resolveDynamicBoolean(v, dataModel)
 }
 
+/** 解析 ChildList 为组件 ID 数组（应用 visible 条件过滤） */
 export function resolveChildList(
   children: ChildList | undefined,
   dataModel: Record<string, any>,
@@ -323,7 +338,7 @@ export function resolveChildList(
     // 返回动态生成的组件 ID（基于模板 ID + 索引）
     return items.map((_: any, i: number) => `${componentId}__${i}`)
   })()
-  // visible 条件过滤：不满足的子组件不渲染（各容器组件统一走这里）
+  // visible 条件过滤：不满足的子组件不渲染（Row/Column/List 的 children 统一经此处过滤）
   return base.filter((id) => resolveVisibility(allComponents.get(id), dataModel))
 }
 

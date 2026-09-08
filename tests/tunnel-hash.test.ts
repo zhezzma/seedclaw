@@ -79,4 +79,7 @@ test('main.ts wires the hash bootstrap before router and mount (source contract)
     assert.ok(bootstrapPos > 0)
     assert.ok(routerPos > bootstrapPos, 'hash 引导必须发生在 app.use(router) 之前')
     assert.ok(mountPos > bootstrapPos, 'hash 引导必须发生在 app.mount 之前')
+    // 先抹 hash 再写 settings：抹除是安全动作（令牌不留在地址栏/历史），不依赖业务写入成功
+    const stripPos = source.indexOf("history.replaceState(null, '', stripHashFromUrl(window.location.href))")
+    assert.ok(stripPos > 0 && stripPos < bootstrapPos, 'replaceState 必须先于 applyTunnelBootstrap 执行')
 })
