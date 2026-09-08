@@ -37,7 +37,16 @@ export function applyAttachMessageState(sessionData: ChatSessionData, state: Att
 
     // 3. 恢复或清空半截 assistant 流。
     if (state.streamMessage?.content && Array.isArray(state.streamMessage.content)) {
-        sessionData.chatStream = JSON.parse(JSON.stringify(state.streamMessage.content))
+        // 剥掉 toolCall block：客户端收不到 toolcall 参数增量（服务端只转发
+        // text/thinking delta），快照里的 toolCall 是 partial-json 的流式中间态
+        //（参数可能缺到只剩 task:""）。原样恢复会在 message_end 时被固化进历史，
+        // 渲染成永远转圈的 calling 卡；随后 tool_execution_start 再 push 一份
+        // 完整参数的同 id block，同一调用出现两张卡。toolCall 卡统一由
+        // tool_execution_start 用完整参数重建（与 live 流程一致）。
+        const replayed = state.streamMessage.content.filter(
+            (block: any) => block?.type !== 'toolCall',
+        )
+        sessionData.chatStream = JSON.parse(JSON.stringify(replayed))
         return
     }
 

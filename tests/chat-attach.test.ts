@@ -85,6 +85,42 @@ test('applyAttachMessageState restores stream content when attach lands on an ac
     assert.deepEqual(sessionData.chatStream, [{ type: 'text', text: 'partial' }])
 })
 
+test('applyAttachMessageState strips stale toolCall blocks from replayed stream snapshot', () => {
+    const sessionData = createSessionData()
+
+    applyAttachMessageState(sessionData as any, {
+        streamMessage: {
+            content: [
+                { type: 'thinking', thinking: 'partial thought' },
+                // attach 时刻参数还在流式传输中：partial-json 会把未传完的字符串
+                // 解析成空串，这种过期快照不应进入客户端状态
+                {
+                    type: 'toolCall',
+                    id: 'call_1',
+                    name: 'subagent',
+                    arguments: { agent: '{"name": "code_reviewer"}', mode: 'single', task: '' },
+                },
+            ],
+        },
+        isStreaming: true,
+    })
+
+    assert.deepEqual(sessionData.chatStream, [{ type: 'thinking', thinking: 'partial thought' }])
+})
+
+test('applyAttachMessageState keeps empty stream when snapshot only contained a toolCall', () => {
+    const sessionData = createSessionData()
+
+    applyAttachMessageState(sessionData as any, {
+        streamMessage: {
+            content: [{ type: 'toolCall', id: 'call_1', name: 'subagent', arguments: {} }],
+        },
+        isStreaming: true,
+    })
+
+    assert.deepEqual(sessionData.chatStream, [])
+})
+
 test('applyAttachMessageState clears stale stream content for idle attach responses', () => {
     const sessionData = createSessionData()
     sessionData.chatStream = [{ type: 'text', text: 'stale' }]

@@ -3,7 +3,7 @@ import { useChatState, type ChatMessage } from './useChatState'
 import { useUiSettingsStore } from '../stores/setting'
 import type { A2UIComponent } from '../components/a2ui/types'
 import { getOrCreateSurface, updateSurfaceDataModel, deleteSurface } from './useA2UISurfaces'
-import { ensureRenderableBlocks } from '../utils/chatMessageRender'
+import { ensureRenderableBlocks, markErroredToolBlocks } from '../utils/chatMessageRender'
 import { resolveMediaUrl } from '../utils/media-url'
 
 // Types for internal display
@@ -403,6 +403,9 @@ export function useChatMessages(state: ChatStateShape) {
 
             // 顶级错误信息处理
             if (msg.errorMessage) {
+                // 消息级错误时其中的 toolCall 从未执行（不会有 toolResult），
+                // 先标成 error 态，避免渲染成永远转圈的 calling 卡
+                markErroredToolBlocks(blocks, msg.errorMessage)
                 blocks.push({ type: 'error', error: msg.errorMessage })
             }
 
