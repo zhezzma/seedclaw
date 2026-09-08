@@ -214,6 +214,12 @@ const toggleGroupByAgent = () => {
     configStore.toggleSidebarGrouped()
 }
 
+// agent 创建时间毫秒数（后端 /api/agents 同规则：缺失按 0），用于组固定排序
+const agentCreatedAtMs = (agentId: string): number => {
+    const createdAt = agentsState.agentsList?.find(a => a.id === agentId)?.createdAt
+    return createdAt ? new Date(createdAt).getTime() : 0
+}
+
 // 分组模型：按 agentId 分组（同名 agent 不合并）；
 // 组头显示 agent 显示名，无 agent 的会话归入「未分组」组
 const sessionGroups = computed(() => {
@@ -232,13 +238,15 @@ const sessionGroups = computed(() => {
             sessions: [session],
         })
     }
-    // 组顺序固定不漂移：按显示名排序（中文按拼音），「未分组」组（key 为空）永远最后；
-    // 同名 agent 用 agentId 决胜，保证顺序完全确定。
+    // 组顺序固定不漂移：按 agent 创建时间从早到晚（与后端 agent 列表排序一致），
+    // 「未分组」组（key 为空）永远最后；同刻/缺失时退回显示名拼音（agentId 决胜）。
     // 若按首现顺序（时间倒序），任一 agent 有会话更新其组就会跳到最上面；
     // 组内会话仍保持时间倒序不变
     return groups.sort((a, b) => {
         if (!a.key) return 1
         if (!b.key) return -1
+        const byCreated = agentCreatedAtMs(a.key) - agentCreatedAtMs(b.key)
+        if (byCreated !== 0) return byCreated
         return a.label.localeCompare(b.label, 'zh') || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)
     })
 })
