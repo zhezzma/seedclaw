@@ -16,6 +16,7 @@ import ChatHeader from '../components/chat/ChatHeader.vue'
 import MessageBubble from '../components/chat/MessageBubble.vue'
 import VirtualMessageList from '../components/chat/VirtualMessageList.vue'
 import ChatInput from '../components/chat/ChatInput.vue'
+import PendingQueueBar from '../components/chat/PendingQueueBar.vue'
 import SessionTreeModal from '../components/chat/SessionTreeModal.vue'
 import SubagentTraceDrawer from '../components/chat/SubagentTraceDrawer.vue'
 import VoiceChatOverlay from '../components/chat/VoiceChatOverlay.vue'
@@ -264,10 +265,15 @@ const trySendDeliveryCommand = async (inputText: string): Promise<boolean> => {
         return true
     }
 
-    if (cmd === 'steer') {
-        await chatState.steerMessage(deliveryText)
-    } else {
-        await chatState.followMessage(deliveryText)
+    const sent = cmd === 'steer'
+        ? await chatState.steerMessage(deliveryText)
+        : await chatState.followMessage(deliveryText)
+    if (!sent) {
+        // API 失败（toast 已由错误处理弹出）：恢复输入框文本，方便修改后重发
+        if (chatInputRef.value) {
+            chatInputRef.value.inputText = inputText
+        }
+        return true
     }
     scrollToBottom(true)
     return true
@@ -334,10 +340,15 @@ const handleSend = async () => {
             return
         }
         // 非命令文本：根据设置决定 busy 时是 steer 还是 follow-up
-        if (settingsStore.busySendBehavior === 'follow') {
-            await chatState.followMessage(inputText)
-        } else {
-            await chatState.steerMessage(inputText)
+        const sent = settingsStore.busySendBehavior === 'follow'
+            ? await chatState.followMessage(inputText)
+            : await chatState.steerMessage(inputText)
+        if (!sent) {
+            // API 失败：恢复输入框文本，方便修改后重发（消息未入队，不会静默丢失）
+            if (chatInputRef.value) {
+                chatInputRef.value.inputText = inputText
+            }
+            return
         }
         scrollToBottom(true)
         return
@@ -869,6 +880,10 @@ async function applyDefaultSessionBehavior() {
                     </Transition>
                 </div>
             </div>
+
+            <!-- 排队消息提示条（队列非空才渲染，新会话页无队列） -->
+            <PendingQueueBar v-if="!isNewSessionPage && !isCreatingSession" :items="chatState.pendingQueue"
+                @remove="chatState.removePendingItem" />
 
             <!-- ChatInput：非新会话页固定在底部（新会话页的输入框居中展示在欢迎区）。
                  viewer 打开时也保留，用户仍可与 agent 讨论 diff/文件内容 -->

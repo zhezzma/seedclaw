@@ -11,6 +11,14 @@ import { type KnownApi } from './useModelsState'
 import { useToast } from './useToast'
 import { clearAllSurfaces } from './useA2UISurfaces'
 import { createRuntimeId } from '../utils/runtime-id.ts'
+import {
+    consumeQueueHead,
+    extractUserText,
+    pendingQueueStore,
+    reconcileQueue,
+    type PendingItem,
+    type PendingSendMode,
+} from '../utils/pending-queue'
 import router from '../router'
 
 // ==================== Types ====================
@@ -56,6 +64,8 @@ export interface SessionUsage {
 export interface ChatSessionData {
     chatMessages: ChatMessage[]
     chatToolMessages: ChatMessage[]
+    /** busy 期间 steer/follow-up 的本地排队队列（localStorage 持久化，刷新后恢复） */
+    pendingQueue: PendingItem[]
     // Branch navigation uses a flat entry list, not a nested tree payload.
     sessionTree: SessionTreeEntry[] | null
     sessionLeafId: string | null
@@ -124,6 +134,8 @@ function attachToSessionIfNeeded(targetKey: string) {
             if (event.event === 'message_state') {
                 const currentSessionData = getSessionData(targetKey)
                 applyAttachMessageState(currentSessionData, event.data || {})
+                // attach 快照携带全量消息：与本地排队队列比对，已落盘条目出队
+                reconcilePendingQueue(targetKey)
 
                 if (event.data?.isStreaming) {
                     currentSessionData.chatRunId = currentSessionData.chatRunId || generateUUID()
@@ -147,6 +159,7 @@ function getSessionData(key: string): ChatSessionData {
         data = reactive<ChatSessionData>({
             chatMessages: [],
             chatToolMessages: [],
+            pendingQueue: pendingQueueStore.get(key),
             sessionTree: null,
             sessionLeafId: null,
             chatStream: null,
@@ -159,6 +172,32 @@ function getSessionData(key: string): ChatSessionData {
         state.sessionsMap.set(key, data)
     }
     return data
+}
+
+// ==================== Pending Queue（busy 期间 steer/follow-up 排队可视化） ====================
+
+/** 队列变更后统一落盘（空数组自动清除对应 session 键） */
+function persistPendingQueue(targetKey: string, items: PendingItem[]) {
+    pendingQueueStore.set(targetKey, items)
+}
+
+/** 入队 + 落盘（steer/follow API 成功后调用；消息回显命中或 reconcile 时出队） */
+function enqueuePendingItem(targetKey: string, text: string, mode: PendingSendMode) {
+    const sd = getSessionData(targetKey)
+    const entry: PendingItem = { id: createRuntimeId('pending'), text, mode, timestamp: Date.now() }
+    sd.pendingQueue = [...sd.pendingQueue, entry]
+    persistPendingQueue(targetKey, sd.pendingQueue)
+}
+
+/** 全量消息比对：删除已 drain 落盘的条目（done 刷新 / loadChatHistory / attach 后调用） */
+function reconcilePendingQueue(targetKey: string) {
+    const sd = getSessionData(targetKey)
+    if (sd.pendingQueue.length === 0) return
+    const kept = reconcileQueue(sd.pendingQueue, sd.chatMessages)
+    if (kept.length !== sd.pendingQueue.length) {
+        sd.pendingQueue = kept
+        persistPendingQueue(targetKey, kept)
+    }
 }
 
 
@@ -348,8 +387,26 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
     const stream = sessionData.chatStream as any[]
 
     switch (eventType) {
-        case 'message_start':
+        case 'message_start': {
             // 消息开始：服务器可能推送 user 消息回显或 assistant 消息开始
+            // steer / follow-up 落盘时的 user 回显：命中本地 pending 队头 → 立即出队，
+            // 回显内容直接 append 为正式气泡（无缝转正）；
+            // sendMessage 正常路径的回显不命中（队列为空或文本不符）→ 忽略，乐观气泡已覆盖
+            const echoMsg = data?.message
+            if (echoMsg?.role === 'user') {
+                const echoText = extractUserText(echoMsg.content)
+                const consumed = echoText ? consumeQueueHead(sessionData.pendingQueue, echoText) : null
+                if (consumed) {
+                    sessionData.pendingQueue = consumed.rest
+                    persistPendingQueue(targetKey, consumed.rest)
+                    sessionData.chatMessages = [...sessionData.chatMessages, {
+                        role: 'user',
+                        content: echoMsg.content,
+                        timestamp: typeof echoMsg.timestamp === 'number' ? echoMsg.timestamp : consumed.item.timestamp,
+                        id: generateUUID(),
+                    }]
+                }
+            }
             // 特殊处理带有完整 content 的初始消息（如 custom 角色消息等）
             if (data?.message?.role == "custom" && allowCustomType.includes(data?.message?.customType)) {
                 if (Array.isArray(data.message.content)) {
@@ -359,6 +416,7 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
                 }
             }
             break
+        }
         case 'text_delta':
         case 'thinking_delta': {
             // 合并文本增量（text_delta）或思考过程增量（thinking_delta）
@@ -557,6 +615,8 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
                 if (result?.messages) {
                     const sd = getSessionData(targetKey)
                     sd.chatMessages = result.messages
+                    // 全量消息比对：已 drain 落盘的排队条目出队（回显未命中的兜底，如模板展开）
+                    reconcilePendingQueue(targetKey)
                     // 服务端已持久化全部 toolResult entry，本地临时条目同步清空
                     //（同 loadChatHistory 规则）：不清会与持久化消息双重参与 1.1 合并，
                     // 幂等但永久残留，且随 sessionsMap 永不驱逐
@@ -582,6 +642,11 @@ const abortChat = async (sessionKey?: string) => {
         const sd = getSessionData(targetKey)
         try {
             const result = await apiPost<{ messages?: ChatMessage[], isStreaming?: boolean }>(`/api/chat/${targetKey}/abort`)
+            // 服务端 /abort 已同步清空 steer/followUp 队列，本地排队视图一并清空
+            if (sd.pendingQueue.length > 0) {
+                sd.pendingQueue = []
+                persistPendingQueue(targetKey, [])
+            }
             if (result) {
                 if (result.messages) {
                     sd.chatMessages = result.messages
@@ -614,6 +679,8 @@ const loadChatHistory = async (sessionKey?: string) => {
         const sessionId = targetKey
         const result = await apiGet<{ messages: ChatMessage[], isStreaming?: boolean, partialText?: string }>(`/api/chat/${sessionId}/messages`)
         sd.chatMessages = result?.messages || []
+        // 页面刷新/切会话恢复：已 drain 落盘的排队条目出队（localStorage 队列在此刻收敛）
+        reconcilePendingQueue(sessionId)
         // 清空本地临时存储的 toolResult 消息，因为历史记录中应该已经包含（或者由 chatMessages 自行管理）
         sd.chatToolMessages = []
 
@@ -692,55 +759,62 @@ const selectAgent = (agentId: string) => {
     state.agentsSelectedId = agentId
 }
 
-const steerMessage = async (message: string, sessionKey?: string) => {
+const steerMessage = async (message: string, sessionKey?: string): Promise<boolean> => {
     const targetKey = sessionKey || state.sessionKey
     if (!targetKey) {
         console.error('[useChatState] steerMessage called without sessionKey')
-        return
+        return false
     }
-
-    const sessionId = targetKey
-    const sessionData = getSessionData(targetKey)
-
-    // Add user message to per-session data
-    sessionData.chatMessages = [...sessionData.chatMessages, {
-        role: 'user',
-        content: message,
-        timestamp: Date.now(),
-        id: generateUUID()
-    }]
 
     try {
-        await apiPost(`/api/chat/${sessionId}/steer`, { text: message })
+        // 打断注入：服务端入 steering 队列，当前 run 内被消费；
+        // 落盘回显（message_start role=user）时由本地队列出队转正为正式气泡
+        await apiPost(`/api/chat/${targetKey}/steer`, { text: message })
     } catch (err: any) {
         console.error('Failed to steer:', err)
+        // 404/409 是 api-client 的静默错误码（无全局 toast），此处显式提示；
+        // 其余失败 api-client 已 toast 过，不重复弹。调用方按 false 恢复输入框文本
+        if ([404, 409].includes(err?.code)) {
+            useToast().error(err?.message, 5000)
+        }
+        return false
     }
+
+    enqueuePendingItem(targetKey, message, 'steer')
+    return true
 }
 
-const followMessage = async (message: string, sessionKey?: string) => {
+const followMessage = async (message: string, sessionKey?: string): Promise<boolean> => {
     const targetKey = sessionKey || state.sessionKey
     if (!targetKey) {
         console.error('[useChatState] followMessage called without sessionKey')
-        return
+        return false
     }
-
-    const sessionId = targetKey
-    const sessionData = getSessionData(targetKey)
-
-    // 乐观 UI：只插纯文本 user 气泡；不 abort 当前 SSE，不走 /chat
-    sessionData.chatMessages = [...sessionData.chatMessages, {
-        role: 'user',
-        content: message,
-        timestamp: Date.now(),
-        id: generateUUID()
-    }]
 
     try {
-        // 控制面：与 steer 对称，排队到当前 run 结束后再投递
-        await apiPost(`/api/chat/${sessionId}/follow-up`, { text: message })
+        // 控制面：排队到当前 run 结束后再投递；转正信号同 steer（回显 + reconcile 兜底）
+        await apiPost(`/api/chat/${targetKey}/follow-up`, { text: message })
     } catch (err: any) {
         console.error('Failed to follow-up:', err)
+        if ([404, 409].includes(err?.code)) {
+            useToast().error(err?.message, 5000)
+        }
+        return false
     }
+
+    enqueuePendingItem(targetKey, message, 'follow')
+    return true
+}
+
+/** 仅从界面移除排队条目（不影响服务端已提交的投递，除陈旧条目外不建议使用） */
+const removePendingItem = (id: string, sessionKey?: string) => {
+    const targetKey = sessionKey || state.sessionKey
+    if (!targetKey) return
+    const sd = getSessionData(targetKey)
+    const next = sd.pendingQueue.filter(entry => entry.id !== id)
+    if (next.length === sd.pendingQueue.length) return
+    sd.pendingQueue = next
+    persistPendingQueue(targetKey, next)
 }
 
 
@@ -986,6 +1060,7 @@ const chatRunId = computed(() => getSessionData(state.sessionKey).chatRunId)
 const chatStreamStartedAt = computed(() => getSessionData(state.sessionKey).chatStreamStartedAt)
 const chatLoading = computed(() => getSessionData(state.sessionKey).chatLoading)
 const sessionUsage = computed(() => getSessionData(state.sessionKey).sessionUsage)
+const pendingQueue = computed(() => getSessionData(state.sessionKey).pendingQueue)
 const currentAgent = computed(() => {
     const agentsState = useAgentsState()
     return agentsState.agentsList?.find(a => a.id === state.agentsSelectedId) || null
@@ -1004,6 +1079,7 @@ type UnwrapComputed<T extends object> = {
 const _methods = {
     chatMessages, chatToolMessages, sessionTree, sessionLeafId, chatStream,
     chatSending, chatRunId, chatStreamStartedAt, chatLoading, sessionUsage, currentAgent,
+    pendingQueue, removePendingItem,
     sendMessage, steerMessage, followMessage, abortChat, loadChatHistory,
     setSessionKey, createNewSession, selectAgent, getSessionData,
     deleteMessage, retryMessage, editMessage, fetchSessionTree, fetchSessionUsage, navigateBranch, forkFromEntry,

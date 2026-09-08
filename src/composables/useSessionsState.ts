@@ -2,6 +2,7 @@ import { reactive, watch } from 'vue'
 
 import { ApiError, apiGet, apiPost, apiDelete } from './api-client'
 import { useInputHistoryStore } from '../stores/inputHistory'
+import { pendingQueueStore } from '../utils/pending-queue'
 import type { SessionCategory } from './session-route-state'
 import {
     moveSessionToRouteState,
@@ -229,6 +230,8 @@ const deleteSession = async (key: string) => {
     state.archivedSessionsResult = removeSessionFromResult(state.archivedSessionsResult, key)
     sessionsIndex.delete(key)
     useInputHistoryStore().removeSessionHistory(key)
+    // 会话已删除：本地排队队列一并清理（对齐 removeSessionHistory 模式）
+    pendingQueueStore.remove(key)
     return { deleted: true }
 }
 

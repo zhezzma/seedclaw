@@ -560,6 +560,13 @@ export default {
         fork: 'Fork from here',
         editUpdate: 'Update',
         waitMessage: 'Please wait for the current message to finish sending',
+        pendingQueue: {
+            count: '{n} queued',
+            hint: 'Sent automatically after the current reply',
+            followBadge: 'Queued',
+            steerBadge: 'Injecting',
+            removeHint: 'Removes from this list only; delivery to the server is not affected',
+        },
         inputPlaceholder: "Type a message or '/' to select a command",
         // 新会话欢迎页专用：不支持 / 命令，文案换成更有邀请感的开场
         inputPlaceholderHome: "Tell me your idea and I'll build it",

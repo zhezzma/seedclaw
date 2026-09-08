@@ -5,6 +5,7 @@ import type { A2UIComponent } from '../components/a2ui/types'
 import { getOrCreateSurface, updateSurfaceDataModel, deleteSurface } from './useA2UISurfaces'
 import { ensureRenderableBlocks, markErroredToolBlocks } from '../utils/chatMessageRender'
 import { resolveMediaUrl } from '../utils/media-url'
+import type { PendingItem, PendingSendMode } from '../utils/pending-queue'
 
 // Types for internal display
 export interface DisplayBlock {
@@ -46,6 +47,8 @@ export interface DisplayMessage {
      *  fork 等以「气泡末尾」为锚点的操作应优先用它，entryId 保持指向组内第一条
      *  （会话树跳转的反向定位依赖该语义，不可改动） */
     lastEntryId?: string
+    /** steer / follow-up 排队中标识：气泡半透明 + 徽标，无 entryId 时操作按钮自动隐藏 */
+    pending?: PendingSendMode
 }
 
 export interface ChatStateShape {
@@ -56,6 +59,8 @@ export interface ChatStateShape {
     chatRunId?: string | null
     chatLoading?: boolean
     sessionKey?: string
+    /** busy 期间 steer/follow-up 的本地排队队列（会话页消息末尾追加为半透明气泡） */
+    pendingQueue?: PendingItem[]
     [key: string]: any
 }
 
@@ -506,6 +511,19 @@ export function useChatMessages(state: ChatStateShape) {
             }
         }
 
+
+        // 4. 排队中的 steer / follow-up（busy 期间发送）：追加在列表末尾；
+        //    回显命中（message_start 消费）或 reconcile 出队后无缝转正为正式气泡
+        const pendingQueue = state.pendingQueue || []
+        for (const entry of pendingQueue) {
+            displayMessages.push({
+                id: entry.id,
+                role: 'user',
+                blocks: [{ type: 'text', text: entry.text }],
+                timestamp: entry.timestamp,
+                pending: entry.mode,
+            })
+        }
 
         return displayMessages
     })

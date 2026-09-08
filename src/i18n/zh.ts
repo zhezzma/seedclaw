@@ -560,6 +560,13 @@ export default {
         fork: '从此处分叉',
         editUpdate: '更新',
         waitMessage: '请等待当前消息发送完成',
+        pendingQueue: {
+            count: '已排队 {n} 条',
+            hint: '当前回复结束后自动发送',
+            followBadge: '排队中',
+            steerBadge: '插入中',
+            removeHint: '仅从列表移除，不影响已提交给服务端的消息',
+        },
         inputPlaceholder: "发消息或输入'/'选择命令",
         // 新会话欢迎页专用：不支持 / 命令，文案换成更有邀请感的开场
         inputPlaceholderHome: '说说你的想法，我来实现',

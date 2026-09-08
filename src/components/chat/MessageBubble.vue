@@ -281,12 +281,19 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
         <!-- Header -->
         <div class="chat-header opacity-70 text-xs mb-1">
             {{ message.role === 'user' ? $t('chat.you') : assistantName }}
+            <!-- steer / follow-up 排队中徽标：回显命中后随气泡转正一起消失 -->
+            <span v-if="message.pending"
+                class="badge badge-ghost badge-xs ml-1 py-2 font-normal text-base-content/60 border-dashed border-base-content/20">
+                {{ message.pending === 'follow' ? $t('chat.pendingQueue.followBadge') : $t('chat.pendingQueue.steerBadge') }}
+            </span>
             <time v-if="message.timestamp" class="ml-1">{{ formatTime(message.timestamp) }}</time>
         </div>
 
         <!-- User Message Bubble -->
+        <!-- pending（排队中）气泡：半透明标识未落盘状态，转正后恢复 -->
         <div v-if="message.role === 'user'"
-            class="max-w-full md:max-w-[90%] chat-bubble bg-primary/10 text-base-content relative">
+            class="max-w-full md:max-w-[90%] chat-bubble bg-primary/10 text-base-content relative transition-opacity duration-200"
+            :class="message.pending ? 'opacity-70' : ''">
             <div class="whitespace-normal flex flex-col gap-2">
                 <!-- Edit mode: textarea shown above invisible original content -->
                 <textarea v-if="isEditing" v-model="editText" rows="4"
