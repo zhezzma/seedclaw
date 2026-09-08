@@ -51,7 +51,7 @@ use std::{
     sync::OnceLock,
 };
 
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use windows::{
     core::{GUID, Interface, PCWSTR, implement},
     Win32::{
@@ -324,7 +324,8 @@ fn reg_set_sz(subkey: &str, name: &str, value: &str) -> Result<(), String> {
 /// 写激活注册表（幂等，每次启动自愈——exe 路径可能随部署目录变化）。
 /// LocalServer32 值带引号包路径：路径含空格时 COM 启动命令行才不会被截断。
 fn write_activation_registry(identifier: &str, clsid: GUID, executable: &Path) -> Result<(), String> {
-    let clsid_str = format!("{{{clsid}}}");
+    // GUID 无 Display，只有 Debug（输出即规范的 36 位大写十六进制），外加花括号得注册表 CLSID 形状
+    let clsid_str = format!("{{{clsid:?}}}");
     let exe_quoted = format!("\"{}\"", executable.display());
 
     reg_set_sz(
@@ -423,7 +424,7 @@ pub fn setup(app: &AppHandle) {
     };
     match register_result {
         Ok(_cookie) => log::info!(
-            "[win_toast] toast activator registered (clsid={clsid}, aumid={identifier})"
+            "[win_toast] toast activator registered (clsid={clsid:?}, aumid={identifier})"
         ),
         Err(e) => log::warn!("[win_toast] CoRegisterClassObject failed: {e}"),
     }

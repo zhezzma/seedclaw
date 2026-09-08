@@ -71,4 +71,9 @@ windows = { version = "0.61", features = [
     "Win32_UI_Shell_PropertiesSystem",
     "Win32_UI_Notifications",
 ] }
+# #[implement(...)] 宏（windows-implement）展开为 ::windows_core:: 绝对路径，
+# 只能解析当前 crate 的直接依赖——经 windows 传递引入的不在 extern prelude，
+# 缺这条会导致 E0433 "cannot find windows_core in the crate root"。
+# 版本与上方 windows 对齐（与通知插件 fork 的写法一致）。
+windows-core = "0.61"
 
