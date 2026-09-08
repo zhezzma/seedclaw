@@ -38,6 +38,26 @@ const restoreMainWindow = async () => {
 
 const initNotificationClickNavigation = async () => {
     if (!isTauri) return
+    // 新增监听独立 try/catch：失败不能拖垮 onNotificationClicked 的注册
+    // （后者是 Android/iOS 冷启动点击的关键链路）
+    try {
+        // 桌面 Windows：通知中心（历史通知列表）点击不走插件的 notificationClicked 事件
+        // （进程内 Activated 只覆盖横幅期），由 Rust 侧 COM activator 发的
+        // notify://toast-activated 接住——payload 同为 {id, data:{sessionKey}}
+        const { listen } = await import('@tauri-apps/api/event')
+        const unlisten = await listen<{ id?: number, data?: { sessionKey?: string } }>(
+            'notify://toast-activated',
+            (event) => {
+                void restoreMainWindow()
+                navigateToSession(String(event.payload?.data?.sessionKey || ''))
+            }
+        )
+        // unlisten 挂到进程生命周期（App 常驻，无需清理）
+        void unlisten
+    } catch (e) {
+        console.warn('Failed to subscribe toast-activated', e)
+    }
+
     try {
         // set_click_listener_active 由插件内部触发：冷启动时补发 pending 点击
         await onNotificationClicked((data) => {

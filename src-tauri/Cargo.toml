@@ -57,13 +57,18 @@ win32job = "2"
 # Windows 原生 Toast 的 AUMID 注册依赖：未 MSIX 打包的应用必须在开始菜单有带
 # System.AppUserModel.ID 的快捷方式，否则 CreateToastNotifierWithId(identifier)
 # 会被系统拒绝（Element not found）。win_toast.rs 启动时自建/自愈该快捷方式。
+# Win32_UI_Notifications：通知中心点击回传的 COM 接口 INotificationActivationCallback；
+# Win32_System_Registry：自愈 CustomActivator/LocalServer32 注册表键。
 # 版本对齐 tauri-plugin-notifications 的 windows 0.61，避免重复编译。
 windows = { version = "0.61", features = [
     "Win32_Foundation",
+    "Win32_Security",
     "Win32_System_Com",
     "Win32_System_Com_StructuredStorage",
     "Win32_System_Variant",
+    "Win32_System_Registry",
     "Win32_UI_Shell",
     "Win32_UI_Shell_PropertiesSystem",
+    "Win32_UI_Notifications",
 ] }
 

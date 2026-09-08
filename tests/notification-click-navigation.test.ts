@@ -7,6 +7,7 @@ const root = path.resolve(import.meta.dirname, '..')
 const useNotifySource = readFileSync(path.join(root, 'src/composables/useNotify.ts'), 'utf8')
 const appSource = readFileSync(path.join(root, 'src/App.vue'), 'utf8')
 const notifyRustSource = readFileSync(path.join(root, 'src-tauri/src/notify.rs'), 'utf8')
+const winToastRustSource = readFileSync(path.join(root, 'src-tauri/src/win_toast.rs'), 'utf8')
 const routerSource = readFileSync(path.join(root, 'src/router/index.ts'), 'utf8')
 
 test('notification clicks navigate precisely to the session chat route', () => {
@@ -46,6 +47,14 @@ test('Rust notification carries sessionKey extra for platform click backends', (
     assert.match(notifyRustSource, /\.extra\("sessionKey", session_key\)/)
     // id → sessionKey 映射事件已删除：extra 直接随点击回传
     assert.doesNotMatch(notifyRustSource, /notification-sent/)
+})
+
+test('Action Center click event name is paired between Rust COM activator and TS listener', () => {
+    // 通知中心点击链路：win_toast.rs 的 COM activator emit 与 useNotify.ts 的监听
+    // 必须同名——静态源断言防任一侧改名后另一侧静默失联
+    assert.match(winToastRustSource, /pub const TOAST_ACTIVATED_EVENT: &str = "notify:\/\/toast-activated"/)
+    assert.match(winToastRustSource, /app\.emit\(TOAST_ACTIVATED_EVENT, payload\)/)
+    assert.match(useNotifySource, /'notify:\/\/toast-activated'/)
 })
 
 test('router drops tasks/archived routes and session-category redirect guard', () => {
