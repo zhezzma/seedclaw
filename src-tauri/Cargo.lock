@@ -3525,6 +3525,7 @@ name = "seedclaw"
 version = "0.1.0"
 dependencies = [
  "futures-util",
+ "log",
  "openssl",
  "serde",
  "serde_json",
@@ -3542,6 +3543,7 @@ dependencies = [
  "url",
  "uuid",
  "win32job",
+ "windows",
 ]
 
 [[package]]
