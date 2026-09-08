@@ -6,6 +6,14 @@
  * 通过「user 回显精确匹配 + 全量消息多集比对」两个信号驱动转正：
  * - SSE message_start（role=user）回显命中 → 立即出队并把回显转成正式气泡；
  * - done / load / attach 后的全量消息 → reconcile 清掉已落盘条目（兜底）。
+ *
+ * 服务端队列生命周期（pi agent-session / agent-loop 源码已查证）：
+ * - 每次 run 开头先 drain steering 队列（getSteeringMessages），agent 将停时 drain
+ *   followUp 队列（getFollowUpMessages），agent_end 后 continuation 循环续跑余下条目；
+ * - run 以 error/aborted 终止时队列不清空，留给下一次 run / continuation 消费；
+ * - 唯一清空路径是 /abort（seedagent clearQueuesAndAbort），客户端在 abort 成功后同步清空。
+ * 故本地条目「长期显示」是正确状态（服务端确实还排着），不存在需要 TTL 兑底的幽灵场景；
+ * 会跨刷新残留的只有：多窗口 abort 不同步、服务端模板展开改写文本（✕ 手动清除兑底）。
  */
 
 export const PENDING_QUEUE_STORAGE_KEY = 'seedclaw_pending_queue'

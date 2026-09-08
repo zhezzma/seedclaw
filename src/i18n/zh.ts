@@ -562,7 +562,7 @@ export default {
         waitMessage: '请等待当前消息发送完成',
         pendingQueue: {
             count: '已排队 {n} 条',
-            hint: '当前回复结束后自动发送',
+            hint: '将随当前回复自动发送',
             followBadge: '排队中',
             steerBadge: '插入中',
             removeHint: '仅从列表移除，不影响已提交给服务端的消息',

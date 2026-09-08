@@ -29,7 +29,7 @@ import AgentFormModal from '../components/agents/AgentFormModal.vue'
 
 import { isNewSession, NEW_SESSION_PATH, NEW_SESSION_ROUTE_NAME } from '../utils/route-helpers'
 import { writeClipboard } from '../utils/clipboard.ts'
-import { useChatState, splitModelId, type ChatSendOverrides } from '../composables/useChatState'
+import { useChatState, splitModelId, type ChatSendOverrides, type ChatAttachment } from '../composables/useChatState'
 import { useChatInput } from '../composables/useChatInput'
 import { useCommandState } from '../composables/useCommandState'
 import { SessionRow, useSessionsState } from '../composables/useSessionsState'
@@ -244,7 +244,7 @@ const handleJumpToTreeEntry = async (entryId: string) => {
  * 一律走专用 API，不经 POST /chat。
  * @returns true 表示已处理（含参数错误），调用方应直接 return
  */
-const trySendDeliveryCommand = async (inputText: string): Promise<boolean> => {
+const trySendDeliveryCommand = async (inputText: string, rawAttachments: ChatAttachment[] = []): Promise<boolean> => {
     const match = inputText.match(deliveryCommandPattern)
     if (!match) return false
 
@@ -269,9 +269,10 @@ const trySendDeliveryCommand = async (inputText: string): Promise<boolean> => {
         ? await chatState.steerMessage(deliveryText)
         : await chatState.followMessage(deliveryText)
     if (!sent) {
-        // API 失败（toast 已由错误处理弹出）：恢复输入框文本，方便修改后重发
+        // API 失败（toast 已由错误处理弹出）：恢复输入框文本与附件，方便修改后重发
         if (chatInputRef.value) {
             chatInputRef.value.inputText = inputText
+            chatInputRef.value.attachments = rawAttachments
         }
         return true
     }
@@ -321,7 +322,7 @@ const handleSend = async () => {
     // Case 2: Busy + has text
     if (isBusy.value && inputText) {
         // /follow-up /steer /abort：走控制 API，不经 /chat
-        if (await trySendDeliveryCommand(inputText)) return
+        if (await trySendDeliveryCommand(inputText, rawAttachments)) return
 
         // 检查是否为 / 开头的命令
         if (inputText.startsWith('/')) {
@@ -344,9 +345,10 @@ const handleSend = async () => {
             ? await chatState.followMessage(inputText)
             : await chatState.steerMessage(inputText)
         if (!sent) {
-            // API 失败：恢复输入框文本，方便修改后重发（消息未入队，不会静默丢失）
+            // API 失败：恢复输入框文本与附件，方便修改后重发（消息未入队，不会静默丢失）
             if (chatInputRef.value) {
                 chatInputRef.value.inputText = inputText
+                chatInputRef.value.attachments = rawAttachments
             }
             return
         }
@@ -356,7 +358,7 @@ const handleSend = async () => {
 
     // Case 3: Not busy → normal send
     // /follow-up /steer /abort 在 idle 也走控制 API，避免 POST /chat 返回 JSON 而非 SSE
-    if (await trySendDeliveryCommand(inputText)) return
+    if (await trySendDeliveryCommand(inputText, rawAttachments)) return
 
     // Determine session key
     let targetSessionKey = chatState.sessionKey

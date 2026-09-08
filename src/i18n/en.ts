@@ -562,7 +562,7 @@ export default {
         waitMessage: 'Please wait for the current message to finish sending',
         pendingQueue: {
             count: '{n} queued',
-            hint: 'Sent automatically after the current reply',
+            hint: 'Sent automatically with the current reply',
             followBadge: 'Queued',
             steerBadge: 'Injecting',
             removeHint: 'Removes from this list only; delivery to the server is not affected',
