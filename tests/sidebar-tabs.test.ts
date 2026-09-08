@@ -43,6 +43,9 @@ test('sidebar group toggle renders sessions grouped by agent', () => {
     assert.match(sidebarSource, /agent: agentDisplayName\(s\),/)
     assert.match(sidebarSource, /const sessionGroups = computed\(\(\) => \{/)
     assert.match(sidebarSource, /label: session\.agent \|\| t\('sidebar\.ungrouped'\)/)
+    // 组顺序固定不漂移：按显示名排序（未分组 key 为空永远最后），
+    // 不随会话更新时间跳位；组内会话仍保持时间倒序
+    assert.match(sidebarSource, /return groups\.sort\(\(a, b\) => \{\s*if \(!a\.key\) return 1\s*if \(!b\.key\) return -1\s*return a\.label\.localeCompare\(b\.label, 'zh'\) \|\| \(a\.key < b\.key \? -1 : a\.key > b\.key \? 1 : 0\)/)
     // 渲染模型单一 v-for：组头与行交错，行模板不按两种视图复制
     assert.match(sidebarSource, /v-for="session in sessionListItems"/)
     assert.match(sidebarSource, /v-if="session\.kind === 'group'"/)

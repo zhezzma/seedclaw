@@ -214,7 +214,7 @@ const toggleGroupByAgent = () => {
     configStore.toggleSidebarGrouped()
 }
 
-// 分组模型：按 agentId 分组（同名 agent 不合并），保持列表首现顺序；
+// 分组模型：按 agentId 分组（同名 agent 不合并）；
 // 组头显示 agent 显示名，无 agent 的会话归入「未分组」组
 const sessionGroups = computed(() => {
     const groups: Array<{ key: string, label: string, sessions: DisplaySession[] }> = []
@@ -232,7 +232,15 @@ const sessionGroups = computed(() => {
             sessions: [session],
         })
     }
-    return groups
+    // 组顺序固定不漂移：按显示名排序（中文按拼音），「未分组」组（key 为空）永远最后；
+    // 同名 agent 用 agentId 决胜，保证顺序完全确定。
+    // 若按首现顺序（时间倒序），任一 agent 有会话更新其组就会跳到最上面；
+    // 组内会话仍保持时间倒序不变
+    return groups.sort((a, b) => {
+        if (!a.key) return 1
+        if (!b.key) return -1
+        return a.label.localeCompare(b.label, 'zh') || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)
+    })
 })
 
 // 列表渲染模型：分组开 → 组头与行交错；关 → 纯行。
