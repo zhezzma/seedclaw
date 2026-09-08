@@ -17,11 +17,31 @@ const navigateToSession = (sessionKey: string) => {
     router.push({ name: 'chat', params: { sessionkey: sessionKey } })
 }
 
+/**
+ * 恢复并聚焦主窗口：点系统通知 = 用户要回程序，窗口可能藏在托盘（CloseRequested → hide）、
+ * 被最小化或压在其他窗口后面。Windows 非 MSIX 无 COM activator，点击 Toast 只触发
+ * 进程内事件，系统不会自动把窗口拉回前台，必须手动 show + unminimize + setFocus
+ * （与 lib.rs 单实例回调的恢复姿势一致）。
+ */
+const restoreMainWindow = async () => {
+    try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window')
+        const win = getCurrentWindow()
+        await win.show()
+        await win.unminimize()
+        await win.setFocus()
+    } catch (e) {
+        // Android 冷启动点击时窗口 API 可能不支持，无碍——OS 本身已把 app 拉回前台
+        console.warn('Failed to restore main window', e)
+    }
+}
+
 const initNotificationClickNavigation = async () => {
     if (!isTauri) return
     try {
         // set_click_listener_active 由插件内部触发：冷启动时补发 pending 点击
         await onNotificationClicked((data) => {
+            void restoreMainWindow()
             navigateToSession(String(data?.data?.sessionKey || ''))
         })
     } catch (e) {

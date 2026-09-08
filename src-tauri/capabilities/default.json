@@ -11,6 +11,9 @@
     "websocket:default",
     "notifications:default",
     "log:default",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-unminimize",
     {
       "identifier": "fs:allow-write-file",
       "allow": [
