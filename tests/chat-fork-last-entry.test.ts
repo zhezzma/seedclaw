@@ -53,6 +53,25 @@ test('MessageBubble 两处 fork 按钮的在途状态判断与 fork 目标一致
     )
 })
 
+test('MessageBubble 两处 fork 按钮不受 isBusy 控制隐藏（AI 回复期间也一直显示）', () => {
+    const source = readFileSync(path.resolve(testDir, '../src/components/chat/MessageBubble.vue'), 'utf8')
+
+    // 用户消息 hover 区与 AI 消息 fixed 区各一个 fork 按钮
+    const forkButtons = source.match(/<button v-if="[^"]*" @click="emit\('fork', message\)"/g) ?? []
+    assert.equal(forkButtons.length, 2, '用户消息与 AI 消息两处都应有 fork 按钮')
+
+    for (const tag of forkButtons) {
+        assert.ok(
+            !tag.includes('!isBusy'),
+            `fork 是对新会话的操作，不与会话内生成冲突，AI 回复期间也应显示: ${tag}`,
+        )
+        assert.ok(
+            tag.includes('message.entryId'),
+            `fork 仍需 entryId 作为分叉锚点（流式中未持久化的消息无锚点，保持隐藏）: ${tag}`,
+        )
+    }
+})
+
 // ==================== Bug 2: 桌面端点击遮罩应能关闭子代理轨迹抽屉 ====================
 
 test('SubagentTraceDrawer 遮罩在桌面端不再 pointer-events-none（点击可关闭）', () => {
