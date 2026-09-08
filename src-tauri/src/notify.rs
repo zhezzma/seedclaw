@@ -58,7 +58,9 @@ impl<R: Runtime> NotifyContext<R> {
         // show() 是 async：桌面端在后台线程等待点击回调，移动端走移动插件 IPC
         tauri::async_runtime::spawn(async move {
             if let Err(e) = builder.show().await {
-                eprintln!("[Rust Notify] Failed to show notification: {e}");
+                // eprintln! 在 release（windows_subsystem="windows"）下不可见；
+                // log 走 tauri-plugin-log 的 LogDir 文件，诊断系统通知失败必需
+                log::error!("[Rust Notify] Failed to show notification: {e}");
             }
         });
     }

@@ -9,6 +9,10 @@ use tauri::{
 mod notify;
 mod server;
 
+// Windows 原生 Toast 的 AUMID 快捷方式自愈注册（仅桌面 Windows 编译）
+#[cfg(target_os = "windows")]
+mod win_toast;
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
@@ -40,6 +44,23 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            // 便携版/dev 无安装器，开始菜单快捷方式是 Windows Toast 的 AUMID 注册点；
+            // 启动时自建/自愈，否则系统通知会被 Windows 静默拒绝（Element not found）。
+            // lnk 文件名用 productName（与 NSIS 安装器命名一致）：客户端/Server 两版
+            // 可并存（release.yml），各自的 AUMID 快捷方式互不覆盖
+            #[cfg(target_os = "windows")]
+            {
+                let config = app.config();
+                let shortcut_name = config
+                    .product_name
+                    .clone()
+                    .unwrap_or_else(|| config.identifier.clone());
+                if let Err(e) = win_toast::ensure_aumid_shortcut(&shortcut_name, &config.identifier)
+                {
+                    log::warn!("[win_toast] ensure_aumid_shortcut failed: {e}");
+                }
+            }
+
             #[cfg(desktop)]
             if cfg!(desktop) {
                 let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
