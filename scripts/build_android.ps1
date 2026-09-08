@@ -20,10 +20,10 @@ if (Test-Path $envFile) {
 $keystore = "$projectRoot\release.keystore"
 $alias = "seedclaw"
 
-$keystorePass = $env:KEYSTORE_PASS
+$keystorePass = $env:ANDROID_KEYSTORE_PASS
 if ([string]::IsNullOrWhiteSpace($keystorePass)) { $keystorePass = "android" } 
 
-$keyPass = $env:KEY_PASS
+$keyPass = $env:ANDROID_KEY_PASS
 if ([string]::IsNullOrWhiteSpace($keyPass)) { $keyPass = "android" }
 
 # 设置 Gradle 所需的环境变量 (供 build.gradle.kts 使用)
