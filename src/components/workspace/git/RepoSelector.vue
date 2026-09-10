@@ -16,9 +16,15 @@ const emit = defineEmits<{ (e: 'select', repo: string): void }>()
 const git = useWorkspaceGit()
 
 const open = ref(false)
-const current = computed(() =>
-    git.repos.value.find(r => r.path === props.selectedRepo) || null,
-)
+const current = computed(() => {
+    const found = git.repos.value.find(r => r.path === props.selectedRepo)
+    if (found || !props.selectedRepo) return found ?? null
+    // 嵌套仓库不在 /repos 列表（后端只扫顶层 + .worktrees），但仍可被 Files 树徽章
+    // 显式选中：合成一个仅含名字的展示条目，branch/dirty 摘要拿不到就不显示。
+    const i = props.selectedRepo.lastIndexOf('/')
+    const name = i === -1 ? props.selectedRepo : props.selectedRepo.slice(i + 1)
+    return { name, path: props.selectedRepo, branch: null, head: null, dirty: 0, ahead: 0, behind: 0 }
+})
 
 function onPick(repo: string) {
     open.value = false

@@ -337,3 +337,264 @@ test('markdown: 代码块全屏读取 fence 语言并透传给 openText', () => 
     // 仍走统一的 openText（现在带语言参数）
     assert.match(src, /openText\(/, 'must dispatch fullscreen via openText')
 })
+
+// ── Mutation × 磁盘副作用同步（audit 回归点）──
+// Files tab 的文件 mutation 与编辑器保存都会改 worktree → git status / repos 下拉
+// 数据源必须同步；discard 会 revert/删文件 → 树缓存与 viewer 必须跟进。
+
+test('WorkspaceTabGit: discard 后同步磁盘副作用（树缓存失效 + viewer 重载/关闭）', () => {
+    const src = read('src/components/workspace/WorkspaceTabGit.vue')
+    assert.match(src, /function afterDiscard/, 'must define afterDiscard for disk side-effects')
+    // 单文件与全部丢弃两条路径都要走 afterDiscard；stagedAdds 与 repo 同源闭包传入
+    assert.match(
+        src,
+        /onDiscard: group === 'unstaged' && repo\s*\?\s*async \(\) => \{[\s\S]*?afterDiscard\(\[change\], repo, stagedAdds\)/,
+        'single-file discard must run afterDiscard with the same repo as git.discard',
+    )
+    assert.match(
+        src,
+        /onConfirmed: async \(\) => \{[\s\S]*?afterDiscard\(list, repo, stagedAdds\)/,
+        'discard-all must run afterDiscard with the same repo as git.discard',
+    )
+    // staged-add（'A'/'R'/'C'，不在 HEAD）的文件 discard 后被服务端删除：必须在
+    // discard 前快照 staged（discard 后 'A' 行已消失），否则 AM 文件被当还原处理
+    // → 树幽灵条目 + viewer 重开 404
+    assert.match(
+        src,
+        /function stagedAddsSnapshot[\s\S]*?c\.status === 'A' \|\| c\.status === 'R' \|\| c\.status === 'C'/,
+        'must snapshot staged A/R/C paths before discard for delete classification',
+    )
+    assert.match(
+        src,
+        /const stagedAdds = stagedAddsSnapshot\(\)[\s\S]*?await git\.discard/,
+        'snapshot must be taken before git.discard (post-discard status no longer has the A rows)',
+    )
+    // discard 返回 stale（epoch 失配：切 agent / 改绑 workspace）→ 跳过 afterDiscard
+    assert.match(
+        src,
+        /const r = await git\.discard\([\s\S]*?if \(r\.stale\) return[\s\S]*?await afterDiscard/,
+        'must skip afterDiscard when discard reports stale (rebind keeps currentAgentId, ownership check alone cannot block)',
+    )
+    // untracked 被删 / 目录增删 → 失效已缓存（展开过）的受影响目录**及祖先链**并重拉
+    assert.match(src, /tree\.invalidate\(/, 'must invalidate tree cache of deleted parents')
+    assert.match(src, /entriesAt\(dir\)[\s\S]*?isLoading\(dir\)/, 'must only reload already-cached dirs')
+    assert.match(
+        src,
+        /for \(let dir = p; ; dir = dir\.includes\('\/'\) \? dir\.slice\(0, dir\.lastIndexOf\('\/'\)\) : ''\)/,
+        'must walk the ancestor chain (dir itself may be uncached while the stale listing lives in the nearest cached ancestor)',
+    )
+    // viewer 正看着被删的 untracked 文件 → 关闭；看着被还原的 tracked 文件且无未保存改动 → close+nextTick+open 强制重载
+    // （close 与 openFile 必须隔 nextTick：同 tick 批处理会让 v-if 保留实例、不重拉）
+    assert.match(src, /deletedPaths\.has\(cur\.path\)[\s\S]*?viewer\.close\(\)/, 'must close viewer showing deleted untracked file')
+    assert.match(src, /viewer\.close\(\)\s*await nextTick\(\)\s*viewer\.openFile\(cur\.path\)/, 'must force-reload reverted file via close+nextTick+open')
+    // discard await 期间切 agent → 续体不得污染新 agent 的缓存与 viewer（全局单槽）
+    assert.match(src, /afterDiscard[\s\S]*?git\.currentAgentId !== props\.agentId/, 'afterDiscard must guard against agent switch during in-flight discard')
+    // repo / stagedAdds 必须由调用方闭包传入（discard 用的同一时点），不得在 await 后重读
+    // selectedRepo：用户可能已在在飞期间切了仓库，用新仓库算前缀会失效错目录/关错 viewer
+    assert.match(src, /function afterDiscard\(changes: FileChange\[\], repo: string, stagedAdds: Set<string>\)/, 'afterDiscard must take repo/stagedAdds from caller closure, not re-read selectedRepo')
+    // 分类逻辑必须走 classifyDiscardEffects（staged-add 删除判别不可内联重造）
+    assert.match(src, /classifyDiscardEffects\(changes, repo, stagedAdds\)/, 'must classify via classifyDiscardEffects')
+    const adStart = src.indexOf('function afterDiscard')
+    const adEnd = src.indexOf('\nfunction ', adStart)
+    const adBody = src.slice(adStart, adEnd !== -1 ? adEnd : undefined)
+    assert.ok(!adBody.includes('selectedRepo'), 'afterDiscard body must NOT read selectedRepo (stale after in-flight repo switch)')
+    // tracked 'D'（工作区删除）discard = git restore 恢复文件回磁盘 → 父目录列表新增
+    // 条目，需要失效父目录缓存，否则幽灵缺失
+    // （分类已抽到 classifyDiscardEffects 纯函数，行为由 workspace-git.test.ts 锁死）
+    // 被删 untracked 文件的 viewer 有未保存改动 → buffer 是唯一副本，先确认再关
+    // （与 FileTreeNode.onDeleted 同语义）
+    assert.match(
+        src,
+        /deletedPaths\.has\(cur\.path\)\)[\s\S]*?dirty\.value\?\.path === cur\.path[\s\S]*?confirm\([\s\S]*?viewer\.close\(\)/,
+        'must confirm before closing dirty viewer of discarded untracked file',
+    )
+    // 首次 loadRepos 在飞时 tab 重挂载：不得因 reposLoading 跳过 await —— 在飞请求
+    // 完成后无人补跑选仓逻辑，tab 会停在空壳（无选中无状态无历史）
+    assert.doesNotMatch(src, /if \(!git\.reposLoading\.value\)/, 'onMounted must NOT skip loadRepos when one is in flight (blank-tab trap)')
+    // await 后归属复查：旧实例续体不得用新 agent 的 repos[0] 写旧 agent 的持久化选择
+    assert.match(
+        src,
+        /await git\.loadRepos\(props\.agentId\)[\s\S]*?git\.currentAgentId !== props\.agentId[\s\S]*?return/,
+        'onMounted must re-check store ownership after loadRepos await',
+    )
+})
+
+test('WorkspaceTabFiles: workspace 文件 mutation 后刷新 git（status + repos 下拉数据源）', () => {
+    const src = read('src/components/workspace/WorkspaceTabFiles.vue')
+    assert.match(src, /useWorkspaceGit/, 'must import git store')
+    assert.match(
+        src,
+        /onMutatedWorkspace[\s\S]*?refreshWorktreeState/,
+        'onMutatedWorkspace must refresh git store (worktree changed)',
+    )
+    // agent scope（agent 配置目录）不在 repos 扫描范围内，不该触发
+    assert.doesNotMatch(src, /onMutatedAgent[\s\S]*?refreshWorktreeState/, 'agent-scope mutations must not touch git store')
+})
+
+test('FileTreeNode: workspace 文件 mutation 后刷新 git store', () => {
+    const src = read('src/components/workspace/FileTreeNode.vue')
+    assert.match(src, /useWorkspaceGit/, 'must import git store')
+    assert.match(src, /onMutated[\s\S]*?refreshWorktreeState/, 'onMutated must refresh git store')
+})
+
+test('WorkspaceFileView: workspace 保存后重拉 repos（下拉 dirty 徽标数据源）', () => {
+    const src = read('src/components/workspace/WorkspaceFileView.vue')
+    assert.match(
+        src,
+        /scopeAtStart === 'workspace'[\s\S]*?git\.loadRepos\(agentAtStart\)/,
+        'save in workspace scope must refresh repos summary',
+    )
+    // 保存网络往返期间可能已切 agent：组件卸载后 props 冻结、三联快照恒真，
+    // 必须额外校验 store 归属，否则旧 agent 的刷新会写进新 agent 的 store
+    assert.match(
+        src,
+        /scopeAtStart === 'workspace' && git\.currentAgentId === agentAtStart/,
+        'save tail refresh must be gated by store ownership',
+    )
+})
+
+// ── 二轮 audit 修复的回归点（嵌套仓库选择 / tab 后台刷新 / 改绑失效 / 双实例 / 保存竞态）──
+
+test('WorkspaceTabGit: 显式仓库选择不被静默覆写 + tab 挂载后台刷新 + stale 不 toast', () => {
+    const src = read('src/components/workspace/WorkspaceTabGit.vue')
+    // 嵌套仓库（不在 /repos 列表）被徽章显式选中后，onMounted/refresh 不得回退 repos[0]
+    assert.doesNotMatch(
+        src,
+        /!repo \|\| !git\.repos\.value\.find/,
+        'must not clobber explicit (possibly nested) repo selection',
+    )
+    // 缓存命中也后台重拉：agent/终端可能已在面板外改过 git 状态
+    assert.match(src, /void loadAll\(repo\)/, 'must background-refresh status+log on cache hit')
+    assert.match(src, /void git\.loadRepos\(props\.agentId\)/, 'must background-refresh repos on cache hit')
+    // agent 切换后的迟到 mutation 返回 stale → 跳过成功 toast（误导归属）
+    const toastSkips = src.match(/if \(!r\.stale\) toast\.success/g) || []
+    assert.ok(toastSkips.length >= 2, `commit+sync 都要 stale 守卫，got ${toastSkips.length}`)
+    // diff viewer 对着被丢弃文件：强制重开（commit diff 跳过）
+    assert.match(
+        src,
+        /cur\?\.type === 'diff'[\s\S]*?cur\.mode !== 'commit'[\s\S]*?viewer\.openDiff/,
+        'must force-reload unstaged/untracked diff of discarded file',
+    )
+})
+
+test('RepoSelector: 嵌套仓库（不在 /repos 列表）合成仅名字的展示条目', () => {
+    const src = read('src/components/workspace/git/RepoSelector.vue')
+    assert.match(src, /lastIndexOf\('\/'\)/, 'must derive display name for nested repo selection')
+})
+
+test('WorkspacePanel: refresh 快照 agentId + 手动刷新带 refresh=1', () => {
+    const src = read('src/components/workspace/WorkspacePanel.vue')
+    assert.match(src, /const agentId = props\.agentId/, 'refresh must snapshot agentId')
+    assert.match(src, /props\.agentId !== agentId/, 'refresh must bail out on agent switch')
+    assert.match(src, /refresh: true/, 'manual refresh must ask server to fetch upstream')
+    // 树重展开 Promise.all 之后也必须复查：期间切 agent 时 agentFiles 已被
+    // ensureAgent(reset) 归属新 agent，新 tab 的 immediate watch 已建好在飞占位；
+    // 继续走 agentFiles.refresh() 会无条件清掉新 agent 的占位，而 loadPath(旧
+    // agent) 被归属守护 no-op，无人重拉 → Agent Files 区卡死空白
+    // 源码为 CRLF 行尾：归一化后再做位置断言
+    const norm = src.replace(/\r\n/g, '\n')
+    const iAll = norm.indexOf('await Promise.all(expandedPaths.map')
+    const iRecheck = norm.indexOf('if (props.agentId !== agentId) return', iAll)
+    // 带换行匹配真实调用语句（本测试上方源码注释里也提到了 agentFiles.refresh()）
+    const iAgentRefresh = norm.indexOf('agentFiles.refresh()\n', iAll)
+    assert.ok(iAll !== -1, 'refresh must re-expand tree paths')
+    assert.ok(iRecheck !== -1 && iAgentRefresh !== -1 && iRecheck < iAgentRefresh,
+        'refresh must re-check agent ownership after tree re-expand await, BEFORE agentFiles.refresh() wipes new agent placeholder')
+})
+
+test('WorkspaceViewer: close 等待保存落地后再走丢弃确认', () => {
+    const src = read('src/components/workspace/WorkspaceViewer.vue')
+    assert.match(
+        src,
+        /isSaving === true[\s\S]*?confirmDiscardIfDirty/,
+        'close must wait for in-flight save before discard-confirm (否则确认丢弃的其实是已落盘的改动)',
+    )
+    // 等待期间用户已从树点开新文件 → 关闭意图已被取代，不能把新文件关掉
+    assert.match(src, /const startTarget = viewer\.current\.value/, 'close must snapshot the target it was invoked for')
+    assert.match(
+        src,
+        /viewer\.current\.value !== startTarget[\s\S]*?return/,
+        'close must give up when the user opened a new file during the wait',
+    )
+})
+
+test('FileTreeNode/AgentFileTreeNode: 删除改名级联失效 + dirty 确认后才关 viewer', () => {
+    for (const f of ['src/components/workspace/FileTreeNode.vue', 'src/components/workspace/AgentFileTreeNode.vue']) {
+        const src = read(f)
+        assert.match(src, /invalidatePrefix\(deletedPath\)/, `${f} must cascade-invalidate subtree cache`)
+        assert.match(
+            src,
+            /viewer\.dirty\.value\?\.path === cur\.path[\s\S]*?confirm\(/,
+            `${f} must confirm before closing viewer with unsaved changes`,
+        )
+    }
+})
+
+test('HomeView: PC panel 与 drawer panel 双实例互斥', () => {
+    const src = read('src/views/HomeView.vue')
+    assert.match(src, /showWorkspacePanel && !isMobile/, 'PC panel must not mount on mobile')
+    assert.match(src, /if \(!mobile\) mobilePanelMounted\.value = false/, 'drawer instance must unmount on desktop')
+    // TDZ：isMobile watch 带 immediate:true，回调在注册点同步执行；
+    // mobilePanelMounted 声明必须在 watch 之前，否则桌面首屏抛 ReferenceError
+    const declIdx = src.indexOf('const mobilePanelMounted = ref(false)')
+    const watchIdx = src.indexOf('watch(isMobile')
+    assert.ok(declIdx !== -1 && watchIdx !== -1 && declIdx < watchIdx,
+        'mobilePanelMounted must be declared BEFORE the immediate isMobile watch (TDZ ReferenceError on desktop load)')
+    // 桌面端打开 panel（isOpen→true）不得置位 mobilePanelMounted：那会把 lg:hidden
+    // 仅 CSS 隐藏的 drawer 实例也挂出来（双份 onMounted/订阅/请求）
+    assert.match(src, /if \(open && isMobile\.value\) mobilePanelMounted\.value = true/, 'drawer lazy-mount must be gated by isMobile')
+})
+
+test('AgentOverview: 改绑 workspace 后失效三个 workspace store + 清仓库选择 + 关 viewer', () => {
+    const src = read('src/components/agents/tabs/AgentOverview.vue')
+    assert.match(src, /onWorkspaceUpdated[\s\S]*?wsGit\.reset\(\)/, 'must reset git store on rebind')
+    assert.match(src, /wsTree\.reset\(\)/, 'must reset tree store on rebind')
+    assert.match(src, /wsAgentFiles\.reset\(\)/, 'must reset agent-files store on rebind')
+    assert.match(src, /clearRepoForAgent\(id\)/, 'must clear remembered repo selection on rebind')
+    // viewer 是全局单槽：改绑后同相对路径指向新 workspace 的另一个文件，
+    // 不关闭的话保存会写错地方
+    assert.match(src, /onWorkspaceUpdated[\s\S]*?wsViewer\.close\(\)/, 'must close viewer on rebind (same rel-path would hit new workspace)')
+})
+
+// ── 三轮审核回归点（store 守护强化 + useConfirm 单槽语义）──
+
+test('useWorkspaceGit: 三重防护（epoch + repo 门控 + seq）与同步归属守护', () => {
+    const src = read('src/composables/useWorkspaceGit.ts')
+    // 同 key 并发「后发起者胜」：慢旧响应（refresh=1 / 多仓 repos）不得覆盖已落地的新数据
+    assert.match(src, /reposSeq/, 'loadRepos must have seq guard (later-issued wins)')
+    assert.match(src, /statusSeq/, 'loadStatus must have seq guard (later-issued wins)')
+    assert.match(src, /logSeq/, 'loadLog must have seq guard (later-issued wins)')
+    // 翻页也要参与 logSeq：翻页在飞时 log 重拉（commit/sync 触发）换血第一页，
+    // 旧翻页响应后到不得 append（边界重复条目）
+    const lmStart = src.indexOf('async loadMoreLog(')
+    const lmEnd = src.indexOf('async loadCommitFiles(', lmStart)
+    const lmBody = src.slice(lmStart, lmEnd !== -1 ? lmEnd : undefined)
+    assert.ok(lmBody.includes('mySeq = ++logSeq'), 'loadMoreLog (pagination) must also participate in logSeq')
+    // 同步归属守护：旧组件的迟到续体（save 收尾等）在 agent 切换后调用时，
+    // epoch 拦不住（起头才捕获，已是新值），必须同步拦
+    assert.match(src, /function ownedBy/, 'loads must have sync ownership guard')
+    // mutation 重拉仓库门控：在飞期间用户切了仓库 → 不得把 statusRepo/commitsRepo
+    // 拉回旧仓库（选择器/状态列表错位 → 错仓 stage/commit）
+    const gates = src.match(/state\.statusRepo === null \|\| state\.statusRepo === repo/g) || []
+    assert.ok(gates.length >= 5, `stage/unstage/discard/commit/sync 五处都要仓库门控，got ${gates.length}`)
+    const logGates = src.match(/state\.commitsRepo === null \|\| state\.commitsRepo === repo/g) || []
+    assert.ok(logGates.length >= 2, 'commit/sync 的 log 重拉也要仓库门控')
+    // loadLog 只在切仓库时清列表：同仓库后台重拉保留旧数据（History 不闪空）
+    assert.match(src, /if \(state\.commitsRepo !== repo\)\s*\{[\s\S]*?state\.commitsData = \[\]/, 'loadLog must only clear commitsData when repo changes')
+})
+
+test('useConfirm: 单槽位移旧确认按「取消」结清（不 reject）', async () => {
+    const { useConfirm } = await import('../src/composables/useConfirm.ts')
+    const c = useConfirm() as any
+    // 复位到干净状态（防止单例被前序测试污染）
+    c.cancel()
+    const first = c.confirm('旧确认')
+    const second = c.confirm('新确认')
+    // 旧 promise 被位移：必须以 false（取消）结清而非 reject（reject 会让调用方
+    // catch 出无参 rejection → toast「删除: undefined」）
+    const firstResult = await first
+    assert.equal(firstResult, false, 'displaced confirm must resolve(false), not reject')
+    // 新确认正常工作
+    c.ok()
+    assert.equal(await second, true)
+})

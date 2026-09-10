@@ -19,6 +19,7 @@ import { useWorkspaceTree } from '../../composables/useWorkspaceTree'
 import { useAgentFiles } from '../../composables/useAgentFiles'
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
 import { useWorkspacePanel } from '../../composables/useWorkspacePanel'
+import { useWorkspaceGit } from '../../composables/useWorkspaceGit'
 import { useToast } from '../../composables/useToast'
 import { useConfirm } from '../../composables/useConfirm'
 import { runNewFileFlow, runNewDirFlow, runUploadFlow } from '../../composables/useFileActions'
@@ -32,6 +33,7 @@ const tree = useWorkspaceTree()
 const agentFiles = useAgentFiles()
 const viewer = useWorkspaceViewer()
 const panel = useWorkspacePanel()
+const git = useWorkspaceGit()
 const toast = useToast()
 const { confirm } = useConfirm()
 const { t } = useI18n()
@@ -106,6 +108,9 @@ const workspaceFilesCount = computed(() => rootResult.value?.entries.length ?? n
 async function onMutatedWorkspace(parent: string) {
     tree.invalidate(parent)
     await tree.loadPath(props.agentId, parent)
+    // workspace 磁盘变了 → git status / repos 下拉摘要可能变（新建=untracked、
+    // 删除/改名=条目消失）。未打开过 Git tab 时 refreshWorktreeState 内部 no-op。
+    void git.refreshWorktreeState(props.agentId)
 }
 async function onMutatedAgent(parent: string) {
     agentFiles.invalidate(parent)

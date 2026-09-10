@@ -307,3 +307,20 @@ test('uploadFile: POST multipart 到 /upload，parentPath 进 query，含 file �
     assert.ok(form instanceof FormData, 'body must be FormData')
     assert.ok(form.has('file'), 'FormData must contain file field')
 })
+
+test('fetchStatus 拼 repo 参数，refresh 可选透传', async () => {
+    let captured: { url: string } | null = null
+    globalThis.fetch = (async (url: string) => {
+        captured = { url: String(url) }
+        return new Response(JSON.stringify({
+            ok: true,
+            payload: { branch: null, upstream: null, head: null, ahead: 0, behind: 0, staged: [], unstaged: [], untracked: [] },
+        }), { status: 200 })
+    }) as any
+
+    await api.fetchStatus('coder', 'r1')
+    assert.match(captured!.url, /\/workspace\/repo\/status\?repo=r1$/)
+
+    await api.fetchStatus('coder', 'r1', { refresh: true })
+    assert.match(captured!.url, /\/workspace\/repo\/status\?repo=r1&refresh=1$/, 'refresh=1 才能让服务端 fetch upstream 刷 behind')
+})

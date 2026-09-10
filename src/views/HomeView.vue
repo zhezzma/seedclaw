@@ -673,22 +673,31 @@ watch(() => wsViewer.current.value, (curr) => {
     }
 })
 
+// 移动端 drawer 内容懒加载：只有用户第一次打开过（isOpen 变 true）才挂载 WorkspacePanel，
+// 之后保持挂载利用缓存。这样未访问过 drawer 的用户不会付出任何 tree/repos 请求代价。
+// daisyUI 的动画作用于 drawer-side > *:first-child，包一层 v-if 不影响滑入动画。
+// 注意：声明必须在下面的 isMobile watch 之前——watch 带 immediate: true，回调在
+// 注册点同步执行，前向引用会触发 TDZ ReferenceError（桌面端 isMobile 初值 false
+// 必走赋值分支）。
+const mobilePanelMounted = ref(false)
 // 移动端进入时强制收起 drawer：
 // store.workspacePanel.open 是跨会话持久化的，适合 PC 记忆侧栏布局，
 // 但移动端不应该在加载 / 视口变窄时默认展开盖住全屏。
 // 规则：只要 isMobile 由 false→true（含初始）且 drawer 是开的 → close 一次。
+// 回桌面时卸载 drawer 实例：否则 PC panel（lg 以上可见）与 drawer 内的 panel
+// 双实例同时挂载，各自 onMounted / 响应式订阅常驻后台重复拉数据。store 是
+// 模块级单例，卸载不丢缓存，重挂载近零成本。
 watch(isMobile, (mobile) => {
     if (mobile && wsPanel.isOpen.value) {
         wsPanel.close()
     }
+    if (!mobile) mobilePanelMounted.value = false
 }, { immediate: true })
-
-// 移动端 drawer 内容懒加载：只有用户第一次打开过（isOpen 变 true）才挂载 WorkspacePanel，
-// 之后保持挂载利用缓存。这样未访问过 drawer 的用户不会付出任何 tree/repos 请求代价。
-// daisyUI 的动画作用于 drawer-side > *:first-child，包一层 v-if 不影响滑入动画。
-const mobilePanelMounted = ref(false)
+// 懒加载置位仅限移动端：桌面端打开的是 PC 实例（!isMobile），这里置 true 会把
+// drawer 里被 lg:hidden CSS 隐藏的第二个实例也挂出来——双份 onMounted / 订阅 /
+// 请求，且这个隐藏实例要等到下一次 isMobile 翻转才会被卸载。
 watch(() => wsPanel.isOpen.value, (open) => {
-    if (open) mobilePanelMounted.value = true
+    if (open && isMobile.value) mobilePanelMounted.value = true
 }, { immediate: true })
 
 // Session / Agent 切换时关闭 viewer：
@@ -910,8 +919,9 @@ async function applyDefaultSessionBehavior() {
             <SubagentTraceDrawer />
         </div>
 
-        <!-- Workspace Panel (PC 右侧侧栏，可拖宽) -->
-        <WorkspacePanel v-if="showWorkspacePanel" :agent-id="chatState.agentsSelectedId || ''"
+        <!-- Workspace Panel (PC 右侧侧栏，可拖宽)。!isMobile：移动端由 drawer 实例负责，
+             避免 CSS 隐藏的 PC 实例与 drawer 实例同时挂载、双份拉数据。 -->
+        <WorkspacePanel v-if="showWorkspacePanel && !isMobile" :agent-id="chatState.agentsSelectedId || ''"
             class="hidden lg:contents" />
 
         <!-- Workspace Panel (移动端右侧 drawer，与 AppSidebar 左侧 drawer 的模式一致)

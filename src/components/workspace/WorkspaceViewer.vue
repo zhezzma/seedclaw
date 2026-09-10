@@ -90,6 +90,20 @@ async function confirmDiscardIfDirty(): Promise<boolean> {
 }
 
 async function close() {
+    // 保存进行中先等落地：此时 isDirty 仍为 true，直接弹「丢弃确认」的话，
+    // 用户确认丢弃的却是已写盘的改动（保存续体照常完成）—— 语义矛盾。
+    // 轮询等待即可（本地保存通常亚秒级）；上限 10s 防网络挂起永久卡住关闭。
+    // 快照发起关闭时的目标：等待期间用户可能已从树点开新文件（旧文件的 dirty
+    // 确认后切 path）——关闭意图已被新操作取代，保存落地后不能把用户刚打开的
+    // 新文件关掉。
+    const startTarget = viewer.current.value
+    let waitMs = 0
+    while (fileViewRef.value?.isSaving === true && waitMs < 10_000) {
+        await new Promise(r => setTimeout(r, 50))
+        waitMs += 50
+        if (viewer.current.value !== startTarget) return
+    }
+    if (viewer.current.value !== startTarget) return
     if (!await confirmDiscardIfDirty()) return
     viewer.close()
 }

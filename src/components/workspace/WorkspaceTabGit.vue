@@ -16,10 +16,12 @@ import RepoSelector from './git/RepoSelector.vue'
 import StatusGroup from './git/StatusGroup.vue'
 import HistoryList from './git/HistoryList.vue'
 import CollapsibleSection from './CollapsibleSection.vue'
-import { useWorkspaceGit, repoJoin } from '../../composables/useWorkspaceGit'
+import { useWorkspaceGit, repoJoin, classifyDiscardEffects } from '../../composables/useWorkspaceGit'
 import { useWorkspacePanel } from '../../composables/useWorkspacePanel'
+import { useWorkspaceTree } from '../../composables/useWorkspaceTree'
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
 import { useToast } from '../../composables/useToast'
+import { useConfirm } from '../../composables/useConfirm'
 import {
     buildGitFileMenuItems, buildGitInlineActions,
     runDiscardAllFlow, type GitGroup,
@@ -30,8 +32,10 @@ import type { FileChange } from '../../composables/workspace-api'
 const props = defineProps<{ agentId: string }>()
 const git = useWorkspaceGit()
 const panel = useWorkspacePanel()
+const tree = useWorkspaceTree()
 const viewer = useWorkspaceViewer()
 const toast = useToast()
+const { confirm } = useConfirm()
 const { t } = useI18n()
 
 const selectedRepo = computed(() => panel.getRepoForAgent(props.agentId))
@@ -46,19 +50,39 @@ async function loadAll(repo: string) {
 onMounted(async () => {
     // workspaceRoot 用于拼 git 文件的绝对路径（右键复制路径）；有缓存则跳过。
     void git.loadWorkspaceRoot(props.agentId)
-    if (git.repos.value.length === 0 && !git.reposLoading.value) {
+    if (git.repos.value.length === 0) {
+        // 不跳过在飞请求：前一次挂载发起的 loadRepos 完成后没有任何代码补跑选仓
+        // 逻辑（onMounted 不会重跑），tab 会停在「只有下拉、无选中无状态无历史」
+        // 的空壳直到用户手动点一次仓库。重发一次请求的代价可接受（store 的 seq
+        // 保证后发者胜，旧响应不会覆盖新数据）。
         await git.loadRepos(props.agentId)
+    } else {
+        // 缓存命中也后台重拉：agent / 终端可能已在面板外改过 git 状态，
+        // tab 切换是用户最自然的「看一眼最新」时机（首屏仍用缓存零等待）。
+        void git.loadRepos(props.agentId)
     }
+    // 归属守护：await 期间可能已切 agent（store 被 ensureAgent 接管、repos 里是
+    // 新 agent 的数据）。旧实例的续体不得用新 agent 的 repos[0] 写旧 agent 的
+    // 持久化仓库选择（panel.setRepoForAgent），否则切回旧 agent 时对着不存在
+    // 路径报错且不自动回退（嵌套仓保留策略）。
+    if (git.currentAgentId !== props.agentId) return
     let repo = selectedRepo.value
-    if (!repo || !git.repos.value.find(r => r.path === repo)) {
+    if (!repo) {
         repo = git.repos.value[0]?.path ?? null
         if (repo) panel.setRepoForAgent(props.agentId, repo)
     }
+    // 显式选过的仓库即使不在 /repos 列表里也保留：后端只扫顶层 + .worktrees，
+    // 而嵌套仓库（Files 树徽章对任意含 .git 的目录显示）是有效选择；若在这里
+    // 静默回退 repos[0]，嵌套仓库永远选不中。真正失效的选择由 loadStatus 的
+    // 错误条目诚实暴露（下拉切换 / 手动刷新可恢复）。
     if (!repo) return
     const needStatus = !git.status.value || git.statusRepo !== repo
     const needLog = git.commits.value.length === 0 || git.commitsRepo !== repo
     if (needStatus || needLog) {
         await loadAll(repo)
+    } else {
+        // 同上：缓存命中也后台重拉 status + log
+        void loadAll(repo)
     }
 })
 
@@ -83,6 +107,90 @@ function openUnstagedDiff(change: FileChange) {
     if (!repo) return
     const mode = change.status === '?' ? 'untracked' : 'unstaged'
     viewer.openDiff({ repo, mode, file: change.path })
+}
+
+/** discard 前快照 staged 里 HEAD 中不存在的路径（'A' 新增 / 'R'/'C' 的新路径）。
+ *  服务端对 tracked 一律 `restore --staged --worktree --source=HEAD`（源码明示
+ *  「让 staged-add 文件也能被还原到不存在状态」，git 实测 AM 文件 discard 后
+ *  连目录带文件被删）：这些文件 discard = 被删除，树/viewer 必须按删除处理，
+ *  否则树缓存留幽灵条目、viewer 重开进 404。
+ *  必须在 git.discard 之前取：discard 完成后 status 已重拉，staged 里的 'A' 行
+ *  已消失，届时无从判别。 */
+function stagedAddsSnapshot(): Set<string> {
+    const staged = git.status.value?.staged ?? []
+    return new Set(
+        staged
+            .filter(c => c.status === 'A' || c.status === 'R' || c.status === 'C')
+            .map(c => c.path),
+    )
+}
+
+// ── discard 的磁盘副作用同步 ──
+// discard 不只改 git 状态：untracked 被删（Files tab 树缓存过期）、tracked 被还原
+// （viewer 若开着该文件，编辑器 buffer 已落后磁盘，继续保存会把刚丢弃的改动写回去）。
+// status / repos 的重拉由 store 的 discard() 自己负责，这里只处理树与 viewer。
+// repo 与 stagedAdds 由调用方闭包传入（与 git.discard 用的是同一时点）：await 期间
+// 用户可能在 RepoSelector 切了仓库，selectedRepo 已不是被 discard 的仓库，用它算
+// 前缀会失效错目录 / 关错 viewer；stagedAdds 则必须在 discard 前快照——discard
+// 完成后 status 已重拉，staged 里的 'A' 行已消失。
+async function afterDiscard(changes: FileChange[], repo: string, stagedAdds: Set<string>) {
+    // discard 的 await 期间可能已切 agent：此时树缓存/store 已归属新 agent，
+    // 旧 agent 的路径失效与重拉会污染它们（viewer 是全局单槽，同理不能动）。
+    if (git.currentAgentId !== props.agentId) return
+    if (!repo) return
+    const { deletedPaths, deletedParents, revertedPaths } = classifyDiscardEffects(changes, repo, stagedAdds)
+    // 树：失效受影响目录**及其祖先链**上已缓存（展开过）的目录并重拉，避免为没看过的
+    // 目录付请求成本。
+    // 为什么祖先也要失效：目录自身的缓存可能恰在它从磁盘消失期间被清掉（Files tab
+    // 删除目录 → invalidatePrefix），此时持有过期列表（「该目录不存在」旧世界）的是
+    // 最近已缓存祖先；restore 重建目录（git 实测：rm -rf 后 restore 连目录带文件
+    // 重建）后不重拉祖先 → 幽灵缺失目录，直到手动刷新。
+    for (const p of deletedParents) {
+        for (let dir = p; ; dir = dir.includes('/') ? dir.slice(0, dir.lastIndexOf('/')) : '') {
+            if (tree.entriesAt(dir) !== null || tree.isLoading(dir)) {
+                tree.invalidate(dir)
+                void tree.loadPath(props.agentId, dir)
+            }
+            if (dir === '') break
+        }
+    }
+    const cur = viewer.current.value
+    if (cur?.type !== 'file') {
+        // diff 型 viewer 对着被丢弃文件：untracked/unstaged diff 会停在旧内容，
+        // 重开强制重拉（commit diff 不受 discard 影响；deleted 的 diff 重拉只会报错，直接关）。
+        if (cur?.type === 'diff' && cur.mode !== 'commit' && cur.repo === repo) {
+            const wsFile = repoJoin(repo, cur.file)
+            if (revertedPaths.has(wsFile)) {
+                viewer.close()
+                await nextTick()
+                viewer.openDiff({ repo: cur.repo, mode: cur.mode, file: cur.file, ref: cur.ref })
+            } else if (deletedPaths.has(wsFile)) {
+                viewer.close()
+            }
+        }
+        return
+    }
+    // viewer 正看着被删的 untracked 文件 → 关闭（与 FileTreeNode.onDeleted 同语义：
+    // 有未保存改动先确认——磁盘文件已删，buffer 是唯一副本，静默丢弃不可接受）
+    if (deletedPaths.has(cur.path)) {
+        if (viewer.dirty.value?.path === cur.path) {
+            const ok = await confirm(t('workspace.unsavedChanges'), t('common.confirm'))
+            if (!ok) return
+        }
+        viewer.close()
+        return
+    }
+    // 看着被还原的 tracked 文件且无未保存改动 → close+open 强制重载。
+    // 必须隔一个 nextTick：同 tick 内 close+open 两次 mutation 会被 Vue 批处理成一次
+    // patch，v-if 从 true（旧对象）到 true（新对象）会保留组件实例 —— 不卸载、path
+    // prop 不变、watcher 不触发，重拉完全不生效（运行时实验实证过）。
+    // 有未保存改动时不动：用户的 buffer 权威高于磁盘，是否覆盖由用户保存时决定。
+    // 代价是聊天区闪现一帧；若在意可改 nonce key 方案（openFile 带 force 序号）。
+    if (revertedPaths.has(cur.path) && viewer.dirty.value?.path !== cur.path) {
+        viewer.close()
+        await nextTick()
+        viewer.openFile(cur.path)
+    }
 }
 
 /** 在 viewer 里打开"工作区当前文件"（VSCode 风格 Open File）。
@@ -139,7 +247,14 @@ function callbacksFor(group: GitGroup, change: FileChange) {
             ? () => git.unstage(props.agentId, repo, [change.path])
             : undefined,
         onDiscard: group === 'unstaged' && repo
-            ? () => git.discard(props.agentId, repo, [change.path])
+            ? async () => {
+                const stagedAdds = stagedAddsSnapshot()
+                const r = await git.discard(props.agentId, repo, [change.path])
+                // epoch 失配（切 agent / 改绑 workspace）：树与 viewer 已指向新世界，
+                // 旧 workspace 的路径表不能拿来失效目录 / 关 viewer。
+                if (r.stale) return
+                await afterDiscard([change], repo, stagedAdds)
+            }
             : undefined,
     }
 }
@@ -184,7 +299,12 @@ async function onDiscardAllChanges() {
         count: list.length,
         kind: allUntracked ? 'untracked' : 'mixed',
         // 服务端内部会逐个分辨 tracked / untracked 走不同逻辑。
-        onConfirmed: () => git.discard(props.agentId, repo, list.map(c => c.path)),
+        onConfirmed: async () => {
+            const stagedAdds = stagedAddsSnapshot()
+            const r = await git.discard(props.agentId, repo, list.map(c => c.path))
+            if (r.stale) return
+            await afterDiscard(list, repo, stagedAdds)
+        },
     })
 }
 
@@ -228,7 +348,9 @@ async function onCommit() {
     const msg = commitMessage.value
     try {
         const r = await git.commit(props.agentId, repo, msg)
-        toast.success(t('workspace.git.committed', { sha: r.head?.slice(0, 7) ?? '' }))
+        // agent 中途切换时 store 返回 stale：提交确实发生在旧 agent，
+        // 但在新 agent 的界面里弹「已提交」会误导归属，跳过。
+        if (!r.stale) toast.success(t('workspace.git.committed', { sha: r.head?.slice(0, 7) ?? '' }))
         await nextTick()
         textareaRef.value?.focus()
     } catch (e: any) {
@@ -253,7 +375,7 @@ async function onSync() {
     syncing.value = true
     try {
         const r = await git.sync(props.agentId, repo)
-        toast.success(r.pushed ? t('workspace.git.syncedPushed') : t('workspace.git.synced'))
+        if (!r.stale) toast.success(r.pushed ? t('workspace.git.syncedPushed') : t('workspace.git.synced'))
     } catch (e: any) {
         toast.error(`${t('workspace.git.sync')}: ${e?.message || e}`)
     } finally {

@@ -268,9 +268,14 @@ test('FileTreeNode: 删除后用 viewer.current 检查，路径匹配则关闭 v
     const src = read('src/components/workspace/FileTreeNode.vue')
     assert.match(src, /useWorkspaceViewer/, 'must read viewer composable')
     assert.match(src, /function onDeleted\(deletedPath: string\)/, 'must implement onDeleted')
-    // 必须比较 viewer.current.path === deletedPath（或被删的目录是当前文件的父）
-    assert.match(src, /cur\.path === deletedPath/, 'must close viewer when current file is deleted')
-    assert.match(src, /cur\.path\.startsWith\(deletedPath \+ '\/'\)/, 'must close viewer when ancestor dir is deleted')
+    // 必须比较 viewer.current.path 与 deletedPath（或被删的目录是当前文件的祖先）。
+    // 形式：不匹配则早退；命中且无未保存改动 → close，有未保存改动先 confirm（audit #11）。
+    assert.match(
+        src,
+        /cur\.path !== deletedPath && !cur\.path\.startsWith\(deletedPath \+ '\/'\)\) return/,
+        'must early-return when deleted path does not match current file',
+    )
+    assert.match(src, /viewer\.close\(\)/, 'must close viewer on match')
 })
 
 test('AgentFileTreeNode: 删除后用 viewer.current 检查，类型为 agent-file 才处理', () => {

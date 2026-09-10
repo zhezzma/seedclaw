@@ -14,6 +14,11 @@ import {
 import DeliveryTargetsEditor from '@/components/delivery/DeliveryTargetsEditor.vue'
 import ModelSelectMenuContent from '../../models/ModelSelectMenuContent.vue'
 import WorkspaceBindDialog from '../../workspace/WorkspaceBindDialog.vue'
+import { useWorkspaceTree } from '../../../composables/useWorkspaceTree'
+import { useWorkspaceGit } from '../../../composables/useWorkspaceGit'
+import { useAgentFiles } from '../../../composables/useAgentFiles'
+import { useWorkspaceViewer } from '../../../composables/useWorkspaceViewer'
+import { useWorkspacePanel } from '../../../composables/useWorkspacePanel'
 import { defaultHeartbeatDeliveryTargets, sanitizeDeliveryTargets, summarizeDeliveryTargets } from '../../../utils/delivery-targets'
 import { validateHeartbeatForm } from '../../../utils/form-validation'
 
@@ -35,8 +40,33 @@ const { t } = useI18n()
 
 // Workspace rebind dialog
 const showWorkspaceDialog = ref(false)
+// 改绑 workspace 后强制失效 workspace store：ensureAgent 只认 agentId，
+// 同 agent 改绑（W1→W2）是 no-op，旧 workspace 的树/git 缓存会一直活到手动刷新。
+const wsTree = useWorkspaceTree()
+const wsGit = useWorkspaceGit()
+const wsAgentFiles = useAgentFiles()
+const wsPanelStore = useWorkspacePanel()
+const wsViewer = useWorkspaceViewer()
 const onWorkspaceUpdated = async () => {
     await agentsState.loadAgents()
+    // 仅清归属是该 agent 的（别的 agent 的数据本就不在缓存里，不用陪葬）。
+    const id = props.agent?.id
+    if (id) {
+        // viewer 是全局单槽：还开着旧 workspace 的文件时，改绑后同相对路径会指向
+        // 新 workspace 的另一个文件，保存会写错地方。dirty 时提示（buffer 内容
+        // 随关闭丢弃，与 HomeView 切 agent 的处理一致）。
+        if (wsViewer.current.value) {
+            if (wsViewer.dirty.value) {
+                toast.warning(t('workspace.discardedDirty', { path: wsViewer.dirty.value.path }))
+            }
+            wsViewer.close()
+        }
+        if (wsGit.currentAgentId === id) wsGit.reset()
+        if (wsTree.currentAgentId === id) wsTree.reset()
+        if (wsAgentFiles.currentAgentId === id) wsAgentFiles.reset()
+        // 旧 workspace 里记住的仓库选择一并清除，避免 Git tab 对着不存在的仓库报错。
+        wsPanelStore.clearRepoForAgent(id)
+    }
     toast.success(t('workspaceBinding.rebindDone'))
 }
 

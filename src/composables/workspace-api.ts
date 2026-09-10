@@ -185,8 +185,16 @@ export function fetchRepos(agentId: string): Promise<{ repos: RepoSummary[] }> {
     return wsGet(`${base(agentId)}/repos`)
 }
 
-export function fetchStatus(agentId: string, repo: string): Promise<RepoStatus> {
-    return wsGet(`${base(agentId)}/repo/status?repo=${encodeURIComponent(repo)}`)
+export function fetchStatus(
+    agentId: string,
+    repo: string,
+    opts?: { refresh?: boolean },
+): Promise<RepoStatus> {
+    const params = new URLSearchParams({ repo })
+    // refresh=1：服务端先 git fetch 刷 upstream 再返回（走网络）。仅手动刷新时传，
+    // 否则 ↓behind 永远基于上次 fetch 的本地 remote-tracking ref，恒为旧值。
+    if (opts?.refresh) params.set('refresh', '1')
+    return wsGet(`${base(agentId)}/repo/status?${params.toString()}`)
 }
 
 export function fetchLog(

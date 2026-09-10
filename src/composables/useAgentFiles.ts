@@ -11,6 +11,8 @@ import { reactive } from 'vue'
 import { fetchAgentTree, type TreeResult } from './workspace-api.ts'
 
 interface CacheEntry {
+    /** 占位身份号（与 useWorkspaceTree 同语义，穿越 reactive 代理的身份比对）。 */
+    seq: number
     loading: boolean
     error: string | null
     result: TreeResult | null
@@ -29,8 +31,13 @@ const state = reactive<AgentFilesState>({
     currentAgentId: null,
 })
 
+// agent 级 epoch：与 useWorkspaceTree 同模式，丢弃跨 agent 的旧响应。
+let agentEpoch = 0
+let nextEntrySeq = 0
+
 const _methods = {
     reset() {
+        agentEpoch++
         state.cache = {}
         state.expanded = {}
     },
@@ -65,14 +72,27 @@ const _methods = {
     invalidate(path: string) {
         delete state.cache[path]
     },
+    /** 级联失效：删除/改名目录后，旧路径前缀下的缓存与展开态全部过期（与主树同语义）。 */
+    invalidatePrefix(prefix: string) {
+        const hit = (p: string) => p === prefix || p.startsWith(prefix + '/')
+        for (const p of Object.keys(state.cache)) if (hit(p)) delete state.cache[p]
+        for (const p of Object.keys(state.expanded)) if (hit(p)) delete state.expanded[p]
+    },
     async loadPath(agentId: string, path: string): Promise<void> {
         if (state.cache[path]?.result) return
-        state.cache[path] = { loading: true, error: null, result: null }
+        // 归属守护 + epoch + 占位身份三重过期防护（与 useWorkspaceTree 同模式）。
+        if (state.currentAgentId !== null && state.currentAgentId !== agentId) return
+        const myEpoch = agentEpoch
+        const mySeq = ++nextEntrySeq
+        state.cache[path] = { seq: mySeq, loading: true, error: null, result: null }
         try {
             const r = await fetchAgentTree(agentId, path)
-            state.cache[path] = { loading: false, error: null, result: r }
+            if (myEpoch !== agentEpoch || state.cache[path]?.seq !== mySeq) return
+            state.cache[path] = { seq: mySeq, loading: false, error: null, result: r }
         } catch (err: any) {
+            if (myEpoch !== agentEpoch || state.cache[path]?.seq !== mySeq) return
             state.cache[path] = {
+                seq: mySeq,
                 loading: false,
                 error: err?.message || String(err),
                 result: null,

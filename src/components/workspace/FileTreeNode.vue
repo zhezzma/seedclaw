@@ -16,9 +16,12 @@ import {
     EllipsisVerticalIcon,
 } from '@heroicons/vue/24/outline'
 import { useWorkspaceTree } from '../../composables/useWorkspaceTree'
+import { useWorkspaceGit } from '../../composables/useWorkspaceGit'
 import { useContextMenu } from '../../composables/useContextMenu'
 import { buildFileMenuItems } from '../../composables/useFileActions'
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
+import { useConfirm } from '../../composables/useConfirm'
+import { useI18n } from 'vue-i18n'
 import type { TreeEntry } from '../../composables/workspace-api'
 
 defineOptions({ name: 'FileTreeNode' })
@@ -32,8 +35,11 @@ const props = defineProps<{
 }>()
 
 const tree = useWorkspaceTree()
+const git = useWorkspaceGit()
 const ctxMenu = useContextMenu()
 const viewer = useWorkspaceViewer()
+const { confirm } = useConfirm()
+const { t } = useI18n()
 const expanded = computed(() => tree.isExpanded(props.entry.path))
 const children = computed(() => tree.entriesAt(props.entry.path)?.entries || [])
 const isLoadingChildren = computed(() => tree.isLoading(props.entry.path))
@@ -72,20 +78,29 @@ function onKebabClick(e: MouseEvent) {
 }
 
 /** mutation 后重拉受影响的父目录。root='' 代表根。
- *  走 invalidate + loadPath、不走全量 refresh，保留其他已展开路径的缓存。 */
+ *  走 invalidate + loadPath、不走全量 refresh，保留其他已展开路径的缓存。
+ *  另外 workspace 磁盘变了 → git status / repos 摘要可能变（新建=untracked、
+ *  删除/改名=条目消失）；未打开过 Git tab 时 refreshWorktreeState 内部 no-op。 */
 async function onMutated(parent: string) {
     tree.invalidate(parent)
     await tree.loadPath(props.agentId, parent)
+    void git.refreshWorktreeState(props.agentId)
 }
 
-/** 删除后如果 viewer 正在看这个 workspace 文件（或其父目录被删）就关闭 viewer。
- *  仅当 viewer.current 在 workspace scope（type='file'）才处理；agent scope 由 AgentFileTreeNode 负责。 */
-function onDeleted(deletedPath: string) {
+/** 删除与改名共用的收尾（useFileActions 对两个流程都会调 onDeleted(旧路径)）：
+ *  1) 级联失效旧路径前缀下的树缓存与展开态 —— 否则同路径复用（重建同名目录 /
+ *     改回原名）时 loadPath 缓存命中 → 幽灵文件；
+ *  2) viewer 正看着该路径时关闭；有未保存改动先确认，避免 buffer 静默丢失。 */
+async function onDeleted(deletedPath: string) {
+    tree.invalidatePrefix(deletedPath)
     const cur = viewer.current.value
     if (!cur || cur.type !== 'file') return
-    if (cur.path === deletedPath || cur.path.startsWith(deletedPath + '/')) {
-        viewer.close()
+    if (cur.path !== deletedPath && !cur.path.startsWith(deletedPath + '/')) return
+    if (viewer.dirty.value?.path === cur.path) {
+        const ok = await confirm(t('workspace.unsavedChanges'), t('common.confirm'))
+        if (!ok) return
     }
+    viewer.close()
 }
 </script>
 

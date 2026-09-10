@@ -70,6 +70,15 @@ export function useWorkspacePanel() {
         getRepoForAgent(agentId: string): string | null {
             return store.workspacePanel.repoByAgent[agentId] ?? null
         },
+        /** 清除 agent 记住的仓库选择：改绑 workspace 后旧选择指向的是旧 workspace
+         *  里的仓库，已无意义，不清会让 Git tab 对着旧路径报错。 */
+        clearRepoForAgent(agentId: string) {
+            if (!(agentId in store.workspacePanel.repoByAgent)) return
+            const repoByAgent = { ...store.workspacePanel.repoByAgent }
+            delete repoByAgent[agentId]
+            store.workspacePanel = { ...store.workspacePanel, repoByAgent }
+            store.persist()
+        },
 
         // 跳出可折叠区域的开关状态与 setter，供 WorkspaceTabFiles / WorkspaceTabGit 使用。
         // 快照为 computed，避免组件直接依赖 store 实例的 reactive proxy。

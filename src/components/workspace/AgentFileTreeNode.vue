@@ -17,6 +17,8 @@ import { useAgentFiles } from '../../composables/useAgentFiles'
 import { useContextMenu } from '../../composables/useContextMenu'
 import { buildFileMenuItems } from '../../composables/useFileActions'
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
+import { useConfirm } from '../../composables/useConfirm'
+import { useI18n } from 'vue-i18n'
 import type { TreeEntry } from '../../composables/workspace-api'
 
 defineOptions({ name: 'AgentFileTreeNode' })
@@ -31,6 +33,8 @@ const props = defineProps<{
 const tree = useAgentFiles()
 const ctxMenu = useContextMenu()
 const viewer = useWorkspaceViewer()
+const { confirm } = useConfirm()
+const { t } = useI18n()
 const expanded = computed(() => tree.isExpanded(props.entry.path))
 const children = computed(() => tree.entriesAt(props.entry.path)?.entries || [])
 const isLoadingChildren = computed(() => tree.isLoading(props.entry.path))
@@ -69,14 +73,18 @@ async function onMutated(parent: string) {
     await tree.loadPath(props.agentId, parent)
 }
 
-/** 删除后如果 viewer 正在看这个 agent 配置文件（或其父目录被删）就关闭 viewer。
- *  仅 viewer.current.type='agent-file' 才处理。 */
-function onDeleted(deletedPath: string) {
+/** 删除与改名共用的收尾：级联失效旧路径前缀的缓存与展开态（与主树同语义），
+ *  viewer 正看着且有未保存改动时先确认再关，避免 buffer 静默丢失。 */
+async function onDeleted(deletedPath: string) {
+    tree.invalidatePrefix(deletedPath)
     const cur = viewer.current.value
     if (!cur || cur.type !== 'agent-file') return
-    if (cur.path === deletedPath || cur.path.startsWith(deletedPath + '/')) {
-        viewer.close()
+    if (cur.path !== deletedPath && !cur.path.startsWith(deletedPath + '/')) return
+    if (viewer.dirty.value?.path === cur.path) {
+        const ok = await confirm(t('workspace.unsavedChanges'), t('common.confirm'))
+        if (!ok) return
     }
+    viewer.close()
 }
 </script>
 

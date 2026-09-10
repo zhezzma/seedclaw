@@ -108,30 +108,46 @@ const isRefreshing = ref(false)
 async function refresh() {
     if (isRefreshing.value) return
     isRefreshing.value = true
+    // agent 快照：await 期间切 agent 的话，旧 agent 的展开路径/仓库选择
+    // 不能打到已归属新 agent 的 store 上（loadPath 有归属守护，这里提前止损）。
+    const agentId = props.agentId
     try {
         if (panel.activeTab.value === 'files') {
             const expandedPaths = tree.expandedPaths()
             tree.refresh()
-            await tree.loadPath(props.agentId, '')
-            await Promise.all(expandedPaths.map(p => tree.loadPath(props.agentId, p)))
+            await tree.loadPath(agentId, '')
+            if (props.agentId !== agentId) return
+            await Promise.all(expandedPaths.map(p => tree.loadPath(agentId, p)))
+            // 树重展开期间也可能切 agent：agentFiles 已被 ensureAgent(reset) 归属
+            // 新 agent，新 tab（:key 重挂）的 immediate watch 已同步建好在飞占位；
+            // 此时继续走 agentFiles.refresh() 会把新 agent 的占位无条件清掉，而
+            // 下面的 loadPath(旧 agent) 被归属守护 no-op，无人重拉 → Agent Files
+            // 区卡死空白（isLoading/error/entries 全空，模板三连 v-if 全不命中），
+            // 直到手动收起/展开或再点刷新。
+            if (props.agentId !== agentId) return
             // 底部 agent 文件区只在展开时才重拉，避免隐式快照过鲜
             if (panel.bottomSections.value.agentFiles) {
                 const agentExpanded = agentFiles.expandedPaths()
                 agentFiles.refresh()
-                await agentFiles.loadPath(props.agentId, '')
-                await Promise.all(agentExpanded.map(p => agentFiles.loadPath(props.agentId, p)))
+                await agentFiles.loadPath(agentId, '')
+                await Promise.all(agentExpanded.map(p => agentFiles.loadPath(agentId, p)))
             }
         } else {
-            await git.loadRepos(props.agentId)
-            let repo = panel.getRepoForAgent(props.agentId)
-            if (!repo || !git.repos.value.find(r => r.path === repo)) {
+            await git.loadRepos(agentId)
+            if (props.agentId !== agentId) return
+            let repo = panel.getRepoForAgent(agentId)
+            // 只在没有选择时回退 repos[0]；显式选过的仓库即使不在列表（嵌套仓库）
+            // 也保留 —— 与 WorkspaceTabGit.onMounted 同语义。
+            if (!repo) {
                 repo = git.repos.value[0]?.path ?? null
-                if (repo) panel.setRepoForAgent(props.agentId, repo)
+                if (repo) panel.setRepoForAgent(agentId, repo)
             }
             if (repo) {
                 await Promise.all([
-                    git.loadStatus(props.agentId, repo),
-                    git.loadLog(props.agentId, repo),
+                    // 手动刷新显式带 refresh=1：服务端先 git fetch 刷 upstream，
+                    // 否则 ↓behind 永远基于本地过期的 remote-tracking ref。
+                    git.loadStatus(agentId, repo, { refresh: true }),
+                    git.loadLog(agentId, repo),
                 ])
             }
         }
