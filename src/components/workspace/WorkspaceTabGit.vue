@@ -42,7 +42,9 @@ const selectedRepo = computed(() => panel.getRepoForAgent(props.agentId))
 
 async function loadAll(repo: string) {
     await Promise.all([
-        git.loadStatus(props.agentId, repo),
+        // 带 refresh=1 同步真实远程 behind/ahead（主人拍板：tab 打开/切仓即自动 fetch）；
+        // 服务端 upstream fetch 已降级容错，离线不会 500，只返回过期值
+        git.loadStatus(props.agentId, repo, { refresh: true }),
         git.loadLog(props.agentId, repo),
     ])
 }
