@@ -269,6 +269,20 @@ const _methods = {
         }
     },
 
+    /** status 是选中仓库的最新事实（含 refresh=1 刷过的真实远程 behind/ahead），
+     *  回填 /repos 摘要对应条目：RepoSelector 徽章即时跟上（提交/暂存后的 dirty、
+     *  刷新后的 behind 都不用等下一次 loadRepos）。 */
+    syncRepoSummary(repo: string, r: RepoStatus) {
+        const entry = state.reposData.find((e) => e.path === repo)
+        if (!entry) return
+        entry.branch = r.branch
+        entry.head = r.head
+        entry.ahead = r.ahead
+        entry.behind = r.behind
+        // 与服务端 /repos 的 dirty 语义一致：去重后的变更路径数
+        entry.dirty = new Set([...r.staged, ...r.unstaged, ...r.untracked].map((fc) => fc.path)).size
+    },
+
     async loadStatus(agentId: string, repo: string, opts?: { refresh?: boolean }) {
         if (!ownedBy(agentId)) return
         const myEpoch = agentEpoch
@@ -280,7 +294,11 @@ const _methods = {
             const r = await fetchStatus(agentId, repo, opts)
             if (myEpoch !== agentEpoch || mySeq !== statusSeq) return
             // 同 agent 内仓库切换的过期保护
-            if (state.statusRepo === repo) state.statusData = r
+            if (state.statusRepo === repo) {
+                state.statusData = r
+                // 回填 /repos 摘要：下拉徽章即时跟上最新事实（含 mutation 后的不带 refresh 重载）
+                this.syncRepoSummary(repo, r)
+            }
         } catch (err: any) {
             if (myEpoch !== agentEpoch || mySeq !== statusSeq) return
             if (state.statusRepo === repo) state._statusError = err?.message || String(err)

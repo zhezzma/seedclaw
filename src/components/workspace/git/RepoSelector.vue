@@ -59,6 +59,9 @@ function onPick(repo: string) {
                 <span class="truncate flex-1" :class="repo.error ? 'text-base-content/40' : ''">{{ repo.name }}</span>
                 <span v-if="repo.branch" class="text-xs text-base-content/60">{{ repo.branch }}</span>
                 <span v-if="repo.dirty > 0" class="badge badge-xs badge-warning">●{{ repo.dirty }}</span>
+                <!-- 服务端 /repos 列表即刷新 upstream：这里能一眼扫出哪个仓库待同步 -->
+                <span v-if="!repo.error && repo.behind > 0" class="text-xs text-info shrink-0">↓{{ repo.behind }}</span>
+                <span v-if="!repo.error && repo.ahead > 0" class="text-xs text-info shrink-0">↑{{ repo.ahead }}</span>
                 <CheckIcon v-if="props.selectedRepo === repo.path" class="h-3.5 w-3.5" />
             </button>
             <div v-if="git.repos.value.length === 0" class="px-3 py-2 text-xs text-base-content/50">

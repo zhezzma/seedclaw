@@ -317,7 +317,6 @@ const commitMessage = computed({
 })
 const stagedCount = computed(() => git.status.value?.staged.length ?? 0)
 const aheadCount = computed(() => git.status.value?.ahead ?? 0)
-const behindCount = computed(() => git.status.value?.behind ?? 0)
 const canCommit = computed(() => {
     if (git.mutating.value) return false
     if (!selectedRepo.value) return false
@@ -434,9 +433,6 @@ async function onPrimary() {
                         :disabled="git.mutating.value || !selectedRepo"
                         :title="$t('workspace.git.syncTip')" @click="onSync">
                         <ArrowPathRoundedSquareIcon class="h-4 w-4" :class="{ 'animate-spin': syncing }" />
-                        <span v-if="behindCount > 0 || aheadCount > 0" class="text-xs font-mono leading-none">
-                            <span v-if="behindCount > 0">↓{{ behindCount }}</span><span v-if="behindCount > 0 && aheadCount > 0"> </span><span v-if="aheadCount > 0">↑{{ aheadCount }}</span>
-                        </span>
                     </button>
                 </div>
             </div>
