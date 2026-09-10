@@ -318,6 +318,12 @@ const createNewSession = () => {
     closeSidebarDrawer()
 }
 
+// 分组组头「+」按钮：为指定 agent 打开新对话页（?agent= 让 /new 预选该智能体）
+const createSessionForAgent = (agentId: string) => {
+    router.push({ name: NEW_SESSION_ROUTE_NAME, query: { agent: agentId } })
+    closeSidebarDrawer()
+}
+
 const handleDeleteSession = async (session: { key: string, label: string }) => {
     if (!await confirm(t('sidebar.deleteChatConfirm', { key: session.label }))) {
         return
@@ -627,7 +633,16 @@ const handleNavClick = (item: any) => {
                         @keydown.space.prevent="toggleGroup(session.groupKey)">
                         <component :is="isGroupCollapsed(session.groupKey) ? FolderIcon : FolderOpenIcon"
                             class="h-4 w-4 shrink-0" aria-hidden="true" />
-                        <span class="truncate">{{ session.label }}</span>
+                        <span class="truncate flex-1">{{ session.label }}</span>
+                        <!-- 为该 agent 新建对话：未分组（无 agentId）不显示；
+                             click/keydown 阻止冒泡，避免顺带触发展开/收起 -->
+                        <button v-if="session.groupKey" type="button"
+                            class="btn btn-ghost btn-circle btn-xs shrink-0 text-base-content/50 hover:text-primary hover:bg-base-100/70"
+                            :title="$t('sidebar.newChatForAgent')" :aria-label="$t('sidebar.newChatForAgent')"
+                            @click.stop="createSessionForAgent(session.groupKey)"
+                            @keydown.stop>
+                            <PlusIcon class="h-3.5 w-3.5" />
+                        </button>
                     </div>
                     <a v-else @click="selectSession(session.key)"
                         @contextmenu.prevent="openSessionContextMenu(session.key)"

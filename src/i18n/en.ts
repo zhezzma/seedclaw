@@ -75,6 +75,7 @@ export default {
     },
     sidebar: {
         newChat: 'New Chat',
+        newChatForAgent: 'New chat with this agent',
         collapse: 'Collapse sidebar',
         expand: 'Expand sidebar',
         noChats: 'No chats',

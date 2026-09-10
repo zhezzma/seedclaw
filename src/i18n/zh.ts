@@ -75,6 +75,7 @@ export default {
     },
     sidebar: {
         newChat: '新对话',
+        newChatForAgent: '为该智能体新建对话',
         collapse: '收起侧边栏',
         expand: '展开侧边栏',
         noChats: '暂无对话',

@@ -738,18 +738,23 @@ onUnmounted(() => {
 
 
 
-// 路由变化 → 切换会话（核心路由处理逻辑）
-watch(() => [route.params.sessionkey, route.path], async ([sessionkey, routePath]) => {
+// 路由变化 → 切换会话（核心路由处理逻辑）；query.agent 入 watch 源：
+// 已在 /new 页时点击其他 agent 的分组「+」按钮也能重新选中目标 agent
+watch(() => [route.params.sessionkey, route.path, route.query.agent], async ([sessionkey]) => {
 
     // /new 路由 → 创建新会话
     if (isNewSession(route)) {
-        // 新会话/首页进入时，始终重置为第一个 agent。
+        // ?agent=<id>（侧栏分组组头「+」按钮入口）：优先选用该 agent，仅当其存在于列表时生效。
+        // 无 query / query 无效时维持原行为：始终回落第一个 agent，
         // 不沿用上一个会话的 agent，否则用户点击首页后会看到“最后一次聊天所用 agent”。
-        if (agentsState.agentsList.length > 0) {
-            const defaultAgentId = agentsState.agentsList[0].id
-            chatState.selectAgent(defaultAgentId)
-            setCurrentAgent(defaultAgentId)
-            await loadCommands(defaultAgentId)
+        const requestedAgent = typeof route.query.agent === 'string' ? route.query.agent : ''
+        const knownRequested = requestedAgent && agentsState.agentsList.some(a => a.id === requestedAgent)
+        const defaultAgentId = agentsState.agentsList[0]?.id ?? ''
+        const targetAgentId = knownRequested ? requestedAgent : defaultAgentId
+        if (targetAgentId) {
+            chatState.selectAgent(targetAgentId)
+            setCurrentAgent(targetAgentId)
+            await loadCommands(targetAgentId)
         }
         await chatState.createNewSession()
         // 恢复 /new 页遗留的输入草稿

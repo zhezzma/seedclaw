@@ -14,8 +14,8 @@ const homeViewSource = readFileSync(homeViewPath, 'utf8')
 test('initial command loading is scoped to the selected agent instead of loading all agent prompts', () => {
     assert.match(
         appInitSource,
-        /loadCommands\(agentsState\.agentsList\[0\]\.id\)/,
-        'initial app bootstrap should load commands for the first selected agent',
+        /loadCommands\(targetAgentId\)/,
+        'initial app bootstrap should load commands for the single selected target agent (query-specified or first-agent fallback)',
     )
 })
 

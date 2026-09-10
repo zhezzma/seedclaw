@@ -1,4 +1,5 @@
 import { useNotify } from './useNotify'
+import { useRoute } from 'vue-router'
 import { useUiSettingsStore } from '../stores/setting'
 import { useAgentsState } from './useAgentsState'
 import { useChatState } from './useChatState'
@@ -10,6 +11,7 @@ import { connectServer } from './notify-server-connection'
 import { ensureLocalServerLoaded, waitForLocalServerReady, isLocalServerBootFailed } from './local-server'
 import { useExecApproval } from './useExecApproval'
 import { useCommandState } from './useCommandState'
+import { isNewSession } from '../utils/route-helpers'
 
 /**
  * Initializes all domain-specific state composables.
@@ -17,6 +19,7 @@ import { useCommandState } from './useCommandState'
  * which will auto-load data from the HTTP API.
  */
 export function useAppInit() {
+    const route = useRoute()
     const agentsState = useAgentsState()
     const sessionsState = useSessionsState()
     const { loadModels } = useModelsState()
@@ -45,11 +48,21 @@ export function useAppInit() {
             loadModels(),
         ])
 
-        // 加载完 agents 后，如果还没有选中的 agent，自动选择第一个
+        // 加载完 agents 后，如果还没有选中的 agent，自动选择第一个。
+        // 冷刷新/书签直接落在 /new?agent=<id> 时，路由 watcher 先于本 init 执行
+        // （当时列表为空无法命中），这里兜底补选 query 指定的 agent（校验存在性），
+        // 避免静默落到第一个 agent；非 /new 或 query 无效时维持原行为。
+        // 分支由 !agentsSelectedId 守卫：用户已手动选择时不覆盖
         if (!chatState.agentsSelectedId && agentsState.agentsList.length > 0) {
-            chatState.selectAgent(agentsState.agentsList[0].id)
-            setCurrentAgent(agentsState.agentsList[0].id)
-            await loadCommands(agentsState.agentsList[0].id)
+            const requestedAgent = isNewSession(route) && typeof route.query.agent === 'string'
+                ? route.query.agent
+                : ''
+            const targetAgentId = agentsState.agentsList.some(a => a.id === requestedAgent)
+                ? requestedAgent
+                : agentsState.agentsList[0].id
+            chatState.selectAgent(targetAgentId)
+            setCurrentAgent(targetAgentId)
+            await loadCommands(targetAgentId)
         } else {
             setCurrentAgent(chatState.agentsSelectedId || undefined)
             await loadCommands(chatState.agentsSelectedId || undefined)
