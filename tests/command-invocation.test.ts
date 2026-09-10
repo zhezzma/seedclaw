@@ -61,3 +61,18 @@ test('HomeView 自动命名接线使用 isCommandInvocation（且传入命令表
         'auto-rename should match against the /api/commands table with conservative null fallback',
     )
 })
+
+test('HomeView busy 分支同样使用命令过滤，未知 /xxx 走 steer/follow-up', () => {
+    // busy 分支不再裸判 startsWith('/')，而是结合命令表精确匹配
+    assert.match(
+        homeViewSource,
+        /inputText\.startsWith\('\/'\) && isCommandInvocation\(inputText, knownCommandNames\)/,
+        'busy branch should command-filter instead of blocking all /-prefixed text',
+    )
+    // 命令表在 handleSend 顶部统一计算（null 回退）
+    assert.match(
+        homeViewSource,
+        /const knownCommandNames = isLoaded\.value \? allCommands\.value\.map\(cmd => cmd\.name\) : null/,
+        'handleSend should compute the known command table once with null fallback',
+    )
+})

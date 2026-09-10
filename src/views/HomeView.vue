@@ -305,6 +305,9 @@ const handleSend = async () => {
         return
     }
 
+    // 命令表命令名（builtin+extension+prompt）：null 表示未加载，isCommandInvocation 会保守回退为 startsWith 判断
+    const knownCommandNames = isLoaded.value ? allCommands.value.map(cmd => cmd.name) : null
+
     const { pushInputHistory } = useChatInput()
 
     // Optimistic UI update: Clear input immediately
@@ -324,8 +327,11 @@ const handleSend = async () => {
         // /follow-up /steer /abort：走控制 API，不经 /chat
         if (await trySendDeliveryCommand(inputText, rawAttachments)) return
 
-        // 检查是否为 / 开头的命令
-        if (inputText.startsWith('/')) {
+        // 检查是否为真正的命令：与后端一致按命令表精确匹配首 token，
+        // 未知的 /xxx（如路径开头的消息）作为普通文本走 steer/follow-up。
+        // ! 开头不在此拦截，保持走 steer/follow-up（与旧行为一致）。
+        // 命令表未加载时保守回退为 startsWith 判断
+        if (inputText.startsWith('/') && isCommandInvocation(inputText, knownCommandNames)) {
             // Allow a small set of commands to pass through as normal messages while busy.
             if (busyAllowedCommandPattern.test(inputText)) {
                 await chatState.sendMessage(inputText)
@@ -433,10 +439,7 @@ const handleSend = async () => {
     // 后端只拦截已知命令，未知的 /xxx（如路径开头）会作为普通消息发给模型，
     // 故按命令表精确匹配首 token；命令表未加载时保守回退为 startsWith 判断
     const trimmedUserText = originalUserText.trimStart()
-    const isCommand = isCommandInvocation(
-        trimmedUserText,
-        isLoaded.value ? allCommands.value.map(cmd => cmd.name) : null
-    )
+    const isCommand = isCommandInvocation(trimmedUserText, knownCommandNames)
     const currentSession = targetSessionKey ? sessionsState.findSessionLocal(targetSessionKey) : undefined
     if (targetSessionKey && originalUserText && !isCommand && !currentSession?.name) {
         sessionsState
