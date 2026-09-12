@@ -388,6 +388,13 @@ const handleSend = async () => {
         } catch (e) {
             isCreatingSession.value = false
             console.error('Failed to create session', e)
+            // 恢复输入框文本与附件（乐观清空发生在 commitNewSession 之前），
+            // 并提示失败——否则网络错误会静默吞掉用户输入
+            if (chatInputRef.value) {
+                chatInputRef.value.inputText = inputText
+                chatInputRef.value.attachments = rawAttachments
+            }
+            useToast().error(t('home.createSessionFailed'))
             return
         }
 

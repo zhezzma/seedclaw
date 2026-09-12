@@ -685,6 +685,7 @@ export default {
         greetingEvening: 'Good evening. How can I help',
         noAgentDesc: 'Not set yet',
         commandNotAvailableWhileBusy: 'Commands are not available while the agent is busy',
+        createSessionFailed: 'Failed to create session, please retry',
     },
     extensions: {
         title: 'Extensions',
