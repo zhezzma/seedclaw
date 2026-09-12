@@ -333,7 +333,7 @@ const handleCommandDelta = (data: any, targetKey: string) => {
             break
         }
         case 'thinking': {
-            // /thinking 命令：更新当前会话的思考状态（双写）
+            // /thinking 命令：更新当前会话的思考状态（统一走双面写入出口）
             const thinking = data.data?.thinkingLevel
             if (thinking) {
                 patchSessionRowEverywhere(targetKey, { thinkingLevel: thinking })
@@ -348,7 +348,6 @@ const handleCommandDelta = (data: any, targetKey: string) => {
             break
         case 'name': {
             // /name 命令：更新会话名称（后端已持久化，此处仅同步前端状态）
-            // 列表行与 currentSession 可能不是同一个对象，必须双写
             const newName = data.data?.name
             if (newName) {
                 patchSessionRowEverywhere(targetKey, { name: newName })
@@ -714,7 +713,7 @@ const loadChatHistory = async (sessionKey?: string) => {
 /**
  * 切换到已有会话
  * 1. 设置 sessionKey
- * 2. 通过 getSessionById 获取 session 信息 → 设置 currentSession
+ * 2. 通过 getSessionById 获取 session 信息 → upsert 进列表桶（currentSession computed 随之收敛）
  * 3. 通过 session.agentId 推导 agentsSelectedId 和 currentAgent
  * 4. 加载聊天历史
  */
@@ -753,7 +752,7 @@ const setSessionKey = async (key: string) => {
 
 /**
  * 创建新会话（/new 页面）
- * 1. 清空 sessionKey 和 currentSession
+ * 1. 清空 sessionKey（currentSession computed 随之归 null）
  * 2. currentAgent 由 agentsSelectedId 推导（用户通过下拉菜单选择）
  */
 const createNewSession = async () => {
@@ -1017,7 +1016,7 @@ export interface SessionTreeEntry {
  *
  * model / thinking 两类设置每次都改同一份 `SessionRow`（且 setModel 还会隐式重推
  * thinkingLevel），所以同一 session 的两次在途请求必须共用一个计数与一份确认态：
- *   - 0→1 时快照当前缓存值（视为「服务端已确认」的基准）；
+ *   - 无合并值的字段从当前行快照基准（视为「服务端已确认」；已被本批触碰的字段不补拍）；
  *   - 每次成功把响应的权威值合并进 confirmed（失败不合并）；
  *   - 在途数归零时把 confirmed 一次性写回缓存。
  *
@@ -1051,13 +1050,15 @@ function beginSettingFlight(targetKey: string, targets: SessionRow[]): SessionSe
         }
         sessionSettingFlights.set(targetKey, entry)
     }
-    // 基准补拍（row 未就绪时延到后续调用）：只填「尚无合并值」的字段——
-    // 已合并的权威值绝不能被晚到的基准快照覆盖；dirty 同理不复位
-    if (entry.mergedAt.model === 0) {
+    // 基准补拍（row 未就绪时延到后续调用）：只填「尚无合并值且未被本批触碰」的字段——
+    // 已合并的权威值绝不能被晚到的基准快照覆盖；已被本批乐观补丁触碰的字段同样
+    // 不能补拍，否则重叠双选全失败时会回滚到前一个 flight 的未确认乐观值
+    // （dirty 由乐观补丁与成功合并共同置位，settle 后随记录一起销毁）
+    if (entry.mergedAt.model === 0 && !entry.dirty.model) {
         entry.confirmed.modelProvider = session?.modelProvider
         entry.confirmed.model = session?.model
     }
-    if (entry.mergedAt.thinkingLevel === 0) {
+    if (entry.mergedAt.thinkingLevel === 0 && !entry.dirty.thinkingLevel) {
         entry.confirmed.thinkingLevel = session?.thinkingLevel
     }
     entry.inflight++

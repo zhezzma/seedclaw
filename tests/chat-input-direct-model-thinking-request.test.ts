@@ -126,8 +126,8 @@ test('setters use a per-session flight record so the cache settles to server-con
     const endFn = fnSource(chatStateSource, 'endSettingFlight')
     assert.match(
         beginFn,
-        /mergedAt\.model === 0/,
-        'flight base re-seed must be gated per field so an already-merged authoritative value is never overwritten',
+        /mergedAt\.model === 0 && !entry\.dirty\.model/,
+        'flight base re-seed must be gated per field: an already-merged authoritative value AND an in-batch optimistic patch must never be overwritten by a late base snapshot',
     )
     assert.match(beginFn, /entry\.confirmed\.modelProvider = session\?\.modelProvider/, 'flight start should snapshot the current cache values')
     assert.match(endFn, /entry\.inflight--/, 'flight end should decrement the in-flight count')

@@ -79,7 +79,10 @@ const calls = []
     if (u.pathname === '/api/sessions/S2/info') return new Promise((resolve) => {
         setTimeout(() => resolve(body({ ok: true, payload: { id: 'S2', name: 'S2', modelProvider: 'p0', model: 'm0', thinkingLevel: 'off' } })), INFO_DELAY_MS)
     })
-    if (u.pathname.endsWith('/model')) return body({ ok: true, payload: { provider: reqBody?.provider ?? 'pA', model: reqBody?.model ?? 'mNew', thinkingLevel: 'high' } })
+    if (u.pathname.endsWith('/model')) {
+        if (process.env.HARNESS_ALL_FAIL === '1') return body({ ok: false, error: 'network blip' }, 500)
+        return body({ ok: true, payload: { provider: reqBody?.provider ?? 'pA', model: reqBody?.model ?? 'mNew', thinkingLevel: 'high' } })
+    }
     if (u.pathname.endsWith('/thinking-level')) return body({ ok: true, payload: { thinkingLevel: 'high' } })
     if (u.pathname.endsWith('/messages')) return body({ ok: true, payload: { messages: [], isStreaming: false } })
     if (u.pathname.endsWith('/attach')) return body({ ok: true, payload: {} })
@@ -112,6 +115,14 @@ const ok2 = await chat.setSessionModel('pA/m2')
 console.log('SWITCH2 ok=' + ok2 + ' C=' + chat.currentSession?.model + '/' + chat.currentSession?.modelProvider + ' LIST=' + sessions.findSessionLocal('S1')?.model + ' THINK=' + chat.currentSession?.thinkingLevel + '/' + sessions.findSessionLocal('S1')?.thinkingLevel)
 
 console.log('POSTS ' + calls.filter((c) => c.includes('/model')).length)
+
+// 场景3：重叠双选且全部失败——settle 必须回滚到真正的服务端值（M0），
+// 而不是第二个 flight 从第一个 flight 的未确认乐观值上补拍出的基准（A）
+if (process.env.HARNESS_ALL_FAIL === '1') {
+    // 并发重叠：两个 flight 同时在途（串行 await 会让第一个先 settle，毒化不发生）
+    await Promise.all([chat.setSessionModel('pA/m1'), chat.setSessionModel('pA/m2')])
+    console.log('ALLFAIL C=' + chat.currentSession?.model + ' LIST=' + sessions.findSessionLocal('S1')?.model)
+}
 
 // 场景2：冷启动窗口——/info 在途、行尚未入桶时用户就切换模型
 if (process.env.HARNESS_COLD_START === '1') {
@@ -165,6 +176,20 @@ test('session row instances stay identical across open + consecutive model switc
         assert.match(out, /SWITCH1 .*THINK=high\/high/, 'model switch must backfill the server-re-derived thinkingLevel to both instances')
         // 4) 两次请求都真实发出
         assert.match(out, /POSTS 2/, 'both switches should hit the dedicated endpoint')
+    } finally {
+        await rm(outDir, { recursive: true, force: true })
+    }
+})
+
+test('all-fail overlapping double-select rolls back to the true server value (behavior)', async () => {
+    const outDir = join(repoRoot, 'node_modules/.cache/seedclaw-row-harness-allfail')
+    try {
+        const out = await runHarness(outDir, { HARNESS_ALL_FAIL: '1' })
+        assert.match(
+            out,
+            /ALLFAIL C=m0 LIST=m0/,
+            'when every overlapping switch fails, the label must roll back to the last server-confirmed value (not an unconfirmed optimistic value)',
+        )
     } finally {
         await rm(outDir, { recursive: true, force: true })
     }
