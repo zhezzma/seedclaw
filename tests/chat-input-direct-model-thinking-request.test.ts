@@ -57,6 +57,34 @@ test('useChatState exposes direct-request session setters hitting the dedicated 
     )
 })
 
+test('model/thinking selection stays available while the session is busy', () => {
+    // 直连切换是与 SSE 无关的独立 HTTP 请求；网关侧 setModel 只改 agent.state.model
+    // （loop config 在 prompt 开始时捕获），进行中的 turn 不受影响，切换对下一轮生效。
+    // 忙时拦截是 /model 命令时代的遗留包袱，不应存在。
+    const select = fnSource(chatInputSource, 'selectThinkingLevel')
+    const modelSelect = fnSource(chatInputSource, 'handleModelSelect')
+
+    assert.doesNotMatch(
+        select,
+        /isBusy\.value/,
+        'thinking selection must not be blocked while the session is busy',
+    )
+    assert.doesNotMatch(
+        modelSelect,
+        /isBusy\.value/,
+        'model selection must not be blocked while the session is busy',
+    )
+    assert.match(select, /chatState\.setSessionThinkingLevel\(level\)/, 'busy selection should still reach the direct setter')
+    assert.match(modelSelect, /chatState\.setSessionModel\(modelId\)/, 'busy selection should still reach the direct setter')
+
+    // 守卫删除后 ChatInput 内不应残留只为守卫服务的孤儿依赖
+    assert.doesNotMatch(
+        chatInputSource,
+        /useToast/,
+        'useToast import should be removed once its only call sites (the busy guards) are gone',
+    )
+})
+
 test('direct setters guard against stale-response races', () => {
     // 旧实现是 seq 令牌（只能挡住单字段双请求）；现为 per-session flight 记录，
     // 由 flight 用例覆盖。这里仅确认旧令牌变量已被移除，不留死代码。
@@ -236,11 +264,6 @@ test('ChatInput model switch delegates to the direct setter instead of sending a
         /if \(isPendingMode\.value\) \{\s*pendingModel\.value = modelId\s*return\s*\}/,
         'new-session (/new) model selection must keep recording locally without any request',
     )
-    assert.match(
-        handler,
-        /if \(isBusy\.value\) \{/,
-        'handleModelSelect should keep blocking switches while a run is active',
-    )
 })
 
 test('ChatInput thinking switch delegates to the direct setter instead of sending a /thinking command', () => {
@@ -265,11 +288,6 @@ test('ChatInput thinking switch delegates to the direct setter instead of sendin
         handler,
         /if \(isPendingMode\.value\) \{\s*pendingThinkingLevel\.value = level\s*return\s*\}/,
         'new-session (/new) thinking selection must keep recording locally without any request',
-    )
-    assert.match(
-        handler,
-        /if \(isBusy\.value\) \{/,
-        'selectThinkingLevel should keep blocking switches while a run is active',
     )
 })
 

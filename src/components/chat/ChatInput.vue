@@ -20,7 +20,6 @@ import { useModelsState } from '../../composables/useModelsState'
 import { useChatState, type ChatSendOverrides } from '../../composables/useChatState'
 import { useUiSettingsStore } from '../../stores/setting'
 import { computed } from 'vue'
-import { useToast } from '~/src/composables/useToast'
 import { useMediaPreview } from '../../composables/useMediaPreview'
 import ModelSelectMenuContent from '../models/ModelSelectMenuContent.vue'
 import { isNewSession } from '../../utils/route-helpers'
@@ -168,10 +167,6 @@ const thinkingLevel = computed<ThinkingLevel>(() => {
 
 const selectThinkingLevel = (level: ThinkingLevel) => {
     thinkingDropdownOpen.value = false
-    if (isBusy.value) {
-        useToast().warning(t('chat.waitMessage'))
-        return
-    }
     // 新会话：仅本地记录，等首条消息一起提交（服务端在 /chat 时应用）
     if (isPendingMode.value) {
         pendingThinkingLevel.value = level
@@ -249,10 +244,6 @@ const consumePendingOverrides = (): ChatSendOverrides => {
 
 const handleModelSelect = (modelId: string) => {
     modelDropdownOpen.value = false
-    if (isBusy.value) {
-        useToast().warning(t('chat.waitMessage'))
-        return
-    }
     // 新会话：仅本地记录，等首条消息一起提交（服务端在 /chat 时应用）
     if (isPendingMode.value) {
         pendingModel.value = modelId
