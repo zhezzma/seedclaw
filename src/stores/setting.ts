@@ -18,7 +18,9 @@ export interface UiSettings {
     remoteApiBaseUrl: string
     remoteToken: string
     deviceName: string
-    lastActiveSessionKey: string
+    /** 新会话页（欢迎页）下拉最后明确选中的 agent：/new 与冷启动兜底优先复用它（校验存在性），
+     *  而非永远回落第一个 agent。仅在用户显式选择时写入 */
+    lastNewSessionAgentId: string
     /** 首次引导是否已完成：bundled 本地模式下 apiBaseUrl 由服务托管、恒为已配置，
      *  是否弹回主界面只能以"跑完过向导"为准（否则永远进不了引导页） */
     setupDone: boolean
@@ -238,7 +240,7 @@ const getDefaultSettings = (): UiSettings => ({
     remoteApiBaseUrl: '',
     remoteToken: '',
     deviceName: 'SeedClaw',
-    lastActiveSessionKey: '',
+    lastNewSessionAgentId: '',
     setupDone: false,
     theme: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
     isSidebarOpen: false,
@@ -278,6 +280,8 @@ const loadConfig = (): UiSettings => {
         const saved = localStorage.getItem(CONFIG_KEY)
         if (saved) {
             const parsed = JSON.parse(saved)
+            // 迁移：lastActiveSessionKey 已废弃（只写不读的死状态），从旧配置中剥离
+            delete parsed.lastActiveSessionKey
             if (parsed.gatewayUrl && !parsed.apiBaseUrl) {
                 let url = parsed.gatewayUrl as string
                 url = url.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://')
@@ -423,8 +427,8 @@ export const useUiSettingsStore = defineStore('ui-settings', {
             this.persist()
         },
 
-        setLastActiveSessionKey(key: string) {
-            this.lastActiveSessionKey = key
+        setLastNewSessionAgent(id: string) {
+            this.lastNewSessionAgentId = id
             this.persist()
         },
 

@@ -233,9 +233,6 @@ const deleteSession = async (key: string) => {
     return { deleted: true }
 }
 
-// 首页恢复：lastActiveSessionKey 可指向普通/计划/已归档任一列表中的会话，三桶都视为存在
-const hasSession = (key: string) => Boolean(findSessionLocal(key))
-
 const commitNewSession = async (agentId: string, inputText?: string): Promise<string> => {
     const body = inputText ? { firstMessage: inputText } : undefined
     const session = await apiPost<SessionRow>(`/api/sessions/${agentId}`, body)
@@ -283,7 +280,6 @@ const _sessionsState = Object.assign(state, {
     pinSession,
     unpinSession,
     deleteSession,
-    hasSession,
     findSessionLocal,
     commitNewSession,
     triggerSessionRename,

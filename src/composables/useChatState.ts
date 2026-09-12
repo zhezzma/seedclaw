@@ -1,7 +1,6 @@
 import { reactive, computed, type ComputedRef } from 'vue'
 
 import { SessionRow, useSessionsState } from './useSessionsState'
-import { useUiSettingsStore } from '../stores/setting'
 import { apiGet, apiPost, apiDelete } from './api-client'
 import { startChatSSE, attachSessionSSE, startRetrySSE, startEditSSE, type ChatPromptBody, type SSEConnection } from './sse-client'
 import { AgentInfo, useAgentsState } from './useAgentsState'
@@ -743,9 +742,6 @@ const setSessionKey = async (key: string) => {
 
     state.sessionKey = key
 
-    const settings = useUiSettingsStore()
-    settings.setLastActiveSessionKey(key)
-
     // 获取 session 信息并设置 currentSession / currentAgent
     const sessionsState = useSessionsState()
     const session = await sessionsState.getSessionById(key)
@@ -773,9 +769,6 @@ const createNewSession = async () => {
     }
     state.sessionKey = ''
     state.currentSession = null
-
-    const settings = useUiSettingsStore()
-    settings.setLastActiveSessionKey('')
 
     // 新会话场景：currentAgent 将通过 getter 自动根据 agentsSelectedId 推导
 }

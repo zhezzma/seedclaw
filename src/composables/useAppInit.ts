@@ -48,18 +48,20 @@ export function useAppInit() {
             loadModels(),
         ])
 
-        // 加载完 agents 后，如果还没有选中的 agent，自动选择第一个。
-        // 冷刷新/书签直接落在 /new?agent=<id> 时，路由 watcher 先于本 init 执行
-        // （当时列表为空无法命中），这里兜底补选 query 指定的 agent（校验存在性），
-        // 避免静默落到第一个 agent；非 /new 或 query 无效时维持原行为。
-        // 分支由 !agentsSelectedId 守卫：用户已手动选择时不覆盖
+        // 加载完 agents 后，如果还没有选中的 agent，按优先级兜底：
+        // ?agent=<id>（冷刷新/书签直接落在 /new?agent=x 时，路由 watcher 先于本 init
+        // 执行，当时列表为空无法命中，这里兜底补选并校验存在性）> 用户上次在欢迎页
+        // 明确选择的 agent（settingsStore 持久化，校验存在性）> 第一个 agent。
         if (!chatState.agentsSelectedId && agentsState.agentsList.length > 0) {
             const requestedAgent = isNewSession(route) && typeof route.query.agent === 'string'
                 ? route.query.agent
                 : ''
-            const targetAgentId = agentsState.agentsList.some(a => a.id === requestedAgent)
+            const knownRequested = requestedAgent && agentsState.agentsList.some(a => a.id === requestedAgent)
+            const rememberedAgent = useUiSettingsStore().lastNewSessionAgentId
+            const knownRemembered = rememberedAgent && agentsState.agentsList.some(a => a.id === rememberedAgent)
+            const targetAgentId = knownRequested
                 ? requestedAgent
-                : agentsState.agentsList[0].id
+                : knownRemembered ? rememberedAgent : agentsState.agentsList[0].id
             chatState.selectAgent(targetAgentId)
             setCurrentAgent(targetAgentId)
             await loadCommands(targetAgentId)
