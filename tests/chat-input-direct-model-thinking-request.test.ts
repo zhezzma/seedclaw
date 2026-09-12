@@ -124,8 +124,12 @@ test('setters use a per-session flight record so the cache settles to server-con
     // helper：0→1 时快照基准（视为服务端已确认状态）；归零时确认态统一写回缓存
     const beginFn = fnSource(chatStateSource, 'beginSettingFlight')
     const endFn = fnSource(chatStateSource, 'endSettingFlight')
-    assert.match(beginFn, /entry\.inflight === 0/, 'flight start should snapshot the base only when going 0→1')
-    assert.match(beginFn, /entry\.confirmed = \{/, 'flight start should snapshot the current cache values')
+    assert.match(
+        beginFn,
+        /mergedAt\.model === 0/,
+        'flight base re-seed must be gated per field so an already-merged authoritative value is never overwritten',
+    )
+    assert.match(beginFn, /entry\.confirmed\.modelProvider = session\?\.modelProvider/, 'flight start should snapshot the current cache values')
     assert.match(endFn, /entry\.inflight--/, 'flight end should decrement the in-flight count')
     assert.match(endFn, /sessionSettingFlights\.delete\(targetKey\)/, 'an idle session should drop its flight record')
     assert.match(
@@ -145,18 +149,18 @@ test('flight records harden against cross-session contamination and external mut
     const setThinking = fnSource(chatStateSource, 'setSessionThinkingLevel')
     const endFn = fnSource(chatStateSource, 'endSettingFlight')
 
-    // 写入目标按 targetKey 解析为【双目标】：标签源 state.currentSession（id 校验，
-    // 防 setSessionKey 窗口里旧会话行污染）+ 列表行（侧边栏）。两者可能是不同对象，
-    // 只写其一会 governing 切换"看起来没生效"（currentSession 分叉后标签永远不动）
+    // 写入目标按 targetKey 解析：currentSession 是 findSessionLocal(sessionKey) 的
+    // 派生 computed，列表行即唯一实例——写入列表行即同步标签源与侧边栏，
+    // 任何只写"另一个实例"的旧模式已随派生化消失
     assert.match(
         setModel,
-        /resolveSettingTargets\(targetKey\)/,
-        'setSessionModel should write through all row instances resolved for the target key',
+        /waitForSettingTargets\(targetKey\)/,
+        'setSessionModel should resolve its write target through the shared resolver',
     )
     assert.match(
         setThinking,
-        /resolveSettingTargets\(targetKey\)/,
-        'setSessionThinkingLevel should write through all row instances resolved for the target key',
+        /waitForSettingTargets\(targetKey\)/,
+        'setSessionThinkingLevel should resolve its write target through the shared resolver',
     )
     const resolver = fnSource(chatStateSource, 'resolveSettingTargets')
     assert.match(resolver, /findSessionLocal\(targetKey\)/, 'the resolver should resolve the row by the target key')
@@ -174,6 +178,16 @@ test('flight records harden against cross-session contamination and external mut
         'settle should write back only fields this batch actually touched',
     )
     assert.match(setModel, /entry\.dirty\.model = true/, 'model optimistic patch should mark the field dirty')
+    assert.match(
+        setModel,
+        /await waitForSettingTargets\(targetKey\)/,
+        'setSessionModel should wait for the row to materialize in the cold-start window before opening the flight',
+    )
+    assert.match(
+        setThinking,
+        /await waitForSettingTargets\(targetKey\)/,
+        'setSessionThinkingLevel should wait for the row to materialize in the cold-start window before opening the flight',
+    )
     assert.match(setThinking, /entry\.dirty\.thinkingLevel = true/, 'thinking optimistic patch should mark the field dirty')
 
     // Hole C 缓解：成功按发送序合并（callSeq 门闩），响应乱序时旧调用的迟到合并不覆盖新值

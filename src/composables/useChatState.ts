@@ -1035,8 +1035,6 @@ interface SessionSettingFlight {
     mergedAt: { model: number; thinkingLevel: number }
     /** 本批是否有调用触碰过对应字段（settle 只写回触碰过的字段，不覆写外部并发修改） */
     dirty: { model: boolean; thinkingLevel: boolean }
-    /** 基准快照是否已从真实 session row 读取（row 未就绪时延到同批后续调用补拍） */
-    seeded: boolean
 }
 const sessionSettingFlights = new Map<string, SessionSettingFlight>()
 
@@ -1050,21 +1048,17 @@ function beginSettingFlight(targetKey: string, targets: SessionRow[]): SessionSe
             confirmed: { modelProvider: undefined, model: undefined, thinkingLevel: undefined },
             mergedAt: { model: 0, thinkingLevel: 0 },
             dirty: { model: false, thinkingLevel: false },
-            seeded: false,
         }
         sessionSettingFlights.set(targetKey, entry)
     }
-    // 0→1：正常快照基准。row 当时未就绪（冷启动 / 深链切会话窗口）则延到同批首个
-    // 拿到 row 的调用补拍（此时 row 还没被本批触碰过，快照仍是干净的基准）。
-    if (entry.inflight === 0 || (!entry.seeded && session)) {
-        entry.confirmed = {
-            modelProvider: session?.modelProvider,
-            model: session?.model,
-            thinkingLevel: session?.thinkingLevel,
-        }
-        entry.mergedAt = { model: 0, thinkingLevel: 0 }
-        entry.dirty = { model: false, thinkingLevel: false }
-        entry.seeded = Boolean(session)
+    // 基准补拍（row 未就绪时延到后续调用）：只填「尚无合并值」的字段——
+    // 已合并的权威值绝不能被晚到的基准快照覆盖；dirty 同理不复位
+    if (entry.mergedAt.model === 0) {
+        entry.confirmed.modelProvider = session?.modelProvider
+        entry.confirmed.model = session?.model
+    }
+    if (entry.mergedAt.thinkingLevel === 0) {
+        entry.confirmed.thinkingLevel = session?.thinkingLevel
     }
     entry.inflight++
     entry.seq++
@@ -1102,6 +1096,23 @@ function resolveSettingTargets(targetKey: string): SessionRow[] {
 }
 
 /**
+ * 等待目标行入桶（冷启动窗口：深链/刷新后 /info 在途，行尚未 upsert）。
+ * 行出现前 begin flight 会因无写入目标而丢失本地确认值（settle 无处可写，
+ * 记录随即删除）——表现为「切换成功但标签停在旧值」。故在 bounded 窗口内
+ * 轮询等待；超时后照常继续（服务端仍会应用，本地标签待下次刷新收敛）。
+ * 行已存在时为同步快速路径（零等待）。
+ */
+async function waitForSettingTargets(targetKey: string, timeoutMs = 2000): Promise<SessionRow[]> {
+    const deadline = Date.now() + timeoutMs
+    for (;;) {
+        const targets = resolveSettingTargets(targetKey)
+        if (targets.length > 0) return targets
+        if (Date.now() >= deadline) return []
+        await new Promise((r) => setTimeout(r, 25))
+    }
+}
+
+/**
  * 双写会话行的统一出口。
  *
  * 历史背景：同一 session 曾同时存在列表行与 currentSession 两个实例（upsert 双重
@@ -1127,7 +1138,7 @@ const setSessionModel = async (modelId: string): Promise<boolean> => {
     const split = splitModelId(modelId)
     if (!split) return false
 
-    const targets = resolveSettingTargets(targetKey)
+    const targets = await waitForSettingTargets(targetKey)
     const entry = beginSettingFlight(targetKey, targets)
     const callSeq = entry.seq
     for (const session of targets) {
@@ -1143,11 +1154,14 @@ const setSessionModel = async (modelId: string): Promise<boolean> => {
             provider: split.provider,
             model: split.model,
         })
-        // 按发送序合并：响应乱序时旧调用的迟到合并不覆盖新调用已确认的值
+        // 按发送序合并：响应乱序时旧调用的迟到合并不覆盖新调用已确认的值。
+        // 合并即置 dirty —— dirty 的语义是「本批有值要落行」，不能只在 begin
+        // 有目标时设置，否则冷启动/补拍批次里确认值到不了 settle
         if (callSeq > entry.mergedAt.model) {
             entry.mergedAt.model = callSeq
             entry.confirmed.modelProvider = split.provider
             entry.confirmed.model = split.model
+            entry.dirty.model = true
         }
         if (result?.thinkingLevel && callSeq > entry.mergedAt.thinkingLevel) {
             entry.mergedAt.thinkingLevel = callSeq
@@ -1175,7 +1189,7 @@ const setSessionThinkingLevel = async (level: string): Promise<boolean> => {
     const targetKey = state.sessionKey
     if (!targetKey) return false
 
-    const targets = resolveSettingTargets(targetKey)
+    const targets = await waitForSettingTargets(targetKey)
     const entry = beginSettingFlight(targetKey, targets)
     const callSeq = entry.seq
     for (const session of targets) {
@@ -1189,10 +1203,11 @@ const setSessionThinkingLevel = async (level: string): Promise<boolean> => {
         const result = await apiPost<{ thinkingLevel?: string }>(`/api/chat/${targetKey}/thinking-level`, {
             thinkingLevel: level,
         })
-        // 以服务端 clamp 后的权威值为准（按发送序合并）
+        // 以服务端 clamp 后的权威值为准（按发送序合并；合并即置 dirty，语义同上）
         if (result?.thinkingLevel && callSeq > entry.mergedAt.thinkingLevel) {
             entry.mergedAt.thinkingLevel = callSeq
             entry.confirmed.thinkingLevel = result.thinkingLevel
+            entry.dirty.thinkingLevel = true
         }
         return true
     } catch (err: any) {
