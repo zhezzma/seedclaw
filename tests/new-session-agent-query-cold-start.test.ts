@@ -8,12 +8,14 @@ const appInitSource = readFileSync(path.join(root, 'src/composables/useAppInit.t
 
 test('app init reuses the remembered welcome agent before falling back to the first agent', () => {
     // 冷启动时路由 watcher 已跑过但列表为空，init() 是真正的选人处：
-    // ?agent= query 之后必须先看持久化的 lastNewSessionAgentId（校验存在性），
+    // ?agent= query 之后必须先看持久化的记住 agent（校验存在性），
     // 否则重启应用总会静默回到第一个 agent，用户上次的选择丢失。
+    // 记住值按网关模式分字段读：本地/远程是两台服务器，agent id 互不相通，
+    // 单值会在切换时窜台（effectiveGatewayMode 判定必须在 ensureLocalServerLoaded 之后才可信）
     assert.match(
         appInitSource,
-        /isNewSession\(route\)[\s\S]*?route\.query\.agent[\s\S]*?lastNewSessionAgentId[\s\S]*?agentsState\.agentsList\.some\(a => a\.id === rememberedAgent\)[\s\S]*?agentsState\.agentsList\[0\]\.id/,
-        'agent fallback in init() must consult the persisted lastNewSessionAgentId before falling back to the first agent',
+        /isNewSession\(route\)[\s\S]*?route\.query\.agent[\s\S]*?effectiveGatewayMode\(\) === 'remote'[\s\S]*?lastRemoteNewSessionAgentId[\s\S]*?lastLocalNewSessionAgentId[\s\S]*?agentsState\.agentsList\.some\(a => a\.id === rememberedAgent\)[\s\S]*?agentsState\.agentsList\[0\]\.id/,
+        'agent fallback in init() must consult the mode-scoped remembered agent before falling back to the first agent',
     )
 })
 

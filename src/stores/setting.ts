@@ -19,8 +19,11 @@ export interface UiSettings {
     remoteToken: string
     deviceName: string
     /** 新会话页（欢迎页）下拉最后明确选中的 agent：/new 与冷启动兜底优先复用它（校验存在性），
-     *  而非永远回落第一个 agent。仅在用户显式选择时写入 */
-    lastNewSessionAgentId: string
+     *  而非永远回落第一个 agent。仅在用户显式选择时写入。
+     *  按 gatewayMode 分 local/remote 两份持久化：两侧是两台独立服务器，agent id 命名空间
+     *  互不相通，共用单值会在模式切换时互相覆盖/窜台（bundled 客户端可随时切换） */
+    lastLocalNewSessionAgentId: string
+    lastRemoteNewSessionAgentId: string
     /** 首次引导是否已完成：bundled 本地模式下 apiBaseUrl 由服务托管、恒为已配置，
      *  是否弹回主界面只能以"跑完过向导"为准（否则永远进不了引导页） */
     setupDone: boolean
@@ -240,7 +243,8 @@ const getDefaultSettings = (): UiSettings => ({
     remoteApiBaseUrl: '',
     remoteToken: '',
     deviceName: 'SeedClaw',
-    lastNewSessionAgentId: '',
+    lastLocalNewSessionAgentId: '',
+    lastRemoteNewSessionAgentId: '',
     setupDone: false,
     theme: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
     isSidebarOpen: false,
@@ -311,6 +315,17 @@ const loadConfig = (): UiSettings => {
             }
             if (typeof parsed.remoteApiBaseUrl !== 'string') parsed.remoteApiBaseUrl = parsed.apiBaseUrl ?? ''
             if (typeof parsed.remoteToken !== 'string') parsed.remoteToken = parsed.token ?? ''
+            // 迁移：旧版单值 lastNewSessionAgentId 不区分网关模式，本地/远程切换时会窜台；
+            // 按保存时的 gatewayMode 归属到对应字段。delete 不设类型守卫：
+            // 非法值也一并剥离，避免死键随 ...parsed 流入 state 被反复持久化
+            if (typeof parsed.lastNewSessionAgentId === 'string') {
+                if (parsed.gatewayMode === 'remote') {
+                    if (typeof parsed.lastRemoteNewSessionAgentId !== 'string') parsed.lastRemoteNewSessionAgentId = parsed.lastNewSessionAgentId
+                } else if (typeof parsed.lastLocalNewSessionAgentId !== 'string') {
+                    parsed.lastLocalNewSessionAgentId = parsed.lastNewSessionAgentId
+                }
+            }
+            delete parsed.lastNewSessionAgentId
             const merged: UiSettings = {
                 ...defaults,
                 ...parsed,
@@ -427,8 +442,12 @@ export const useUiSettingsStore = defineStore('ui-settings', {
             this.persist()
         },
 
-        setLastNewSessionAgent(id: string) {
-            this.lastNewSessionAgentId = id
+        setLastNewSessionAgent(id: string, mode: 'local' | 'remote') {
+            if (mode === 'remote') {
+                this.lastRemoteNewSessionAgentId = id
+            } else {
+                this.lastLocalNewSessionAgentId = id
+            }
             this.persist()
         },
 

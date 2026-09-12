@@ -8,7 +8,7 @@ import { useCronState } from './useCronState'
 import { useModelsState } from './useModelsState'
 import { useSkillsState } from './useSkillsState'
 import { connectServer } from './notify-server-connection'
-import { ensureLocalServerLoaded, waitForLocalServerReady, isLocalServerBootFailed } from './local-server'
+import { effectiveGatewayMode, ensureLocalServerLoaded, waitForLocalServerReady, isLocalServerBootFailed } from './local-server'
 import { useExecApproval } from './useExecApproval'
 import { useCommandState } from './useCommandState'
 import { isNewSession } from '../utils/route-helpers'
@@ -57,7 +57,12 @@ export function useAppInit() {
                 ? route.query.agent
                 : ''
             const knownRequested = requestedAgent && agentsState.agentsList.some(a => a.id === requestedAgent)
-            const rememberedAgent = useUiSettingsStore().lastNewSessionAgentId
+            // 记住的选择按网关模式区分：本地/远程是两台服务器，agent id 互不相通。
+            // 此处已在 ensureLocalServerLoaded() 之后，bundled 标志已就绪，判定可信
+            const settingsStore = useUiSettingsStore()
+            const rememberedAgent = effectiveGatewayMode() === 'remote'
+                ? settingsStore.lastRemoteNewSessionAgentId
+                : settingsStore.lastLocalNewSessionAgentId
             const knownRemembered = rememberedAgent && agentsState.agentsList.some(a => a.id === rememberedAgent)
             const targetAgentId = knownRequested
                 ? requestedAgent

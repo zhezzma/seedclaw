@@ -34,6 +34,7 @@ import { useChatInput } from '../composables/useChatInput'
 import { useCommandState } from '../composables/useCommandState'
 import { SessionRow, useSessionsState } from '../composables/useSessionsState'
 import { useAgentsState } from '../composables/useAgentsState'
+import { effectiveGatewayMode } from '../composables/local-server'
 import { useToast } from '../composables/useToast'
 import { useWorkspacePanel } from '../composables/useWorkspacePanel'
 import { useWorkspaceViewer } from '../composables/useWorkspaceViewer'
@@ -73,11 +74,12 @@ const virtualMessageListRef = ref<InstanceType<typeof VirtualMessageList> | null
 const welcomeAgentDropdownRef = ref<HTMLDetailsElement | null>(null)
 
 // 欢迎页 agent 下拉选择（与原 ChatHeader 下拉行为一致：selectAgent + 命令列表跟随）
-// 明确选择会持久化到 settingsStore：/new 与冷启动兜底优先复用它，而不是永远第一个
+// 明确选择会持久化到 settingsStore：/new 与冷启动兜底优先复用它，而不是永远第一个。
+// 按网关模式分字段保存：本地/远程是两台服务器，agent id 命名空间互不相通
 const selectWelcomeAgent = async (agentId: string) => {
     chatState.selectAgent(agentId)
     setCurrentAgent(agentId)
-    settingsStore.setLastNewSessionAgent(agentId)
+    settingsStore.setLastNewSessionAgent(agentId, effectiveGatewayMode())
     await loadCommands(agentId)
     if (welcomeAgentDropdownRef.value) {
         welcomeAgentDropdownRef.value.open = false
@@ -758,13 +760,15 @@ watch(() => [route.params.sessionkey, route.path, route.query.agent], async ([se
     // /new 路由 → 创建新会话
     if (isNewSession(route)) {
         // ?agent=<id>（侧栏分组组头「+」按钮入口）最优先，仅当其存在于列表时生效。
-        // 其二：复用用户上次在欢迎页下拉里明确选过的 agent（settingsStore 持久化，
-        // 已删除则跳过）。两者都没有时才回落第一个 agent。
+        // 其二：复用用户上次在欢迎页下拉里明确选过的 agent（settingsStore 按网关模式
+        // 分字段持久化，已删除则跳过）。两者都没有时才回落第一个 agent。
         // 注意不沿用「上一个会话的 agent」：只有下拉里的显式选择才被记住
         // （+ 入口的 ?agent= 仅当次生效，不写回存储，避免改变默认选择）。
         const requestedAgent = typeof route.query.agent === 'string' ? route.query.agent : ''
         const knownRequested = requestedAgent && agentsState.agentsList.some(a => a.id === requestedAgent)
-        const rememberedAgent = settingsStore.lastNewSessionAgentId
+        const rememberedAgent = effectiveGatewayMode() === 'remote'
+            ? settingsStore.lastRemoteNewSessionAgentId
+            : settingsStore.lastLocalNewSessionAgentId
         const knownRemembered = rememberedAgent && agentsState.agentsList.some(a => a.id === rememberedAgent)
         const defaultAgentId = agentsState.agentsList[0]?.id ?? ''
         const targetAgentId = knownRequested ? requestedAgent : (knownRemembered ? rememberedAgent : defaultAgentId)
