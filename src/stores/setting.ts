@@ -326,6 +326,10 @@ const loadConfig = (): UiSettings => {
                 }
             }
             delete parsed.lastNewSessionAgentId
+            // 同类守卫：手改/损坏配置里的非字符串值归一化，避免脏类型永久 round-trip。
+            // 必须在迁移之后执行，否则空串会占位、旧值迁不进去
+            if (typeof parsed.lastLocalNewSessionAgentId !== 'string') parsed.lastLocalNewSessionAgentId = ''
+            if (typeof parsed.lastRemoteNewSessionAgentId !== 'string') parsed.lastRemoteNewSessionAgentId = ''
             const merged: UiSettings = {
                 ...defaults,
                 ...parsed,

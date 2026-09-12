@@ -154,6 +154,36 @@ test('legacy single lastNewSessionAgentId migrates into the local field for loca
     assert.ok(!('lastNewSessionAgentId' in savedBad), 'non-string legacy value must still be stripped')
 })
 
+test('per-mode fields win over a stale legacy key; non-string field values are normalized', async () => {
+    // 降级→再升级场景：已拆分的字段优先于陈旧旧值（clobber guard），旧值只填空缺侧
+    storage.setItem('openclaw_config', JSON.stringify({
+        apiBaseUrl: 'http://x',
+        token: 't',
+        gatewayMode: 'remote',
+        lastNewSessionAgentId: 'stale-legacy',
+        lastRemoteNewSessionAgentId: 'agent-current',
+    }))
+
+    const store = await createStore()
+    assert.equal(store.lastRemoteNewSessionAgentId, 'agent-current')
+    // 旧值属 remote 命名空间：对应字段已有新值时直接丢弃，
+    // 不跨模式填入 local 字段（否则又是窜台）
+    assert.equal(store.lastLocalNewSessionAgentId, '')
+
+    // 新字段自身的非字符串值（手改/损坏配置）归一化为空串，不永久 round-trip
+    storage.clear()
+    storage.setItem('openclaw_config', JSON.stringify({
+        token: 't',
+        gatewayMode: 'remote',
+        lastLocalNewSessionAgentId: 42,
+    }))
+
+    const store2 = await createStore()
+    assert.equal(store2.lastLocalNewSessionAgentId, '')
+    const saved = JSON.parse(storage.getItem('openclaw_config')!)
+    assert.equal(saved.lastLocalNewSessionAgentId, '', 'non-string field value must be normalized')
+})
+
 test('lastNewSessionAgent fields default to empty for legacy configs', async () => {
     // 旧版本保存的 config 没有这些字段：loadConfig 用 defaults 补齐，不能是 undefined
     storage.setItem('openclaw_config', JSON.stringify({ apiBaseUrl: 'http://x', token: 't' }))
