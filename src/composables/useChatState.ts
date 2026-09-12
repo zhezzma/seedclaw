@@ -128,6 +128,21 @@ function bindSSELifecycle(sse: SSEConnection, targetKey: string) {
     sse.done.then(cleanup).catch(cleanup)
 }
 
+/** 切走会话时断开该会话的本地 SSE 连接（attach / chat / retry / edit 流共用一个 Map）。
+ *  背景：浏览器 HTTP/1.1 对同一 host 的并发连接上限为 6 条，此前切走会话不 abort，
+ *  每个运行中的 session 长期占用一条连接，≥5 个运行中会话即耗尽配额，导致后续所有
+ *  请求全局排队（Stalled），只有刷新页面才恢复。断开后客户端任意时刻只持有当前会话
+ *  的 1~2 条连接，与运行中 session 数量解耦。
+ *  语义：只断本地流，不请求服务端停止——服务端 run 继续跑完，切回时
+ *  attachToSessionIfNeeded 以 afterEntryId 增量重放 + partialText 追平 UI。 */
+function abortSessionSSE(targetKey: string) {
+    const sse = sseConnections.get(targetKey)
+    if (sse) {
+        sse.abort()
+        sseConnections.delete(targetKey)
+    }
+}
+
 function attachToSessionIfNeeded(targetKey: string) {
     if (!shouldAttachSession(sseConnections.has(targetKey))) {
         return
@@ -711,6 +726,14 @@ const loadChatHistory = async (sessionKey?: string) => {
  * 4. 加载聊天历史
  */
 const setSessionKey = async (key: string) => {
+    // 切换到不同会话：先断开旧会话的 SSE 连接（见 abortSessionSSE 说明）。
+    // 首次进入（sessionKey 为空串）与原地重进同一会话不 abort，
+    // 切回正在流式的会话时其现有 SSE 保留不动（attachToSessionIfNeeded 会跳过）。
+    const previousKey = state.sessionKey
+    if (previousKey && previousKey !== key) {
+        abortSessionSSE(previousKey)
+    }
+
     // 在设置 sessionKey 之前先判断是否需要加载历史
     // 因为设置 sessionKey 后，UI 会通过 getter 读取数据，自动创建 sessionsMap entry
     const needsLoad = !state.sessionsMap.has(key)
@@ -744,6 +767,10 @@ const setSessionKey = async (key: string) => {
  * 2. currentAgent 由 agentsSelectedId 推导（用户通过下拉菜单选择）
  */
 const createNewSession = async () => {
+    // 返回 /new 页面：断开当前会话的 SSE 连接（同 setSessionKey，见 abortSessionSSE 说明）
+    if (state.sessionKey) {
+        abortSessionSSE(state.sessionKey)
+    }
     state.sessionKey = ''
     state.currentSession = null
 
