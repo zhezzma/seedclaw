@@ -4,8 +4,19 @@ export const INPUT_HISTORY_STORAGE_KEY = 'seedclaw_input_history'
 export const INPUT_DRAFTS_STORAGE_KEY = 'seedclaw_input_drafts'
 export const INPUT_HISTORY_MAX = 100
 export const INPUT_DRAFT_MAX_LENGTH = 20000
-/** /new 新会话页没有 sessionKey，其输入草稿统一落到这个哨兵 key */
-export const NEW_SESSION_DRAFT_KEY = '__new_session__'
+/** 旧版 /new 草稿哨兵：不分网关模式，本地/远程切换会窜台，已废弃（load 时剥离，不迁移——草稿是临时态） */
+const LEGACY_NEW_SESSION_DRAFT_KEY = '__new_session__'
+/** /new 新会话页没有 sessionKey，其输入草稿按网关模式落到哨兵 key：
+ *  本地/远程两侧是不同服务器的输入框，且切换时 applyGatewayMode 会把路由改写到 /new
+ *  再 reload，共用单值哨兵会让一侧打的草稿在另一侧恢复出来 */
+const NEW_SESSION_DRAFT_KEYS = {
+    local: '__new_session_local__',
+    remote: '__new_session_remote__',
+} as const
+
+/** 按网关模式取 /new 草稿哨兵 key（mode 由调用方传：store 不感知网关，避免循环依赖） */
+export const newSessionDraftKeyFor = (mode: 'local' | 'remote'): string =>
+    mode === 'remote' ? NEW_SESSION_DRAFT_KEYS.remote : NEW_SESSION_DRAFT_KEYS.local
 
 export interface InputHistoryState {
     histories: Record<string, string[]>
@@ -71,7 +82,10 @@ const loadDrafts = (): Record<string, string> => {
         const storage = getStorage()
         const raw = storage?.getItem(INPUT_DRAFTS_STORAGE_KEY)
         if (!raw) return {}
-        return normalizeDraftRecord(JSON.parse(raw))
+        const normalized = normalizeDraftRecord(JSON.parse(raw))
+        // 废弃哨兵剥离：否则旧键残留在 record 里永远清不掉
+        delete normalized[LEGACY_NEW_SESSION_DRAFT_KEY]
+        return normalized
     } catch (error) {
         console.error('Failed to load input drafts:', error)
         return {}
