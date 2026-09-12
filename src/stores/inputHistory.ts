@@ -14,9 +14,9 @@ const NEW_SESSION_DRAFT_KEYS = {
     remote: '__new_session_remote__',
 } as const
 
-/** 按网关模式取 /new 草稿哨兵 key（mode 由调用方传：store 不感知网关，避免循环依赖） */
-export const newSessionDraftKeyFor = (mode: 'local' | 'remote'): string =>
-    mode === 'remote' ? NEW_SESSION_DRAFT_KEYS.remote : NEW_SESSION_DRAFT_KEYS.local
+/** 按网关模式取 /new 草稿哨兵 key（mode 由调用方传：store 不感知网关，避免循环依赖）。
+ *  查表而非三元：未来新增模式时编译器会强制补 key，而不是静默归入 local */
+export const newSessionDraftKeyFor = (mode: 'local' | 'remote'): string => NEW_SESSION_DRAFT_KEYS[mode]
 
 export interface InputHistoryState {
     histories: Record<string, string[]>

@@ -96,4 +96,10 @@ test('useChatInput routes the /new sentinel through the gateway mode on both wri
         /const key = _sessionKeyResolver\?\.\(\) \|\| newSessionDraftKeyFor\(effectiveGatewayMode\(\)\)/,
         'draft restore must use the mode-scoped new-session sentinel key',
     )
+    // 锁定 import 来源：防止 effectiveGatewayMode 被指到错误模块或被本地桩遮蔽
+    assert.match(
+        chatInputSource,
+        /import \{ effectiveGatewayMode \} from '\.\/local-server'/,
+        'effectiveGatewayMode must come from local-server (the bundled-flag source of truth)',
+    )
 })
