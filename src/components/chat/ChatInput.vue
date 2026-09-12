@@ -177,17 +177,8 @@ const selectThinkingLevel = (level: ThinkingLevel) => {
         pendingThinkingLevel.value = level
         return
     }
-    inputText.value = `/thinking ${level}`
-
-    // 更新本地 session 缓存
-    const session = chatState.currentSession
-    if (session) {
-        session.thinkingLevel = level
-    }
-
-    nextTick(() => {
-        onSend()
-    })
+    // 既有会话：直接请求服务端切换（不产生命令消息、不开 SSE），失败由 setter 回滚乐观更新
+    chatState.setSessionThinkingLevel(level)
 }
 
 const getThinkingLabel = () => t(`chat.thinkingLevels.${thinkingLevel.value}`)
@@ -267,21 +258,8 @@ const handleModelSelect = (modelId: string) => {
         pendingModel.value = modelId
         return
     }
-    inputText.value = `/model ${modelId}`
-
-    // 更新本地 session 缓存
-    const session = chatState.currentSession
-    if (session) {
-        const firstSlash = modelId.indexOf('/')
-        if (firstSlash !== -1) {
-            session.modelProvider = modelId.substring(0, firstSlash)
-            session.model = modelId.substring(firstSlash + 1)
-        }
-    }
-
-    nextTick(() => {
-        onSend()
-    })
+    // 既有会话：直接请求服务端切换（不产生命令消息、不开 SSE），失败由 setter 回滚乐观更新
+    chatState.setSessionModel(modelId)
 }
 
 // Persist setting when toggled

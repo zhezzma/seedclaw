@@ -86,10 +86,10 @@ export interface ChatSessionData {
 export interface ChatState {
     sessionKey: string
     sessionsMap: Map<string, ChatSessionData>
-    // 当前会话信息（从 sessionsState 获取）
-    currentSession: SessionRow | null
-    // 当前选中的 Agent（新会话时通过 UI 下拉选择，已有会话时通过 session.agentId 推导）
-    // 选中的 Agent ID（新会话场景下由 UI 下拉菜单驱动）
+    // 当前会话信息不再缓存行对象：同一 session 在列表桶与历史快照里可能存在多个
+    // 行实例（列表刷新/upsert 会换新对象），缓存实例会让标签写入与读取源分叉。
+    // currentSession 由 currentSession computed 按 sessionKey 实时从列表行推导（见 _methods）。
+    // 当前选中的 Agent ID（新会话场景下由 UI 下拉菜单驱动）
     agentsSelectedId: string
 }
 
@@ -99,7 +99,6 @@ const sseConnections = new Map<string, SSEConnection>()
 const state = reactive<ChatState>({
     sessionKey: '',
     sessionsMap: new Map<string, ChatSessionData>(),
-    currentSession: null,
     agentsSelectedId: '',
 })
 
@@ -324,18 +323,20 @@ const handleCommandDelta = (data: any, targetKey: string) => {
     switch (command) {
         case 'model': {
             // /model 命令：更新当前会话的模型
+            // 契约：handleModelCommand 的 data 恒含 provider + model，二者缺一即异常
+            // 回声，跳过以免把 modelProvider 写成 undefined 导致标签回退 agent 默认值
             const model = data.data?.model
-            if (model && state.currentSession) {
-                state.currentSession.model = model
-                state.currentSession.modelProvider = data.data?.provider
+            const provider = data.data?.provider
+            if (model && provider) {
+                patchSessionRowEverywhere(targetKey, { model, modelProvider: provider })
             }
             break
         }
         case 'thinking': {
-            // /thinking 命令：更新当前会话的思考状态
+            // /thinking 命令：更新当前会话的思考状态（双写）
             const thinking = data.data?.thinkingLevel
-            if (thinking && state.currentSession) {
-                state.currentSession.thinkingLevel = thinking
+            if (thinking) {
+                patchSessionRowEverywhere(targetKey, { thinkingLevel: thinking })
             }
             break
         }
@@ -347,17 +348,10 @@ const handleCommandDelta = (data: any, targetKey: string) => {
             break
         case 'name': {
             // /name 命令：更新会话名称（后端已持久化，此处仅同步前端状态）
-            // 需要同时更新两处：
-            // 1. state.currentSession —— ChatHeader fallback 路径使用
-            // 2. sessionsState 中的 sessions 列表 —— displaySessions / currentSessionName 的主路径使用
-            // 两者可能不是同一个对象（reactive proxy 链路不同），必须分别更新
+            // 列表行与 currentSession 可能不是同一个对象，必须双写
             const newName = data.data?.name
             if (newName) {
-                if (state.currentSession) {
-                    state.currentSession.name = newName
-                }
-                const sessionsState = useSessionsState()
-                sessionsState.updateSessionLocal(state.sessionKey, { name: newName })
+                patchSessionRowEverywhere(targetKey, { name: newName })
             }
             break
         }
@@ -742,10 +736,10 @@ const setSessionKey = async (key: string) => {
 
     state.sessionKey = key
 
-    // 获取 session 信息并设置 currentSession / currentAgent
+    // 获取 session 信息（未缓存时拉取并 upsert 进列表桶）。
+    // currentSession 由 computed 从列表行推导，无需在此赋值。
     const sessionsState = useSessionsState()
     const session = await sessionsState.getSessionById(key)
-    state.currentSession = session || null
     if (session?.agentId) {
         state.agentsSelectedId = session.agentId
     }
@@ -768,7 +762,6 @@ const createNewSession = async () => {
         abortSessionSSE(state.sessionKey)
     }
     state.sessionKey = ''
-    state.currentSession = null
 
     // 新会话场景：currentAgent 将通过 getter 自动根据 agentsSelectedId 推导
 }
@@ -1019,6 +1012,200 @@ export interface SessionTreeEntry {
     preview?: string
 }
 
+/**
+ * 会话偏好直改的在途请求记录（按 session 维护）。
+ *
+ * model / thinking 两类设置每次都改同一份 `SessionRow`（且 setModel 还会隐式重推
+ * thinkingLevel），所以同一 session 的两次在途请求必须共用一个计数与一份确认态：
+ *   - 0→1 时快照当前缓存值（视为「服务端已确认」的基准）；
+ *   - 每次成功把响应的权威值合并进 confirmed（失败不合并）；
+ *   - 在途数归零时把 confirmed 一次性写回缓存。
+ *
+ * 这样无论成功/失败如何交错，缓存最终要么是服务端确认的合成值，要么回退到
+ * 最近一次确认值——不会停留在任何未被确认的乐观值（旧 seq 令牌方案在双失败
+ * 交错时会落到 A 的未确认值上）。全局递增令牌还会把不同 session 的请求互相干扰，
+ * 按 session 分桶一并解决。
+ */
+interface SessionSettingFlight {
+    inflight: number
+    /** 本批调用的发送序号（begin 递增），成功合并按此序号门闩，消除响应乱序影响 */
+    seq: number
+    confirmed: { modelProvider?: string; model?: string; thinkingLevel?: string }
+    /** 各字段最后一次成功合并的发送序号 */
+    mergedAt: { model: number; thinkingLevel: number }
+    /** 本批是否有调用触碰过对应字段（settle 只写回触碰过的字段，不覆写外部并发修改） */
+    dirty: { model: boolean; thinkingLevel: boolean }
+    /** 基准快照是否已从真实 session row 读取（row 未就绪时延到同批后续调用补拍） */
+    seeded: boolean
+}
+const sessionSettingFlights = new Map<string, SessionSettingFlight>()
+
+function beginSettingFlight(targetKey: string, targets: SessionRow[]): SessionSettingFlight {
+    const session = targets[0] ?? null
+    let entry = sessionSettingFlights.get(targetKey)
+    if (!entry) {
+        entry = {
+            inflight: 0,
+            seq: 0,
+            confirmed: { modelProvider: undefined, model: undefined, thinkingLevel: undefined },
+            mergedAt: { model: 0, thinkingLevel: 0 },
+            dirty: { model: false, thinkingLevel: false },
+            seeded: false,
+        }
+        sessionSettingFlights.set(targetKey, entry)
+    }
+    // 0→1：正常快照基准。row 当时未就绪（冷启动 / 深链切会话窗口）则延到同批首个
+    // 拿到 row 的调用补拍（此时 row 还没被本批触碰过，快照仍是干净的基准）。
+    if (entry.inflight === 0 || (!entry.seeded && session)) {
+        entry.confirmed = {
+            modelProvider: session?.modelProvider,
+            model: session?.model,
+            thinkingLevel: session?.thinkingLevel,
+        }
+        entry.mergedAt = { model: 0, thinkingLevel: 0 }
+        entry.dirty = { model: false, thinkingLevel: false }
+        entry.seeded = Boolean(session)
+    }
+    entry.inflight++
+    entry.seq++
+    return entry
+}
+
+function endSettingFlight(targetKey: string, entry: SessionSettingFlight): void {
+    entry.inflight--
+    if (entry.inflight > 0) return
+    sessionSettingFlights.delete(targetKey)
+    // settle 时重新解析行实例：中途的列表刷新可能已把桶行换成新对象，
+    // 确认值必须写进「现在还被 UI 读取」的实例
+    const targets = resolveSettingTargets(targetKey)
+    for (const session of targets) {
+        if (entry.dirty.model) {
+            session.modelProvider = entry.confirmed.modelProvider
+            session.model = entry.confirmed.model
+        }
+        if (entry.dirty.thinkingLevel) {
+            session.thinkingLevel = entry.confirmed.thinkingLevel
+        }
+    }
+}
+
+/**
+ * 按 targetKey 解析写入目标。
+ *
+ * currentSession 是 derived computed（由 findSessionLocal(sessionKey) 实时推导），
+ * 列表行即时唯一实例 —— 写入列表行即同时更新标签源与侧边栏，不再需要双写。
+ * 会话未缓存（冷启动窗口）时返回空数组：请求照发，本地不写。
+ */
+function resolveSettingTargets(targetKey: string): SessionRow[] {
+    const listed = useSessionsState().findSessionLocal(targetKey)
+    return listed ? [listed] : []
+}
+
+/**
+ * 双写会话行的统一出口。
+ *
+ * 历史背景：同一 session 曾同时存在列表行与 currentSession 两个实例（upsert 双重
+ * 展开所致），任何一个只能写单侧的写入方都会导致“切换/改名看起来没生效”。
+ * 现在 currentSession 是 findSessionLocal 的 derived computed：写列表行即时同步
+ * 标签源，本 helper 退化为语义占位，保证所有写入方走同一出口。
+ */
+const patchSessionRowEverywhere = (key: string, patch: Partial<SessionRow>): void => {
+    useSessionsState().updateSessionLocal(key, patch)
+}
+
+/**
+ * 直接切换当前会话模型（POST /model）：不写命令消息、不开 SSE。
+ * 乐观回填本地 session 缓存让下拉标签立即切换；请求结束后由 flight 记录把缓存
+ * 落定为服务端确认值（失败即回退基准快照）。
+ * 404/409 是 api-client 的静默错误码，此处显式提示，其余失败 api-client 已 toast 过。
+ * 响应携带服务端权威 thinkingLevel（setModel 会在 SDK 内按新模型隐式重推思考级别），
+ * 成功后合并进确认态，避免标签停留在旧档位。
+ */
+const setSessionModel = async (modelId: string): Promise<boolean> => {
+    const targetKey = state.sessionKey
+    if (!targetKey) return false
+    const split = splitModelId(modelId)
+    if (!split) return false
+
+    const targets = resolveSettingTargets(targetKey)
+    const entry = beginSettingFlight(targetKey, targets)
+    const callSeq = entry.seq
+    for (const session of targets) {
+        session.modelProvider = split.provider
+        session.model = split.model
+    }
+    if (targets.length > 0) {
+        entry.dirty.model = true
+    }
+
+    try {
+        const result = await apiPost<{ thinkingLevel?: string }>(`/api/chat/${targetKey}/model`, {
+            provider: split.provider,
+            model: split.model,
+        })
+        // 按发送序合并：响应乱序时旧调用的迟到合并不覆盖新调用已确认的值
+        if (callSeq > entry.mergedAt.model) {
+            entry.mergedAt.model = callSeq
+            entry.confirmed.modelProvider = split.provider
+            entry.confirmed.model = split.model
+        }
+        if (result?.thinkingLevel && callSeq > entry.mergedAt.thinkingLevel) {
+            entry.mergedAt.thinkingLevel = callSeq
+            entry.confirmed.thinkingLevel = result.thinkingLevel
+            // 服务端按新模型重推导的权威级别必须落行：置 dirty 才能通过 settle 写回，
+            // 否则纯模型切换批次里该值永远停留在 confirmed（标签滞留旧档位）
+            entry.dirty.thinkingLevel = true
+        }
+        return true
+    } catch (err: any) {
+        if ([404, 409].includes(err?.code)) {
+            useToast().error(err?.message, 5000)
+        }
+        return false
+    } finally {
+        endSettingFlight(targetKey, entry)
+    }
+}
+
+/**
+ * 直接设置当前会话思考级别（POST /thinking-level）：语义同 setSessionModel，
+ * 共用同一份 per-session flight 记录。
+ */
+const setSessionThinkingLevel = async (level: string): Promise<boolean> => {
+    const targetKey = state.sessionKey
+    if (!targetKey) return false
+
+    const targets = resolveSettingTargets(targetKey)
+    const entry = beginSettingFlight(targetKey, targets)
+    const callSeq = entry.seq
+    for (const session of targets) {
+        session.thinkingLevel = level
+    }
+    if (targets.length > 0) {
+        entry.dirty.thinkingLevel = true
+    }
+
+    try {
+        const result = await apiPost<{ thinkingLevel?: string }>(`/api/chat/${targetKey}/thinking-level`, {
+            thinkingLevel: level,
+        })
+        // 以服务端 clamp 后的权威值为准（按发送序合并）
+        if (result?.thinkingLevel && callSeq > entry.mergedAt.thinkingLevel) {
+            entry.mergedAt.thinkingLevel = callSeq
+            entry.confirmed.thinkingLevel = result.thinkingLevel
+        }
+        return true
+    } catch (err: any) {
+        if ([404, 409].includes(err?.code)) {
+            useToast().error(err?.message, 5000)
+        }
+        return false
+    } finally {
+        endSettingFlight(targetKey, entry)
+    }
+}
+
+
 const fetchSessionUsage = async (sessionKey?: string) => {
     const targetKey = sessionKey || state.sessionKey
     if (!targetKey) return
@@ -1084,6 +1271,13 @@ const chatToolMessages = computed(() => getSessionData(state.sessionKey).chatToo
 const sessionTree = computed(() => getSessionData(state.sessionKey).sessionTree)
 const sessionLeafId = computed(() => getSessionData(state.sessionKey).sessionLeafId)
 const chatStream = computed(() => getSessionData(state.sessionKey).chatStream)
+// 当前会话信息：按 sessionKey 实时从会话列表桶推导。
+// 不缓存行实例 —— 列表刷新/upsert 会把桶行换成新对象，缓存实例会让标签写入与
+// 读取源分叉（历史 bug：切换模型/思考后标签不动，刷新页面才恢复）。
+const currentSession = computed<SessionRow | null>(() => {
+    if (!state.sessionKey) return null
+    return useSessionsState().findSessionLocal(state.sessionKey) ?? null
+})
 const chatSending = computed(() => getSessionData(state.sessionKey).chatSending)
 const chatRunId = computed(() => getSessionData(state.sessionKey).chatRunId)
 const chatStreamStartedAt = computed(() => getSessionData(state.sessionKey).chatStreamStartedAt)
@@ -1107,9 +1301,11 @@ type UnwrapComputed<T extends object> = {
 // 预组装单例（模块加载时执行一次，避免每次调用 useChatState 重复创建 computed）
 const _methods = {
     chatMessages, chatToolMessages, sessionTree, sessionLeafId, chatStream,
+    currentSession,
     chatSending, chatRunId, chatStreamStartedAt, chatLoading, sessionUsage, currentAgent,
     pendingQueue, removePendingItem,
     sendMessage, steerMessage, followMessage, abortChat, loadChatHistory,
+    setSessionModel, setSessionThinkingLevel, patchSessionRowEverywhere,
     setSessionKey, createNewSession, selectAgent, getSessionData,
     deleteMessage, retryMessage, editMessage, fetchSessionTree, fetchSessionUsage, navigateBranch, forkFromEntry,
     isForkingEntry,

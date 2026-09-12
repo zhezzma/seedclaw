@@ -406,7 +406,11 @@ const handleSend = async () => {
             overridePatch.thinkingLevel = chatOverrides.thinkingLevel
         }
         if (Object.keys(overridePatch).length > 0) {
-            sessionsState.updateSessionLocal(targetSessionKey, overridePatch)
+            // currentSession 是 findSessionLocal(sessionKey) 的派生 computed：
+            // 此刻 sessionKey 还是空（/new 页），但 patch 落在 commitNewSession upsert
+            // 进桶的行实例上；稍后路由 watcher 的 setSessionKey 让 computed 读到同一行，
+            // 首屏标签即为用户选择的模型/思考级别
+            chatState.patchSessionRowEverywhere(targetSessionKey, overridePatch)
         }
     }
 

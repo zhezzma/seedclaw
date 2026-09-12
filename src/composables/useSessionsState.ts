@@ -73,7 +73,10 @@ const upsertSessionByRouteState = (session: SessionRow, routeState?: SessionRout
         ...normalized,
     }
     Object.assign(state, moveSessionToRouteState(state, nextSession, normalized))
-    sessionsIndex.set(session.id, nextSession)
+    // 索引必须存桶里的同一个实例：moveSessionToRouteState 内部会再展开一次生成
+    // 桶行副本，若索引存 nextSession 本体，getSessionById 返回的行就会与列表行
+    // 分叉（历史 bug：currentSession 与侧边栏各行其是，单侧写入"看起来没生效"）
+    sessionsIndex.set(session.id, findSessionLocal(session.id) ?? nextSession)
 }
 
 const findSessionLocal = (id: string) =>
@@ -178,7 +181,7 @@ const archiveSession = async (id: string) => {
             }),
         }
         Object.assign(state, moveSessionToRouteState(state, archivedSession, archivedSession))
-        sessionsIndex.set(id, archivedSession)
+        sessionsIndex.set(id, findSessionLocal(id) ?? archivedSession)
     } else {
         state.sessionsResult = removeSessionFromResult(state.sessionsResult, id)
         state.taskSessionsResult = removeSessionFromResult(state.taskSessionsResult, id)
@@ -201,7 +204,7 @@ const unarchiveSession = async (id: string) => {
             }),
         }
         Object.assign(state, moveSessionToRouteState(state, restoredSession, restoredSession))
-        sessionsIndex.set(id, restoredSession)
+        sessionsIndex.set(id, findSessionLocal(id) ?? restoredSession)
     } else {
         state.sessionsResult = removeSessionFromResult(state.sessionsResult, id)
         state.taskSessionsResult = removeSessionFromResult(state.taskSessionsResult, id)
