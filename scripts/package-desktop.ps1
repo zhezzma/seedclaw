@@ -67,7 +67,26 @@ function Remove-LongPath([string]$Dir) {
     $emptyDir = Join-Path $env:TEMP ("seedclaw-empty-" + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force -Path $emptyDir | Out-Null
     robocopy $emptyDir $Dir /MIR /NFL /NDL /NJH /NJS | Out-Null
+    # robocopy 退出码 >= 8 表示有文件删除/拷贝失败（典型原因：文件被运行中的进程占用）。
+    # 若静默继续，staging 会处于半删除的脏状态，后续 Assert 只查存在性拦不住，
+    # 最终产出缺 seedserver.mjs/jiti 的坏包（排查成本极高），必须在此显式失败。
+    if ($LASTEXITCODE -ge 8) {
+        Remove-Item -Recurse -Force $emptyDir -ErrorAction SilentlyContinue
+        throw "清除 ${Dir} 失败（robocopy exit $LASTEXITCODE）：目录内有文件被占用。\n最常见原因：seedclaw/node 正在从该目录运行（窗口点 X 只是隐藏到托盘！）。\n请先在托盘图标右键 Quit 退出，或在任务管理器中结束对应 node.exe/seedclaw.exe 后重试。"
+    }
     Remove-Item -Recurse -Force $emptyDir
+}
+
+# 结束从指定目录内运行的 seedclaw/node 进程（文件被锁定会导致 staging/部署目录无法重建）。
+# 注意只杀路径匹配的进程，不动系统里其他 node（如本脚本自身依赖的 npm/node）。
+function Stop-ProcessesUnder([string]$Dir, [string]$Reason) {
+    $victims = Get-Process -Name seedclaw, node -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -and ($_.Path -like "$Dir*") }
+    foreach ($p in $victims) {
+        Write-Host "    killing $($p.ProcessName) (pid $($p.Id)) — $Reason"
+        Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+    }
+    if ($victims) { Start-Sleep -Milliseconds 800 }
 }
 
 if ($SkipStage) {
@@ -123,6 +142,9 @@ else {
     }
 
     # ③ 装配（staging）：不在 seedagent 仓库里 prune，装配目录内独立 npm ci --omit=dev
+    #    装配前先结束从 staging 运行的残留进程（dev 测试的服务端 node 就是从这里拉起的，
+    #    窗口点 X 只是隐藏到托盘，进程和文件锁都还在）
+    Stop-ProcessesUnder $staging "staging 内残留的服务端进程（dev 测试遗留）"
     Write-Host "==> staging into $staging"
     Remove-LongPath $staging
     New-Item -ItemType Directory -Force -Path $staging | Out-Null
@@ -130,7 +152,7 @@ else {
     Copy-Item (Join-Path $SeedagentDir 'dist') (Join-Path $staging 'dist') -Recurse
     Copy-Item (Join-Path $SeedagentDir 'package.json') (Join-Path $staging 'package.json')
     Copy-Item (Join-Path $SeedagentDir 'package-lock.json') (Join-Path $staging 'package-lock.json')
-    Copy-Item $nodeExe (Join-Path $staging 'node.exe')
+    Copy-Item $nodeExe (Join-Path $staging 'node.exe') -ErrorAction Stop
 
     Write-Host "==> npm ci --omit=dev (production node_modules in staging)"
     Push-Location $staging
@@ -219,14 +241,8 @@ if (-not $SkipDeploy) {
     Write-Host "==> deploying to $DeployDir ..."
 
     # 先结束部署目录里运行中的进程（seedclaw.exe 及其拉起的 node.exe），
-    # 否则 exe/node_modules 被锁，robocopy 覆盖会失败。只杀路径在部署目录内的，不动别处的 node。
-    Get-Process -Name seedclaw, node -ErrorAction SilentlyContinue |
-        Where-Object { $_.Path -and ($_.Path -like "$DeployDir*") } |
-        ForEach-Object {
-            Write-Host "    killing $($_.ProcessName) (pid $($_.Id))"
-            Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
-        }
-    Start-Sleep -Milliseconds 800
+    # 否则 exe/node_modules 被锁，robocopy 覆盖会失败。
+    Stop-ProcessesUnder $DeployDir "部署目录内运行中的旧实例"
 
     # /MIR 镜像同步：部署目录与便携版完全一致（清掉旧文件）；robocopy 走 \\?\ 长路径 API
     robocopy $portable $DeployDir /MIR /NFL /NDL /NJH /NJS | Out-Null
