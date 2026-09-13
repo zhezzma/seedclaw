@@ -47,7 +47,7 @@ const handleProviderSaved = (providerId: string) => {
 
 <template>
     <div class="h-full">
-        <div class="h-full flex flex-col bg-base-100 border-r border-base-200">
+        <div class="h-full flex flex-col">
             <!-- Header -->
             <ViewHeader :title="$t('provider.title')" :is-main-page="true">
                 <template #actions>

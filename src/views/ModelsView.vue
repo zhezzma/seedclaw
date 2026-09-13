@@ -63,17 +63,17 @@ watch(() => [providerIds.value, route.query.providerId], ([providerList, current
 
 <template>
     <!-- Master-Detail Layout -->
-    <div class="flex h-full w-full overflow-hidden bg-base-200">
+    <div class="flex h-full w-full overflow-hidden">
 
         <!-- Sidebar Container -->
-        <div class="h-full bg-base-100 border-r border-base-200 flex flex-col shrink-0" :class="[
+        <div class="h-full bg-base-100/40 flex flex-col shrink-0" :class="[
             selectedProviderId ? 'hidden lg:flex lg:w-80' : 'w-full lg:w-80 flex'
         ]">
             <ModelSidebar :selected-id="selectedProviderId" @select="selectProvider" />
         </div>
 
         <!-- Detail Container -->
-        <div class="h-full bg-base-50 flex flex-col min-w-0" :class="[
+        <div class="h-full flex flex-col min-w-0" :class="[
             selectedProviderId ? 'w-full flex lg:flex-1' : 'hidden lg:flex lg:flex-1'
         ]">
 

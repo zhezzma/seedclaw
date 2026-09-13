@@ -241,7 +241,7 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="flex flex-col h-full bg-base-200">
+    <div class="flex flex-col h-full">
         <ViewHeader :title="$t('cron.title')" :is-main-page="true">
             <template #actions>
                 <div class="px-2">

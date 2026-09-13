@@ -77,9 +77,9 @@ const handleAgentSaved = async () => {
 
 <template>
     <div class="h-full w-full relative overflow-y-auto">
-        <div v-if="agent" class="min-h-full flex flex-col bg-base-100">
+        <div v-if="agent" class="min-h-full flex flex-col ">
             <!-- Detail Header -->
-            <div class="px-2 lg:px-6 py-6 border-b border-base-200 sticky top-0 z-50 bg-base-100/95 backdrop-blur-sm">
+            <div class="px-2 lg:px-6 py-6 border-b border-base-300 sticky top-0 z-50  backdrop-blur-sm">
                 <div class="flex flex-col items-center gap-4">
                     <!-- Avatar with Edit Button -->
                     <div class="relative shrink-0 group">

@@ -303,9 +303,9 @@ defineExpose({
 </script>
 
 <template>
-    <div :class="centered ? 'p-0 bg-transparent' : 'p-4 border-t border-base-300 bg-base-100'">
+    <div :class="centered ? 'p-0 bg-transparent' : 'p-4 border-t border-base-300 bg-base-100/40'">
         <div
-            class="bg-base-200/50 rounded-[2rem] p-2 pr-2 shadow-sm border border-base-300/50 flex flex-col gap-1 relative focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/50 transition-all duration-300">
+            class="bg-base-200/50 rounded-[2rem] p-2 pr-2 shadow-sm border border-base-300 flex flex-col gap-1 relative focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/50 transition-all duration-300">
             <!-- Preview Area -->
             <div v-if="attachments.length > 0"
                 class="flex gap-2 px-3 pt-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-base-300 scrollbar-track-transparent">
@@ -355,7 +355,7 @@ defineExpose({
                         @mousedown.prevent="confirmCommandSuggestion(cmd)" @mouseenter="commandSuggestionIndex = idx"
                         :title="cmd.description" :data-command-suggestion-active="idx === commandSuggestionIndex"
                         class="flex items-center gap-2 w-full overflow-hidden rounded-lg py-2 px-3 text-left transition-colors shrink-0"
-                        :class="idx === commandSuggestionIndex ? 'bg-primary/10 text-primary' : 'hover:bg-base-200'">
+                        :class="idx === commandSuggestionIndex ? 'bg-primary/10 text-primary' : 'hover:bg-base-content/10'">
                         <span
                             class="font-mono font-semibold text-sm whitespace-nowrap shrink-0 max-w-[9rem] overflow-hidden text-ellipsis">/{{
                                 cmd.name }}</span>
@@ -413,7 +413,7 @@ defineExpose({
                             <!-- Auto Send Toggle -->
                             <li class="p-0">
                                 <label
-                                    class="label cursor-pointer justify-between py-2 px-4 hover:bg-base-200 rounded-lg active:bg-base-300 transition-colors">
+                                    class="label cursor-pointer justify-between py-2 px-4 hover:bg-base-content/10 rounded-lg active:bg-base-content/15 transition-colors">
                                     <span class="text-xs opacity-70 label-text">{{ $t('chat.autoSend') }}</span>
                                     <input type="checkbox" class="toggle toggle-xs toggle-primary"
                                         v-model="settingsStore.autoSendCommands" />

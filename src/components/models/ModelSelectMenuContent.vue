@@ -120,7 +120,7 @@ const emitSelect = (provider: string, modelId: string) => emit('select', `${prov
                         {{ group.provider }}
                     </div>
                     <button v-for="m in group.models" :key="m.id" @click="emitSelect(group.provider, m.id)"
-                        class="flex items-center gap-2 p-2 rounded-lg hover:bg-base-200 transition-colors cursor-pointer w-full text-left"
+                        class="flex items-center gap-2 p-2 rounded-lg hover:bg-base-content/10 transition-colors cursor-pointer w-full text-left"
                         :class="{ 'bg-primary/10 text-primary': currentModel === `${group.provider}/${m.id}` }">
                         <span class="truncate block text-xs flex-1 min-w-0" :title="m.name">
                             {{ m.name }}

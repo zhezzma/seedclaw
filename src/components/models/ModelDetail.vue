@@ -152,9 +152,9 @@ const handleClearModels = async () => {
 
 <template>
     <div class="h-full w-full relative">
-        <div v-if="provider" class="h-full flex flex-col bg-base-100">
+        <div v-if="provider" class="h-full flex flex-col ">
             <!-- Header -->
-            <div class="px-6 py-6 border-b border-base-200">
+            <div class="px-6 py-6 border-b border-base-300">
                 <div class="flex items-center gap-2">
                     <div class="flex-1 min-w-0">
                         <h1 class="text-xl font-bold truncate">{{ provider.id }}</h1>
@@ -212,7 +212,7 @@ const handleClearModels = async () => {
 
                     <!-- Model Cards -->
                     <div v-for="item in modelList" :key="item.id" @click="openEditModel(item.original)"
-                        class="aspect-square cursor-pointer bg-base-200/50 rounded-lg p-3 sm:p-4 flex flex-col hover:bg-base-200 transition-all group relative cursor-default">
+                        class="aspect-square cursor-pointer bg-base-100 shadow-sm rounded-lg p-3 sm:p-4 flex flex-col transition-all group relative cursor-default border border-base-200 hover:border-primary hover:shadow-md">
 
                         <!-- Hover Actions -->
                         <div

@@ -270,10 +270,10 @@ function openTrace(subId?: string) {
 </script>
 
 <template>
-    <div class="card bg-base-200/50 border border-base-300 shadow-sm overflow-hidden my-2 text-sm">
+    <div class="card   bg-base-200  overflow-hidden  ">
         <!-- Header -->
         <div @click="toggleOpen"
-            class="flex items-center gap-2 p-3 cursor-pointer hover:bg-base-200 transition-colors select-none">
+            class="flex items-center gap-2 p-3 cursor-pointer select-none  bg-base-100">
             <!-- Status Icon -->
             <div class="flex-none">
                 <span v-if="state === 'calling'" class="loading loading-spinner loading-xs text-primary"></span>
@@ -302,8 +302,7 @@ function openTrace(subId?: string) {
         </div>
 
         <!-- Subagent Progress (visible even when collapsed) -->
-        <div v-if="isSubagentTool && state === 'calling' && subagentResults.length > 0"
-            class="border-t border-base-300 bg-base-100/30 px-3 py-2">
+        <div v-if="isSubagentTool && state === 'calling' && subagentResults.length > 0" class="px-3 py-2">
             <div v-for="(r, idx) in subagentResults" :key="idx"
                 class="flex items-center gap-2 py-1" :class="{ 'border-t border-base-200 mt-1 pt-1': Number(idx) > 0 }">
                 <!-- Status icon -->
@@ -333,8 +332,7 @@ function openTrace(subId?: string) {
         </div>
 
         <!-- Details Body -->
-        <div v-if="isOpen" class="border-t border-base-300 bg-base-100/50">
-            <div class="p-3 space-y-3">
+        <div v-if="isOpen" class="p-3 space-y-3" >
                 <!-- Arguments -->
                 <div>
                     <div class="flex items-center gap-2 mb-1 flex-wrap">
@@ -353,7 +351,7 @@ function openTrace(subId?: string) {
                         </button>
                     </div>
                     <pre
-                        class="bg-base-300/50 p-2 rounded text-xs font-mono overflow-x-auto">{{ formatJson(args) }}</pre>
+                        class="bg-base-300 p-2 rounded text-xs font-mono overflow-x-auto">{{ formatJson(args) }}</pre>
                 </div>
 
                 <!-- Result -->
@@ -377,13 +375,13 @@ function openTrace(subId?: string) {
 
                     <!-- 优化：如果包含纯文本结果，直接展示 -->
                     <div v-if="textResultContent !== null"
-                        class="bg-base-300/50 p-2 rounded text-xs text-base-content/80 whitespace-pre-wrap break-words leading-relaxed overflow-x-auto max-h-96">
+                        class="bg-base-300 p-2 rounded text-xs text-base-content/80 whitespace-pre-wrap break-words leading-relaxed overflow-x-auto max-h-96">
                         {{ textResultContent }}
                     </div>
 
                     <!-- 否则显示原始 JSON 格式 -->
                     <pre v-else
-                        class="bg-base-300/50 p-2 rounded text-xs font-mono overflow-x-auto max-h-60">{{ formatJson(result) }}</pre>
+                        class="bg-base-300 p-2 rounded text-xs font-mono overflow-x-auto max-h-60">{{ formatJson(result) }}</pre>
                 </div>
 
                 <!-- Error -->
@@ -393,7 +391,6 @@ function openTrace(subId?: string) {
                     <pre
                         class="bg-error/10 text-error p-2 rounded text-xs font-mono overflow-x-auto">{{ errorMessage }}</pre>
                 </div>
-            </div>
         </div>
     </div>
 </template>

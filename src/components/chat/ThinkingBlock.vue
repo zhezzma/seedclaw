@@ -75,12 +75,12 @@ watch(() => props.text, () => {
 </script>
 
 <template>
-    <div class="my-2 collapse collapse-arrow border border-base-300 bg-base-100 rounded-box"
+    <div class=" collapse collapse-plus   bg-base-200  overflow-hidden rounded-box"
         :class="{ 'collapse-open': expanded }">
         <!-- role=button 使键盘用户（Tab/Enter/Space）也能切换展开 -->
-        <div role="button" tabindex="0"
-            class="collapse-title text-sm font-medium opacity-70 flex items-center gap-2 cursor-pointer select-none"
-            :aria-expanded="expanded" @click="toggle" @keydown.enter.prevent="onToggleKeydown"
+        <div role="button" tabindex="0" 
+            class="collapse-title text-sm font-medium flex items-center gap-2 cursor-pointer select-none bg-base-100"  
+          :aria-expanded="expanded" @click="toggle" @keydown.enter.prevent="onToggleKeydown"
             @keydown.space.prevent="onToggleKeydown">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
                 stroke="currentColor" class="w-5 h-5">
@@ -95,11 +95,11 @@ watch(() => props.text, () => {
         <div v-if="expanded" class="collapse-content">
             <!-- 流式中：纯文本直播（增量 patch 成本极低） -->
             <div v-if="streaming" ref="liveElement"
-                class="opacity-80 text-sm border-t border-base-300 pt-2 mt-2 whitespace-pre-wrap break-words max-h-[50vh] overflow-y-auto">
+                class="opacity-80 text-sm  pt-2 mt-2 whitespace-pre-wrap break-words max-h-[50vh] overflow-y-auto">
                 {{ text }}
             </div>
             <!-- 已定格：markdown 一次性渲染，之后内容不变 -->
-            <div v-else class="opacity-80 text-sm border-t border-base-300 pt-2 mt-2">
+            <div v-else class="opacity-80 text-sm  pt-2 mt-2">
                 <MarkdownRenderer :content="text" />
             </div>
         </div>

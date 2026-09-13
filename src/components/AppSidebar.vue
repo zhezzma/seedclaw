@@ -499,7 +499,7 @@ const handleNavClick = (item: any) => {
 </script>
 
 <template>
-    <div class="flex flex-col h-full bg-base-200/50 pt-[env(safe-area-inset-top)]">
+    <div class="flex flex-col h-full bg-base-100/90 pt-[env(safe-area-inset-top)]">
         <!-- Header -->
         <div class="shrink-0 px-5 py-3 flex items-center justify-between"
             :class="isCollapsed && 'lg:flex-col lg:items-center lg:gap-2 lg:px-0'">
