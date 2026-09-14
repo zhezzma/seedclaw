@@ -34,7 +34,8 @@ const expanded = ref(false)
                     <span class="min-w-0 flex-1 truncate text-base-content/70" :title="item.text">{{ item.text }}</span>
                     <button type="button"
                         class="btn btn-ghost btn-xs btn-circle shrink-0 text-base-content/50 hover:text-error"
-                        :title="t('chat.pendingQueue.removeHint')" @click="chatState.removePendingItem(item.id)">
+                        :title="t('chat.pendingQueue.removeHint')" :aria-label="t('chat.pendingQueue.removeHint')"
+                        @click="chatState.removePendingItem(item.id)">
                         <XMarkIcon class="h-3.5 w-3.5" />
                     </button>
                 </div>
