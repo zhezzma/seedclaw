@@ -72,19 +72,23 @@ test('sig 口径与计数一致：枚举外 status 不计入指纹（防不可�
     assert.equal(computeSnapshotSig(withBlocked), '1:completed')
 })
 
-test('isTodoBarVisible：全状态枚举（关闭记忆组合判据）', () => {
+test('isTodoBarVisible：全状态枚举（关闭记忆对任何状态生效）', () => {
     // 无任务：恒隐藏
-    assert.equal(isTodoBarVisible(0, false, '', null), false)
-    // 部分完成/进行中：恒显示（新 todo 自动重现）
-    assert.equal(isTodoBarVisible(3, false, '1:completed,2:pending', '1:completed,2:pending'), true)
+    assert.equal(isTodoBarVisible(0, '', null), false)
+    // 进行中未关：显示
+    assert.equal(isTodoBarVisible(2, '1:in_progress,2:pending', null), true)
+    // 进行中已关（同指纹，如中断/abort 后不想看）：隐藏 —— ✕ 任何状态可用
+    assert.equal(isTodoBarVisible(2, '1:in_progress,2:pending', '1:in_progress,2:pending'), false)
+    // 已关后状态变化（任务完成）：重现一次
+    assert.equal(isTodoBarVisible(2, '1:completed,2:pending', '1:in_progress,2:pending'), true)
     // 全部完成未关：显示
-    assert.equal(isTodoBarVisible(3, true, '1:completed', null), true)
-    // 全部完成已关（同指纹）：隐藏
-    assert.equal(isTodoBarVisible(3, true, '1:completed', '1:completed'), false)
-    // 全部完成已关后指纹变化（新周期完成）：重现
-    assert.equal(isTodoBarVisible(3, true, '2:completed', '1:completed'), true)
-    // 关闭记忆为空（clear 重置后）：显示
-    assert.equal(isTodoBarVisible(1, true, '1:completed', null), true)
+    assert.equal(isTodoBarVisible(1, '1:completed', null), true)
+    // 全部完成已关：隐藏
+    assert.equal(isTodoBarVisible(1, '1:completed', '1:completed'), false)
+    // 已关后新任务：重现
+    assert.equal(isTodoBarVisible(2, '1:completed,2:pending', '1:completed'), true)
+    // 已关后清空（total=0）：恒隐藏
+    assert.equal(isTodoBarVisible(0, '', '1:completed'), false)
 })
 
 test('非整数 nextId / 字段类型错 / 超规模快照整条跳过（与服务端守卫同强度）', () => {

@@ -87,15 +87,15 @@ export function computeSnapshotSig(snapshot: TodoSnapshot | null): string {
 
 /**
  * TodoBar 可见性的组合判据（纯函数纳入 node --test 基线）：
- * 有活任务即显示；「全部完成」时若用户已关闭同结构清单则保持隐藏。
+ * 有任务即显示，除非用户已关闭当前指纹——✕ 在任何状态可用（含中断/未完成），
+ * 关闭后同指纹保持隐藏；指纹变化（新任务/状态变化）重现一次，可再次关闭。
  */
 export function isTodoBarVisible(
     total: number,
-    allDone: boolean,
     sig: string,
     dismissedSig: string | null,
 ): boolean {
-    return total > 0 && !(allDone && dismissedSig === sig)
+    return total > 0 && dismissedSig !== sig
 }
 
 /**

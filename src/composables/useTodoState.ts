@@ -67,9 +67,7 @@ export function useTodoState() {
     )
 
     const allDone = computed(() => counts.value.total > 0 && counts.value.done === counts.value.total)
-    const visibleBar = computed(() =>
-        isTodoBarVisible(counts.value.total, allDone.value, snapshotSig.value, dismissedSig.value),
-    )
+    const visibleBar = computed(() => isTodoBarVisible(counts.value.total, snapshotSig.value, dismissedSig.value))
 
     // clear（快照清空且 nextId 归位）重置关闭记忆：否则 clear 后重建同规模清单时，
     // 任务 id 复用使完成瞬间指纹与旧记忆相同，新周期的完成横幅会静默隐身
@@ -86,6 +84,7 @@ export function useTodoState() {
     })
 
     function dismiss(): void {
+        // 任何状态可关闭（含中断/未完成）：记忆当前指纹，同指纹保持隐藏，指纹变化（新任务/状态变化）重现
         const sig = snapshotSig.value
         saveDismissedSig(chatState.sessionKey, sig)
         dismissedSig.value = sig
