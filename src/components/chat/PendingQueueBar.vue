@@ -13,10 +13,10 @@ const expanded = ref(false)
 
 <template>
     <!-- busy 期间 steer/follow-up 的排队提示条：挂在会话页输入框上方，队列非空才显示 -->
-    <div v-if="chatState.pendingQueue.length > 0" class="border-t border-base-300/60 bg-base-100 px-4 py-1 text-xs select-none">
+    <div v-if="chatState.pendingQueue.length > 0" class="border-t border-base-300 bg-base-100/40 px-4 py-1 text-xs select-none">
         <div class="mx-auto w-full max-w-3xl">
             <button type="button"
-                class="flex w-full items-center gap-1.5 py-0.5 text-left text-base-content/70 hover:text-base-content transition-colors"
+                class="flex w-full items-center gap-1.5 py-0.5 text-left text-base-content/70 hover:text-base-content transition-colors cursor-pointer"
                 @click="expanded = !expanded">
                 <span aria-hidden="true">⏳</span>
                 <span class="font-medium">{{ t('chat.pendingQueue.count', { n: chatState.pendingQueue.length }) }}</span>
@@ -27,7 +27,7 @@ const expanded = ref(false)
             <!-- 展开后逐条预览；✕ 请求服务端从队列删除该条（真删除，消息不再发送），按响应快照对齐本地 -->
             <div v-if="expanded" class="flex flex-col gap-1 pb-1.5 pt-1">
                 <div v-for="item in chatState.pendingQueue" :key="item.id"
-                    class="flex items-center gap-2 rounded-lg border border-base-300/50 bg-base-200/60 px-2 py-1">
+                    class="flex items-center gap-2 rounded-lg border border-base-300 bg-base-200 px-2 py-1">
                     <span class="badge badge-ghost badge-xs shrink-0 font-normal">
                         {{ item.mode === 'follow' ? t('chat.pendingQueue.followBadge') : t('chat.pendingQueue.steerBadge') }}
                     </span>

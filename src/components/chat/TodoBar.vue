@@ -38,12 +38,12 @@ const groups = (list: TodoTask[]) => ({
 </script>
 
 <template>
-    <div v-if="visibleBar" class="border-t border-base-300/60 bg-base-100 px-4 py-1 text-xs select-none">
+    <div v-if="visibleBar" class="border-t border-base-300 bg-base-100/40 px-4 py-1 text-xs select-none">
         <div class="mx-auto w-full max-w-3xl">
             <!-- 折叠条：进度 + 正在做的事 + 展开箭头 / 完成态关闭钮 -->
-            <div class="flex items-center gap-1.5 py-0.5">
+            <div class="flex items-center gap-1.5 py-0.5 ">
                 <button type="button"
-                    class="flex min-w-0 flex-1 items-center gap-1.5 text-left text-base-content/70 hover:text-base-content transition-colors"
+                    class="flex min-w-0 flex-1 items-center gap-1.5 text-left text-base-content/70 hover:text-base-content transition-colors cursor-pointer"
                     @click="expanded = !expanded">
                     <span aria-hidden="true">{{ allDone ? '✓' : '📋' }}</span>
                     <span class="font-medium whitespace-nowrap">
@@ -71,8 +71,8 @@ const groups = (list: TodoTask[]) => ({
                     <template v-if="group.length > 0">
                         <div class="text-base-content/40 pt-0.5">{{ t(SECTION_KEY[key]) }}</div>
                         <div v-for="item in group" :key="item.id"
-                            class="flex items-center gap-2 rounded-lg border border-base-300/50 px-2 py-1"
-                            :class="item.status === 'completed' ? 'bg-base-200/40 text-base-content/40 line-through' : (item.status === 'in_progress' ? 'bg-primary/5 border-primary/30' : 'bg-base-200/60')">
+                            class="flex items-center gap-2 rounded-lg border border-base-300 px-2 py-1"
+                            :class="item.status === 'completed' ? 'bg-base-100/40 text-base-content/40 line-through' : (item.status === 'in_progress' ? 'bg-base-200 border-primary/30 ' : 'bg-base-100')">
                             <span class="shrink-0" aria-hidden="true">{{ item.status === 'completed' ? '✓' : item.status === 'in_progress' ? '◐' : '○' }}</span>
                             <span class="min-w-0 flex-1 truncate" :title="item.description || item.subject">
                                 {{ item.status === 'in_progress' && item.activeForm ? item.activeForm : item.subject }}
