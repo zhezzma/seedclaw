@@ -57,6 +57,13 @@ test('nextId 非有限数（NaN）视为畸形整条跳过', () => {
     assert.equal(extractTodoSnapshot([msg({ details: { tasks: [], nextId: NaN } })]), null)
 })
 
+test('负数 id / id≥nextId / description null 整条跳过', () => {
+  assert.equal(extractTodoSnapshot([msg({ details: { tasks: [{ id: -1, subject: 'A', status: 'pending' }], nextId: 1 } })]), null)
+  assert.equal(extractTodoSnapshot([msg({ details: { tasks: [{ id: 2, subject: 'A', status: 'pending' }], nextId: 2 } })]), null)
+  // null 与 undefined 不同：守卫要求缺省或 string，null 拒绝（与服务端对称）
+  assert.equal(extractTodoSnapshot([msg({ details: { tasks: [{ id: 1, subject: 'A', status: 'pending', description: null }], nextId: 2 } })]), null)
+})
+
 test('非整数 nextId / 字段类型错 / 超规模快照整条跳过（与服务端守卫同强度）', () => {
     // 非整数 nextId：服务端 create 会派生非法 id 快照，该快照反被守卫拒绝 → 双端静默失步
     assert.equal(extractTodoSnapshot([msg({ details: { tasks: [], nextId: 2.5 } })]), null)

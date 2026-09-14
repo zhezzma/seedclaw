@@ -6,6 +6,7 @@ import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronDownIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import { useTodoState } from '../../composables/useTodoState'
+import { useChatState } from '../../composables/useChatState'
 import type { TodoTask } from '../../utils/todo-snapshot'
 
 const { t } = useI18n()
