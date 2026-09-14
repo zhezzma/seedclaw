@@ -568,6 +568,17 @@ export default {
             steerBadge: '插入中',
             removeHint: '从服务端队列移除，该消息将不再发送',
         },
+        todo: {
+            countLabel: '任务清单 ({done}/{total})',
+            allDone: '全部完成 ({done}/{total})',
+            // zh 由模板中的「·」分隔符承载前缀，不写「正在」避免与 activeForm 双「正在」
+            workingOn: '{active}',
+            hint: '点击查看详情',
+            dismissHint: '关闭',
+            sectionInProgress: '进行中',
+            sectionPending: '待办',
+            sectionCompleted: '已完成',
+        },
         inputPlaceholder: "发消息或输入'/'选择命令",
         // 新会话欢迎页专用：不支持 / 命令，文案换成更有邀请感的开场
         inputPlaceholderHome: '说说你的想法，我来实现',

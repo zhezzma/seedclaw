@@ -16,7 +16,7 @@ import ChatHeader from '../components/chat/ChatHeader.vue'
 import MessageBubble from '../components/chat/MessageBubble.vue'
 import VirtualMessageList from '../components/chat/VirtualMessageList.vue'
 import ChatInput from '../components/chat/ChatInput.vue'
-import PendingQueueBar from '../components/chat/PendingQueueBar.vue'
+import ChatDockArea from '../components/chat/ChatDockArea.vue'
 import SessionTreeModal from '../components/chat/SessionTreeModal.vue'
 import SubagentTraceDrawer from '../components/chat/SubagentTraceDrawer.vue'
 import VoiceChatOverlay from '../components/chat/VoiceChatOverlay.vue'
@@ -921,9 +921,8 @@ async function applyDefaultSessionBehavior() {
                 </div>
             </div>
 
-            <!-- 排队消息提示条（队列非空才渲染，新会话页无队列） -->
-            <PendingQueueBar v-if="!isNewSessionPage && !isCreatingSession" :items="chatState.pendingQueue"
-                @remove="chatState.removePendingItem" />
+            <!-- 输入框上方扩展 dock 区（各 widget 自决定显隐，新会话页不挂载） -->
+            <ChatDockArea v-if="!isNewSessionPage && !isCreatingSession" />
 
             <!-- ChatInput：非新会话页固定在底部（新会话页的输入框居中展示在欢迎区）。
                  viewer 打开时也保留，用户仍可与 agent 讨论 diff/文件内容 -->

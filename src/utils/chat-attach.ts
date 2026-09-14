@@ -27,11 +27,17 @@ export function applyAttachMessageState(sessionData: ChatSessionData, state: Att
     // 1. 对齐当前分支的持久化消息历史。
     if (Array.isArray(state.messages)) {
         sessionData.chatMessages = state.messages
+        // 全量快照 = 服务端给出的当前分支权威历史：流式临时条目一并作废
+        //（若服务端分支已被另一窗口改写，残留条目会以数组尾部位置赢得 last-write-wins）；delta 增量路径不动
+        sessionData.chatToolMessages = []
     } else if (Array.isArray(state.deltaMessages) && state.deltaMessages.length > 0) {
         const existingEntryIds = new Set(sessionData.chatMessages.map(message => message.entryId).filter(Boolean))
         const deduped = state.deltaMessages.filter(message => !message.entryId || !existingEntryIds.has(message.entryId))
         if (deduped.length > 0) {
             sessionData.chatMessages = [...sessionData.chatMessages, ...deduped]
+            // delta 已带来服务端当前分支的持久化权威：流式临时条目一并作废（同全量路径规则），
+            // 防他窗改写分支后旧快照以数组尾部位置赢得 LWW；在途内容由 attach 的 inflight 重放补齐
+            sessionData.chatToolMessages = []
         }
     }
 

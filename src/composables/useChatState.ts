@@ -38,6 +38,7 @@ export interface ChatMessage {
     details?: any
     entryId?: string
     parentEntryId?: string | null
+    toolName?: string // 历史 /messages 与流式 tool_execution_end 的 toolResult 均携带（todo 提取器两条路径都依赖）
 }
 
 export interface ChatAttachment {
@@ -545,11 +546,13 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
             sessionData.chatToolMessages = [...sessionData.chatToolMessages, {
                 role: 'toolResult',
                 content: data.result.content,
+                toolName: data.toolName,
                 timestamp: Date.now(),
                 // 变体兜底：历史 block 形如 {type:'toolCall', toolCallId:'x'}（无 id）时，
                 // 仅取 item.id 会丢失定位 → 1.1 合并静默失效（就地写入已保终态，此为备份路径）
                 toolCallId: toolCallItem ? (toolCallItem.id ?? toolCallItem.toolCallId) : data.toolCallId,
-                isError: data.isError
+                isError: data.isError,
+                details: data.result?.details
             }]
 
             break
@@ -607,6 +610,8 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
         case 'error': {
             // 服务端错误：回滚乐观插入的用户消息并清理状态
             resetStreamState(sessionData)
+            // 注：此处刻意不清 chatToolMessages —— 工具结果可能在错误前已落盘，
+            // 临时条目恰是最新真相（与 abort catch 路径同理）；残留由下次 done/retry/load 清理
             // 移除最后一条未被服务端确认的 user 消息（没有 entryId 说明从未被持久化）
             const msgs = sessionData.chatMessages
             if (msgs.length > 0) {
@@ -660,6 +665,9 @@ const abortChat = async (sessionKey?: string) => {
             if (result) {
                 if (result.messages) {
                     sd.chatMessages = result.messages
+                    // 与 done/loadChatHistory 同规则：持久化消息已落地，流式临时条目一并清空
+                    //（否则 abort 后同一 toolResult 双份残留，随 sessionsMap 永不驱逐）
+                    sd.chatToolMessages = []
                 }
                 if (typeof result.isStreaming === 'boolean') {
                     sd.chatSending = result.isStreaming
@@ -887,6 +895,10 @@ const retryMessage = async (entryId: string, sessionKey?: string) => {
             sessionData.chatMessages = sessionData.chatMessages.slice(0, entryIndex)
         }
     }
+    // 分支被改写：流式临时条目一并作废（同 abort 规则），
+    // 否则被放弃分支的 todo 快照会以“数组位置更靠后”赢得 last-write-wins。
+    // 刻意放在 if 外：本地 chatMessages 陈旧（entryIndex === -1）时分支在服务端照样被改写，清理不可跳过
+    sessionData.chatToolMessages = []
 
     const runId = generateUUID()
     sessionData.chatSending = true
@@ -929,6 +941,8 @@ const editMessage = async (entryId: string, newText: string, sessionKey?: string
         // Remove all messages after the user message (assistant responses on this branch)
         sessionData.chatMessages = sessionData.chatMessages.slice(0, entryIndex + 1)
     }
+    // 分支被改写：流式临时条目一并作废（同 retryMessage/abort 规则；同上刻意放在 if 外）
+    sessionData.chatToolMessages = []
 
     const runId = generateUUID()
     sessionData.chatSending = true
@@ -1273,6 +1287,9 @@ const navigateBranch = async (targetEntryId: string, sessionKey?: string): Promi
         // 直接用后端返回的消息列表更新 chatMessages；targetEntryId 是已解析出的分支 leaf。
         const sd = getSessionData(targetKey)
         sd.chatMessages = result.messages
+        // 分支已切换：流式临时条目属旧分支，一并作废（同 abort 规则），
+        // 否则旧分支 todo 快照在拼接序列尾部残留、误导 last-write-wins
+        sd.chatToolMessages = []
         sd.sessionLeafId = targetEntryId
         return true
     } catch (err: any) {

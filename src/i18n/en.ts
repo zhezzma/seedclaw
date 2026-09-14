@@ -568,6 +568,16 @@ export default {
             steerBadge: 'Injecting',
             removeHint: 'Remove from the server queue; the message will not be sent',
         },
+        todo: {
+            countLabel: 'Todos ({done}/{total})',
+            allDone: 'All done ({done}/{total})',
+            workingOn: 'Working on {active}',
+            hint: 'Click for details',
+            dismissHint: 'Dismiss',
+            sectionInProgress: 'In Progress',
+            sectionPending: 'Pending',
+            sectionCompleted: 'Completed',
+        },
         inputPlaceholder: "Type a message or '/' to select a command",
         // 新会话欢迎页专用：不支持 / 命令，文案换成更有邀请感的开场
         inputPlaceholderHome: "Tell me your idea and I'll build it",

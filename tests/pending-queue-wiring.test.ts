@@ -100,6 +100,46 @@ test('useChatState: abort 成功后清空本地队列（对齐服务端 clearQue
     const fn = extractFn(chatStateSource, 'abortChat')
     assert.match(fn, /sd\.pendingQueue = \[\]/)
     assert.ok(!fn.includes('persistPendingQueue'))
+    // 先验存在再比顺序：否则行文本漂移时 indexOf 返回 -1、-1 < 任意位置恒真（vacuous-pass）
+    assert.ok(fn.includes('sd.chatMessages = result.messages'), 'abort must persist messages from /abort response')
+    // 流式临时条目与 done/loadChatHistory 同规则：持久化消息落地后一并清空（todo details 链路）
+    // 顺序守门：必须先落地 chatMessages 再清临时条目，反序会丢面板快照
+    assert.match(fn, /sd\.chatToolMessages = \[\]/)
+    assert.ok(
+        fn.indexOf('sd.chatMessages = result.messages') < fn.indexOf('sd.chatToolMessages = []'),
+        'abort must persist chatMessages BEFORE clearing chatToolMessages',
+    )
+})
+
+test('useChatState: tool_execution_end 推送对象补齐 toolName/details（TodoBar 流式实时更新的数据源，回归守门）', () => {
+    const handler = extractFn(chatStateSource, 'handleSSEEvent')
+    // 缺任一字段 → TodoBar 退化为只在回合结束 done 后更新（最终审查 Critical#1 同型回归）
+    assert.match(handler, /toolName: data\.toolName,/)
+    assert.match(handler, /details: data\.result\?\.details/)
+})
+
+test('useChatState: retry/edit/navigate/delete 分支改写后清空 chatToolMessages（防被放弃分支快照 LWW 胜出）', () => {
+    for (const name of ['retryMessage', 'editMessage', 'navigateBranch', 'deleteMessage']) {
+        const fn = extractFn(chatStateSource, name)
+        assert.match(fn, /chatToolMessages = \[\]/, `${name} must clear chatToolMessages after branch rewrite`)
+    }
+})
+
+test('chat-attach: 全量 message_state 快照替换时清空 chatToolMessages（跨分支重连残留防护）', () => {
+    const attach = read('src/utils/chat-attach.ts')
+    const fnStart = attach.indexOf('export function applyAttachMessageState')
+    assert.ok(fnStart >= 0, 'applyAttachMessageState not found')
+    const fn = attach.slice(fnStart, attach.indexOf('\nexport function', fnStart + 1))
+    // 全量 messages 分支内必须有清理（收紧位置：清理必须落在 else if 之前，防止被挪进 delta 分支）
+    const ifHead = fn.indexOf('if (Array.isArray(state.messages))')
+    const clearPos = fn.indexOf('chatToolMessages = []')
+    const elseIfPos = fn.indexOf('} else if')
+    assert.ok(ifHead >= 0, 'full-snapshot branch missing')
+    assert.ok(clearPos > ifHead, 'full-snapshot branch must clear chatToolMessages')
+    assert.ok(elseIfPos === -1 || clearPos < elseIfPos, 'cleanup must stay inside the full-snapshot branch, not the delta branch')
+    // delta 分支同样必须清理（他窗改写分支后旧快照以数组尾部位置赢得 LWW；在途由 inflight 重放补齐）
+    const fnTail = fn.slice(elseIfPos)
+    assert.match(fnTail, /chatToolMessages = \[\]/, 'delta branch must also clear chatToolMessages')
 })
 
 test('useChatState: getSessionData 初始化空队列（无 localStorage hydrate）+ pendingQueue computed 暴露', () => {
@@ -132,17 +172,26 @@ test('useChatMessages: processedMessages 末尾追加 pending 气泡并标记 mo
     assert.match(chatMessagesSource, /pendingQueue\?: PendingItem\[\]/)
 })
 
-test('HomeView: 会话页输入框上方挂载 PendingQueueBar 并接 remove 事件', () => {
-    assert.match(homeViewSource, /import PendingQueueBar from '\.\.\/components\/chat\/PendingQueueBar\.vue'/)
-    assert.match(homeViewSource, /<PendingQueueBar v-if="!isNewSessionPage && !isCreatingSession" :items="chatState\.pendingQueue"/)
-    assert.match(homeViewSource, /@remove="chatState\.removePendingItem"/)
+test('HomeView: 会话页输入框上方挂载 ChatDockArea（PendingQueueBar 经 dock 注册）', () => {
+    assert.match(homeViewSource, /import ChatDockArea from '\.\.\/components\/chat\/ChatDockArea\.vue'/)
+    assert.match(homeViewSource, /<ChatDockArea v-if="!isNewSessionPage && !isCreatingSession"/)
+    assert.ok(!homeViewSource.includes('<PendingQueueBar'), 'HomeView must not mount PendingQueueBar directly')
+    const dockAreaSource = read('src/components/chat/ChatDockArea.vue')
+    assert.match(dockAreaSource, /registerChatDockWidget\(\{ id: 'pending-queue', order: 10/, 'PendingQueueBar must register into chat dock')
+    // TodoBar 挂载完全依赖这一行注册：删掉不会有任何其他测试失败（Ruling T8 留给审查的口子）
+    assert.match(dockAreaSource, /registerChatDockWidget\(\{ id: 'todo', order: 20/, 'TodoBar must register into chat dock')
+    // order 语义守门：pending-queue 必须排在 todo 之前（字面量互不关联，顺序反转无现有断言）
+    const orderOf = (id: string) => Number(dockAreaSource.match(new RegExp(`id: '${id}', order: (\\d+)`))?.[1])
+    assert.ok(orderOf('pending-queue') < orderOf('todo'), 'pending-queue must render before todo in chat dock')
 })
 
 test('PendingQueueBar / MessageBubble: 排队可视化元素存在', () => {
     const barSource = read('src/components/chat/PendingQueueBar.vue')
-    // 队列非空才渲染 + ✕ 删除提示
-    assert.match(barSource, /v-if="items\.length > 0"/)
-    assert.match(barSource, /emit\('remove', item\.id\)/)
+    // 扩展自包含约定：容器不传 props，自取全局 store
+    assert.match(barSource, /useChatState\(\)/)
+    // 队列非空才渲染 + ✕ 直接调用服务端删除 + 删除提示
+    assert.match(barSource, /v-if="chatState\.pendingQueue\.length > 0"/)
+    assert.match(barSource, /chatState\.removePendingItem\(item\.id\)/)
     assert.match(barSource, /chat\.pendingQueue\.removeHint/)
 
     const bubbleSource = read('src/components/chat/MessageBubble.vue')
