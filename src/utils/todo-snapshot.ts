@@ -68,34 +68,36 @@ export function extractTodoSnapshot(messages: MinimalMessage[]): TodoSnapshot | 
     return snap
 }
 
-/**
- * 「全部完成」面板关闭记忆的结构指纹：活任务（非墓碑）的 id:status 序列。
- * - 不含 subject/description/activeForm：改名/补描述不该让已关闭的完成清单复活。
- * - 不含 nextId、不含墓碑：建了又删、清理旧墓碑都不复活面板。
- * - 新任务（id/status 集合变化）产生新指纹，面板自动重现。
- * 纯函数放此文件以便纳入 node --test 回归基线（composable 本体无法直测）。
- */
-export function computeSnapshotSig(snapshot: TodoSnapshot | null): string {
-    if (!snapshot) return ''
-    // 三态白名单与 useTodoState.tasks 同口径：枚举外 status（手编数据）不计入指纹，
-    // 否则其不可见的状态变化会引发面板的凭空复活/隐身
-    return snapshot.tasks
-        .filter((t) => t.status === 'pending' || t.status === 'in_progress' || t.status === 'completed')
-        .map((t) => `${t.id}:${t.status}`)
-        .join(',')
+// ============================================================
+// 面板关闭记忆状态机（纯函数纳入 node --test 基线）
+// 语义：✕ 任何状态可关闭；重现只由「新任务创建」触发；
+// 回退（快照回到已见过的结构）、改名、完成、删除都不再影响面板可见性。
+// ============================================================
+
+export interface TodoPanelMemory {
+    /** 见过（曾显示/已关闭）的活任务 id；新 id 出现 = 新工作开始 = 面板重现 */
+    seen: number[]
+    /** 用户是否已关闭当前清单 */
+    dismissed: boolean
 }
 
 /**
- * TodoBar 可见性的组合判据（纯函数纳入 node --test 基线）：
- * 有任务即显示，除非用户已关闭当前指纹——✕ 在任何状态可用（含中断/未完成），
- * 关闭后同指纹保持隐藏；指纹变化（新任务/状态变化）重现一次，可再次关闭。
+ * 快照驱动面板记忆状态机：返回新记忆；无变化返回原引用（调用方据引用判断是否落盘）。
+ * - 新活任务 id 出现 → dismissed=false（面板重现）
+ * - clear（空快照且 nextId 归位）→ 记忆重置（新周期视为全新工作）
+ * - 其余一切变化（完成/删除/改名/回退）→ 记忆不变（已关就保持隐藏，没关就保持显示）
  */
-export function isTodoBarVisible(
-    total: number,
-    sig: string,
-    dismissedSig: string | null,
-): boolean {
-    return total > 0 && dismissedSig !== sig
+export function applySnapshotToMemory(mem: TodoPanelMemory, snapshot: TodoSnapshot | null): TodoPanelMemory {
+    if (!snapshot) return mem
+    const live = snapshot.tasks.filter((t) => t.status !== 'deleted')
+    // clear 的标志：快照清空且 nextId 归位（delete 全部不清 nextId，不会误触）
+    if (live.length === 0 && snapshot.nextId === 1) {
+        return mem.seen.length > 0 || mem.dismissed ? { seen: [], dismissed: false } : mem
+    }
+    const seen = new Set(mem.seen)
+    if (!live.some((t) => !seen.has(t.id))) return mem // 无新活任务：记忆不变
+    for (const t of live) seen.add(t.id)
+    return { seen: [...seen].sort((a, b) => a - b), dismissed: false }
 }
 
 /**

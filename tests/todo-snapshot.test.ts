@@ -3,12 +3,27 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { extractTodoSnapshot, extractTodoSnapshotFromSources, computeSnapshotSig, isTodoBarVisible, type MinimalMessage } from '../src/utils/todo-snapshot.ts'
+import {
+    applySnapshotToMemory,
+    extractTodoSnapshot,
+    extractTodoSnapshotFromSources,
+    type MinimalMessage,
+    type TodoPanelMemory,
+} from '../src/utils/todo-snapshot.ts'
 
 const msg = (over: Partial<MinimalMessage>): MinimalMessage => ({ role: 'toolResult', toolName: 'todo', ...over })
 
 const snapMsg = (subjects: string[], nextId: number) =>
     msg({ details: { tasks: subjects.map((s, i) => ({ id: i + 1, subject: s, status: 'pending' })), nextId } })
+
+const snapOf = (tasks: Array<{ id: number; subject: string; status: string }>, nextId?: number) => ({
+    tasks: tasks.map((t) => ({ ...t })) as import('../src/utils/todo-snapshot.ts').TodoTask[],
+    nextId: nextId ?? Math.max(0, ...tasks.map((t) => t.id)) + 1,
+})
+
+// ============================================================
+// 提取器
+// ============================================================
 
 test('空消息 / 无 todo 结果 → null', () => {
     assert.equal(extractTodoSnapshot([]), null)
@@ -64,33 +79,6 @@ test('负数 id / id≥nextId / description null 整条跳过', () => {
     assert.equal(extractTodoSnapshot([msg({ details: { tasks: [{ id: 1, subject: 'A', status: 'pending', description: null }], nextId: 2 } })]), null)
 })
 
-test('sig 口径与计数一致：枚举外 status 不计入指纹（防不可见事件引发复活/隐身）', () => {
-    const withBlocked = { tasks: [{ id: 1, subject: 'A', status: 'completed' as const }, { id: 2, subject: 'B', status: 'blocked' as never }], nextId: 3 }
-    const withoutBlocked = { tasks: [{ id: 1, subject: 'A', status: 'completed' as const }], nextId: 3 }
-    // blocked 任务被三态白名单排除，指纹与纯 completed 清单一致
-    assert.equal(computeSnapshotSig(withBlocked), computeSnapshotSig(withoutBlocked))
-    assert.equal(computeSnapshotSig(withBlocked), '1:completed')
-})
-
-test('isTodoBarVisible：全状态枚举（关闭记忆对任何状态生效）', () => {
-    // 无任务：恒隐藏
-    assert.equal(isTodoBarVisible(0, '', null), false)
-    // 进行中未关：显示
-    assert.equal(isTodoBarVisible(2, '1:in_progress,2:pending', null), true)
-    // 进行中已关（同指纹，如中断/abort 后不想看）：隐藏 —— ✕ 任何状态可用
-    assert.equal(isTodoBarVisible(2, '1:in_progress,2:pending', '1:in_progress,2:pending'), false)
-    // 已关后状态变化（任务完成）：重现一次
-    assert.equal(isTodoBarVisible(2, '1:completed,2:pending', '1:in_progress,2:pending'), true)
-    // 全部完成未关：显示
-    assert.equal(isTodoBarVisible(1, '1:completed', null), true)
-    // 全部完成已关：隐藏
-    assert.equal(isTodoBarVisible(1, '1:completed', '1:completed'), false)
-    // 已关后新任务：重现
-    assert.equal(isTodoBarVisible(2, '1:completed,2:pending', '1:completed'), true)
-    // 已关后清空（total=0）：恒隐藏
-    assert.equal(isTodoBarVisible(0, '', '1:completed'), false)
-})
-
 test('非整数 nextId / 字段类型错 / 超规模快照整条跳过（与服务端守卫同强度）', () => {
     // 非整数 nextId：服务端 create 会派生非法 id 快照，该快照反被守卫拒绝 → 双端静默失步
     assert.equal(extractTodoSnapshot([msg({ details: { tasks: [], nextId: 2.5 } })]), null)
@@ -120,28 +108,49 @@ test('双源拼接：流式条目必须排在历史之后才赢得 last-write-wi
     assert.equal(extractTodoSnapshotFromSources([], []), null)
 })
 
-test('computeSnapshotSig：活任务结构指纹（关闭记忆的复现判据）', () => {
-    const s1 = { tasks: [{ id: 1, subject: 'A', status: 'pending' as const }], nextId: 2 }
-    assert.equal(computeSnapshotSig(s1), computeSnapshotSig(s1))
-    // 纯改名/补描述不产生新签名：已关闭的完成清单不被无关编辑复活
-    const renamed = { tasks: [{ id: 1, subject: 'A2', description: 'd', activeForm: 'f', status: 'pending' as const }], nextId: 2 }
-    assert.equal(computeSnapshotSig(s1), computeSnapshotSig(renamed))
-    // 墓碑增减不影响指纹（清理旧墓碑不复活面板）；nextId 单独变化也不影响（建了又删不复活）
-    const withTomb = { tasks: [{ id: 1, subject: 'A', status: 'deleted' as const }, { id: 2, subject: 'B', status: 'pending' as const }], nextId: 3 }
-    assert.equal(computeSnapshotSig(withTomb), computeSnapshotSig({ tasks: [{ id: 2, subject: 'B', status: 'pending' as const }], nextId: 3 }))
-    const bumpedNextId = { tasks: [{ id: 1, subject: 'A', status: 'pending' as const }], nextId: 9 }
-    assert.equal(computeSnapshotSig(s1), computeSnapshotSig(bumpedNextId))
-    // 状态/集合变化 → 新指纹：新任务开始后面板重现
-    const progressed = { tasks: [{ id: 1, subject: 'A', status: 'completed' as const }], nextId: 2 }
-    assert.notEqual(computeSnapshotSig(s1), computeSnapshotSig(progressed))
-    const appended = { tasks: [{ id: 1, subject: 'A', status: 'completed' as const }, { id: 2, subject: 'B', status: 'pending' as const }], nextId: 3 }
-    assert.notEqual(computeSnapshotSig(progressed), computeSnapshotSig(appended))
-    assert.equal(computeSnapshotSig(null), '')
-})
-
 test('返回深拷贝，调用方改动不污染源消息', () => {
     const details = { tasks: [{ id: 1, subject: 'A', status: 'pending' }], nextId: 2 }
     const snap = extractTodoSnapshot([msg({ details })])!
     snap.tasks[0].subject = 'MUTATED'
     assert.equal(details.tasks[0].subject, 'A')
+})
+
+// ============================================================
+// 面板关闭记忆状态机（applySnapshotToMemory）
+// 语义：✕ 任何状态可关闭；重现只由「新活任务创建」触发；
+// 回退、改名、完成、删除都不再影响面板可见性。
+// ============================================================
+
+test('applySnapshotToMemory：新活任务出现 → 面板重现（dismissed 解除）', () => {
+    const mem = applySnapshotToMemory({ seen: [1], dismissed: true }, snapOf([{ id: 2, subject: 'B', status: 'pending' }]))
+    assert.equal(mem.dismissed, false)
+    assert.deepEqual(mem.seen, [1, 2])
+})
+
+test('applySnapshotToMemory：已见任务的变化（完成/删除/改名/回退）不改记忆', () => {
+    const mem = { seen: [1, 2], dismissed: true }
+    // 完成（状态变化）
+    assert.equal(applySnapshotToMemory(mem, snapOf([{ id: 1, subject: 'A', status: 'completed' }, { id: 2, subject: 'B', status: 'in_progress' }])), mem)
+    // 删除（墓碑）
+    assert.equal(applySnapshotToMemory(mem, snapOf([{ id: 1, subject: 'A', status: 'deleted' }, { id: 2, subject: 'B', status: 'pending' }])), mem)
+    // 改名
+    assert.equal(applySnapshotToMemory(mem, snapOf([{ id: 2, subject: 'renamed', status: 'pending' }])), mem)
+    // 回退到旧结构（快照消失类场景——「完成后自动消失」的根因）
+    assert.equal(applySnapshotToMemory(mem, snapOf([{ id: 1, subject: 'A', status: 'completed' }])), mem)
+})
+
+test('applySnapshotToMemory：clear（空快照且 nextId 归位）重置记忆', () => {
+    const mem = applySnapshotToMemory({ seen: [1, 2, 3], dismissed: true }, snapOf([]))
+    assert.deepEqual(mem, { seen: [], dismissed: false })
+    // 全墓碑但 nextId 未归位（delete 全部）：不重置，后续 create 的新 id 仍会重现
+    const keep = applySnapshotToMemory({ seen: [1, 2], dismissed: true }, snapOf([{ id: 1, subject: 'A', status: 'deleted' }]))
+    assert.deepEqual(keep, { seen: [1, 2], dismissed: true })
+    // null 快照：不变（返回原引用）
+    assert.deepEqual(applySnapshotToMemory({ seen: [1], dismissed: false }, null), { seen: [1], dismissed: false })
+})
+
+test('applySnapshotToMemory：无变化返回原引用（调用方据引用判断是否落盘）', () => {
+    const mem = { seen: [1], dismissed: false }
+    assert.equal(applySnapshotToMemory(mem, snapOf([{ id: 1, subject: 'A', status: 'completed' }])), mem)
+    assert.equal(applySnapshotToMemory(mem, null), mem)
 })

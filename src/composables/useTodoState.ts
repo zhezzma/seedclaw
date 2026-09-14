@@ -3,26 +3,42 @@
 // 流式 toolResult 到达 → 自动更新；刷新/重连 → 从历史自动恢复，无需任何额外请求。
 import { computed, ref, watch } from 'vue'
 import {
-    computeSnapshotSig,
+    applySnapshotToMemory,
     extractTodoSnapshotFromSources,
-    isTodoBarVisible,
+    type TodoPanelMemory,
     type TodoTask,
 } from '../utils/todo-snapshot'
 import { useChatState } from './useChatState'
 
-const DISMISSED_PREFIX = 'todo-dismissed:'
+const PANEL_PREFIX = 'todo-panel:'
+let legacyCleaned = false
 
-function loadDismissedSig(sessionKey: string): string | null {
+function loadPanelMemory(sessionKey: string): TodoPanelMemory {
     try {
-        return localStorage.getItem(DISMISSED_PREFIX + sessionKey)
+        if (!legacyCleaned) {
+            // 一次性清理旧版指纹匹配方案的键（已被 seen/dismissed 状态机取代）
+            legacyCleaned = true
+            const stale: string[] = []
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i)
+                if (k?.startsWith('todo-dismissed:')) stale.push(k)
+            }
+            stale.forEach((k) => localStorage.removeItem(k))
+        }
+        const raw = localStorage.getItem(PANEL_PREFIX + sessionKey)
+        if (raw) {
+            const parsed = JSON.parse(raw) as TodoPanelMemory
+            if (Array.isArray(parsed?.seen)) return { seen: parsed.seen, dismissed: !!parsed.dismissed }
+        }
     } catch {
-        return null // 隐私模式等 localStorage 不可用场景：关闭记忆退化为会话内内存态
+        /* 隐私模式等不可用场景：记忆退化为会话内内存态 */
     }
+    return { seen: [], dismissed: false }
 }
 
-function saveDismissedSig(sessionKey: string, sig: string): void {
+function savePanelMemory(sessionKey: string, mem: TodoPanelMemory): void {
     try {
-        localStorage.setItem(DISMISSED_PREFIX + sessionKey, sig)
+        localStorage.setItem(PANEL_PREFIX + sessionKey, JSON.stringify(mem))
     } catch {
         /* 同上，写入失败静默（关闭记忆退化为仅本次驻留有效） */
     }
@@ -55,39 +71,29 @@ export function useTodoState() {
 
     const inProgress = computed(() => tasks.value.find((t) => t.status === 'in_progress'))
 
-    // 「全部完成」面板的关闭记忆：按会话持久化（localStorage），刷新/切会话往返均保持隐藏。
-    // 复现条件 = 快照结构指纹变化（新任务/状态变化）；同结构快照（含纯改名）永不再弹。
-    const snapshotSig = computed(() => computeSnapshotSig(snapshot.value))
-    const dismissedSig = ref<string | null>(loadDismissedSig(chatState.sessionKey))
+    // 面板可见性状态机（TodoPanelMemory）：消失只由 ✕ 或无任务引起；
+    // 重现只由「新活任务创建」触发——完成/删除/改名/快照回退都不再影响可见性。
+    const panelMem = ref<TodoPanelMemory>(loadPanelMemory(chatState.sessionKey))
     watch(
         () => chatState.sessionKey,
         () => {
-            dismissedSig.value = loadDismissedSig(chatState.sessionKey)
+            panelMem.value = loadPanelMemory(chatState.sessionKey)
         },
     )
-
-    const allDone = computed(() => counts.value.total > 0 && counts.value.done === counts.value.total)
-    const visibleBar = computed(() => isTodoBarVisible(counts.value.total, snapshotSig.value, dismissedSig.value))
-
-    // clear（快照清空且 nextId 归位）重置关闭记忆：否则 clear 后重建同规模清单时，
-    // 任务 id 复用使完成瞬间指纹与旧记忆相同，新周期的完成横幅会静默隐身
-    watch([snapshotSig, () => snapshot.value?.nextId], () => {
-        const snap = snapshot.value
-        if (snap && snap.tasks.length === 0 && snap.nextId === 1 && dismissedSig.value !== null) {
-            dismissedSig.value = null
-            try {
-                localStorage.removeItem(DISMISSED_PREFIX + chatState.sessionKey)
-            } catch {
-                /* 同写入路径，静默 */
-            }
+    watch(snapshot, (snap) => {
+        const next = applySnapshotToMemory(panelMem.value, snap)
+        if (next !== panelMem.value) {
+            panelMem.value = next
+            savePanelMemory(chatState.sessionKey, next)
         }
     })
 
+    const allDone = computed(() => counts.value.total > 0 && counts.value.done === counts.value.total)
+    const visibleBar = computed(() => counts.value.total > 0 && !panelMem.value.dismissed)
+
     function dismiss(): void {
-        // 任何状态可关闭（含中断/未完成）：记忆当前指纹，同指纹保持隐藏，指纹变化（新任务/状态变化）重现
-        const sig = snapshotSig.value
-        saveDismissedSig(chatState.sessionKey, sig)
-        dismissedSig.value = sig
+        panelMem.value = { ...panelMem.value, dismissed: true }
+        savePanelMemory(chatState.sessionKey, panelMem.value)
     }
 
     return { snapshot, tasks, counts, inProgress, dismiss, visibleBar, allDone }
