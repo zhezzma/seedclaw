@@ -30,8 +30,11 @@ export interface MinimalMessage {
 function isTodoDetails(v: unknown): v is { tasks: TodoTask[]; nextId: number } {
     if (!v || typeof v !== 'object') return false
     const d = v as Record<string, unknown>
-    // Number.isFinite：NaN 能通过 typeof number，却会让后续所有匹配失效（与服务端守卫同强度）
-    if (!Array.isArray(d.tasks) || typeof d.nextId !== 'number' || !Number.isFinite(d.nextId)) return false
+    // Number.isSafeInteger：非整数 nextId（如 2.5）会让服务端 create 派生出非法 id 快照，
+    // 该快照再被本守卫拒绝 → 双端静默失步（与服务端守卫同强度）
+    if (!Array.isArray(d.tasks) || typeof d.nextId !== 'number' || !Number.isSafeInteger(d.nextId)) return false
+    // 规模上限：与服务端守卫同值，防手编/失控数据拖垮渲染
+    if (d.tasks.length > 1000) return false
     // 逐项形状守卫：防旧版本/手编数据把面板渲染炸掉（id 必须整数，小数/负数渲染成 #1.5/#-1）
     if (
         !d.tasks.every(
@@ -39,7 +42,9 @@ function isTodoDetails(v: unknown): v is { tasks: TodoTask[]; nextId: number } {
                 t && typeof t === 'object' &&
                 Number.isInteger((t as TodoTask).id) &&
                 typeof (t as TodoTask).subject === 'string' &&
-                typeof (t as TodoTask).status === 'string',
+                typeof (t as TodoTask).status === 'string' &&
+                ((t as TodoTask).description === undefined || typeof (t as TodoTask).description === 'string') &&
+                ((t as TodoTask).activeForm === undefined || typeof (t as TodoTask).activeForm === 'string'),
         )
     )
         return false

@@ -57,6 +57,17 @@ test('nextId 非有限数（NaN）视为畸形整条跳过', () => {
     assert.equal(extractTodoSnapshot([msg({ details: { tasks: [], nextId: NaN } })]), null)
 })
 
+test('非整数 nextId / 字段类型错 / 超规模快照整条跳过（与服务端守卫同强度）', () => {
+    // 非整数 nextId：服务端 create 会派生非法 id 快照，该快照反被守卫拒绝 → 双端静默失步
+    assert.equal(extractTodoSnapshot([msg({ details: { tasks: [], nextId: 2.5 } })]), null)
+    assert.equal(extractTodoSnapshot([msg({ details: { tasks: [{ id: 1, subject: 'A', status: 'pending', description: { evil: 1 } }], nextId: 2 } })]), null)
+    assert.equal(extractTodoSnapshot([msg({ details: { tasks: [{ id: 1, subject: 'A', status: 'pending', activeForm: 9 }], nextId: 2 } })]), null)
+    assert.equal(
+        extractTodoSnapshot([msg({ details: { tasks: Array.from({ length: 1001 }, (_, i) => ({ id: i + 1, subject: 'A', status: 'pending' })), nextId: 1002 } })]),
+        null,
+    )
+})
+
 test('空 tasks 快照（clear 后）合法：返回非 null 空快照而非 null', () => {
     const snap = extractTodoSnapshot([msg({ details: { tasks: [], nextId: 1 } })])
     assert.ok(snap, 'empty tasks snapshot must not be rejected')

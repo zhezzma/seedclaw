@@ -36,7 +36,9 @@ export function applyAttachMessageState(sessionData: ChatSessionData, state: Att
         if (deduped.length > 0) {
             sessionData.chatMessages = [...sessionData.chatMessages, ...deduped]
             // delta 已带来服务端当前分支的持久化权威：流式临时条目一并作废（同全量路径规则），
-            // 防他窗改写分支后旧快照以数组尾部位置赢得 LWW；在途内容由 attach 的 inflight 重放补齐
+            // 防他窗改写分支后旧快照以数组尾部位置赢得 LWW。
+            // 注：流式态下在途条目由 attach 的 inflight 重放补齐（message_state → buffer → inflight 顺序保证
+            // 清空发生在重放之前）；非流式态（run 已结束）无补发，残留本就该作废，随下次 done/load 收敛
             sessionData.chatToolMessages = []
         }
     }

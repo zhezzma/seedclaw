@@ -137,9 +137,13 @@ test('chat-attach: 全量 message_state 快照替换时清空 chatToolMessages�
     assert.ok(ifHead >= 0, 'full-snapshot branch missing')
     assert.ok(clearPos > ifHead, 'full-snapshot branch must clear chatToolMessages')
     assert.ok(elseIfPos === -1 || clearPos < elseIfPos, 'cleanup must stay inside the full-snapshot branch, not the delta branch')
-    // delta 分支同样必须清理（他窗改写分支后旧快照以数组尾部位置赢得 LWW；在途由 inflight 重放补齐）
+    // delta 分支同样必须清理（他窗改写分支后旧快照以数组尾部位置赢得 LWW；在途由 inflight 重放补齐），
+    // 且必须在 deduped 判断块内（挪到 delta 分支体外语义变为「只要有 delta 就清」，同 run 空重连会误作废在途条目）
     const fnTail = fn.slice(elseIfPos)
-    assert.match(fnTail, /chatToolMessages = \[\]/, 'delta branch must also clear chatToolMessages')
+    const dedupedPos = fnTail.indexOf('if (deduped.length > 0)')
+    const deltaClearPos = fnTail.indexOf('chatToolMessages = []')
+    assert.ok(dedupedPos >= 0, 'deduped guard missing')
+    assert.ok(deltaClearPos > dedupedPos, 'delta cleanup must stay inside the deduped guard')
 })
 
 test('useChatState: getSessionData 初始化空队列（无 localStorage hydrate）+ pendingQueue computed 暴露', () => {

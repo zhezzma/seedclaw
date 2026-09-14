@@ -666,7 +666,10 @@ const abortChat = async (sessionKey?: string) => {
                 if (result.messages) {
                     sd.chatMessages = result.messages
                     // 与 done/loadChatHistory 同规则：持久化消息已落地，流式临时条目一并清空
-                    //（否则 abort 后同一 toolResult 双份残留，随 sessionsMap 永不驱逐）
+                    //（否则 abort 后同一 toolResult 双份残留，随 sessionsMap 永不驱逐）。
+                    // 已知空窗：并行批在 tool_execution_end 与批尾落盘之间被 abort 时，
+                    // /abort 快照不含该未落盘 toolResult，面板短暂回退到上一条持久化快照，
+                    // 下一次 todo 调用/done 自愈（error 路径保留临时条目同理）
                     sd.chatToolMessages = []
                 }
                 if (typeof result.isStreaming === 'boolean') {
