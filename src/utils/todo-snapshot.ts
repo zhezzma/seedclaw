@@ -69,14 +69,33 @@ export function extractTodoSnapshot(messages: MinimalMessage[]): TodoSnapshot | 
 }
 
 /**
- * dismissed 复位用的内容签名：会话键 + 全量任务内容（含 subject/activeForm/description）。
- * - 任一字段变化都产生新签名：纯改名后已 dismiss 的面板也能复现（规格「快照再次变化自动复位」）。
- * - 拼入会话键：fork 出的同构会话快照逐字节相同，若只看内容会在新会话里错误保持隐藏。
+ * 「全部完成」面板关闭记忆的结构指纹：活任务（非墓碑）的 id:status 序列。
+ * - 不含 subject/description/activeForm：改名/补描述不该让已关闭的完成清单复活。
+ * - 不含 nextId、不含墓碑：建了又删、清理旧墓碑都不复活面板。
+ * - 新任务（id/status 集合变化）产生新指纹，面板自动重现。
  * 纯函数放此文件以便纳入 node --test 回归基线（composable 本体无法直测）。
  */
-export function computeSnapshotSig(sessionKey: string, snapshot: TodoSnapshot | null): string {
+export function computeSnapshotSig(snapshot: TodoSnapshot | null): string {
     if (!snapshot) return ''
-    return `${sessionKey}|${snapshot.nextId}|${JSON.stringify(snapshot.tasks)}`
+    // 三态白名单与 useTodoState.tasks 同口径：枚举外 status（手编数据）不计入指纹，
+    // 否则其不可见的状态变化会引发面板的凭空复活/隐身
+    return snapshot.tasks
+        .filter((t) => t.status === 'pending' || t.status === 'in_progress' || t.status === 'completed')
+        .map((t) => `${t.id}:${t.status}`)
+        .join(',')
+}
+
+/**
+ * TodoBar 可见性的组合判据（纯函数纳入 node --test 基线）：
+ * 有活任务即显示；「全部完成」时若用户已关闭同结构清单则保持隐藏。
+ */
+export function isTodoBarVisible(
+    total: number,
+    allDone: boolean,
+    sig: string,
+    dismissedSig: string | null,
+): boolean {
+    return total > 0 && !(allDone && dismissedSig === sig)
 }
 
 /**

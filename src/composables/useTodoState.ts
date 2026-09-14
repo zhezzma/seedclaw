@@ -2,8 +2,31 @@
 // TodoBar 的数据源：从当前会话消息流 computed 出 todo 快照。
 // 流式 toolResult 到达 → 自动更新；刷新/重连 → 从历史自动恢复，无需任何额外请求。
 import { computed, ref, watch } from 'vue'
-import { computeSnapshotSig, extractTodoSnapshotFromSources, type TodoTask } from '../utils/todo-snapshot'
+import {
+    computeSnapshotSig,
+    extractTodoSnapshotFromSources,
+    isTodoBarVisible,
+    type TodoTask,
+} from '../utils/todo-snapshot'
 import { useChatState } from './useChatState'
+
+const DISMISSED_PREFIX = 'todo-dismissed:'
+
+function loadDismissedSig(sessionKey: string): string | null {
+    try {
+        return localStorage.getItem(DISMISSED_PREFIX + sessionKey)
+    } catch {
+        return null // 隐私模式等 localStorage 不可用场景：关闭记忆退化为会话内内存态
+    }
+}
+
+function saveDismissedSig(sessionKey: string, sig: string): void {
+    try {
+        localStorage.setItem(DISMISSED_PREFIX + sessionKey, sig)
+    } catch {
+        /* 同上，写入失败静默（关闭记忆退化为仅本次驻留有效） */
+    }
+}
 
 export function useTodoState() {
     const chatState = useChatState()
@@ -32,21 +55,41 @@ export function useTodoState() {
 
     const inProgress = computed(() => tasks.value.find((t) => t.status === 'in_progress'))
 
-    // 全部完成后用户可手动关闭；快照再次变化（新任务/新一轮）自动复位。
-    const dismissed = ref(false)
-    // 内容签名（会话键 + 全量任务内容）：任一字段变化都复位 dismissed；
-    // 拼入会话键，避免 fork 出的同构会话（快照逐字节相同）里面板被错误保持隐藏。
-    const snapshotSig = computed(() => computeSnapshotSig(chatState.sessionKey, snapshot.value))
-    watch(snapshotSig, () => {
-        dismissed.value = false
-    })
+    // 「全部完成」面板的关闭记忆：按会话持久化（localStorage），刷新/切会话往返均保持隐藏。
+    // 复现条件 = 快照结构指纹变化（新任务/状态变化）；同结构快照（含纯改名）永不再弹。
+    const snapshotSig = computed(() => computeSnapshotSig(snapshot.value))
+    const dismissedSig = ref<string | null>(loadDismissedSig(chatState.sessionKey))
+    watch(
+        () => chatState.sessionKey,
+        () => {
+            dismissedSig.value = loadDismissedSig(chatState.sessionKey)
+        },
+    )
 
     const allDone = computed(() => counts.value.total > 0 && counts.value.done === counts.value.total)
-    const visibleBar = computed(() => counts.value.total > 0 && !(allDone.value && dismissed.value))
+    const visibleBar = computed(() =>
+        isTodoBarVisible(counts.value.total, allDone.value, snapshotSig.value, dismissedSig.value),
+    )
+
+    // clear（快照清空且 nextId 归位）重置关闭记忆：否则 clear 后重建同规模清单时，
+    // 任务 id 复用使完成瞬间指纹与旧记忆相同，新周期的完成横幅会静默隐身
+    watch([snapshotSig, () => snapshot.value?.nextId], () => {
+        const snap = snapshot.value
+        if (snap && snap.tasks.length === 0 && snap.nextId === 1 && dismissedSig.value !== null) {
+            dismissedSig.value = null
+            try {
+                localStorage.removeItem(DISMISSED_PREFIX + chatState.sessionKey)
+            } catch {
+                /* 同写入路径，静默 */
+            }
+        }
+    })
 
     function dismiss(): void {
-        dismissed.value = true
+        const sig = snapshotSig.value
+        saveDismissedSig(chatState.sessionKey, sig)
+        dismissedSig.value = sig
     }
 
-    return { snapshot, tasks, counts, inProgress, dismissed, dismiss, visibleBar, allDone }
+    return { snapshot, tasks, counts, inProgress, dismiss, visibleBar, allDone }
 }

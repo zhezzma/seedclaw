@@ -3,7 +3,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { extractTodoSnapshot, extractTodoSnapshotFromSources, computeSnapshotSig, type MinimalMessage } from '../src/utils/todo-snapshot.ts'
+import { extractTodoSnapshot, extractTodoSnapshotFromSources, computeSnapshotSig, isTodoBarVisible, type MinimalMessage } from '../src/utils/todo-snapshot.ts'
 
 const msg = (over: Partial<MinimalMessage>): MinimalMessage => ({ role: 'toolResult', toolName: 'todo', ...over })
 
@@ -64,6 +64,29 @@ test('负数 id / id≥nextId / description null 整条跳过', () => {
     assert.equal(extractTodoSnapshot([msg({ details: { tasks: [{ id: 1, subject: 'A', status: 'pending', description: null }], nextId: 2 } })]), null)
 })
 
+test('sig 口径与计数一致：枚举外 status 不计入指纹（防不可见事件引发复活/隐身）', () => {
+    const withBlocked = { tasks: [{ id: 1, subject: 'A', status: 'completed' as const }, { id: 2, subject: 'B', status: 'blocked' as never }], nextId: 3 }
+    const withoutBlocked = { tasks: [{ id: 1, subject: 'A', status: 'completed' as const }], nextId: 3 }
+    // blocked 任务被三态白名单排除，指纹与纯 completed 清单一致
+    assert.equal(computeSnapshotSig(withBlocked), computeSnapshotSig(withoutBlocked))
+    assert.equal(computeSnapshotSig(withBlocked), '1:completed')
+})
+
+test('isTodoBarVisible：全状态枚举（关闭记忆组合判据）', () => {
+    // 无任务：恒隐藏
+    assert.equal(isTodoBarVisible(0, false, '', null), false)
+    // 部分完成/进行中：恒显示（新 todo 自动重现）
+    assert.equal(isTodoBarVisible(3, false, '1:completed,2:pending', '1:completed,2:pending'), true)
+    // 全部完成未关：显示
+    assert.equal(isTodoBarVisible(3, true, '1:completed', null), true)
+    // 全部完成已关（同指纹）：隐藏
+    assert.equal(isTodoBarVisible(3, true, '1:completed', '1:completed'), false)
+    // 全部完成已关后指纹变化（新周期完成）：重现
+    assert.equal(isTodoBarVisible(3, true, '2:completed', '1:completed'), true)
+    // 关闭记忆为空（clear 重置后）：显示
+    assert.equal(isTodoBarVisible(1, true, '1:completed', null), true)
+})
+
 test('非整数 nextId / 字段类型错 / 超规模快照整条跳过（与服务端守卫同强度）', () => {
     // 非整数 nextId：服务端 create 会派生非法 id 快照，该快照反被守卫拒绝 → 双端静默失步
     assert.equal(extractTodoSnapshot([msg({ details: { tasks: [], nextId: 2.5 } })]), null)
@@ -93,15 +116,23 @@ test('双源拼接：流式条目必须排在历史之后才赢得 last-write-wi
     assert.equal(extractTodoSnapshotFromSources([], []), null)
 })
 
-test('computeSnapshotSig：会话键或任务任一字段变化都产生新签名', () => {
+test('computeSnapshotSig：活任务结构指纹（关闭记忆的复现判据）', () => {
     const s1 = { tasks: [{ id: 1, subject: 'A', status: 'pending' as const }], nextId: 2 }
-    assert.equal(computeSnapshotSig('s1', s1), computeSnapshotSig('s1', s1))
-    // 纯改名（status 不变）也要变签名：否则全部完成后 dismiss 的面板不再复现
-    const renamed = { tasks: [{ id: 1, subject: 'A2', status: 'pending' as const }], nextId: 2 }
-    assert.notEqual(computeSnapshotSig('s1', s1), computeSnapshotSig('s1', renamed))
-    // fork 出的同构会话（快照相同、会话不同）必须产生不同签名，否则面板在对方会话里隐身
-    assert.notEqual(computeSnapshotSig('s1', s1), computeSnapshotSig('s2', s1))
-    assert.equal(computeSnapshotSig('s1', null), '')
+    assert.equal(computeSnapshotSig(s1), computeSnapshotSig(s1))
+    // 纯改名/补描述不产生新签名：已关闭的完成清单不被无关编辑复活
+    const renamed = { tasks: [{ id: 1, subject: 'A2', description: 'd', activeForm: 'f', status: 'pending' as const }], nextId: 2 }
+    assert.equal(computeSnapshotSig(s1), computeSnapshotSig(renamed))
+    // 墓碑增减不影响指纹（清理旧墓碑不复活面板）；nextId 单独变化也不影响（建了又删不复活）
+    const withTomb = { tasks: [{ id: 1, subject: 'A', status: 'deleted' as const }, { id: 2, subject: 'B', status: 'pending' as const }], nextId: 3 }
+    assert.equal(computeSnapshotSig(withTomb), computeSnapshotSig({ tasks: [{ id: 2, subject: 'B', status: 'pending' as const }], nextId: 3 }))
+    const bumpedNextId = { tasks: [{ id: 1, subject: 'A', status: 'pending' as const }], nextId: 9 }
+    assert.equal(computeSnapshotSig(s1), computeSnapshotSig(bumpedNextId))
+    // 状态/集合变化 → 新指纹：新任务开始后面板重现
+    const progressed = { tasks: [{ id: 1, subject: 'A', status: 'completed' as const }], nextId: 2 }
+    assert.notEqual(computeSnapshotSig(s1), computeSnapshotSig(progressed))
+    const appended = { tasks: [{ id: 1, subject: 'A', status: 'completed' as const }, { id: 2, subject: 'B', status: 'pending' as const }], nextId: 3 }
+    assert.notEqual(computeSnapshotSig(progressed), computeSnapshotSig(appended))
+    assert.equal(computeSnapshotSig(null), '')
 })
 
 test('返回深拷贝，调用方改动不污染源消息', () => {

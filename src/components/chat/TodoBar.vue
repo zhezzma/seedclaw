@@ -1,6 +1,7 @@
 <!-- src/components/chat/TodoBar.vue -->
 <!-- 任务清单条：有任务才出现；折叠态一行摘要，点击展开按状态分组。
-     全部完成后保持显示，用户可 ✕ 手动关闭（快照再变化自动复位）。 -->
+     全部完成后保持显示，✕ 关闭的记忆按会话持久化（同结构快照不再弹出）；
+     出现新任务/状态变化（结构指纹变化）后面板自动重现。 -->
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
