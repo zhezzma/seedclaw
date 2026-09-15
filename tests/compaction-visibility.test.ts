@@ -254,12 +254,21 @@ await new Promise((r) => setTimeout(r, 20))
 console.log('DISCONNECT_AFTER isCompacting=' + chat.isCompacting() + ' pseudoVisible=' + msgs.processedMessages.value.some((m: any) => m.id === 'context-compacting'))
 
 // ===== 场景 3：attach 路径（刷新/切回会话时压缩进行中）=====
+// 新服务端形态：压缩窗口 isStreaming=false 而 compacting=true（message_state 携带），
+// attach 保持订阅并继续下发 compaction_end 与续跑事件
 const attachEmit = (event: string, data: any) => sse.handlers.attach.onEvent({ event, data })
+attachEmit('message_state', { isStreaming: false, compacting: true })
+{
+    const list = msgs.processedMessages.value
+    console.log('ATTACH isCompacting=' + chat.isCompacting() + ' busy=' + chat.chatSending + ' pseudoVisible=' + list.some((m: any) => m.id === 'context-compacting'))
+}
+// 旧服务端兼容：无 compacting 字段的 message_state 不动本地压缩态
 attachEmit('message_state', { isStreaming: true })
+console.log('ATTACH_LEGACY isCompacting=' + chat.isCompacting())
 attachEmit('compaction_start', { type: 'compaction_start', reason: 'manual' })
-console.log('ATTACH isCompacting=' + chat.isCompacting() + ' pseudoVisible=' + msgs.processedMessages.value.some((m: any) => m.id === 'context-compacting'))
+console.log('ATTACH_START isCompacting=' + chat.isCompacting() + ' pseudoVisible=' + msgs.processedMessages.value.some((m: any) => m.id === 'context-compacting'))
 attachEmit('compaction_end', { type: 'compaction_end', reason: 'manual' })
-console.log('ATTACH_END isCompacting=' + chat.isCompacting())
+console.log('ATTACH_END isCompacting=' + chat.isCompacting() + ' pseudoVisible=' + msgs.processedMessages.value.some((m: any) => m.id === 'context-compacting'))
 
 // ===== 场景 3.5：手动 /compact（专用 SSE 端点：流式生命周期 + 完成反馈）=====
 await chat.compactSession()
@@ -400,9 +409,12 @@ test('compaction UX: 瞬态压缩行 + abort/display:false 中性渲染全生命
     // 断连兜底
     assert.match(need('DISCONNECT_BEFORE'), /isCompacting=true pseudoVisible=true/)
     assert.match(need('DISCONNECT_AFTER'), /isCompacting=false pseudoVisible=false/)
-    // attach 路径
-    assert.match(need('ATTACH'), /isCompacting=true pseudoVisible=true/)
-    assert.equal(need('ATTACH_END'), 'ATTACH_END isCompacting=false')
+    // attach 路径：压缩窗口快照恢复指示器与 busy；旧服务端字段缺失不动本地态；
+    // compaction 事件流继续驱动
+    assert.equal(need('ATTACH'), 'ATTACH isCompacting=true busy=true pseudoVisible=true')
+    assert.equal(need('ATTACH_LEGACY'), 'ATTACH_LEGACY isCompacting=true')
+    assert.match(need('ATTACH_START'), /isCompacting=true pseudoVisible=true/)
+    assert.match(need('ATTACH_END'), /isCompacting=false pseudoVisible=false/)
     // 手动 /compact：专用端点流式生命周期 + done 收尾
     const ms = need('MANUAL_START')
     assert.match(ms, /busy=true/, `manual compact enters busy state: ${ms}`)

@@ -167,7 +167,7 @@ function attachToSessionIfNeeded(targetKey: string) {
                 applyAttachMessageState(currentSessionData, event.data || {})
                 // attach 快照携带服务端权威排队队列：刷新/切会话后与消息同帧恢复
 
-                if (event.data?.isStreaming) {
+                if (event.data?.isStreaming || event.data?.compacting) {
                     currentSessionData.chatRunId = currentSessionData.chatRunId || generateUUID()
                     currentSessionData.chatStreamStartedAt = currentSessionData.chatStreamStartedAt || Date.now()
                 }

@@ -134,3 +134,47 @@ test('applyAttachMessageState clears stale stream content for idle attach respon
     assert.equal(sessionData.chatSending, false)
     assert.equal(sessionData.chatStream, null)
 })
+
+test('applyAttachMessageState restores busy + compacting from a mid-compaction snapshot', () => {
+    // 切会话/刷新落在压缩窗口：isStreaming=false 而 compacting=true（2026-09 服务端
+    // attach 语义），据此恢复 busy 与压缩指示器；后续 compaction_end/续跑事件继续驱动
+    const sessionData = createSessionData()
+
+    applyAttachMessageState(sessionData as any, {
+        streamMessage: null,
+        isStreaming: false,
+        compacting: true,
+    })
+
+    assert.equal(sessionData.compacting, true)
+    assert.equal(sessionData.chatSending, true)
+    assert.equal(sessionData.chatStream, null)
+})
+
+test('applyAttachMessageState ignores absent compacting field (legacy server)', () => {
+    // 旧服务端 message_state 不携带 compacting：缺省不动本地压缩态
+    const sessionData = createSessionData()
+    sessionData.compacting = true
+
+    applyAttachMessageState(sessionData as any, {
+        streamMessage: null,
+        isStreaming: true,
+    })
+
+    assert.equal(sessionData.compacting, true)
+    assert.equal(sessionData.chatSending, true)
+})
+
+test('applyAttachMessageState clears compacting when snapshot says idle', () => {
+    const sessionData = createSessionData()
+    sessionData.compacting = true
+
+    applyAttachMessageState(sessionData as any, {
+        streamMessage: null,
+        isStreaming: false,
+        compacting: false,
+    })
+
+    assert.equal(sessionData.compacting, false)
+    assert.equal(sessionData.chatSending, false)
+})

@@ -8,6 +8,9 @@ export interface AttachMessageState {
         content?: unknown
     } | null
     isStreaming?: boolean
+    /** 上下文压缩进行中（服务端 attach 语义：压缩窗口非 run 但忙，随
+     * message_state 下发；旧服务端无此字段，缺省不动本地状态） */
+    compacting?: boolean
     /** 服务端权威排队队列快照：刷新/切会话后与消息同帧恢复（本地不持久化队列） */
     pendingQueue?: ServerQueueEntry[]
     /** 快照版本号：乱序防护门禁（客户端只应用比本地新的快照） */
@@ -43,9 +46,15 @@ export function applyAttachMessageState(sessionData: ChatSessionData, state: Att
         }
     }
 
-    // 2. 对齐服务端对“当前是否仍在流”的判断。
+    // 2. 对齐服务端对“当前是否仍在流”的判断。压缩也是忙态：切会话/刷新落在
+    // 压缩窗口（isStreaming=false 而 compacting=true）时，据 compacting 恢复
+    // busy 与压缩指示器——服务端 attach 在压缩期间保持订阅，compaction_end
+    // 及续跑事件会继续到达，客户端不再呈现假空闲
+    if (typeof state.compacting === 'boolean') {
+        sessionData.compacting = state.compacting
+    }
     if (typeof state.isStreaming === 'boolean') {
-        sessionData.chatSending = state.isStreaming
+        sessionData.chatSending = state.isStreaming || state.compacting === true
     }
 
     // 2.5 排队队列：服务端权威快照（queueRev 门禁防乱序；全量/delta 快照均携带，无则保持本地不变）
