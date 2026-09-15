@@ -69,8 +69,10 @@ test('App 区与远程隧道区仅远程模式渲染；模式互斥后分隔线�
     assert.match(panel,
         /<template v-if="selectedView === 'remote' \|\| tokenMissing \|\| \(state && !state\.lanIps\?\.length\)">/)
 
-    // 分隔线已删除：模式互斥后顶部说明已标明当前模式，无需再分隔
+    // 分隔线已删除：模式互斥后顶部说明已标明当前模式，无需再分隔；
+    // App 区改为柔和底色卡片分组，同样不得回退为裸分隔线
     assert.doesNotMatch(panel, /<div class="divider/)
+    assert.doesNotMatch(panel, /pt-3 border-t border-base-200/, 'App 区用底色卡片分组，不用裸分隔线')
 
     // 顶部说明随视图切换，不再依赖 remoteShareUrl（未连接的远程模式也要显示远程说明）
     assert.match(panel,
@@ -87,4 +89,18 @@ test('底部不再单独展示远程地址（并入上方切换行），i18n 同
     assert.match(en, /remotePill: 'Remote'/)
     assert.doesNotMatch(zh, /remoteAddressLabel/)
     assert.doesNotMatch(en, /remoteAddressLabel/)
+})
+
+test('远程就绪视图去冗余：链接全文仅局域网渲染，状态行就绪时隐藏', () => {
+    // 含 token 的完整链接（break-all 长串）仅局域网视图渲染：远程视图的等价信息
+    // 已由二维码 + 复制链接 + App 区（裸地址/令牌）覆盖，长串纯属视觉噪音
+    assert.match(panel, /<p v-if="selectedView === 'lan'" id="tunnel-share-url"/)
+
+    // 状态行：远程视图就绪时隐藏（说明/二维码/App 区已自证就绪），
+    // 连接中/断开中等过渡态（starting/stopping）始终显示
+    const showStatusBlock = panel.match(/const showStatus = computed\(\(\) => \{[\s\S]*?\n\}\)/)?.[0] ?? ''
+    assert.ok(showStatusBlock, 'showStatus computed should exist')
+    assert.match(showStatusBlock, /starting\.value \|\| stopping\.value/)
+    assert.match(showStatusBlock, /status === 'ready'/)
+    assert.match(panel, /<p v-if="showStatus" class="text-sm text-base-content\/60 mb-4">/)
 })
