@@ -21,6 +21,10 @@ src-tauri\resources\seedagent\ 目录的过程。该目录会被 tauri 打进安
      安装包（WiX/NSIS 要压缩近 3 万个文件，5~20 分钟，日常迭代别开）
   ⑤ 收集产物：默认只准备便携版目录（exe + resources）；-Installers 额外收集安装包并压便携版 zip
   ⑥ 部署：便携版内容镜像到 $DeployDir（先结束部署目录内运行中的 seedclaw/node 进程）
+  ⑦ 自动启动：部署成功后拉起 $DeployDir\seedclaw.exe（-NoLaunch 可关）。
+     ⑥ 会终止旧实例（含正在里面跑的 agent 会话），不拉起的话桌面端停留在退出状态。
+     脚本本身可能就是被杀实例的子进程（在会话里发起构建）——Windows 不连坐杀孤儿，
+     尾部照常执行；Start-Process 分离启动，新实例不随脚本退出而终止。
 
 【用法】
   powershell -File scripts/package-desktop.ps1               # 默认：①-④→⑥，只做便携版并部署（日常迭代用）
@@ -36,6 +40,7 @@ src-tauri\resources\seedagent\ 目录的过程。该目录会被 tauri 打进安
                  例如 nvm 用户：-NodeExe "$env:USERPROFILE\AppData\Roaming\nvm\v23.0.0\node.exe" 或者 -NodeExe "D:\Applications\Scoop\persist\nvm\nodejs\v23.0.0\node.exe"
                  （或者直接 `nvm use 23.x` 后让脚本自动识别，无需此参数）
   -DeployDir     部署目录（默认 D:\Applications\seedclaw）
+  -NoLaunch      部署后不自动启动新实例（默认部署成功即拉起，见 ⑦）
   注意：-StageOnly 与 -SkipStage 互斥，不要同时传（同时传等于什么也不做直接退出）。
 #>
 param(
@@ -46,7 +51,8 @@ param(
     [switch]$StageOnly,
     [switch]$SkipStage,
     [switch]$SkipDeploy,
-    [switch]$Installers
+    [switch]$Installers,
+    [switch]$NoLaunch
 )
 $ErrorActionPreference = 'Stop'
 
@@ -249,6 +255,20 @@ if (-not $SkipDeploy) {
     if ($LASTEXITCODE -ge 8) { throw "deploy robocopy failed (exit $LASTEXITCODE)" }
     Write-Host "==> deploy OK: $DeployDir"
     $deployed = $true
+
+    # ⑦ 自动启动新实例。分离启动（Start-Process）：新进程不挂在脚本进程树下，
+    # 脚本退出/被杀都不影响它。不检查前存实例：⑥ 刚清理过部署目录内的进程；
+    # 若有外部实例残留，seedclaw 自身的单实例机制会处理。
+    if (-not $NoLaunch) {
+        $exe = Join-Path $DeployDir 'seedclaw.exe'
+        if (Test-Path $exe) {
+            Start-Sleep -Milliseconds 500   # 给文件句柄释放留点余量
+            Start-Process -FilePath $exe -WorkingDirectory $DeployDir
+            Write-Host "==> launched: $exe"
+        } else {
+            Write-Warning "deploy OK but $exe not found — skip launch"
+        }
+    }
 }
 # 部署成功或已压 zip 后清掉临时便携目录；-SkipDeploy 且默认模式（无 zip）时保留产物
 if ($deployed -or $Installers) { Remove-LongPath $portable }
