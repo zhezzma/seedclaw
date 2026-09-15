@@ -20,7 +20,7 @@ const props = defineProps<{
     result?: any
     state?: 'calling' | 'success' | 'error'
     errorMessage?: string
-    details?: any  // subagent/delegate 进度详情
+    details?: any  // subagent 进度详情
 }>()
 
 const { t } = useI18n()
@@ -34,9 +34,9 @@ const toggleOpen = () => {
     isOpen.value = !isOpen.value
 }
 
-// ─── Subagent/Delegate 相关 ─────────────────────────
+// ─── Subagent 相关 ─────────────────────────
 const isSubagentTool = computed(() => {
-    return props.toolName === 'subagent' || props.toolName === 'delegate'
+    return props.toolName === 'subagent'
 })
 
 /** 子代理结果列表 */
@@ -112,7 +112,7 @@ function formatTokens(count: number) {
 }
 
 const statusText = computed(() => {
-    // 对 subagent/delegate 工具显示更丰富的状态
+    // 对 subagent 工具显示更丰富的状态
     if (isSubagentTool.value && props.state === 'calling') {
         const results = subagentResults.value
         if (results.length === 0) return t('tool.calling', { toolName: props.toolName })

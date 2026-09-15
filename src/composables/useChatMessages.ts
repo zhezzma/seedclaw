@@ -17,7 +17,7 @@ export interface DisplayBlock {
     toolResult?: any
     toolState?: 'calling' | 'success' | 'error'
     toolError?: string
-    toolDetails?: any  // subagent/delegate 工具的进度详情
+    toolDetails?: any  // subagent 工具的进度详情
     error?: string // For top-level message errors
     source?: {
         type: 'base64' | 'url'
@@ -368,7 +368,7 @@ export function useChatMessages(state: ChatStateShape) {
                             // 更新目标 Tool Block 的状态和结果
                             if (targetBlock && targetBlock.type === 'tool') {
                                 targetBlock.toolResult = msg.content
-                                // 刷新/重进后从历史恢复 toolDetails（subagent/delegate 进度与
+                                // 刷新/重进后从历史恢复 toolDetails（subagent 进度与
                                 // subagentSessionId 轨迹定位信息都在这里，丢失则「查看轨迹」入口不可用）
                                 if (msg.details) targetBlock.toolDetails = msg.details
 

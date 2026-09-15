@@ -55,7 +55,6 @@ export interface AgentInfo {
         creature?: string
     }
     skills?: string[]
-    allowPeerAccess?: boolean
 }
 
 export interface AgentFileInfo {
