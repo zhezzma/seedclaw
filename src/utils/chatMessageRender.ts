@@ -6,6 +6,16 @@ export interface RenderableMessageLike {
 }
 
 /**
+ * 识别「运行被有意中断」的 assistant 消息（落盘形态：stopReason=error +
+ * AbortError 文案，如 Node undici 的 "This operation was aborted"、pi-ai 的
+ * "The operation was aborted"）。用户点击停止与扩展设计内中断（如在线上下文
+ * 压缩前的 abort）共用此签名：语义是「有意中断」而非故障——空内容不渲染，
+ * 半截内容保留但绝不能渲染成红色错误吓用户。
+ */
+export const isAbortErrorMessage = (errorMessage: string | undefined | null): boolean =>
+    typeof errorMessage === 'string' && /(?:operation|request) (?:was )?aborted/i.test(errorMessage)
+
+/**
  * 消息级错误（stopReason=error/aborted，落盘为 errorMessage）的消息里可能带有
  * 流式半截的 toolCall block：agent-loop 对 error/aborted 不执行工具、永远不会有
  * toolResult，不标记的话这些 block 会渲染成永远转圈的 calling 卡。

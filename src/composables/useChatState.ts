@@ -6,6 +6,7 @@ import { startChatSSE, attachSessionSSE, startRetrySSE, startEditSSE, type ChatP
 import { AgentInfo, useAgentsState } from './useAgentsState'
 import { applyAttachMessageState, getLastMessageEntryId, shouldAttachSession } from '../utils/chat-attach'
 import { findToolBlockInMessages } from '../utils/tool-event-target'
+import { isAbortErrorMessage } from '../utils/chatMessageRender'
 import { type KnownApi } from './useModelsState'
 import { useToast } from './useToast'
 import { clearAllSurfaces } from './useA2UISurfaces'
@@ -39,6 +40,8 @@ export interface ChatMessage {
     entryId?: string
     parentEntryId?: string | null
     toolName?: string // 历史 /messages 与流式 tool_execution_end 的 toolResult 均携带（todo 提取器两条路径都依赖）
+    /** pi 消息通用字段：display=false 面向模型（扩展注入的隐性提醒等），不进用户聊天记录 */
+    display?: boolean
 }
 
 export interface ChatAttachment {
@@ -81,6 +84,9 @@ export interface ChatSessionData {
     chatSending: boolean
     chatRunId: string | null
     chatLoading: boolean
+    /** 上下文压缩进行中（compaction_start/end 事件驱动；手动 /compact、阈值自动压缩、
+     * 扩展触发的在线压缩均适用）。瞬态：随 resetStreamState 兑底清零防断连残留 */
+    compacting?: boolean
     sessionUsage: SessionUsage | null
 }
 
@@ -109,12 +115,15 @@ function generateUUID(): string {
     return createRuntimeId('chat')
 }
 
-/** 重置会话的流状态（chatSending / chatRunId / chatStreamStartedAt / chatStream） */
+/** 重置会话的流状态（chatSending / chatRunId / chatStreamStartedAt / chatStream / compacting） */
 function resetStreamState(sd: ChatSessionData) {
     sd.chatSending = false
     sd.chatRunId = null
     sd.chatStreamStartedAt = null
     sd.chatStream = null
+    // 压缩状态跟随 SSE 生命周期兑底清理：正常由 compaction_end 驱动，
+    // 连接收尾/中断时事件可能缺失，残留会让压缩指示器永久亮着
+    sd.compacting = false
 }
 
 /** 绑定 SSE 连接的生命周期清理：done / catch 时统一重置状态并移除连接 */
@@ -187,6 +196,7 @@ function getSessionData(key: string): ChatSessionData {
             chatSending: false,
             chatRunId: null,
             chatLoading: false,
+            compacting: false,
             sessionUsage: null,
         })
         state.sessionsMap.set(key, data)
@@ -560,14 +570,18 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
             // 【关键逻辑】仅当 stream 有实际内容时，才将其固化为正式消息并重置 chatStream
             //
             // 背景：服务器在每次对话开始时会先发一对 message_start/message_end 来回显用户消息
-            // （此时 stream 为空），随后才会开始推送 assistant 的内容
+            // （此时 stream 为空），随后才会开始推送 assistant 的内容；空 stream 不固化，
+            // 避免 [] → null → [] 的状态跳变破坏 loading 动画连续性。
             //
-            // 如果对空 stream 也执行 chatStream = null，会触发如下无意义的状态跳变：
-            //   [] （发消息后初始状态）→ null（user 回显结束）→ []（assistant 开始，函数顶部重置）
-            // 这个 [] → null → [] 的瞬间会让 Vue 重新计算 processedMessages，
-            // 破坏 loading 动画的连续性，产生可见的闪烁
+            // 中断签名（abort，用户停止 / 扩展设计内中断如在线压缩前的 abort）语义是
+            // 「有意中断」而非故障：空内容不产生气泡（压缩窗口由瞬态压缩行接管展示）；
+            // 半截内容照常固化。errorMessage 始终如实保留（含未执行 toolCall 的终态
+            // 标记依赖它），中性渲染由 processedMessages 按中断签名统一决定——流式与
+            // 历史两路径同规则，不会出现流式无错、done 刷新后变红色错误的分叉
             const endMsg = data?.message
-            const hasError = endMsg?.role === 'assistant' && endMsg?.errorMessage
+            const rawError = endMsg?.role === 'assistant' ? endMsg?.errorMessage : undefined
+            const aborted = isAbortErrorMessage(rawError)
+            const hasError = !!rawError && !aborted
 
             if (stream.length > 0 || hasError) {
                 // 有内容或有错误信息：固化为一条正式的 assistant 消息
@@ -580,8 +594,8 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
                     provider: endMsg?.provider,
                     api: endMsg?.api,
                 }
-                if (hasError) {
-                    msg.errorMessage = endMsg.errorMessage
+                if (rawError) {
+                    msg.errorMessage = rawError
                 }
                 sessionData.chatMessages = [...sessionData.chatMessages, msg]
                 sessionData.chatStream = null
@@ -594,6 +608,16 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
             stream.push({ type: 'text', text: data.delta })
             // 命令事件：由后端显式推送，触发前端副作用（如 /reset 清空消息、/name 更新标题等）
             handleCommandDelta(data, targetKey)
+            break
+        case 'compaction_start':
+            // 上下文压缩开始（手动 /compact、阈值自动压缩、扩展在线压缩均适用）：
+            // 压缩期间流内无任何内容事件（实测 26~89s），记录状态供消息列表尾部的
+            // 瞬态压缩行展示，避免用户误判为卡死
+            sessionData.compacting = true
+            break
+        case 'compaction_end':
+            // 压缩结束：无条件清零（start 丢失/乱序时也能收敛）
+            sessionData.compacting = false
             break
         case 'turn_end':
         case 'agent_end':
@@ -1020,6 +1044,12 @@ const isForkingEntry = (entryId: string, sessionKey?: string): boolean => {
     return !!targetKey && forkInFlight.has(`${targetKey}:${entryId}`)
 }
 
+/** 会话是否正在压缩上下文（compaction_start/end 事件驱动，任意来源的压缩均适用） */
+const isCompacting = (sessionKey?: string): boolean => {
+    const targetKey = sessionKey || state.sessionKey
+    return !!targetKey && getSessionData(targetKey).compacting === true
+}
+
 export interface SessionTreeEntry {
     id: string
     parentId: string | null
@@ -1320,6 +1350,7 @@ const chatRunId = computed(() => getSessionData(state.sessionKey).chatRunId)
 const chatStreamStartedAt = computed(() => getSessionData(state.sessionKey).chatStreamStartedAt)
 const chatLoading = computed(() => getSessionData(state.sessionKey).chatLoading)
 const sessionUsage = computed(() => getSessionData(state.sessionKey).sessionUsage)
+const compacting = computed(() => getSessionData(state.sessionKey).compacting === true)
 const pendingQueue = computed(() => getSessionData(state.sessionKey).pendingQueue)
 const currentAgent = computed(() => {
     const agentsState = useAgentsState()
@@ -1340,12 +1371,14 @@ const _methods = {
     chatMessages, chatToolMessages, sessionTree, sessionLeafId, chatStream,
     currentSession,
     chatSending, chatRunId, chatStreamStartedAt, chatLoading, sessionUsage, currentAgent,
+    compacting,
     pendingQueue, removePendingItem,
     sendMessage, steerMessage, followMessage, abortChat, loadChatHistory,
     setSessionModel, setSessionThinkingLevel, patchSessionRowEverywhere,
     setSessionKey, createNewSession, selectAgent, getSessionData,
     deleteMessage, retryMessage, editMessage, fetchSessionTree, fetchSessionUsage, navigateBranch, forkFromEntry,
     isForkingEntry,
+    isCompacting,
 }
 const _chatState = Object.assign(state, _methods) as unknown as typeof state & UnwrapComputed<typeof _methods>
 

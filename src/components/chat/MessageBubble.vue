@@ -513,6 +513,12 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
                     <ThinkingBlock v-else-if="block.type === 'thinking' && !currentAgent?.hideThinkingBlock"
                         :text="block.text || ''"
                         :streaming="isLoading && bIndex === assistantParsedBlocks.length - 1" />
+                    <!-- 瞬态压缩行（伪消息唯一块）：compaction_start → end 窗口内存在，
+                         随窗口消失零痕迹 -->
+                    <div v-else-if="block.type === 'compacting'" class="flex items-center gap-2 text-sm opacity-70 select-none py-1">
+                        <span class="loading loading-dots loading-sm opacity-60"></span>
+                        <span>{{ $t('chat.contextCompacting') }}</span>
+                    </div>
                     <div v-else-if="block.type === 'unknown'" class="alert alert-warning text-xs p-2 my-1">
                         <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-4 w-4" fill="none"
                             viewBox="0 0 24 24">

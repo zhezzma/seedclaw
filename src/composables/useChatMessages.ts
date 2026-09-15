@@ -3,13 +3,13 @@ import { useChatState, type ChatMessage } from './useChatState'
 import { useUiSettingsStore } from '../stores/setting'
 import type { A2UIComponent } from '../components/a2ui/types'
 import { getOrCreateSurface, updateSurfaceDataModel, deleteSurface } from './useA2UISurfaces'
-import { ensureRenderableBlocks, markErroredToolBlocks } from '../utils/chatMessageRender'
+import { ensureRenderableBlocks, markErroredToolBlocks, isAbortErrorMessage } from '../utils/chatMessageRender'
 import { resolveMediaUrl } from '../utils/media-url'
 import type { PendingItem, PendingSendMode } from '../utils/pending-queue'
 
 // Types for internal display
 export interface DisplayBlock {
-    type: 'text' | 'tool' | 'image' | 'thinking' | 'error' | 'unknown' | 'a2ui' | 'a2ui_loading' | 'a2ui-action'
+    type: 'text' | 'tool' | 'image' | 'thinking' | 'error' | 'unknown' | 'a2ui' | 'a2ui_loading' | 'a2ui-action' | 'compacting'
     text?: string
     toolCallId?: string
     toolName?: string
@@ -61,6 +61,8 @@ export interface ChatStateShape {
     sessionKey?: string
     /** busy 期间 steer/follow-up 的本地排队队列（会话页消息末尾追加为半透明气泡） */
     pendingQueue?: PendingItem[]
+    /** 上下文压缩进行中（compaction_start/end 事件驱动），消息列表尾部追加瞬态压缩行 */
+    compacting?: boolean
     [key: string]: any
 }
 
@@ -356,6 +358,11 @@ export function useChatMessages(state: ChatStateShape) {
 
         // 1. 处理历史消息
         for (const msg of allMessages) {
+            // pi 消息通用语义：display=false 面向模型（扩展注入的隐性提醒等），
+            // 不进用户聊天记录——流式路径本就不渲染（custom 白名单不命中），
+            // 历史/attach/abort 快照路径在此统一过滤，两路径自洽
+            if (msg.display === false) continue
+
             // 1.1 处理 Tool Result 消息 (后端返回的独立消息 role='toolResult')
             if (msg.role === 'toolResult') {
                 const toolCallId = msg.toolCallId;
@@ -398,20 +405,34 @@ export function useChatMessages(state: ChatStateShape) {
             }
 
             // 1.2 处理普通消息 (User / Assistant)
+            const convertedBlocks = convertToBlocks(msg.content)
+            // 中断签名（用户停止 / 扩展设计内中断如在线压缩前的 abort）：有意中断而非故障。
+            // 空内容 → 完全不渲染（压缩窗口由瞬态压缩行接管展示；ensureRenderableBlocks
+            // 的空 assistant 保锚点逻辑会复活它，必须在锚点复活前拦截）；
+            // 半截内容 → 保留内容但不加任何错误块/中断标记（用户停止有自己的按钮态反馈）
+            const msgAborted = msg.role === 'assistant' && isAbortErrorMessage(msg.errorMessage)
+            if (msgAborted && convertedBlocks.length === 0) continue
+
             const blocks: DisplayBlock[] = ensureRenderableBlocks(
                 {
                     role: msg.role,
                     entryId: msg.entryId,
                 },
-                convertToBlocks(msg.content),
+                convertedBlocks,
             )
 
-            // 顶级错误信息处理
+            // 顶级错误信息处理（真错误保持红色错误块；abort 签名不进错误分支）
             if (msg.errorMessage) {
-                // 消息级错误时其中的 toolCall 从未执行（不会有 toolResult），
-                // 先标成 error 态，避免渲染成永远转圈的 calling 卡
-                markErroredToolBlocks(blocks, msg.errorMessage)
-                blocks.push({ type: 'error', error: msg.errorMessage })
+                if (!msgAborted) {
+                    // 消息级错误时其中的 toolCall 从未执行（不会有 toolResult），
+                    // 先标成 error 态，避免渲染成永远转圈的 calling 卡
+                    markErroredToolBlocks(blocks, msg.errorMessage)
+                    blocks.push({ type: 'error', error: msg.errorMessage })
+                } else {
+                    // 半截内容被中断：未执行的 toolCall 永远等不到结果，仅标终态
+                    // 防永久转圈（工具卡内如实显示中断原因），不加气泡级错误块
+                    markErroredToolBlocks(blocks, msg.errorMessage)
+                }
             }
 
             if (blocks.length > 0) {
@@ -470,6 +491,8 @@ export function useChatMessages(state: ChatStateShape) {
         //   - 空数组虽然是 truthy，但没有内容可渲染，这时应该显示 loading 动画而非空 bubble
         //   - 如果条件是 "chatStream != null"，空数组会进入此分支，跳过 loading placeholder 的 else if，
         //     导致 loading 动画消失，用户无法感知系统正在工作
+        const compacting = state.compacting === true
+
         if (state.chatStream && Array.isArray(state.chatStream) && state.chatStream.length > 0) {
             const streamBlocks: DisplayBlock[] = convertToBlocks(state.chatStream)
 
@@ -492,8 +515,10 @@ export function useChatMessages(state: ChatStateShape) {
                     })
                 }
             }
-        } else if (state.chatSending || Boolean(state.chatRunId)) {
+        } else if (!compacting && (state.chatSending || Boolean(state.chatRunId))) {
             // 3. 等待中状态（Loading placeholder）
+            // 压缩窗口内不插入占位气泡：此刻模型不在生成（压缩指示行接管展示，
+            // 避免点动画与压缩行叠加误导用户「在等待生成」）
             // 触发条件：chatStream 为 null 或空数组，但仍在发送中（chatSending 或 chatRunId 未清除）
             // 场景：
             //   a. 刚发送消息，等待服务器第一个响应
@@ -509,6 +534,19 @@ export function useChatMessages(state: ChatStateShape) {
                     timestamp: Date.now()
                 })
             }
+        }
+
+        // 3.5 瞬态压缩行（compaction_start → end 窗口内存在）：伪消息形式追加在列表
+        // 末尾——随 processedMessages 参与虚拟列表与滚动贴底逻辑（用户视口贴底时
+        // 天然可见；早期版本挂在列表头部/最后一条气泡内容栈顶，长会话里全程在视口
+        // 外，真机上「指示器不可见」的根因）。压缩结束即从列表消失，零痕迹。
+        // 伪消息不设 entryId（非真实条目，不参与分支导航/操作按钮锚点）
+        if (compacting) {
+            displayMessages.push({
+                id: 'context-compacting',
+                role: 'assistant',
+                blocks: [{ type: 'compacting' }],
+            })
         }
 
 

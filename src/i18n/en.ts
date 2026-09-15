@@ -615,6 +615,7 @@ export default {
         treeJumpHint: 'Click a message node to jump to its position in the conversation',
         treeJumpFailed: 'Failed to switch branch, please try again',
         a2ui_loading: 'Loading App Interface...',
+        contextCompacting: 'Compacting context — the current task will continue automatically…',
         a2uiAction: 'Interactive Event',
         a2uiActionQuestion: 'Submitted Question',
         a2uiActionQuestionnaire: 'Submitted Questionnaire',
