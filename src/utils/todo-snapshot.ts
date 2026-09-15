@@ -101,6 +101,17 @@ export function applySnapshotToMemory(mem: TodoPanelMemory, snapshot: TodoSnapsh
 }
 
 /**
+ * 并入活任务 id（去重升序）：dismiss 时把当前可见清单固化进 seen，
+ * 防止 seen 落后于可见清单（快照稳定期挂载 → 非 immediate watch 从未触发）时，
+ * 已关任务被误判为新任务而复活面板。
+ */
+export function unionSeen(seen: number[], liveIds: number[]): number[] {
+    const set = new Set(seen)
+    for (const id of liveIds) set.add(id)
+    return [...set].sort((a, b) => a - b)
+}
+
+/**
  * 双源拼接入口：流式条目必须排在历史之后（last-write-wins 按数组位置取末条）。
  * 抽成独立函数并纳入测试基线：若有人交换拼接顺序或在中间插入去重/切片，
  * 流式实时更新会静默退化为「回合结束才更新」——这是必须被测试钉住的顺序假设。

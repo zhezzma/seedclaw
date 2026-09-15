@@ -5,6 +5,7 @@ import { computed, ref, watch } from 'vue'
 import {
     applySnapshotToMemory,
     extractTodoSnapshotFromSources,
+    unionSeen,
     type TodoPanelMemory,
     type TodoTask,
 } from '../utils/todo-snapshot'
@@ -73,18 +74,29 @@ export function useTodoState() {
 
     // 面板可见性状态机（TodoPanelMemory）：消失只由 ✕ 或无任务引起；
     // 重现只由「新活任务创建」触发——完成/删除/改名/快照回退都不再影响可见性。
+    //
+    // 跨会话一致性：快照与所属会话键【同源求值】（元组 watch 在同一 job 内读两个 source），
+    // 回调内的 key 与 snap 保证属于同一会话——保存/写入永远命中正确会话的键，
+    // 不再依赖「sessionKey watcher 先于 snapshot watcher 执行」的创建顺序假设
+    // （否则切换 flush 中旧会话的记忆会撞上新会话的快照，把记忆覆盖污染）。
+    // memOwner 归属兜底：sessionKey watch 因快照 null→null 不变而未触发元组 watch 的
+    // 窗口里由它负责重载；两者任意顺序到达，写入前都能保证归属一致。
     const panelMem = ref<TodoPanelMemory>(loadPanelMemory(chatState.sessionKey))
-    watch(
-        () => chatState.sessionKey,
-        () => {
-            panelMem.value = loadPanelMemory(chatState.sessionKey)
-        },
-    )
-    watch(snapshot, (snap) => {
+    const memOwner = ref(chatState.sessionKey)
+    watch(() => chatState.sessionKey, (key) => {
+        memOwner.value = key
+        panelMem.value = loadPanelMemory(key)
+    })
+    watch([snapshot, () => chatState.sessionKey], ([snap, key]) => {
+        if (memOwner.value !== key) {
+            // 归属不符：本 flush 内 sessionKey watch 尚未运行，同步重载后再应用
+            memOwner.value = key
+            panelMem.value = loadPanelMemory(key)
+        }
         const next = applySnapshotToMemory(panelMem.value, snap)
         if (next !== panelMem.value) {
             panelMem.value = next
-            savePanelMemory(chatState.sessionKey, next)
+            savePanelMemory(key, next)
         }
     })
 
@@ -92,7 +104,11 @@ export function useTodoState() {
     const visibleBar = computed(() => counts.value.total > 0 && !panelMem.value.dismissed)
 
     function dismiss(): void {
-        panelMem.value = { ...panelMem.value, dismissed: true }
+        // 把当前活任务 id 固化进 seen：非 immediate 的 snapshot watch 在「快照稳定期挂载」
+        // （如路由往返后 HomeView 重挂、sessionsMap 仍存活）下从未触发，seen 可能为空；
+        // 若只翻转 dismissed，切走再切回的首次快照触发会把已关任务误判为新任务而复活面板
+        const seen = unionSeen(panelMem.value.seen, tasks.value.map((t) => t.id))
+        panelMem.value = { ...panelMem.value, seen, dismissed: true }
         savePanelMemory(chatState.sessionKey, panelMem.value)
     }
 

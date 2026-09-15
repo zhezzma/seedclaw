@@ -7,6 +7,7 @@ import {
     applySnapshotToMemory,
     extractTodoSnapshot,
     extractTodoSnapshotFromSources,
+    unionSeen,
     type MinimalMessage,
     type TodoPanelMemory,
 } from '../src/utils/todo-snapshot.ts'
@@ -153,4 +154,21 @@ test('applySnapshotToMemory：无变化返回原引用（调用方据引用判�
     const mem = { seen: [1], dismissed: false }
     assert.equal(applySnapshotToMemory(mem, snapOf([{ id: 1, subject: 'A', status: 'completed' }])), mem)
     assert.equal(applySnapshotToMemory(mem, null), mem)
+})
+
+// ============================================================
+// unionSeen：dismiss 的 seen 固化
+// ============================================================
+
+test('unionSeen：并入活任务 id（去重升序），空 seen 场景全量固化', () => {
+    // 空 seen（快照稳定期挂载 → watch 从未触发）+ 当前活清单 → 全量固化
+    assert.deepEqual(unionSeen([], [3, 1, 2]), [1, 2, 3])
+    // 已有 seen 与活清单求并：保留历史已见 id，新 id 去重升序
+    assert.deepEqual(unionSeen([1, 2], [2, 3]), [1, 2, 3])
+    // 重复 id 不重复出现
+    assert.deepEqual(unionSeen([1, 1, 2], [2, 2]), [1, 2])
+    // 活清单为空（边界）：原样返回升序结果
+    assert.deepEqual(unionSeen([5, 1], []), [1, 5])
+    // 双空
+    assert.deepEqual(unionSeen([], []), [])
 })
