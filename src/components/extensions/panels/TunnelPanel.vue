@@ -7,7 +7,8 @@
  *   无需任何开关（服务端本就监听全部网卡）
  * - 远程隧道（外网访问）：「连接」一键完成 VPS 幂等预热 + 建立隧道；就绪后远程地址
  *   与局域网 IP 并列出现在上方切换行（像多网卡 IP 一样点选切换），二维码/链接/复制
- *   按钮随视图联动；连接/断开等控制仍集中在下方远程隧道区
+ *   按钮随视图联动；App 连接信息与连接/断开控制仅远程模式渲染，局域网模式
+ *   只保留纯净的扫码体验
  */
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -99,11 +100,9 @@ const remoteHost = computed(() => {
 const shareUrl = computed(() =>
     selectedView.value === 'remote' ? remoteShareUrl.value : lanShareUrl.value)
 
-/** 顶部说明随视图切换：局域网直连 / 远程隧道 */
+/** 顶部说明随视图切换：局域网直连 / 远程隧道（未连接的远程模式也标明远程说明） */
 const headerKey = computed(() =>
-    selectedView.value === 'remote' && remoteShareUrl.value
-        ? 'extensions.tunnel.remoteTitle'
-        : 'extensions.tunnel.lanReady')
+    selectedView.value === 'remote' ? 'extensions.tunnel.remoteTitle' : 'extensions.tunnel.lanReady')
 
 /** App 远程模式要填的裸地址（无 hash）：隧道就绪用远程地址，否则用局域网地址 */
 const appConnectUrl = computed(() => {
@@ -226,24 +225,28 @@ watch(shareUrl, (url) => {
         <p class="text-sm text-base-content/60 mb-4">{{ t(headerKey) }}</p>
 
         <template v-if="state?.lanIps?.length && !tokenMissing">
-            <!-- 地址切换：局域网 IP 与远程隧道并列（隧道就绪后出现远程项，像多网卡 IP 一样点选切换） -->
-            <div v-if="state.lanIps.length > 1 || remoteShareUrl" class="flex flex-wrap justify-center gap-1.5 mb-4">
+            <!-- 地址切换：局域网 IP 与远程隧道并列，行本身即「局域网/远程」模式切换器；
+                 远程 pill 常驻（未连接也可进入远程模式去连接隧道） -->
+            <div class="flex flex-wrap justify-center gap-1.5 mb-4">
                 <button v-for="ip in state.lanIps" :key="ip" class="btn btn-xs"
                     :class="selectedView === 'lan' && ip === activeLanIp ? 'btn-primary' : 'btn-outline'"
                     @click="selectLan(ip)">{{ ip }}</button>
-                <button v-if="remoteShareUrl" class="btn btn-xs"
+                <button class="btn btn-xs"
                     :class="selectedView === 'remote' ? 'btn-primary' : 'btn-outline'"
                     @click="selectedView = 'remote'">{{ remoteHost || t('extensions.tunnel.remotePill') }}</button>
             </div>
 
-            <div class="flex justify-center mb-4">
-                <img :src="qrDataUrl" :alt="t('extensions.tunnel.qrAlt')"
-                    class="w-64 h-64 rounded-2xl border border-base-300 bg-white object-contain p-3" />
-            </div>
-            <p id="tunnel-share-url" class="text-xs text-base-content/60 mb-3 break-all select-all">{{ shareUrl }}</p>
-            <button class="btn btn-outline btn-sm mb-2" @click="copyText(shareUrl, 'tunnel-share-url')">{{ t('extensions.tunnel.copyUrl') }}</button>
-            <p class="text-xs text-base-content/40">{{ t('extensions.tunnel.hint') }}</p>
-            <p v-if="selectedView === 'lan'" class="text-[10px] text-base-content/30 mt-1">{{ t('extensions.tunnel.lanFirewallHint') }}</p>
+            <!-- 未就绪（远程未连接/连接中）无码可展示：二维码、链接与提示整体隐藏 -->
+            <template v-if="shareUrl">
+                <div class="flex justify-center mb-4">
+                    <img :src="qrDataUrl" :alt="t('extensions.tunnel.qrAlt')"
+                        class="w-64 h-64 rounded-2xl border border-base-300 bg-white object-contain p-3" />
+                </div>
+                <p id="tunnel-share-url" class="text-xs text-base-content/60 mb-3 break-all select-all">{{ shareUrl }}</p>
+                <button class="btn btn-outline btn-sm mb-2" @click="copyText(shareUrl, 'tunnel-share-url')">{{ t('extensions.tunnel.copyUrl') }}</button>
+                <p class="text-xs text-base-content/40">{{ t('extensions.tunnel.hint') }}</p>
+                <p v-if="selectedView === 'lan'" class="text-[10px] text-base-content/30 mt-1">{{ t('extensions.tunnel.lanFirewallHint') }}</p>
+            </template>
         </template>
 
         <!-- state 为 null（首帧未返回）时三分支全部不命中：静默等待，不得把「尚未加载」渲染成「未检测到」 -->
@@ -254,9 +257,9 @@ watch(shareUrl, (url) => {
             {{ t('extensions.tunnel.tokenMissing') }}
         </div>
 
-        <!-- App 连接信息（token 缺失时不渲染，避免「令牌：」空值残缺展示）：
+        <!-- App 连接信息仅远程模式展示（令牌缺失/无地址仍不渲染）：
              隧道就绪时展示远程地址（外网可用），否则展示局域网地址 -->
-        <div v-if="appConnectUrl && !tokenMissing" class="mt-4 pt-3 border-t border-base-200 text-left">
+        <div v-if="selectedView === 'remote' && appConnectUrl && !tokenMissing" class="mt-4 pt-3 border-t border-base-200 text-left">
             <p class="text-xs font-medium mb-2 text-base-content/70">{{ t('extensions.tunnel.appConnectTitle') }}</p>
             <div class="text-xs font-mono space-y-1">
                 <p class="break-all">{{ t('extensions.tunnel.urlLabel') }}<span class="select-all text-primary">{{ appConnectUrl }}</span></p>
@@ -265,40 +268,41 @@ watch(shareUrl, (url) => {
             <p class="text-[10px] text-base-content/40 mt-2">{{ t('extensions.tunnel.appConnectHint') }}</p>
         </div>
 
-        <!-- ── 远程隧道（连接/断开控制；地址展示已并入上方切换行）────── -->
-        <div class="divider text-xs text-base-content/40 my-4">{{ t('extensions.tunnel.remoteTitle') }}</div>
+        <!-- ── 远程隧道：状态/连接断开控制仅远程模式渲染；令牌缺失或未检测到
+             局域网网卡时保持可见（彼时无 pill 可切，不能把连接入口藏没了）── -->
+        <template v-if="selectedView === 'remote' || tokenMissing || (state && !state.lanIps?.length)">
+            <p class="text-sm text-base-content/60 mb-4">{{ t(statusKey) }}</p>
 
-        <p class="text-sm text-base-content/60 mb-4">{{ t(statusKey) }}</p>
+            <div v-if="state?.status === 'failed' && state.error" class="alert alert-error text-xs mb-4 break-words">
+                {{ state.error }}
+            </div>
 
-        <div v-if="state?.status === 'failed' && state.error" class="alert alert-error text-xs mb-4 break-words">
-            {{ state.error }}
-        </div>
+            <!-- 公网探测失败警告（安全组未放行或 GatewayPorts 未生效）-->
+            <div v-if="state?.status === 'ready' && state.urlVerified === false"
+                class="alert alert-warning text-xs mb-4 text-left whitespace-pre-line">{{ t('extensions.tunnel.verifyFailed') }}</div>
 
-        <!-- 公网探测失败警告（安全组未放行或 GatewayPorts 未生效）-->
-        <div v-if="state?.status === 'ready' && state.urlVerified === false"
-            class="alert alert-warning text-xs mb-4 text-left whitespace-pre-line">{{ t('extensions.tunnel.verifyFailed') }}</div>
+            <p v-if="state?.status === 'failed' && state.pendingReconnect > 0" class="text-xs text-base-content/40 mt-2">
+                {{ t('extensions.tunnel.reconnecting', { n: state.pendingReconnect }) }}
+            </p>
 
-        <p v-if="state?.status === 'failed' && state.pendingReconnect > 0" class="text-xs text-base-content/40 mt-2">
-            {{ t('extensions.tunnel.reconnecting', { n: state.pendingReconnect }) }}
-        </p>
+            <!-- 连接中动画 -->
+            <div v-if="state?.status === 'connecting' || starting" class="py-4">
+                <span class="loading loading-spinner loading-lg"></span>
+            </div>
 
-        <!-- 连接中动画 -->
-        <div v-if="state?.status === 'connecting' || starting" class="py-4">
-            <span class="loading loading-spinner loading-lg"></span>
-        </div>
+            <div class="modal-action justify-center mt-4">
+                <button v-if="!state || state.status === 'idle' || state.status === 'failed'"
+                    class="btn btn-primary btn-sm" :disabled="starting" @click="start">
+                    <span v-if="starting" class="loading loading-spinner loading-xs"></span>
+                    {{ t('extensions.tunnel.start') }}
+                </button>
+                <button v-else class="btn btn-ghost btn-sm" :disabled="stopping" @click="stop">
+                    <span v-if="stopping" class="loading loading-spinner loading-xs"></span>
+                    {{ t('extensions.tunnel.stop') }}
+                </button>
+            </div>
 
-        <div class="modal-action justify-center mt-4">
-            <button v-if="!state || state.status === 'idle' || state.status === 'failed'"
-                class="btn btn-primary btn-sm" :disabled="starting" @click="start">
-                <span v-if="starting" class="loading loading-spinner loading-xs"></span>
-                {{ t('extensions.tunnel.start') }}
-            </button>
-            <button v-else class="btn btn-ghost btn-sm" :disabled="stopping" @click="stop">
-                <span v-if="stopping" class="loading loading-spinner loading-xs"></span>
-                {{ t('extensions.tunnel.stop') }}
-            </button>
-        </div>
-
-        <p class="text-[10px] text-base-content/30 mt-2">{{ t('extensions.tunnel.startHint') }}</p>
+            <p class="text-[10px] text-base-content/30 mt-2">{{ t('extensions.tunnel.startHint') }}</p>
+        </template>
     </div>
 </template>
