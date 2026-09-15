@@ -163,8 +163,6 @@ export default {
         missing: 'Missing',
         empty: 'Empty',
         dangerZone: 'Danger Zone',
-        allowPeerAccess: 'Allow Peer Access',
-        allowPeerAccessDesc: 'When enabled, other agents can call this agent via the delegation tool',
         defaultThinkingLevel: 'Default Thinking Level',
         compactionSettings: 'Compaction Settings',
         compactionSettingsDesc: 'Automatically compact historical memory to release token quota',

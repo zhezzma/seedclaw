@@ -163,8 +163,6 @@ export default {
         missing: '缺失',
         empty: '空',
         dangerZone: '危险区域',
-        allowPeerAccess: '允许其他智能体调用',
-        allowPeerAccessDesc: '开启后，其他智能体可以通过委托(delegation)工具调用此智能体',
         defaultThinkingLevel: '默认思考程度 (Thinking)',
         compactionSettings: '上下文压缩配置 (Compaction)',
         compactionSettingsDesc: '在达到上下文限制时自动压缩历史记忆，释放 Token 额度。',

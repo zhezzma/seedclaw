@@ -2,8 +2,8 @@
 /**
  * 子代理轨迹抽屉：实时查看 + 刷新恢复重放。
  *
- * 数据流：GET /api/extensions/delegation/sessions/:parentSessionId/subagents/:subId?offset=N
- * 增量拉取落盘 jsonl（delegation 扩展写入），entries 只增不删，offset 累计即可。
+ * 数据流：GET /api/extensions/subagents/sessions/:parentSessionId/subagents/:subId?offset=N
+ * 增量拉取落盘 jsonl（subagents 扩展写入），entries 只增不删，offset 累计即可。
  *
  * 渲染：与主会话共用同一套组件与转换器——entries → DisplayMessage[]（复用
  * useChatMessages 的 createContentConverter + toolResult 合并规则），再交给
@@ -90,7 +90,7 @@ async function poll() {
     const epoch = pollEpoch
     try {
         const res = await apiGet<any>(
-            `/api/extensions/delegation/sessions/${t.parentSessionId}/subagents/${subId}?offset=${traceOffset}`,
+            `/api/extensions/subagents/sessions/${t.parentSessionId}/subagents/${subId}?offset=${traceOffset}`,
             true // 轮询静默：失败由内联 loadError 呈现，不弹全局 toast（持续出错时避免刷屏）
         )
         // 代际已过（切 tab / 重开 / 关闭 / 卸载）：丢弃响应且不再续链，新链由 reload 发起
