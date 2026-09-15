@@ -748,7 +748,7 @@ export default {
             lanFirewallHint: '手机打不开时：检查 Windows 防火墙是否放行了本应用/端口',
             tokenMissing: '服务端未配置访问令牌，无法生成分享链接',
             remoteTitle: '远程隧道（外网访问）',
-            remoteAddressLabel: '远程地址：',
+            remotePill: '远程隧道',
             verifyFailed: '⚠ 公网探测失败：手机现在访问不了这个地址。\n检查两件事：① 云厂商控制台安全组是否放行了公网端口（默认 18799）；② VPS 是否已用面板「初始化并连接」完成配置（GatewayPorts）。',
         },
     },

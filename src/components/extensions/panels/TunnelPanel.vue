@@ -5,8 +5,9 @@
  *
  * - 局域网直连（始终可用）：常驻展示本机真实局域网地址二维码，手机与 PC 同网络即达，
  *   无需任何开关（服务端本就监听全部网卡）
- * - 远程隧道（外网访问）：「连接」一键完成 VPS 幂等预热 + 建立隧道；就绪后同时展示
- *   远程地址，并提供「断开」按钮（管理凭据来自扩展设置，VPS 侧配置在连接时自动确保）
+ * - 远程隧道（外网访问）：「连接」一键完成 VPS 幂等预热 + 建立隧道；就绪后远程地址
+ *   与局域网 IP 并列出现在上方切换行（像多网卡 IP 一样点选切换），二维码/链接/复制
+ *   按钮随视图联动；连接/断开等控制仍集中在下方远程隧道区
  */
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -40,6 +41,8 @@ const starting = ref(false)
 const stopping = ref(false)
 /** 多真实网卡时选中的局域网 IP */
 const selectedLanIp = ref('')
+/** 展示视图：局域网直连 / 远程隧道（远程项隧道就绪后才可选中） */
+const selectedView = ref<'lan' | 'remote'>('lan')
 
 const qrDataUrl = ref('')
 
@@ -81,6 +84,27 @@ const remoteShareUrl = computed(() => {
     return `${url}/#token=${encodeURIComponent(token)}`
 })
 
+/** 远程主机（切换 pill 标签，与局域网 IP 并列展示） */
+const remoteHost = computed(() => {
+    const url = state.value?.url
+    if (!url) return ''
+    try {
+        return new URL(url).hostname
+    } catch {
+        return ''
+    }
+})
+
+/** 当前视图的分享链接（二维码渲染目标）：远程视图用隧道地址，局域网视图用局域网地址 */
+const shareUrl = computed(() =>
+    selectedView.value === 'remote' ? remoteShareUrl.value : lanShareUrl.value)
+
+/** 顶部说明随视图切换：局域网直连 / 远程隧道 */
+const headerKey = computed(() =>
+    selectedView.value === 'remote' && remoteShareUrl.value
+        ? 'extensions.tunnel.remoteTitle'
+        : 'extensions.tunnel.lanReady')
+
 /** App 远程模式要填的裸地址（无 hash）：隧道就绪用远程地址，否则用局域网地址 */
 const appConnectUrl = computed(() => {
     if (state.value?.status === 'ready' && state.value.url) return state.value.url
@@ -89,6 +113,12 @@ const appConnectUrl = computed(() => {
 })
 
 const tokenMissing = computed(() => !settings.token?.trim())
+
+/** 选中局域网 IP：同时切回局域网视图（视图与 IP 双状态） */
+function selectLan(ip: string) {
+    selectedView.value = 'lan'
+    selectedLanIp.value = ip
+}
 
 async function refreshState(silent = true) {
     const rev = stateRev
@@ -171,12 +201,17 @@ onUnmounted(() => {
 
 async function renderQr(text: string) {
     const dataUrl = await QRCode.toDataURL(text, { margin: 1, width: 320 })
-    // 时序守护：await 期间局域网地址可能又变了（快速切 IP/状态翻转），旧二维码不得写入
-    if (lanShareUrl.value === text) qrDataUrl.value = dataUrl
+    // 时序守护：await 期间分享地址可能又变了（切换视图/快速切 IP/状态翻转），旧二维码不得写入
+    if (shareUrl.value === text) qrDataUrl.value = dataUrl
 }
 
-// 局域网地址变化（IP 切换 / token 就绪 / 网卡变化）时重渲染二维码
-watch(lanShareUrl, (url) => {
+// 隧道断开/未就绪时不得停留在远程视图：回落局域网，避免空二维码
+watch(remoteShareUrl, (url) => {
+    if (!url) selectedView.value = 'lan'
+})
+
+// 分享地址变化（视图切换 / IP 切换 / token 就绪 / 网卡变化）时重渲染二维码
+watch(shareUrl, (url) => {
     if (url) {
         renderQr(url).catch((e) => console.error('[tunnel] qr render failed', e))
     } else {
@@ -188,24 +223,27 @@ watch(lanShareUrl, (url) => {
 <template>
     <div class="text-center">
         <!-- ── 局域网直连（始终可用，无需开关）────────────── -->
-        <p class="text-sm text-base-content/60 mb-4">{{ t('extensions.tunnel.lanReady') }}</p>
+        <p class="text-sm text-base-content/60 mb-4">{{ t(headerKey) }}</p>
 
         <template v-if="state?.lanIps?.length && !tokenMissing">
-            <!-- 多真实网卡：IP 切换（通常识别后只有一个） -->
-            <div v-if="state.lanIps.length > 1" class="flex flex-wrap justify-center gap-1.5 mb-4">
+            <!-- 地址切换：局域网 IP 与远程隧道并列（隧道就绪后出现远程项，像多网卡 IP 一样点选切换） -->
+            <div v-if="state.lanIps.length > 1 || remoteShareUrl" class="flex flex-wrap justify-center gap-1.5 mb-4">
                 <button v-for="ip in state.lanIps" :key="ip" class="btn btn-xs"
-                    :class="ip === activeLanIp ? 'btn-primary' : 'btn-outline'"
-                    @click="selectedLanIp = ip">{{ ip }}</button>
+                    :class="selectedView === 'lan' && ip === activeLanIp ? 'btn-primary' : 'btn-outline'"
+                    @click="selectLan(ip)">{{ ip }}</button>
+                <button v-if="remoteShareUrl" class="btn btn-xs"
+                    :class="selectedView === 'remote' ? 'btn-primary' : 'btn-outline'"
+                    @click="selectedView = 'remote'">{{ remoteHost || t('extensions.tunnel.remotePill') }}</button>
             </div>
 
             <div class="flex justify-center mb-4">
                 <img :src="qrDataUrl" :alt="t('extensions.tunnel.qrAlt')"
                     class="w-64 h-64 rounded-2xl border border-base-300 bg-white object-contain p-3" />
             </div>
-            <p id="tunnel-share-url" class="text-xs text-base-content/60 mb-3 break-all select-all">{{ lanShareUrl }}</p>
-            <button class="btn btn-outline btn-sm mb-2" @click="copyText(lanShareUrl, 'tunnel-share-url')">{{ t('extensions.tunnel.copyUrl') }}</button>
+            <p id="tunnel-share-url" class="text-xs text-base-content/60 mb-3 break-all select-all">{{ shareUrl }}</p>
+            <button class="btn btn-outline btn-sm mb-2" @click="copyText(shareUrl, 'tunnel-share-url')">{{ t('extensions.tunnel.copyUrl') }}</button>
             <p class="text-xs text-base-content/40">{{ t('extensions.tunnel.hint') }}</p>
-            <p class="text-[10px] text-base-content/30 mt-1">{{ t('extensions.tunnel.lanFirewallHint') }}</p>
+            <p v-if="selectedView === 'lan'" class="text-[10px] text-base-content/30 mt-1">{{ t('extensions.tunnel.lanFirewallHint') }}</p>
         </template>
 
         <!-- state 为 null（首帧未返回）时三分支全部不命中：静默等待，不得把「尚未加载」渲染成「未检测到」 -->
@@ -227,7 +265,7 @@ watch(lanShareUrl, (url) => {
             <p class="text-[10px] text-base-content/40 mt-2">{{ t('extensions.tunnel.appConnectHint') }}</p>
         </div>
 
-        <!-- ── 远程隧道（仅此处有连接/断开开关）──────────── -->
+        <!-- ── 远程隧道（连接/断开控制；地址展示已并入上方切换行）────── -->
         <div class="divider text-xs text-base-content/40 my-4">{{ t('extensions.tunnel.remoteTitle') }}</div>
 
         <p class="text-sm text-base-content/60 mb-4">{{ t(statusKey) }}</p>
@@ -239,14 +277,6 @@ watch(lanShareUrl, (url) => {
         <!-- 公网探测失败警告（安全组未放行或 GatewayPorts 未生效）-->
         <div v-if="state?.status === 'ready' && state.urlVerified === false"
             class="alert alert-warning text-xs mb-4 text-left whitespace-pre-line">{{ t('extensions.tunnel.verifyFailed') }}</div>
-
-        <!-- 远程地址（隧道就绪后外网可用，与上方局域网地址同时展示） -->
-        <template v-if="remoteShareUrl">
-            <p id="tunnel-remote-url" class="text-xs text-base-content/60 mb-3 break-all select-all">
-                {{ t('extensions.tunnel.remoteAddressLabel') }}{{ remoteShareUrl }}
-            </p>
-            <button class="btn btn-outline btn-sm mb-2" @click="copyText(remoteShareUrl, 'tunnel-remote-url')">{{ t('extensions.tunnel.copyUrl') }}</button>
-        </template>
 
         <p v-if="state?.status === 'failed' && state.pendingReconnect > 0" class="text-xs text-base-content/40 mt-2">
             {{ t('extensions.tunnel.reconnecting', { n: state.pendingReconnect }) }}

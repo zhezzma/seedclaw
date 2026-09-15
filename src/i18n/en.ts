@@ -747,7 +747,7 @@ export default {
             lanFirewallHint: 'If the phone cannot connect: check Windows Firewall allows this app/port',
             tokenMissing: 'Server access token is not configured; cannot build the share link',
             remoteTitle: 'Remote tunnel (internet access)',
-            remoteAddressLabel: 'Remote URL: ',
+            remotePill: 'Remote',
             verifyFailed: '⚠ Public reachability check failed: phones cannot access this address yet.\nCheck: ① the cloud security group allows the public port (default 18799); ② the VPS was configured via the panel "Initialize & connect" (GatewayPorts).',
         },
     },
