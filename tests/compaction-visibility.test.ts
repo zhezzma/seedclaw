@@ -56,6 +56,7 @@ export function startChatSSE(sessionId, body, onEvent, onError) { return makeCon
 export function attachSessionSSE(sessionId, onEvent, onError, options) { return makeConn('attach', sessionId, onEvent, onError); }
 export function startRetrySSE(sessionId, body, onEvent, onError) { return makeConn('chat', sessionId, onEvent, onError); }
 export function startEditSSE(sessionId, body, onEvent, onError) { return makeConn('chat', sessionId, onEvent, onError); }
+export function startCompactSSE(sessionId, body, onEvent, onError) { return makeConn('compact', sessionId, onEvent, onError); }
 `,
 }
 
@@ -255,6 +256,30 @@ console.log('ATTACH isCompacting=' + chat.isCompacting() + ' pseudoVisible=' + m
 attachEmit('compaction_end', { type: 'compaction_end', reason: 'manual' })
 console.log('ATTACH_END isCompacting=' + chat.isCompacting())
 
+// ===== 场景 3.5：手动 /compact（专用 SSE 端点：流式生命周期 + 完成反馈）=====
+await chat.compactSession()
+{
+    console.log('MANUAL_START busy=' + chat.chatSending + ' isCompacting=' + chat.isCompacting() + ' target=' + (sse.handlers.compact ? sse.handlers.compact.sessionId : 'missing'))
+}
+const compactEmit = (event: string, data: any) => sse.handlers.compact.onEvent({ event, data })
+compactEmit('compaction_start', { type: 'compaction_start', reason: 'manual' })
+console.log('MANUAL_WINDOW isCompacting=' + chat.isCompacting() + ' pseudoVisible=' + msgs.processedMessages.value.some((m: any) => m.id === 'context-compacting'))
+compactEmit('compaction_end', { type: 'compaction_end', reason: 'manual', result: { summary: 's', tokensBefore: 46366, estimatedTokensAfter: 457 } })
+compactEmit('done', { message: 'Complete', result: { summary: 's', tokensBefore: 46366, estimatedTokensAfter: 457 } })
+sse.dones.compact()
+await new Promise((r) => setTimeout(r, 50))
+console.log('MANUAL_DONE isCompacting=' + chat.isCompacting() + ' chatSending=' + chat.chatSending)
+
+// 手动 /compact 失败路径（小会话）：compaction_end 带 errorMessage + error 事件后干净收敛
+await chat.compactSession()
+compactEmit('compaction_start', { type: 'compaction_start', reason: 'manual' })
+compactEmit('compaction_end', { type: 'compaction_end', reason: 'manual', aborted: false, willRetry: false, errorMessage: 'Compaction failed: Nothing to compact (session too small)' })
+compactEmit('error', { error: 'Nothing to compact (session too small)' })
+compactEmit('done', { message: 'Error' })
+sse.dones.compact()
+await new Promise((r) => setTimeout(r, 50))
+console.log('MANUAL_FAIL isCompacting=' + chat.isCompacting() + ' chatSending=' + chat.chatSending + ' pseudoVisible=' + msgs.processedMessages.value.some((m: any) => m.id === 'context-compacting'))
+
 // ===== 场景 4：冷加载历史（loadChatHistory 路径）=====
 await chat.setSessionKey('S2')
 {
@@ -349,6 +374,13 @@ test('compaction UX: 瞬态压缩行 + abort/display:false 中性渲染全生命
     // attach 路径
     assert.match(need('ATTACH'), /isCompacting=true pseudoVisible=true/)
     assert.equal(need('ATTACH_END'), 'ATTACH_END isCompacting=false')
+    // 手动 /compact：专用端点流式生命周期 + done 收尾
+    const ms = need('MANUAL_START')
+    assert.match(ms, /busy=true/, `manual compact enters busy state: ${ms}`)
+    assert.match(ms, /target=S1/, `compact SSE targets current session: ${ms}`)
+    assert.equal(need('MANUAL_WINDOW'), 'MANUAL_WINDOW isCompacting=true pseudoVisible=true')
+    assert.equal(need('MANUAL_DONE'), 'MANUAL_DONE isCompacting=false chatSending=false')
+    assert.equal(need('MANUAL_FAIL'), 'MANUAL_FAIL isCompacting=false chatSending=false pseudoVisible=false')
     // 冷加载历史：空 abort 零痕迹、正常消息保留
     const cold = need('COLD')
     assert.match(cold, /emptyAbortVisible=false/, `cold-load empty abort invisible: ${cold}`)

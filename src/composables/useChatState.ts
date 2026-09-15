@@ -2,7 +2,7 @@ import { reactive, computed, type ComputedRef } from 'vue'
 
 import { SessionRow, useSessionsState } from './useSessionsState'
 import { apiGet, apiPost, apiDelete } from './api-client'
-import { startChatSSE, attachSessionSSE, startRetrySSE, startEditSSE, type ChatPromptBody, type SSEConnection } from './sse-client'
+import { startChatSSE, attachSessionSSE, startRetrySSE, startEditSSE, startCompactSSE, type ChatPromptBody, type SSEConnection } from './sse-client'
 import { AgentInfo, useAgentsState } from './useAgentsState'
 import { applyAttachMessageState, getLastMessageEntryId, shouldAttachSession } from '../utils/chat-attach'
 import { findToolBlockInMessages } from '../utils/tool-event-target'
@@ -12,6 +12,7 @@ import { useToast } from './useToast'
 import { clearAllSurfaces } from './useA2UISurfaces'
 import { createRuntimeId } from '../utils/runtime-id.ts'
 import { onServerMessage } from './notify-server-connection'
+import { i18n } from '../i18n'
 import {
     applyQueueSnapshot,
     consumeQueueHead,
@@ -809,6 +810,57 @@ const selectAgent = (agentId: string) => {
     state.agentsSelectedId = agentId
 }
 
+/**
+ * 手动压缩会话上下文：走专用 SSE 端点（streamCompact 先订阅会话事件再压缩，
+ * compaction_start/end 流式下发驱动瞬态压缩行）。
+ * 不能走普通 /chat 命令路径：服务端在压缩完成后才开流，压缩全程（实测 26~90s）
+ * 零反馈。busy 时服务端 compaction guard 拒绝，调用方（HomeView）负责拦截。
+ * 完成后 done 携带 CompactionResult，token 前后对比作为唯一完成反馈（压缩本身零痕迹）。
+ */
+const compactSession = async (customInstructions?: string, sessionKey?: string) => {
+    const targetKey = sessionKey || state.sessionKey
+    if (!targetKey) {
+        console.error('[useChatState] compactSession called without sessionKey')
+        return
+    }
+    const sessionData = getSessionData(targetKey)
+
+    sessionData.chatSending = true
+    sessionData.chatRunId = sessionData.chatRunId || generateUUID()
+    sessionData.chatStream = []
+
+    // Abort any existing SSE for this session
+    const existingSSE = sseConnections.get(targetKey)
+    if (existingSSE) {
+        existingSSE.abort()
+    }
+
+    const sse = startCompactSSE(
+        targetKey,
+        customInstructions ? { customInstructions } : {},
+        (event) => {
+            if (event.event === 'done' && event.data?.result) {
+                const r = event.data.result
+                const fmt = (n: unknown) => (typeof n === 'number' && n > 999 ? `${(n / 1000).toFixed(1)}K` : String(n ?? '?'))
+                if (typeof r.tokensBefore === 'number' && typeof r.estimatedTokensAfter === 'number') {
+                    useToast().success(
+                        (i18n.global as any).t('chat.compactDone', { before: fmt(r.tokensBefore), after: fmt(r.estimatedTokensAfter) }),
+                        5000,
+                    )
+                }
+            }
+            handleSSEEvent(event.event, event.data, targetKey)
+        },
+        (error) => {
+            // 压缩失败（如 Nothing to compact）显式反馈：命令无气泡载体，静默会让用户以为已压缩
+            resetStreamState(sessionData)
+            useToast().error(error.message, 5000)
+        },
+    )
+
+    bindSSELifecycle(sse, targetKey)
+}
+
 const steerMessage = async (message: string, sessionKey?: string): Promise<boolean> => {
     const targetKey = sessionKey || state.sessionKey
     if (!targetKey) {
@@ -1373,7 +1425,7 @@ const _methods = {
     chatSending, chatRunId, chatStreamStartedAt, chatLoading, sessionUsage, currentAgent,
     compacting,
     pendingQueue, removePendingItem,
-    sendMessage, steerMessage, followMessage, abortChat, loadChatHistory,
+    sendMessage, steerMessage, followMessage, abortChat, loadChatHistory, compactSession,
     setSessionModel, setSessionThinkingLevel, patchSessionRowEverywhere,
     setSessionKey, createNewSession, selectAgent, getSessionData,
     deleteMessage, retryMessage, editMessage, fetchSessionTree, fetchSessionUsage, navigateBranch, forkFromEntry,

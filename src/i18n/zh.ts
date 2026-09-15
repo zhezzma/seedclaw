@@ -617,6 +617,7 @@ export default {
         treeJumpFailed: '切换分支失败，请重试',
         a2ui_loading: '正在加载应用界面...',
         contextCompacting: '正在压缩上下文，完成后自动继续当前任务…',
+        compactDone: '上下文已压缩：{before} → {after} tokens',
         a2uiAction: '交互事件',
         a2uiActionQuestion: '提交了问题',
         a2uiActionQuestionnaire: '提交了问卷',

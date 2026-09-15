@@ -327,6 +327,28 @@ const handleSend = async () => {
         return
     }
 
+    // /compact：路由到专用压缩 SSE 端点（streamCompact 先订阅再压缩，
+    // compaction_start/end 流式下发驱动瞬态压缩行；普通 /chat 命令路径
+    // 在服务端压缩完成后才开流，压缩全程 26~90s 零反馈）。
+    // busy 时服务端 compaction guard 拒绝运行中压缩，与其它命令一致提示；
+    // 新会话页（无 sessionKey）不拦截，走常规流程由服务端给出结果。
+    const compactMatch = inputText.match(/^\/compact(?:\s+([\s\S]+))?$/i)
+    if (compactMatch && !hasAttachments && chatState.sessionKey && !isNewSession(route)) {
+        if (isBusy.value) {
+            useToast().warning(t('home.commandNotAvailableWhileBusy'))
+            if (chatInputRef.value) {
+                chatInputRef.value.inputText = inputText
+            }
+            return
+        }
+        if (chatInputRef.value) {
+            chatInputRef.value.inputText = ''
+        }
+        await chatState.compactSession(compactMatch[1]?.trim() || undefined)
+        scrollToBottom(true)
+        return
+    }
+
     // 命令表命令名（builtin+extension+prompt）：null 表示未加载，isCommandInvocation 会保守回退为 startsWith 判断
     const knownCommandNames = isLoaded.value ? allCommands.value.map(cmd => cmd.name) : null
 
