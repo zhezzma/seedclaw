@@ -52,17 +52,17 @@ test('二维码与链接随视图切换：未就绪不渲染空二维码', () =>
         /watch\(remoteShareUrl, \(url\) => \{\s*if \(!url\) selectedView\.value = 'lan'\s*\}\)/)
 })
 
-test('App 区与远程隧道区仅远程模式渲染；模式互斥后分隔线删除', () => {
-    // App 连接信息：仅远程视图展示（令牌缺失/无地址仍不渲染）
-    assert.match(panel, /v-if="selectedView === 'remote' && appConnectUrl && !tokenMissing"/)
+test('App 区随视图渲染对应地址；远程隧道区仅远程模式渲染、分组不回退', () => {
+    // App 连接信息：两种视图都渲染（随视图给地址，文案共用），令牌缺失/无地址不渲染
+    assert.match(panel, /v-if="appConnectUrl && !tokenMissing"/)
+    assert.doesNotMatch(panel, /v-if="selectedView === 'remote' && appConnectUrl/)
 
-    // appConnectUrl 仅来自就绪隧道，不得回落局域网地址——
-    // 远程未连接时 App 区整体隐藏，彼时展示局域网地址是误导（App 远程模式该填外网地址）
-    const appUrlBlock = panel.match(/const appConnectUrl = computed\([\s\S]*?\n\}\)/)?.[0] ?? ''
+    // appConnectUrl 视图感知：局域网分支给局域网地址；远程分支仅就绪后有远程地址，
+    // 不得回落局域网地址（远程未连接展示局域网地址是误导）
+    const appUrlBlock = panel.match(/const appConnectUrl = computed\(\(\) => \{[\s\S]*?\n\}\)/)?.[0] ?? ''
     assert.ok(appUrlBlock, 'appConnectUrl computed should exist')
-    assert.match(appUrlBlock, /status === 'ready'/)
-    assert.doesNotMatch(appUrlBlock, /activeLanIp/)
-    assert.doesNotMatch(appUrlBlock, /lanIps/) // 防止绕开 activeLanIp 直接用 lanIps[0] 重建兜底
+    assert.match(appUrlBlock,
+        /if \(selectedView\.value === 'lan'\) \{\s*\n\s*const ip = activeLanIp\.value\s*\n\s*return ip && state\.value\?\.serverPort \? `http:\/\/\$\{ip\}:\$\{state\.value\.serverPort\}` : ''\s*\n\s*\}\s*\n\s*return state\.value\?\.status === 'ready' && state\.value\.url \? state\.value\.url : ''/)
 
     // 远程隧道状态/连接断开控制：仅远程视图渲染；
     // 令牌缺失或未检测到局域网网卡时保持可见（彼时无 pill 可切，不能把连接入口藏没了）
@@ -91,10 +91,11 @@ test('底部不再单独展示远程地址（并入上方切换行），i18n 同
     assert.doesNotMatch(en, /remoteAddressLabel/)
 })
 
-test('远程就绪视图去冗余：链接全文仅局域网渲染，状态行就绪时隐藏', () => {
-    // 含 token 的完整链接（break-all 长串）仅局域网视图渲染：远程视图的等价信息
-    // 已由二维码 + 复制链接 + App 区（裸地址/令牌）覆盖，长串纯属视觉噪音
-    assert.match(panel, /<p v-if="selectedView === 'lan'" id="tunnel-share-url"/)
+test('远程就绪视图去冗余：两视图链接全文一致，状态行就绪时隐藏', () => {
+    // 二维码下的链接全文两视图都渲染（局域网/远程保持一致）；
+    // 远程视图不再隐藏（曾因「含 token 长串显噪」单独删过，按用户要求补回保持一致）
+    assert.match(panel, /<p id="tunnel-share-url"/)
+    assert.doesNotMatch(panel, /<p[^>]*v-if="selectedView === 'lan'"[^>]*id="tunnel-share-url"/)
 
     // 状态行：远程视图就绪时隐藏（说明/二维码/App 区已自证就绪），
     // 连接中/断开中等过渡态（starting/stopping）始终显示

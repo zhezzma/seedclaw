@@ -111,12 +111,16 @@ const showStatus = computed(() => {
         || !(selectedView.value === 'remote' && state.value?.status === 'ready')
 })
 
-/** App 远程模式要填的裸地址（无 hash）：仅隧道就绪后有远程地址；
- *  未连接时为空（App 区随之为隐）——不得回落局域网地址，
- *  远程模式下展示局域网地址是误导（App 远程模式该填的是外网地址） */
+/** App 连接要填的裸地址（无 hash），随当前视图：
+ *  局域网视图给局域网地址（App 两种模式都要填，文案两视图共用）；
+ *  远程视图仅隧道就绪后有远程地址，未连接为空（App 区随之为隐）——
+ *  不得回落局域网地址，远程模式下展示局域网地址是误导 */
 const appConnectUrl = computed(() => {
-    if (state.value?.status === 'ready' && state.value.url) return state.value.url
-    return ''
+    if (selectedView.value === 'lan') {
+        const ip = activeLanIp.value
+        return ip && state.value?.serverPort ? `http://${ip}:${state.value.serverPort}` : ''
+    }
+    return state.value?.status === 'ready' && state.value.url ? state.value.url : ''
 })
 
 const tokenMissing = computed(() => !settings.token?.trim())
@@ -250,9 +254,7 @@ watch(shareUrl, (url) => {
                     <img :src="qrDataUrl" :alt="t('extensions.tunnel.qrAlt')"
                         class="w-64 h-64 rounded-2xl border border-base-300 bg-white object-contain p-3" />
                 </div>
-                <!-- 分享链接全文仅局域网视图渲染：远程视图里这是含 token 的 break-all 长串，
-                     等价信息已由二维码 + 复制链接 + 下方 App 区覆盖，纯属视觉噪音 -->
-                <p v-if="selectedView === 'lan'" id="tunnel-share-url" class="text-xs text-base-content/60 mb-3 break-all select-all">{{ shareUrl }}</p>
+                <p id="tunnel-share-url" class="text-xs text-base-content/60 mb-3 break-all select-all">{{ shareUrl }}</p>
                 <button class="btn btn-outline btn-sm mb-2" @click="copyText(shareUrl, 'tunnel-share-url')">{{ t('extensions.tunnel.copyUrl') }}</button>
                 <p class="text-xs text-base-content/40">{{ t('extensions.tunnel.hint') }}</p>
                 <p v-if="selectedView === 'lan'" class="text-[10px] text-base-content/30 mt-1">{{ t('extensions.tunnel.lanFirewallHint') }}</p>
@@ -267,9 +269,10 @@ watch(shareUrl, (url) => {
             {{ t('extensions.tunnel.tokenMissing') }}
         </div>
 
-        <!-- App 连接信息仅远程模式 + 隧道就绪时展示（令牌缺失/未连接仍不渲染）：
-             未连接时想填 App 应先点「连接」，此处不得出现局域网地址 -->
-        <div v-if="selectedView === 'remote' && appConnectUrl && !tokenMissing" class="mt-4 rounded-xl bg-base-200/40 p-3 text-left">
+        <!-- App 连接信息随视图展示对应地址（令牌缺失/无地址不渲染）：局域网视图给局域网地址，
+             远程视图仅隧道就绪后给远程地址（未连接想填 App 先点「连接」，不得回落局域网地址）；
+             标题/引导文案两视图共用，不作区分 -->
+        <div v-if="appConnectUrl && !tokenMissing" class="mt-4 rounded-xl bg-base-200/40 p-3 text-left">
             <p class="text-xs font-medium mb-2 text-base-content/70">{{ t('extensions.tunnel.appConnectTitle') }}</p>
             <div class="text-xs font-mono space-y-1">
                 <p class="break-all">{{ t('extensions.tunnel.urlLabel') }}<span class="select-all text-primary">{{ appConnectUrl }}</span></p>
