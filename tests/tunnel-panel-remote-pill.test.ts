@@ -56,6 +56,14 @@ test('App 区与远程隧道区仅远程模式渲染；模式互斥后分隔线�
     // App 连接信息：仅远程视图展示（令牌缺失/无地址仍不渲染）
     assert.match(panel, /v-if="selectedView === 'remote' && appConnectUrl && !tokenMissing"/)
 
+    // appConnectUrl 仅来自就绪隧道，不得回落局域网地址——
+    // 远程未连接时 App 区整体隐藏，彼时展示局域网地址是误导（App 远程模式该填外网地址）
+    const appUrlBlock = panel.match(/const appConnectUrl = computed\([\s\S]*?\n\}\)/)?.[0] ?? ''
+    assert.ok(appUrlBlock, 'appConnectUrl computed should exist')
+    assert.match(appUrlBlock, /status === 'ready'/)
+    assert.doesNotMatch(appUrlBlock, /activeLanIp/)
+    assert.doesNotMatch(appUrlBlock, /lanIps/) // 防止绕开 activeLanIp 直接用 lanIps[0] 重建兜底
+
     // 远程隧道状态/连接断开控制：仅远程视图渲染；
     // 令牌缺失或未检测到局域网网卡时保持可见（彼时无 pill 可切，不能把连接入口藏没了）
     assert.match(panel,

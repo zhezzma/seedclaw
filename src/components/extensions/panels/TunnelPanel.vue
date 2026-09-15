@@ -104,11 +104,12 @@ const shareUrl = computed(() =>
 const headerKey = computed(() =>
     selectedView.value === 'remote' ? 'extensions.tunnel.remoteTitle' : 'extensions.tunnel.lanReady')
 
-/** App 远程模式要填的裸地址（无 hash）：隧道就绪用远程地址，否则用局域网地址 */
+/** App 远程模式要填的裸地址（无 hash）：仅隧道就绪后有远程地址；
+ *  未连接时为空（App 区随之为隐）——不得回落局域网地址，
+ *  远程模式下展示局域网地址是误导（App 远程模式该填的是外网地址） */
 const appConnectUrl = computed(() => {
     if (state.value?.status === 'ready' && state.value.url) return state.value.url
-    const ip = activeLanIp.value
-    return ip && state.value?.serverPort ? `http://${ip}:${state.value.serverPort}` : ''
+    return ''
 })
 
 const tokenMissing = computed(() => !settings.token?.trim())
@@ -257,8 +258,8 @@ watch(shareUrl, (url) => {
             {{ t('extensions.tunnel.tokenMissing') }}
         </div>
 
-        <!-- App 连接信息仅远程模式展示（令牌缺失/无地址仍不渲染）：
-             隧道就绪时展示远程地址（外网可用），否则展示局域网地址 -->
+        <!-- App 连接信息仅远程模式 + 隧道就绪时展示（令牌缺失/未连接仍不渲染）：
+             未连接时想填 App 应先点「连接」，此处不得出现局域网地址 -->
         <div v-if="selectedView === 'remote' && appConnectUrl && !tokenMissing" class="mt-4 pt-3 border-t border-base-200 text-left">
             <p class="text-xs font-medium mb-2 text-base-content/70">{{ t('extensions.tunnel.appConnectTitle') }}</p>
             <div class="text-xs font-mono space-y-1">
