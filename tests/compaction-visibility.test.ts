@@ -137,6 +137,8 @@ const state = { s1HistoryReady: false }
 const { useChatState } = await import('${srcPath('src/composables/useChatState.ts')}')
 const { useChatMessages } = await import('${srcPath('src/composables/useChatMessages.ts')}')
 const { useUiSettingsStore } = await import('${srcPath('src/stores/setting.ts')}')
+const { useToast } = await import('${srcPath('src/composables/useToast.ts')}')
+;(globalThis as any).__toasts = useToast().toasts.value
 ;(useUiSettingsStore() as any).apiBaseUrl = 'http://mock-api'
 // 每条 entry 独立成泡，便于按条目断言渲染规则
 ;(useUiSettingsStore() as any).assistantMsgMerge = false
@@ -271,7 +273,7 @@ compactEmit('compaction_end', { type: 'compaction_end', reason: 'manual', result
 compactEmit('done', { message: 'Complete', result: { summary: 's', tokensBefore: 46366, estimatedTokensAfter: 457 } })
 sse.dones.compact()
 await new Promise((r) => setTimeout(r, 50))
-console.log('MANUAL_DONE isCompacting=' + chat.isCompacting() + ' chatSending=' + chat.chatSending)
+console.log('MANUAL_DONE isCompacting=' + chat.isCompacting() + ' chatSending=' + chat.chatSending + ' successToast=' + ((globalThis as any).__toasts || []).filter((x: any) => x.type === 'success').map((x: any) => x.message).join('|'))
 
 // 手动 /compact 失败路径（小会话）：compaction_end 带 errorMessage + error 事件后干净收敛
 await chat.compactSession()
@@ -281,7 +283,7 @@ compactEmit('error', { error: 'Nothing to compact (session too small)' })
 compactEmit('done', { message: 'Error' })
 sse.dones.compact()
 await new Promise((r) => setTimeout(r, 50))
-console.log('MANUAL_FAIL isCompacting=' + chat.isCompacting() + ' chatSending=' + chat.chatSending + ' pseudoVisible=' + msgs.processedMessages.value.some((m: any) => m.id === 'context-compacting'))
+console.log('MANUAL_FAIL isCompacting=' + chat.isCompacting() + ' chatSending=' + chat.chatSending + ' pseudoVisible=' + msgs.processedMessages.value.some((m: any) => m.id === 'context-compacting') + ' errorToast=' + JSON.stringify(((globalThis as any).__toasts || []).filter((x: any) => x.type === 'error').map((x: any) => x.message)))
 
 // ===== 场景 3.7：阈值自动压缩（reason:"threshold"，run 内自然边界，无 abort 帧）=====
 // 与手动 /compact、SoL-Pi 在线压缩共用同一事件对与同一渲染路径：三种触发源客户端显示一致
@@ -406,8 +408,10 @@ test('compaction UX: 瞬态压缩行 + abort/display:false 中性渲染全生命
     assert.match(ms, /busy=true/, `manual compact enters busy state: ${ms}`)
     assert.match(ms, /target=S1/, `compact SSE targets current session: ${ms}`)
     assert.equal(need('MANUAL_WINDOW'), 'MANUAL_WINDOW isCompacting=true pseudoVisible=true')
-    assert.equal(need('MANUAL_DONE'), 'MANUAL_DONE isCompacting=false chatSending=false')
-    assert.equal(need('MANUAL_FAIL'), 'MANUAL_FAIL isCompacting=false chatSending=false pseudoVisible=false')
+    assert.equal(need('MANUAL_DONE'), 'MANUAL_DONE isCompacting=false chatSending=false successToast=chat.compactDone')
+    const mf = need('MANUAL_FAIL')
+    assert.match(mf, /isCompacting=false chatSending=false pseudoVisible=false/, `failed compact converges: ${mf}`)
+    assert.match(mf, /errorToast=\["chat.compactNothingToDo"\]/, `localized too-small toast: ${mf}`)
     // 阈值自动压缩：与手动/在线压缩同一渲染路径（统一性验收）
     const aw = need('AUTO_WINDOW')
     assert.match(aw, /isCompacting=true/, `auto window active: ${aw}`)

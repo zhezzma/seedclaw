@@ -810,12 +810,21 @@ const selectAgent = (agentId: string) => {
     state.agentsSelectedId = agentId
 }
 
+/** 压缩失败文案本地化：服务端固定英文原文（Nothing to compact / Already compacted），
+ *  中文 UI 里直接 toast 生英文很粗糙；未命中映射的原文返回，保留真实错误信息 */
+const localizeCompactError = (raw: string): string => {
+    if (/nothing to compact/i.test(raw)) return (i18n.global as any).t('chat.compactNothingToDo')
+    if (/already compacted/i.test(raw)) return (i18n.global as any).t('chat.compactAlreadyDone')
+    return raw
+}
+
 /**
  * 手动压缩会话上下文：走专用 SSE 端点（streamCompact 先订阅会话事件再压缩，
  * compaction_start/end 流式下发驱动瞬态压缩行）。
  * 不能走普通 /chat 命令路径：服务端在压缩完成后才开流，压缩全程（实测 26~90s）
  * 零反馈。busy 时服务端 compaction guard 拒绝，调用方（HomeView）负责拦截。
- * 完成后 done 携带 CompactionResult，token 前后对比作为唯一完成反馈（压缩本身零痕迹）。
+ * 完成后 done 携带 CompactionResult，token 前后对比作为唯一完成反馈（压缩本身零痕迹）；
+ * 失败（会话太短/已压缩过）经 error 事件 toast 本地化提示，不再静默。
  */
 const compactSession = async (customInstructions?: string, sessionKey?: string) => {
     const targetKey = sessionKey || state.sessionKey
@@ -849,12 +858,16 @@ const compactSession = async (customInstructions?: string, sessionKey?: string) 
                     )
                 }
             }
+            // 压缩失败：error 事件文案本地化后交给通用错误分支（状态回滚 + toast 都在那里）
+            if (event.event === 'error' && typeof event.data?.error === 'string') {
+                event = { ...event, data: { ...event.data, error: localizeCompactError(event.data.error) } }
+            }
             handleSSEEvent(event.event, event.data, targetKey)
         },
         (error) => {
-            // 压缩失败（如 Nothing to compact）显式反馈：命令无气泡载体，静默会让用户以为已压缩
+            // HTTP 层失败（JSON 错误响应）：本地化后显式反馈，静默会让用户以为已压缩
             resetStreamState(sessionData)
-            useToast().error(error.message, 5000)
+            useToast().error(localizeCompactError(error.message), 5000)
         },
     )
 

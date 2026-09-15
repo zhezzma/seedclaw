@@ -617,6 +617,8 @@ export default {
         a2ui_loading: 'Loading App Interface...',
         contextCompacting: 'Compacting context — the current task will continue automatically…',
         compactDone: 'Context compacted: {before} → {after} tokens',
+        compactNothingToDo: 'Session too short — nothing to compact',
+        compactAlreadyDone: 'This branch is already compacted — nothing new to compact',
         a2uiAction: 'Interactive Event',
         a2uiActionQuestion: 'Submitted Question',
         a2uiActionQuestionnaire: 'Submitted Questionnaire',

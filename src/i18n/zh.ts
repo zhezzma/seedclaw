@@ -618,6 +618,8 @@ export default {
         a2ui_loading: '正在加载应用界面...',
         contextCompacting: '正在压缩上下文，完成后自动继续当前任务…',
         compactDone: '上下文已压缩：{before} → {after} tokens',
+        compactNothingToDo: '会话太短，没有可压缩的内容',
+        compactAlreadyDone: '当前分支已压缩过，没有新内容可压缩',
         a2uiAction: '交互事件',
         a2uiActionQuestion: '提交了问题',
         a2uiActionQuestionnaire: '提交了问卷',
