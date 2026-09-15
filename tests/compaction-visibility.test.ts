@@ -23,7 +23,10 @@
  * 3. display:false 隐藏提醒（流式+历史）不进聊天记录；
  * 4. 半截内容 abort（流式+历史）：内容保留，无 errorMessage/错误块/中断标记；
  * 5. 真错误（非 abort 签名）保持红色错误块；
- * 6. 断连（无 compaction_end）/done 后 compacting 兜底清零；attach 路径同规则。
+ * 6. 断连（无 compaction_end）/done 后 compacting 兜底清零；attach 路径同规则；
+ * 7. 手动 /compact（专用 SSE 端点）、阈值自动压缩（reason:threshold，run 内
+ *    自然边界、无 abort 帧）与 SoL-Pi 在线压缩共用同一事件对与同一渲染路径——
+ *    三种触发源客户端显示完全一致（统一性验收）。
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -280,6 +283,30 @@ sse.dones.compact()
 await new Promise((r) => setTimeout(r, 50))
 console.log('MANUAL_FAIL isCompacting=' + chat.isCompacting() + ' chatSending=' + chat.chatSending + ' pseudoVisible=' + msgs.processedMessages.value.some((m: any) => m.id === 'context-compacting'))
 
+// ===== 场景 3.7：阈值自动压缩（reason:"threshold"，run 内自然边界，无 abort 帧）=====
+// 与手动 /compact、SoL-Pi 在线压缩共用同一事件对与同一渲染路径：三种触发源客户端显示一致
+const autoEmit = (event: string, data: any) => sse.handlers.chat.onEvent({ event, data })
+autoEmit('message_start', { type: 'message_start', message: { role: 'assistant', content: [], timestamp: 20 } })
+autoEmit('text_delta', { type: 'text_delta', delta: 'working' })
+autoEmit('message_end', { type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'working' }], stopReason: 'end_turn', timestamp: 20 } })
+autoEmit('turn_end', { type: 'turn_end' })
+const errsBeforeAuto = msgs.processedMessages.value.flatMap((m: any) => m.blocks.filter((b: any) => b.type === 'error')).length
+autoEmit('compaction_start', { type: 'compaction_start', reason: 'threshold' })
+{
+    const list = msgs.processedMessages.value
+    const last = list[list.length - 1]
+    console.log('AUTO_WINDOW isCompacting=' + chat.isCompacting() + ' lastId=' + last.id + ' lastBlock=' + (last.blocks[0] ? last.blocks[0].type : 'none') + ' newErrorBlocks=' + (list.flatMap((m: any) => m.blocks.filter((b: any) => b.type === 'error')).length - errsBeforeAuto))
+}
+autoEmit('compaction_end', { type: 'compaction_end', reason: 'threshold', result: { summary: 's', tokensBefore: 180000, estimatedTokensAfter: 21000 } })
+{
+    const list = msgs.processedMessages.value
+    console.log('AUTO_END isCompacting=' + chat.isCompacting() + ' pseudoVisible=' + list.some((m: any) => m.id === 'context-compacting'))
+}
+autoEmit('message_start', { type: 'message_start', message: { role: 'assistant', content: [], timestamp: 21 } })
+autoEmit('text_delta', { type: 'text_delta', delta: 'resumed after auto compaction' })
+autoEmit('message_end', { type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'resumed after auto compaction' }], timestamp: 21 } })
+console.log('AUTO_RESUME rendered=' + msgs.processedMessages.value.some((m: any) => m.blocks.some((b: any) => b.text === 'resumed after auto compaction')))
+
 // ===== 场景 4：冷加载历史（loadChatHistory 路径）=====
 await chat.setSessionKey('S2')
 {
@@ -381,6 +408,13 @@ test('compaction UX: 瞬态压缩行 + abort/display:false 中性渲染全生命
     assert.equal(need('MANUAL_WINDOW'), 'MANUAL_WINDOW isCompacting=true pseudoVisible=true')
     assert.equal(need('MANUAL_DONE'), 'MANUAL_DONE isCompacting=false chatSending=false')
     assert.equal(need('MANUAL_FAIL'), 'MANUAL_FAIL isCompacting=false chatSending=false pseudoVisible=false')
+    // 阈值自动压缩：与手动/在线压缩同一渲染路径（统一性验收）
+    const aw = need('AUTO_WINDOW')
+    assert.match(aw, /isCompacting=true/, `auto window active: ${aw}`)
+    assert.match(aw, /lastId=context-compacting lastBlock=compacting/, `auto window tail is transient row: ${aw}`)
+    assert.match(aw, /newErrorBlocks=0/, `auto window adds no error blocks: ${aw}`)
+    assert.match(need('AUTO_END'), /isCompacting=false pseudoVisible=false/)
+    assert.equal(need('AUTO_RESUME'), 'AUTO_RESUME rendered=true')
     // 冷加载历史：空 abort 零痕迹、正常消息保留
     const cold = need('COLD')
     assert.match(cold, /emptyAbortVisible=false/, `cold-load empty abort invisible: ${cold}`)
