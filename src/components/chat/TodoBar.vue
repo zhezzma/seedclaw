@@ -3,7 +3,7 @@
      ✕ 任何状态可用（含中断/未完成），关闭记忆按会话持久化（同结构快照不再弹出）；
      新任务/状态变化（结构指纹变化）后面板自动重现一次，可再次关闭。 -->
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronDownIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import { useTodoState } from '../../composables/useTodoState'
@@ -11,8 +11,32 @@ import { useChatState } from '../../composables/useChatState'
 import type { TodoTask } from '../../utils/todo-snapshot'
 
 const { t } = useI18n()
-const { tasks, counts, inProgress, dismiss, visibleBar, allDone } = useTodoState()
+const { tasks, counts, inProgress, dismiss, visibleBar, allDone, expandRequest } = useTodoState()
 const expanded = ref(false)
+
+// /todos 唤起脉冲：面板「已显示且已展开」时 expanded 置位是纯 no-op，
+// 用一次性背景闪烁兑现在何状态下执行命令都有可见反馈的承诺。
+const flashed = ref(false)
+let flashTimer: ReturnType<typeof setTimeout> | undefined
+
+// /todos 客户端命令的展开请求：restore 重现面板时同时展开分组清单；
+// 配合 todo-flash 脉冲，任何状态下执行命令都有可见反馈。
+watch(expandRequest, () => {
+    expanded.value = true
+    // class 摘除 → 下一拍重加：重放 CSS 动画（连续触发也重新起播）
+    flashed.value = false
+    if (flashTimer !== undefined) clearTimeout(flashTimer)
+    flashTimer = setTimeout(() => {
+        flashed.value = true
+        flashTimer = setTimeout(() => {
+            flashed.value = false
+            flashTimer = undefined
+        }, 1000)
+    }, 0)
+})
+onBeforeUnmount(() => {
+    if (flashTimer !== undefined) clearTimeout(flashTimer)
+})
 
 // 会话切换时收起展开态：组件常驻 ChatDockArea 不随会话卸载，
 // 展开状态延续到新会话的任务列表会造成误导
@@ -38,7 +62,8 @@ const groups = (list: TodoTask[]) => ({
 </script>
 
 <template>
-    <div v-if="visibleBar" class="border-t border-base-300 bg-base-100/40 px-4 py-1 text-xs select-none">
+    <div v-if="visibleBar" class="border-t border-base-300 bg-base-100/40 px-4 py-1 text-xs select-none"
+        :class="{ 'todo-flash': flashed }">
         <div class="mx-auto w-full max-w-3xl">
             <!-- 折叠条：进度 + 正在做的事 + 展开箭头 / 完成态关闭钮 -->
             <div class="flex items-center gap-1.5 py-0.5 ">
@@ -85,3 +110,28 @@ const groups = (list: TodoTask[]) => ({
         </div>
     </div>
 </template>
+
+<style scoped>
+/* /todos 唤起脉冲：主题色背景闪烁一次后回到常态底色（bg-base-100/40）。
+   daisyUI 5 主题色以 --color-primary 等 CSS 变量暴露；
+   prefers-reduced-motion 用户降级为无动画（展开反馈仍在） */
+.todo-flash {
+    animation: todo-flash 1s ease-out;
+}
+
+@keyframes todo-flash {
+    0% {
+        background-color: color-mix(in oklab, var(--color-primary) 16%, transparent);
+    }
+
+    100% {
+        background-color: transparent;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .todo-flash {
+        animation: none;
+    }
+}
+</style>

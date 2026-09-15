@@ -694,6 +694,7 @@ export default {
         greetingEvening: '晚上好呀，有什么想让我帮忙的吗',
         noAgentDesc: '还未设定哟',
         commandNotAvailableWhileBusy: '智能体运行中，无法使用命令',
+        noTodos: '当前会话还没有任务清单，让模型为多步骤工作建立清单吧',
         createSessionFailed: '创建会话失败，请重试',
     },
     extensions: {

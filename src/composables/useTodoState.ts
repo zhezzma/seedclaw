@@ -45,7 +45,11 @@ function savePanelMemory(sessionKey: string, mem: TodoPanelMemory): void {
     }
 }
 
-export function useTodoState() {
+// 模块级单例（与 useChatInput/useCommandState 同模式）：HomeView 的 /todos 客户端命令
+// 与 TodoBar 必须共享同一份 panelMem——若按实例各持一份，restore() 翻转的内存态
+// 落不到 TodoBar 正在渲染的那份上（localStorage 持久化救不了同驻留的两个实例）。
+// snapshot/counts 本就同源于 chatState，单例化后 watch 也只注册一次。
+function buildTodoState() {
     const chatState = useChatState()
 
     // 扫描拼接序列：chatToolMessages 是回合内按时间序追加的新条目，
@@ -81,6 +85,8 @@ export function useTodoState() {
     // （否则切换 flush 中旧会话的记忆会撞上新会话的快照，把记忆覆盖污染）。
     // memOwner 归属兜底：sessionKey watch 因快照 null→null 不变而未触发元组 watch 的
     // 窗口里由它负责重载；两者任意顺序到达，写入前都能保证归属一致。
+    // /todos 命令的展开请求通道：restore() 自增，TodoBar watch 后展开分组清单
+    const expandRequest = ref(0)
     const panelMem = ref<TodoPanelMemory>(loadPanelMemory(chatState.sessionKey))
     const memOwner = ref(chatState.sessionKey)
     watch(() => chatState.sessionKey, (key) => {
@@ -112,5 +118,25 @@ export function useTodoState() {
         savePanelMemory(chatState.sessionKey, panelMem.value)
     }
 
-    return { snapshot, tasks, counts, inProgress, dismiss, visibleBar, allDone }
+    // /todos 客户端命令（HomeView 拦截，不经服务端）：重现已关闭的面板。
+    // 返回 false = 当前会话无活任务（面板无处可显），调用方据此提示而非静默。
+    // 活任务存在时，applySnapshotToMemory 对「无新 id」快照返回原引用，
+    // 不会把 dismissed 改回 true —— 重现后面板稳定可见。
+    function restore(): boolean {
+        if (counts.value.total === 0) return false
+        panelMem.value = { ...panelMem.value, dismissed: false }
+        savePanelMemory(chatState.sessionKey, panelMem.value)
+        // 广播展开请求：面板已在显示时也自增，保证 /todos 永远有可见反馈
+        // （对齐 TUI /todos「展开分组清单」的语义，而非仅撤销关闭）
+        expandRequest.value++
+        return true
+    }
+
+    return { snapshot, tasks, counts, inProgress, dismiss, restore, visibleBar, allDone, expandRequest }
+}
+
+const _todoState = buildTodoState()
+
+export function useTodoState() {
+    return _todoState
 }

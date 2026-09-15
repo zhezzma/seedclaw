@@ -32,6 +32,7 @@ import { writeClipboard } from '../utils/clipboard.ts'
 import { useChatState, splitModelId, type ChatSendOverrides, type ChatAttachment } from '../composables/useChatState'
 import { useChatInput } from '../composables/useChatInput'
 import { useCommandState } from '../composables/useCommandState'
+import { useTodoState } from '../composables/useTodoState'
 import { SessionRow, useSessionsState } from '../composables/useSessionsState'
 import { useAgentsState } from '../composables/useAgentsState'
 import { effectiveGatewayMode } from '../composables/local-server'
@@ -52,6 +53,7 @@ const settingsStore = useUiSettingsStore()
 const chatState = useChatState()
 const { setSessionKeyResolver, restoreSessionDraft } = useChatInput()
 setSessionKeyResolver(() => chatState.sessionKey)
+const todoState = useTodoState()
 const sessionsState = useSessionsState()
 const agentsState = useAgentsState()
 const { loadCommands, setCurrentAgent, allCommands, isLoaded } = useCommandState()
@@ -306,6 +308,22 @@ const handleSend = async () => {
             chatInputRef.value.inputText = ''
         }
         await openSessionTree()
+        return
+    }
+
+    // /todos：客户端命令——重现并展开任务清单面板，不经服务端。
+    // 服务端的 /todos 扩展命令在 rpc 宿主下是静默 no-op（todo.ts 的 tui 守卫），
+    // 纯 UI 操作在 busy 时也放行（恰恰是模型跑着、面板被关后最需要看的时刻）。
+    // 注意：下方正则字面量与 "Case 1: Busy + no text" 注释均为
+    // tests/todo-restore-command.test.ts 的次序锚点，改名/移动须同步测试。
+    const todosCommand = /^\/todos(?:\s|$)/i.test(inputText)
+    if (todosCommand && !hasAttachments) {
+        if (chatInputRef.value) {
+            chatInputRef.value.inputText = ''
+        }
+        if (!todoState.restore()) {
+            useToast().info(t('home.noTodos'))
+        }
         return
     }
 

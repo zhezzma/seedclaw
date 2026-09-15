@@ -693,6 +693,7 @@ export default {
         greetingEvening: 'Good evening. How can I help',
         noAgentDesc: 'Not set yet',
         commandNotAvailableWhileBusy: 'Commands are not available while the agent is busy',
+        noTodos: 'No task list in this session yet. Ask the agent to create one for multi-step work',
         createSessionFailed: 'Failed to create session, please retry',
     },
     extensions: {
