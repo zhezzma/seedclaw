@@ -152,6 +152,21 @@ function abortSessionSSE(targetKey: string) {
     }
 }
 
+// 各 session 最近一次完整历史加载（loadChatHistory 成功拉到 /messages）的时间。
+// attach 对空闲会话立即回 message_state -> done，若历史刚全量加载过（间隔仅一个
+// RTT），done 分支的消息/树重拉与这次加载完全重复，可据此跳过（见
+// attachToSessionIfNeeded 的 skipSettledRefresh）。时间上远于窗口的 done、或 attach
+// 期间见过流活动的真实流 done 不受影响。
+// 用 performance.now()（单调时钟）：Date.now() 会被 NTP 回拨/休眠恢复拉长窗口，
+// 危险方向是「非新鲜被误判为新鲜」，跳过本该追平离开期间变化的刷新。
+const historyLoadedAt = new Map<string, number>()
+const HISTORY_LOAD_FRESH_MS = 1500
+
+function isHistoryLoadFresh(targetKey: string): boolean {
+    const loadedAt = historyLoadedAt.get(targetKey)
+    return loadedAt !== undefined && performance.now() - loadedAt < HISTORY_LOAD_FRESH_MS
+}
+
 function attachToSessionIfNeeded(targetKey: string) {
     if (!shouldAttachSession(sseConnections.has(targetKey))) {
         return
@@ -159,6 +174,8 @@ function attachToSessionIfNeeded(targetKey: string) {
 
     const sessionData = getSessionData(targetKey)
     const afterEntryId = getLastMessageEntryId(sessionData.chatMessages)
+    // 是否见过流中信号：见过则后续 done 是真实流结束，必须全量刷新，不可跳过
+    let attachSawStreaming = false
     const sse = attachSessionSSE(
         targetKey,
         (event) => {
@@ -168,13 +185,26 @@ function attachToSessionIfNeeded(targetKey: string) {
                 // attach 快照携带服务端权威排队队列：刷新/切会话后与消息同帧恢复
 
                 if (event.data?.isStreaming || event.data?.compacting) {
+                    attachSawStreaming = true
                     currentSessionData.chatRunId = currentSessionData.chatRunId || generateUUID()
                     currentSessionData.chatStreamStartedAt = currentSessionData.chatStreamStartedAt || Date.now()
                 }
                 return
             }
 
-            handleSSEEvent(event.event, event.data, targetKey)
+            // 加固：message_state 之外的任何事件（delta/start/end/error 等）都是
+            // 真实流活动的证据——快照说空闲但随后来了流事件，说明 attach 落在了
+            // 运行间隙，其 done 必须刷新，不可按空闲 done 跳过
+            if (event.event !== 'done') {
+                attachSawStreaming = true
+            }
+
+            // 空闲 attach 的 done：紧随 loadChatHistory 的全量加载，重拉纯重复，跳过。
+            // 真实流 done（见过 streaming）与历史非新鲜的空闲 done（缓存会话切回，
+            // 靠它追平离开期间的变化）都不跳过。
+            const skipSettledRefresh = event.event === 'done' && !attachSawStreaming
+                && isHistoryLoadFresh(targetKey)
+            handleSSEEvent(event.event, event.data, targetKey, { skipSettledRefresh })
         },
         () => resetStreamState(sessionData),
         { afterEntryId }
@@ -392,7 +422,7 @@ const allowCustomType = ["generated_image"]
 // - 每次对话开始时，服务器会先通过 message_start/message_end 回显用户发送的消息（role: user）
 // - 然后才开始推送 assistant 的响应（message_start + text_delta/thinking_delta + message_end）
 // - Gemini 等模型可能在一个 turn 内发生多次 message_start/message_end（分别对应 thinking、工具调用、回复等）
-const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
+const handleSSEEvent = (eventType: string, data: any, targetKey: string, options?: { skipSettledRefresh?: boolean }) => {
     const sessionData = getSessionData(targetKey)
     // chatStream 为 null 时（如 message_end 后等待下一条消息），懒初始化为空数组
     // 这样后续的 delta 事件可以直接 push，无需额外判断
@@ -653,6 +683,15 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string) => {
         case 'done':
             // 会话彻底结束（包括所有重试完成后）
             resetStreamState(sessionData)
+            // 空闲 attach 的 done（见 attachToSessionIfNeeded）：历史刚全量加载过，
+            // 下面的 /messages + /entries 重拉与 loadChatHistory 完全重复，跳过；
+            // 真实流 done 必须刷新——最后一条消息、树、usage 都在这次落地
+            if (options?.skipSettledRefresh) {
+                // usage 是三者中唯一没有其他追平通道的请求（loadChatHistory finally
+                // 里那次若失败，这里就是唯一兜底），跳过重拉时仍轻量补一次
+                fetchSessionUsage(targetKey)
+                break
+            }
             // 静默刷新消息，补上 entryId/parentEntryId（不设置 chatLoading，避免页面闪烁）
             apiGet<{ messages: ChatMessage[] }>(`/api/chat/${targetKey}/messages`).then(result => {
                 if (result?.messages) {
@@ -726,6 +765,8 @@ const loadChatHistory = async (sessionKey?: string) => {
         const sessionId = targetKey
         const result = await apiGet<{ messages: ChatMessage[], isStreaming?: boolean, partialText?: string }>(`/api/chat/${sessionId}/messages`)
         sd.chatMessages = result?.messages || []
+        // 记录全量加载时间：紧随其后的 attach 若收到空闲 done，据此跳过重复刷新
+        historyLoadedAt.set(sessionId, performance.now())
         // 页面刷新/切会话恢复：排队队列由紧随其后的 attach 快照（message_state）权威下发
         // 清空本地临时存储的 toolResult 消息，因为历史记录中应该已经包含（或者由 chatMessages 自行管理）
         sd.chatToolMessages = []
