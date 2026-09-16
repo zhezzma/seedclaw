@@ -6,8 +6,9 @@ import { useModelsState } from '@/composables/useModelsState'
 import { useSkillsState } from '@/composables/useSkillsState'
 import { useToast } from '@/composables/useToast'
 import { useI18n } from 'vue-i18n'
-import { PlusIcon, PencilIcon, TrashIcon, UserGroupIcon, CommandLineIcon, CpuChipIcon, ChevronUpIcon } from '@heroicons/vue/24/outline'
+import { PlusIcon, PencilIcon, TrashIcon, UserGroupIcon, CommandLineIcon, CpuChipIcon, ChevronUpIcon, PuzzlePieceIcon } from '@heroicons/vue/24/outline'
 import ModelSelectMenuContent from '@/components/models/ModelSelectMenuContent.vue'
+import A2UIFormDialog from '@/components/extensions/A2UIFormDialog.vue'
 
 const props = defineProps<{
     agent: any
@@ -23,6 +24,10 @@ const { t } = useI18n()
 const loading = ref(false)
 const showModal = ref(false)
 const isSubmitting = ref(false)
+
+// 扩展挂载表单：当前正在编辑的目标子代理（null = 关闭）。表单本体是服务端声明的
+// a2ui 组件树（A2UIFormDialog 拉取渲染），客户端不含任何硬编码表单逻辑。
+const mountFormSubagent = ref<SubagentConfig | null>(null)
 
 const subagents = computed(() => subAgentsState.list)
 const availableTools = computed(() => {
@@ -378,6 +383,13 @@ const toggleAllSkills = () => {
     }
 }
 
+// ─── 黑名单语义可视化（tools/skills 实际存储为排除项，勾选 = 保留可用）───
+// inherit 模式下提示父级已排除的数量（复选框区外，不随本表单勾选变化）
+const parentDeniedToolsCount = computed(() =>
+    availableTools.value.filter((t: any) => t.denied).length)
+const parentDisabledSkillsCount = computed(() =>
+    availableSkills.value.filter((s: any) => s.enabled === false).length)
+
 </script>
 
 <template>
@@ -413,6 +425,10 @@ const toggleAllSkills = () => {
                     <div class="flex justify-between items-start mb-2">
                         <h4 class="font-bold text-lg truncate flex-1" :title="agent.name">{{ agent.name }}</h4>
                         <div class="flex gap-1 shrink-0 ml-2">
+                            <button class="btn btn-square btn-ghost btn-xs" @click="mountFormSubagent = agent"
+                                :title="$t('agent.subagents.mountExtensions')">
+                                <PuzzlePieceIcon class="w-4 h-4" />
+                            </button>
                             <button class="btn btn-square btn-ghost btn-xs" @click="openEditModal(agent)"
                                 :title="$t('common.edit')">
                                 <PencilIcon class="w-4 h-4" />
@@ -439,7 +455,9 @@ const toggleAllSkills = () => {
                         <div v-if="agent.tools?.type === 'custom'"
                             class="badge badge-primary badge-outline badge-sm text-xs gap-1">
                             <CommandLineIcon class="w-3 h-3" />
-                            {{ $t('agent.tools.customTools') || 'Custom Tools' }}
+                            {{ (agent.tools.deniedTools?.length || 0) > 0
+                                ? $t('agent.tools.customToolsExcluded', { count: agent.tools.deniedTools.length })
+                                : $t('agent.tools.customTools') }}
                         </div>
                         <div v-else-if="agent.tools?.type === 'inherit'"
                             class="badge badge-ghost badge-outline badge-sm text-xs gap-1">
@@ -447,9 +465,21 @@ const toggleAllSkills = () => {
                             {{ $t('agent.tools.inheritParent') || 'Inherit Parent' }}
                         </div>
 
+                        <div v-if="agent.skills?.type === 'custom'"
+                            class="badge badge-secondary badge-outline badge-sm text-xs gap-1">
+                            {{ (agent.skills.disabledSkills?.length || 0) > 0
+                                ? $t('agent.skills.customSkillsExcluded', { count: agent.skills.disabledSkills.length })
+                                : $t('agent.skills.customSkills') }}
+                        </div>
                         <div v-if="agent.skills?.type === 'inherit'"
                             class="badge badge-secondary badge-outline badge-sm text-xs gap-1">
                             {{ $t('agent.skills.inherited') || 'Inherit Skills' }}
+                        </div>
+
+                        <div v-if="agent.extensions?.length"
+                            class="badge badge-accent badge-outline badge-sm text-xs"
+                            :title="$t('agent.subagents.mountExtensions')">
+                            {{ $t('agent.subagents.extensionsBadge', { count: agent.extensions.length }) }}
                         </div>
                     </div>
                 </div>
@@ -592,10 +622,18 @@ const toggleAllSkills = () => {
                             </label>
                         </div>
 
+                        <!-- inherit 模式：说明父级已排除多少工具（勾选 = 保留可用的黑名单语义） -->
+                        <p v-if="formData.tools.type === 'inherit' && availableTools.length > 0"
+                            class="text-xs text-base-content/50 mb-2">
+                            {{ $t('agent.tools.parentDenied', { count: parentDeniedToolsCount }) }}
+                        </p>
+
                         <!-- Checkboxes when custom -->
                         <div v-if="formData.tools.type === 'custom'"
                             class="bg-base-200/50 rounded-xl border border-base-200">
                             <div class="p-4 max-h-48 overflow-y-auto custom-scrollbar">
+                                <!-- 黑名单语义说明：实际存储为排除项（deniedTools），勾选 = 允许使用 -->
+                                <p class="text-xs text-base-content/50 mb-3">{{ $t('agent.tools.hint') }}</p>
                                 <div v-if="availableTools.length === 0"
                                     class="text-center text-sm text-base-content/50 py-2">
                                     {{ $t('agent.noTools') || 'No tools available in parent agent' }}
@@ -634,7 +672,7 @@ const toggleAllSkills = () => {
                             <label class="label cursor-pointer gap-2 justify-start">
                                 <input type="radio" class="radio radio-primary radio-sm" value="none"
                                     v-model="formData.skills.type" />
-                                <span class="label-text">{{ $t('agent.skills.disableAll') || 'Disabled' }}</span>
+                                <span class="label-text">{{ $t('agent.skills.disableAll') || 'Load none' }}</span>
                             </label>
                             <label class="label cursor-pointer gap-2 justify-start">
                                 <input type="radio" class="radio radio-primary radio-sm" value="inherit"
@@ -650,10 +688,18 @@ const toggleAllSkills = () => {
                             </label>
                         </div>
 
+                        <!-- inherit 模式：说明父级已禁用多少技能 -->
+                        <p v-if="formData.skills.type === 'inherit' && availableSkills.length > 0"
+                            class="text-xs text-base-content/50 mb-2">
+                            {{ $t('agent.skills.parentDisabled', { count: parentDisabledSkillsCount }) }}
+                        </p>
+
                         <!-- Checkboxes when custom -->
                         <div v-if="formData.skills.type === 'custom'"
                             class="bg-base-200/50 rounded-xl border border-base-200">
                             <div class="p-4 max-h-48 overflow-y-auto custom-scrollbar">
+                                <!-- 黑名单语义说明：实际存储为排除项（disabledSkills），勾选 = 加载 -->
+                                <p class="text-xs text-base-content/50 mb-3">{{ $t('agent.skills.hint') }}</p>
                                 <div v-if="availableSkills.length === 0"
                                     class="text-center text-sm text-base-content/50 py-2">
                                     {{ $t('agent.skills.noSkills') || 'No skills available in parent agent' }}
@@ -686,6 +732,14 @@ const toggleAllSkills = () => {
                 <button @click="closeModal">close</button>
             </form>
         </dialog>
+
+        <!-- 扩展挂载表单（服务端声明的 a2ui 组件树；保存后刷新列表以更新徽章） -->
+        <A2UIFormDialog v-if="mountFormSubagent"
+            :title="`${$t('agent.subagents.mountExtensions')}: ${mountFormSubagent.name}`"
+            :load-url="`/api/extensions/subagents/mount-form/${encodeURIComponent(props.agent.id)}/${encodeURIComponent(mountFormSubagent.id)}`"
+            :save-url="`/api/extensions/subagents/mount-form/${encodeURIComponent(props.agent.id)}/${encodeURIComponent(mountFormSubagent.id)}`"
+            @saved="subAgentsState.loadSubagents(props.agent.id)"
+            @close="mountFormSubagent = null" />
     </div>
 </template>
 

@@ -27,6 +27,9 @@ export interface SubagentConfig {
     thinkingLevel?: SubagentThinkingLevel
     tools?: SubagentToolsConfig
     skills?: SubagentSkillsConfig
+    /** 挂载扩展白名单（服务端归一化小写、去重；空数组=不挂载）。
+     *  白名单语义：基线零扩展，列出的扩展才挂载（与 tools/skills 黑名单不同）。 */
+    extensions?: string[]
     systemPrompt: string
     filePath?: string
 }

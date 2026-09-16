@@ -254,13 +254,23 @@ export default {
             customTools: 'Custom Tools',
             inheritParent: 'Inherit Parent',
             customSelection: 'Custom Selection',
+            // Blacklist semantics note: subagent tool config stores exclusions (deniedTools); checked = available
+            hint: 'Checked tools are available to the subagent; unchecked tools are denied.',
+            parentDenied: 'Parent agent has {count} denied tool(s)',
+            customToolsExcluded: 'Custom Tools ({count} excluded)',
         },
         skills: {
             inheritParent: 'Inherit Parent',
             customSelection: 'Custom Selection',
-            disableAll: 'Disabled',
+            // Renamed from "Disabled": the actual semantics is loading no skills at all
+            disableAll: 'Load none',
             inherited: 'Inherit Skills',
             noSkills: 'No skills available in parent agent',
+            // Blacklist semantics note: subagent skill config stores exclusions (disabledSkills); checked = loaded
+            hint: 'Checked skills are loaded; unchecked skills are not loaded.',
+            parentDisabled: 'Parent agent has {count} disabled skill(s)',
+            customSkills: 'Custom Skills',
+            customSkillsExcluded: 'Custom Skills ({count} excluded)',
         },
         subagents: {
             addTitle: 'Add Subagent',
@@ -281,6 +291,8 @@ export default {
             modelPlaceholder: 'e.g. openai/gpt-4o',
             thinkingLevelHint: "Overrides agent's default thinking level",
             inheritThinkingLevel: 'Inherit Parent Thinking Level',
+            mountExtensions: 'Extension Mounts',
+            extensionsBadge: '{count} extension(s)',
             systemPrompt: 'System Prompt',
             promptPlaceholder: 'You are a helpful assistant...'
         }

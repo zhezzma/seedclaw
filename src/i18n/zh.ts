@@ -254,13 +254,23 @@ export default {
             customTools: '自定义工具',
             inheritParent: '继承父智能体',
             customSelection: '自定义选择',
+            // 黑名单语义说明：子代理工具配置实际存储为排除项（deniedTools），勾选 = 允许使用
+            hint: '勾选表示允许子代理使用；未勾选的工具不会提供给子代理。',
+            parentDenied: '父智能体已禁用 {count} 个工具',
+            customToolsExcluded: '自定义工具（排除 {count} 个）',
         },
         skills: {
             inheritParent: '继承父智能体',
             customSelection: '自定义选择',
-            disableAll: '禁用',
+            // 原文案「禁用」有误导：该模式实际语义是全部不加载（不挂载任何技能）
+            disableAll: '全部不加载',
             inherited: '继承技能',
             noSkills: '父智能体暂无可用技能',
+            // 黑名单语义说明：子代理技能配置实际存储为排除项（disabledSkills），勾选 = 加载
+            hint: '勾选表示加载该技能；未勾选的技能不会加载。',
+            parentDisabled: '父智能体已禁用 {count} 个技能',
+            customSkills: '自定义技能',
+            customSkillsExcluded: '自定义技能（排除 {count} 个）',
         },
         subagents: {
             addTitle: '添加子代理',
@@ -281,6 +291,8 @@ export default {
             modelPlaceholder: '如：openai/gpt-4o',
             thinkingLevelHint: '覆盖父智能体的默认思考程度',
             inheritThinkingLevel: '继承父智能体的思考程度',
+            mountExtensions: '扩展挂载',
+            extensionsBadge: '{count} 个扩展',
             systemPrompt: '系统提示词',
             promptPlaceholder: '你是一个有用的助手...'
         }
