@@ -628,6 +628,8 @@ export default {
         treeJumpHint: '点击消息节点跳转到对话中的对应位置',
         treeJumpFailed: '切换分支失败，请重试',
         a2ui_loading: '正在加载应用界面...',
+        a2uiVersionMismatch: '应用界面协议版本不匹配，已拒绝渲染（需 a2ui v1.0）',
+        a2uiRpcError: '交互请求失败',
         contextCompacting: '正在压缩上下文，完成后自动继续当前任务…',
         compactDone: '上下文已压缩：{before} → {after} tokens',
         compactNothingToDo: '会话太短，没有可压缩的内容',

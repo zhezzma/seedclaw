@@ -6,6 +6,8 @@ import { getOrCreateSurface, updateSurfaceDataModel, deleteSurface } from './use
 import { ensureRenderableBlocks, markErroredToolBlocks, isAbortErrorMessage } from '../utils/chatMessageRender'
 import { resolveMediaUrl } from '../utils/media-url'
 import type { PendingItem, PendingSendMode } from '../utils/pending-queue'
+import { i18n } from '../i18n'
+import { isSupportedA2uiMessage, isSurfaceCatalogAllowed, isComponentCatalogAllowed } from './a2uiClient'
 
 // Types for internal display
 export interface DisplayBlock {
@@ -125,19 +127,50 @@ export function createContentConverter(renderedSurfaceIds: Set<string>) {
                     }
                 }
 
+                let versionRejected = false
                 for (const msg of messages) {
                     try {
+                        // v1.0 硬切：非 v1.0 envelope 一律丢弃并标记（不再兼容 v0.9）
+                        if (!isSupportedA2uiMessage(msg)) {
+                            versionRejected = true
+                            console.error('[A2UI] rejected non-v1.0 message:', JSON.stringify(msg).slice(0, 200))
+                            continue
+                        }
                         if (msg.createSurface) {
+                            // v1.0 catalogId 解析：surface 默认 catalog 仅接受本渲染端私有 catalog
+                            if (!isSurfaceCatalogAllowed(msg.createSurface.catalogId)) {
+                                versionRejected = true
+                                console.error('[A2UI] rejected surface with unknown catalogId:', msg.createSurface.catalogId)
+                                continue
+                            }
                             // 注册 Surface
                             surfaceId = msg.createSurface.surfaceId
                             if (surfaceId) getOrCreateSurface(surfaceId)
+                            // v1.0：createSurface 可内联 components / 初始 dataModel（单消息整面 UI）
+                            if (Array.isArray(msg.createSurface.components)) {
+                                const inline = (msg.createSurface.components as A2UIComponent[]).filter((comp) => {
+                                    if (isComponentCatalogAllowed(comp)) return true
+                                    console.error('[A2UI] dropped inline component with unknown catalogId:', comp?.id)
+                                    return false
+                                })
+                                components.push(...inline)
+                            }
+                            if (msg.createSurface.dataModel && typeof msg.createSurface.dataModel === 'object' && !Array.isArray(msg.createSurface.dataModel) && surfaceId) {
+                                updateSurfaceDataModel(surfaceId, '/', msg.createSurface.dataModel)
+                            }
                         } else if (msg.updateComponents) {
                             surfaceId = surfaceId || msg.updateComponents.surfaceId
                             const comps = msg.updateComponents.components
+                            let collected: A2UIComponent[] = []
                             if (Array.isArray(comps)) {
-                                components.push(...comps)
+                                collected = comps
                             } else if (typeof comps === 'object' && comps !== null) {
-                                components.push(...(Object.values(comps) as A2UIComponent[]))
+                                collected = Object.values(comps) as A2UIComponent[]
+                            }
+                            // 组件级 catalogId：非本渲染端 catalog 的组件不渲染（v1.0 无 fallback）
+                            for (const comp of collected) {
+                                if (isComponentCatalogAllowed(comp)) components.push(comp)
+                                else console.error('[A2UI] dropped component with unknown catalogId:', comp?.id)
                             }
                         } else if (msg.updateDataModel) {
                             const targetId = msg.updateDataModel.surfaceId || surfaceId
@@ -151,6 +184,9 @@ export function createContentConverter(renderedSurfaceIds: Set<string>) {
                             }
                         } else if (msg.deleteSurface) {
                             deleteSurface(msg.deleteSurface.surfaceId)
+                        } else if (msg.callRendererFunction || msg.agentFunctionResponse) {
+                            // v1.0 双向 RPC 消息：当前无 agent 侧发起方/挂起方，可见性告警后丢弃
+                            console.warn('[A2UI] chat-stream RPC message without handler:', Object.keys(msg)[1] ?? 'unknown')
                         }
                     } catch (err: any) {
                         parseErrorMsg = err.message || String(err)
@@ -164,6 +200,9 @@ export function createContentConverter(renderedSurfaceIds: Set<string>) {
                     // 不应再产生第二个面板气泡。组件结构相同，原面板会就地更新显示。
                     if (renderedSurfaceIds.has(surfaceId)) {
                         // 跳过重复气泡；数据更新已在上面的 updateDataModel 分支生效。
+                        if (versionRejected) {
+                            blocks.push({ type: 'error', error: i18n.global.t('chat.a2uiVersionMismatch') })
+                        }
                     } else {
                         renderedSurfaceIds.add(surfaceId)
                         // 有组件 → 生成 a2ui block（引用 Surface 注册表中的 reactive 数据模型）
@@ -190,7 +229,18 @@ export function createContentConverter(renderedSurfaceIds: Set<string>) {
                             a2uiSurfaceId: surfaceId,
                             a2uiRootIds: rootIds,
                         })
+                        // 部分拒绝（同批内既有可能 v1.0 也有非 v1.0）：渲染合法部分的同时明示丢弃
+                        if (versionRejected) {
+                            blocks.push({ type: 'error', error: i18n.global.t('chat.a2uiVersionMismatch') })
+                        }
                     }
+                } else if (versionRejected) {
+                    // 全部消息被 v1.0 硬切拒绝（非 v1.0 envelope / 未知 catalog）：不再兼容渲染
+                    blocks.push({
+                        type: 'error',
+                        error: i18n.global.t('chat.a2uiVersionMismatch'),
+                    })
+                    blocks.push({ type: 'text', text: match[0] })
                 } else if (parseErrorMsg && !surfaceId) {
                     // 如果连 surfaceId 都没有并且发生了错误，说明整体 JSON 结构崩溃
                     blocks.push({

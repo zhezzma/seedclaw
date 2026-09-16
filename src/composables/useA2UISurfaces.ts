@@ -56,18 +56,25 @@ function makeHash(surfaceId: string, path: string | undefined, value: any): stri
 /**
  * 更新 Surface 的数据模型（幂等）
  * 相同内容不会重复应用，防止 computed 重算时覆盖用户输入
+ * @param opts.force 跳过去重（HTTP 响应的服务端权威重写，需压过本地输入与重放去重）
+ * @param opts.createIfMissing false 时不自动建面（会话切换后晚到的响应不产生幽灵 surface）
  * @returns 是否实际执行了更新
  */
 export function updateSurfaceDataModel(
   surfaceId: string,
   path: string | undefined,
-  value: any
+  value: any,
+  opts?: { force?: boolean; createIfMissing?: boolean }
 ): boolean {
+  // 先检后建：createIfMissing=false 时不因检查本身建出幽灵 surface
+  if (opts?.createIfMissing === false && !surfaces.has(surfaceId)) {
+    return false
+  }
   const entry = getOrCreateSurface(surfaceId)
 
-  // 去重：相同内容只处理一次
+  // 去重：相同内容只处理一次（可被 force 跳过：服务端重写优先于本地编辑状态）
   const hash = makeHash(surfaceId, path, value)
-  if (entry.processedHashes.has(hash)) return false
+  if (!opts?.force && entry.processedHashes.has(hash)) return false
   entry.processedHashes.add(hash)
 
   // 写入必须走防护版 setByPath：这里的 path/value 都是 AI 输出，

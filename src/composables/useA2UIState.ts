@@ -18,6 +18,7 @@ import type {
   Action,
   ChildList,
 } from '../components/a2ui/types'
+import { A2UI_VERSION, SEEDCLAW_BASIC_CATALOG_ID } from '../components/a2ui/types.ts'
 
 // ==================== JSON Pointer 工具 ====================
 
@@ -57,13 +58,35 @@ export function resolveDynamicNumber(value: DynamicNumber | undefined, dataModel
   return Number(value) || 0
 }
 
-/** 解析动态布尔 */
+/** 解析动态布尔；v1.0：求值结果可为 ValidationResult（{valid} 解包，布尔返回值兼容） */
 export function resolveDynamicBoolean(value: DynamicBoolean | undefined, dataModel: Record<string, any>): boolean {
   if (value === undefined || value === null) return false
   if (typeof value === 'boolean') return value
-  if (isDataBinding(value)) return Boolean(getByPath(dataModel, value.path))
-  if (isFunctionCall(value)) return Boolean(executeFunctionCall(value, dataModel))
+  if (isDataBinding(value)) return unwrapValidationResult(getByPath(dataModel, value.path))
+  if (isFunctionCall(value)) return unwrapValidationResult(executeFunctionCall(value, dataModel))
   return false
+}
+
+/** v1.0 ValidationResult 解包：{valid: boolean} 取 valid，其余原样布尔化 */
+function unwrapValidationResult(resolved: any): boolean {
+  if (resolved != null && typeof resolved === 'object' && typeof resolved.valid === 'boolean') {
+    return resolved.valid
+  }
+  return Boolean(resolved)
+}
+
+/** 解析动态值字典（action context / functionCall args）：每个条目经 resolveDynamicValue
+ *  绑定解析后上送——服务端不解析渲染端数据模型，未解析的 {path} 绑定会导致 rpc 参数失配。 */
+export function resolveDynamicRecord(
+  record: Record<string, DynamicValue> | undefined,
+  dataModel: Record<string, any>
+): Record<string, unknown> {
+  if (!record) return {}
+  const resolved: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(record)) {
+    resolved[key] = resolveDynamicValue(value, dataModel)
+  }
+  return resolved
 }
 
 /** 解析动态值 */
@@ -309,16 +332,23 @@ export function useA2UIState() {
    */
   function processMessage(msg: A2UIMessage): void {
     if ('createSurface' in msg) {
-      const { surfaceId, catalogId, theme, sendDataModel } = msg.createSurface
-      surfaces.set(surfaceId, {
+      const { surfaceId, catalogId, sendDataModel, components, dataModel } = msg.createSurface
+      const surface: A2UISurface = {
         surfaceId,
-        catalogId,
-        theme,
+        catalogId: catalogId ?? SEEDCLAW_BASIC_CATALOG_ID,
         components: new Map(),
         rootComponentIds: [],
         dataModel: reactive({}),
         sendDataModel,
-      })
+      }
+      surfaces.set(surfaceId, surface)
+      // v1.0：createSurface 可内联 components / 初始 dataModel（单消息整面 UI）
+      if (Array.isArray(components)) {
+        processMessage({ version: A2UI_VERSION, updateComponents: { surfaceId, components } } as A2UIMessage)
+      }
+      if (dataModel && typeof dataModel === 'object') {
+        processMessage({ version: A2UI_VERSION, updateDataModel: { surfaceId, path: '/', value: dataModel } } as A2UIMessage)
+      }
     } else if ('updateComponents' in msg) {
       const { surfaceId, components } = msg.updateComponents
       const surface = surfaces.get(surfaceId)

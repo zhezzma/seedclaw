@@ -1,7 +1,34 @@
 /**
- * A2UI v0.9 协议类型定义
- * 基于 https://github.com/google/A2UI 规范
+ * A2UI v1.0 协议类型定义
+ * 基于 https://github.com/a2ui-project/a2ui 规范（specification/v1_0）
  */
+
+// ==================== 协议常量 ====================
+
+/** envelope 版本（v1.0 schema const，硬切：非此版本消息一律丢弃） */
+export const A2UI_VERSION = 'v1.0' as const
+
+/** 本渲染端组件 registry 对应的私有 catalog；服务端 createSurface 的默认 catalogId */
+export const SEEDCLAW_BASIC_CATALOG_ID = 'dev.seedclaw/basic'
+
+// ==================== v1.0 纯谓词（零依赖，可测） ====================
+
+/** 硬切：非 v1.0 envelope 一律拒绝 */
+export function isSupportedA2uiMessage(msg: any): boolean {
+    return msg != null && typeof msg === 'object' && msg.version === A2UI_VERSION
+}
+
+/** v1.0 catalogId 解析：surface 默认 catalog 缺省视为本渲染端 catalog；显式声明其它值 → 拒绝 */
+export function isSurfaceCatalogAllowed(catalogId: unknown): boolean {
+    return catalogId === undefined || catalogId === SEEDCLAW_BASIC_CATALOG_ID
+}
+
+/** 组件级 catalogId：非对象（null/undefined/标量）或非本渲染端 catalog → 不渲染 */
+export function isComponentCatalogAllowed(component: unknown): boolean {
+    if (component == null || typeof component !== 'object') return false
+    const catalogId = (component as { catalogId?: unknown }).catalogId
+    return catalogId === undefined || catalogId === SEEDCLAW_BASIC_CATALOG_ID
+}
 
 // ==================== 动态值类型 ====================
 
@@ -15,6 +42,8 @@ export interface FunctionCall {
   call: string
   args: Record<string, any>
   returnType?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void'
+  /** v1.0：函数源 catalog（组件/函数级声明优先于 surface 默认） */
+  catalogId?: string
 }
 
 /** 动态字符串：字面值 | 数据绑定 | 函数调用 */
@@ -49,19 +78,29 @@ export type ChildList = string[] | { componentId: string; path: string }
 
 /** 动作 */
 export type Action =
-  | { event: { name: string; context?: Record<string, DynamicValue> } }
+  | { event: { name: string; context?: Record<string, DynamicValue>; userMessage?: DynamicString } }
   | { functionCall: FunctionCall }
 
-/** 验证规则 */
-export interface CheckRule {
-  condition: DynamicBoolean
-  message: string
+/** v1.0 校验结果：CheckRule.condition 求值可为 ValidationResult（布尔返回值仍兼容） */
+export interface ValidationResult {
+  valid: boolean
+  code?: string
+  message?: string
+  severity?: string
 }
 
-/** 无障碍属性 */
+/** 验证规则（v1.0：message 降级为 fallback，优先取 ValidationResult.message） */
+export interface CheckRule {
+  condition: DynamicBoolean
+  message?: string
+}
+
+/** 无障碍属性（v1.0：live 对应 aria-live；hidden 为动态隐藏） */
 export interface AccessibilityAttributes {
   label?: DynamicString
   description?: DynamicString
+  live?: 'off' | 'polite' | 'assertive'
+  hidden?: DynamicBoolean
 }
 
 // ==================== 组件类型定义 ====================
@@ -188,10 +227,13 @@ export interface ChoicePickerComponent extends ComponentBase {
   component: 'ChoicePicker'
   label?: DynamicString
   variant?: 'multipleSelection' | 'mutuallyExclusive'
-  options: Array<{ label: DynamicString; value: string }>
+  /** 静态选项，或绑定数据模型路径（私有 catalog 扩展：级联动态选项） */
+  options: Array<{ label: DynamicString; value: string }> | { path: string }
   value: DynamicStringList
   displayStyle?: 'checkbox' | 'chips'
   filterable?: boolean
+  /** 私有 catalog 扩展：选中变更时触发的 action（级联 callAgentFunction 的入口） */
+  action?: Action
   checks?: CheckRule[]
 }
 
@@ -244,20 +286,24 @@ export interface A2UIComponent {
   [key: string]: any
 }
 
-// ==================== 消息类型 ====================
+// ==================== 消息类型（agent→renderer，v1.0） ====================
 
 export interface CreateSurfaceMessage {
-  version: 'v0.9'
+  version: typeof A2UI_VERSION
   createSurface: {
     surfaceId: string
-    catalogId: string
-    theme?: any
+    /** v1.0：surface 默认 catalog（本渲染端仅识别 SEEDCLAW_BASIC_CATALOG_ID） */
+    catalogId?: string
+    /** v1.0：单消息内联整面 UI */
+    components?: A2UIComponent[]
+    dataModel?: Record<string, any>
     sendDataModel?: boolean
+    metadata?: Record<string, any>
   }
 }
 
 export interface UpdateComponentsMessage {
-  version: 'v0.9'
+  version: typeof A2UI_VERSION
   updateComponents: {
     surfaceId: string
     components: A2UIComponent[]
@@ -265,7 +311,7 @@ export interface UpdateComponentsMessage {
 }
 
 export interface UpdateDataModelMessage {
-  version: 'v0.9'
+  version: typeof A2UI_VERSION
   updateDataModel: {
     surfaceId: string
     path?: string
@@ -274,9 +320,28 @@ export interface UpdateDataModelMessage {
 }
 
 export interface DeleteSurfaceMessage {
-  version: 'v0.9'
+  version: typeof A2UI_VERSION
   deleteSurface: {
     surfaceId: string
+  }
+}
+
+/** v1.0：agent 调渲染端本地函数（聊天流下行；响应经 a2uiClient 回 rendererFunctionResponse） */
+export interface CallRendererFunctionMessage {
+  version: typeof A2UI_VERSION
+  callRendererFunction: {
+    functionCallId: string
+    callFunction: { function: string; args?: Record<string, any>; catalogId: string }
+  }
+}
+
+/** v1.0：callAgentFunction 的响应（HTTP 响应 messages 内下发） */
+export interface AgentFunctionResponseMessage {
+  version: typeof A2UI_VERSION
+  agentFunctionResponse: {
+    functionCallId: string
+    value?: any
+    error?: { code: string; message: string }
   }
 }
 
@@ -285,13 +350,14 @@ export type A2UIMessage =
   | UpdateComponentsMessage
   | UpdateDataModelMessage
   | DeleteSurfaceMessage
+  | CallRendererFunctionMessage
+  | AgentFunctionResponseMessage
 
 // ==================== Surface 状态 ====================
 
 export interface A2UISurface {
   surfaceId: string
   catalogId: string
-  theme?: any
   components: Map<string, A2UIComponent>
   /** 根组件 ID 列表（按顺序） */
   rootComponentIds: string[]

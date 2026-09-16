@@ -1,18 +1,19 @@
 <script setup lang="ts">
 /**
  * 通用 a2ui 表单弹层：从 loadUrl 拉取服务端声明的 a2ui 组件树并渲染，
- * 保存时把 dataModel 整体 POST 到 saveUrl。
- *
- * 与 ExtensionSettingsModal 同构（纯表单模式：树内不含 event/functionCall 组件，
- * A2UIRenderer 的 @action 不接线），差别仅在端点由调用方传入——用于扩展设置表单
- * 体系之外的其他声明式表单（如子代理的扩展挂载表单）。
+ * 保存时把 dataModel 整体 POST 到 saveUrl（ExtensionSettingsModal 是它的固定端点包装）。
+ * a2ui v1.0：响应必须携带 version:"v1.0"（服务端注入），不匹配即拒绝渲染（防两仓部署漂移）；
+ * 树内 functionCall action（如 ChoicePicker 级联）经 /api/a2ui/events RPC 下行更新就地应用。
  * 错误提示由 api-client 统一 toast（400 不在静默白名单）。
  */
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiGet, apiPost } from '../../composables/api-client'
 import { useToast } from '../../composables/useToast'
-import { A2UIRenderer } from '../a2ui'
+import { A2UIRenderer, A2UI_VERSION } from '../a2ui'
+import type { Action } from '../a2ui/types'
+import { setByPath, resolveDynamicRecord } from '../../composables/useA2UIState'
+import { callA2uiAgentFunction, type A2uiResponseMessage } from '../../composables/a2uiClient'
 
 const props = defineProps<{
     title: string
@@ -38,7 +39,13 @@ watch(
         components.value = []
         dataModel.value = {}
         try {
-            const form = await apiGet<{ components: any[]; dataModel: Record<string, any> }>(url)
+            const form = await apiGet<{ version?: string; components: any[]; dataModel: Record<string, any> }>(url)
+            // a2ui v1.0：服务端注入的版本不匹配 → 拒绝渲染（两仓部署漂移保护，硬切不兼容）
+            if (form.version !== A2UI_VERSION) {
+                toast.error(t('chat.a2uiVersionMismatch'))
+                emit('close')
+                return
+            }
             components.value = form.components ?? []
             dataModel.value = form.dataModel ?? {}
         } catch (e: any) {
@@ -52,9 +59,52 @@ watch(
     { immediate: true },
 )
 
+// 设置表单无 surfaceId：rpc 路由按函数名转发，伪 id 仅透传记录
+const formSurfaceId = `form-${typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : Date.now()}`
+
+// 级联请求串行化：快速连续切换 provider 时按序应用响应，避免先发后至乱序覆盖
+let cascadeChain: Promise<void> = Promise.resolve()
+
+/** 树内 functionCall action（如 ChoicePicker 级联）：callAgentFunction RPC。
+ *  args 内的 {path} 绑定必须先对本地 dataModel 解析（服务端不解析渲染端数据模型，
+ *  未解析的绑定对象会导致 rpc 参数失配）；updateDataModel 按 surfaceId 过滤后就地
+ *  应用。updateComponents 类响应不适用（组件树来自 GET 快照），丢弃并告警。 */
+function onFormAction(action: Action, dataModel: Record<string, any>, _sourceComponentId: string) {
+    // 设置表单无 event action 语义（无对应 handler）：告警而非静默吞掉，便于发现表单树误用
+    if (!('functionCall' in action)) {
+        console.warn('[A2UI] form dialog received event action (unsupported):', (action as { event?: { name?: string } }).event?.name)
+        return
+    }
+    const fn = action.functionCall
+    cascadeChain = cascadeChain
+        .then(async () => {
+            const result = await callA2uiAgentFunction({
+                surfaceId: formSurfaceId,
+                call: fn.call,
+                args: resolveDynamicRecord(fn.args, dataModel) as Record<string, unknown>,
+                surfaces: { [formSurfaceId]: dataModel },
+            })
+            for (const message of result.messages as A2uiResponseMessage[]) {
+                if (message.updateDataModel && message.updateDataModel.surfaceId === formSurfaceId) {
+                    setByPath(dataModel, message.updateDataModel.path ?? '/', message.updateDataModel.value)
+                } else if (message.agentFunctionResponse) {
+                    // 响应回执（首个消息），值已在 result.value/error 里
+                } else {
+                    console.warn('[A2UI] form dialog dropped response message:', Object.keys(message)[1] ?? 'unknown')
+                }
+            }
+            if (result.error) toast.error(result.error.message)
+        })
+        .catch(() => {
+            // api-client 已弹全局 toast；表单保持当前状态供重试
+        })
+}
+
 async function save() {
     saving.value = true
     try {
+        // 等待在途级联落地，避免半更新状态的 dataModel 被保存
+        await cascadeChain
         await apiPost(props.saveUrl, {
             dataModel: dataModel.value,
         })
@@ -78,7 +128,7 @@ async function save() {
                 <span class="loading loading-spinner"></span>
             </div>
             <div v-else class="max-h-[60vh] overflow-y-auto">
-                <A2UIRenderer :components="components" :data-model="dataModel" :root-ids="['root']" />
+                <A2UIRenderer :components="components" :data-model="dataModel" :root-ids="['root']" @action="onFormAction" />
             </div>
 
             <div class="modal-action">

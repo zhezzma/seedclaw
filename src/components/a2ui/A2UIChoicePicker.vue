@@ -3,9 +3,9 @@
  * A2UI ChoicePicker 组件
  * 支持 mutuallyExclusive/multipleSelection，displayStyle: checkbox/chips
  */
-import { computed, inject, ref, watch } from 'vue'
-import type { A2UIComponent, DynamicString, DynamicStringList, DynamicBoolean } from './types'
-import { getWritePath } from '../../composables/useA2UIState'
+import { computed, inject, ref, watch, type Ref } from 'vue'
+import type { A2UIComponent, DynamicString, DynamicStringList, DynamicBoolean, Action } from './types'
+import { getWritePath, getByPath } from '../../composables/useA2UIState'
 
 const props = defineProps<{ comp: A2UIComponent }>()
 
@@ -13,16 +13,38 @@ const resolveString = inject<(v: DynamicString) => string>('a2ui-resolve-string'
 const resolveStringList = inject<(v: DynamicStringList) => string[]>('a2ui-resolve-string-list')!
 const resolveBoolean = inject<(v: DynamicBoolean) => boolean>('a2ui-resolve-boolean')!
 const handleDataUpdate = inject<(path: string, value: any) => void>('a2ui-handle-data-update')!
+const handleAction = inject<(action: Action, sourceComponentId: string) => void>('a2ui-handle-action')!
+const dataModelRef = inject<Ref<Record<string, any>>>('a2ui-data-model')!
 
 const label = computed(() => resolveString(props.comp.label))
 const variant = computed(() => props.comp.variant || 'mutuallyExclusive')
 const displayStyle = computed(() => props.comp.displayStyle || 'checkbox')
 const filterable = computed(() => props.comp.filterable || false)
 const options = computed(() => {
-  return (props.comp.options || []).map((opt: any) => ({
-    label: resolveString(opt.label),
-    value: opt.value,
-  }))
+  const raw = props.comp.options
+  // 静态选项数组（官方 catalog 形态）
+  if (Array.isArray(raw)) {
+    return raw.map((opt: any) => ({
+      label: resolveString(opt.label),
+      value: opt.value,
+    }))
+  }
+  // 私有 catalog 扩展：options 可绑定数据模型路径（级联动态选项）。
+  // 解析结果兼容 {label, value}[] 与 string[] 两种形态，string 项 label==value。
+  if (raw && typeof raw === 'object' && 'path' in raw) {
+    const items = getByPath(dataModelRef.value ?? {}, (raw as { path: string }).path)
+    if (!Array.isArray(items)) return []
+    return items.map((item: any) => {
+      if (typeof item === 'string') return { label: item, value: item }
+      if (item && typeof item === 'object') return { label: resolveString(item.label), value: item.value }
+      return { label: String(item), value: String(item) }
+    })
+  }
+  // 非法形态（缺省/非数组非 path 对象）：告警并按空选项处理，不炸渲染
+  if (raw !== undefined && raw !== null) {
+    console.warn('[A2UI] ChoicePicker invalid options shape, fallback to empty:', raw)
+  }
+  return []
 })
 
 const resolvedValue = computed(() => resolveStringList(props.comp.value))
@@ -34,6 +56,11 @@ watch(resolvedValue, (v) => {
 
 const filterText = ref('')
 
+// 级联刷新选项后旧搜索词会空滤新列表（看起来像无模型）：选项集变化时清空过滤
+watch(options, (_next, _prev) => {
+  filterText.value = ''
+})
+
 const filteredOptions = computed(() => {
   if (!filterable.value || !filterText.value) return options.value
   const q = filterText.value.toLowerCase()
@@ -42,6 +69,7 @@ const filteredOptions = computed(() => {
 
 function toggleOption(value: string) {
   if (variant.value === 'mutuallyExclusive') {
+    // 不跳过重复点击：级联失败后用户重选同一项是合法重试路径（服务端幂等）
     localSelected.value = [value]
   } else {
     const idx = localSelected.value.indexOf(value)
@@ -62,6 +90,13 @@ function syncValue() {
   const path = getWritePath(props.comp.value)
   if (path) {
     handleDataUpdate(path, [...localSelected.value])
+  }
+  // 私有 catalog 扩展：选中变更时触发组件 action（级联 callAgentFunction 的入口）。
+  // 仅用户点击路径（toggleOption）到达这里；服务端 updateDataModel 引起的
+  // watch 同步不会触发，避免级联回写循环。
+  const action = props.comp.action
+  if (action && props.comp.id) {
+    handleAction(action, props.comp.id)
   }
 }
 

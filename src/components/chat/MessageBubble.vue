@@ -81,8 +81,9 @@ function formatA2UIAction(block: any): { label: string; summary: string } {
     if (typeof context.value === 'string' && context.value.trim()) {
         return { label, summary: `${t('chat.a2uiActionAnswerChoice')}：${context.value.trim()}` }
     }
-    // 自定义作答：可能在 payload 顶层或 surface 数据模型内
-    const custom = typeof payload.customAnswer === 'string' ? payload.customAnswer
+    // 自定义作答：v1.0 事件在 context.customAnswer；旧快照形态在 payload 顶层或 surface 数据模型
+    const custom = typeof context.customAnswer === 'string' ? context.customAnswer
+        : typeof payload.customAnswer === 'string' ? payload.customAnswer
         : typeof dataModel?.customAnswer === 'string' ? dataModel.customAnswer : ''
     if (custom.trim()) {
         return { label, summary: `${t('chat.a2uiActionAnswerCustom')}：${custom.trim()}` }

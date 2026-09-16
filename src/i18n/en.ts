@@ -627,6 +627,8 @@ export default {
         treeJumpHint: 'Click a message node to jump to its position in the conversation',
         treeJumpFailed: 'Failed to switch branch, please try again',
         a2ui_loading: 'Loading App Interface...',
+        a2uiVersionMismatch: 'A2UI protocol version mismatch, rendering refused (requires v1.0)',
+        a2uiRpcError: 'Interactive request failed',
         contextCompacting: 'Compacting context — the current task will continue automatically…',
         compactDone: 'Context compacted: {before} → {after} tokens',
         compactNothingToDo: 'Session too short — nothing to compact',
