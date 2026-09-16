@@ -26,9 +26,16 @@ test('command state caches command lists per agent instead of a single shared li
 })
 
 test('chat input labels prompt commands separately from extensions', () => {
+    // 徽章样式/文案集中在 ChatInput 的 SOURCE_BADGES 表（模板只消费）
     assert.match(
         chatInputSource,
-        /cmd\.source === 'prompt'/,
+        /prompt: \{ cls: 'badge-secondary badge-outline', label: 'Prompt' \}/,
         'ChatInput should render prompt suggestions with a dedicated prompt source label',
+    )
+    // prompt 与 extension 必须可区分：文案不同、类名不同
+    assert.match(
+        chatInputSource,
+        /extension: \{ cls: 'badge-primary badge-outline', label: '扩展' \}/,
+        'extension commands keep their own badge style and label',
     )
 })

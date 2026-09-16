@@ -8,7 +8,7 @@ export interface CommandInfo {
     name: string
     description?: string
     usage?: string
-    source?: 'builtin' | 'extension' | 'prompt'
+    source?: 'builtin' | 'extension' | 'prompt' | 'skill'
     [key: string]: any
 }
 

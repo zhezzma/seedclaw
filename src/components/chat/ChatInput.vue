@@ -18,6 +18,7 @@ import {
 import { useChatInput, COMMANDS, type CommandItem } from '../../composables/useChatInput'
 import { useModelsState } from '../../composables/useModelsState'
 import { useChatState, type ChatSendOverrides } from '../../composables/useChatState'
+import type { CommandInfo } from '../../composables/useCommandState'
 import { useUiSettingsStore } from '../../stores/setting'
 import { computed } from 'vue'
 import { useMediaPreview } from '../../composables/useMediaPreview'
@@ -69,6 +70,17 @@ const {
 commandSuggestionsEnabled.value = !props.centered
 // 开关只阻止“打开”，不复位已开的浮层：从会话页带着打开的面板切到 /new 时补一行保险
 if (!commandSuggestionsEnabled.value) closeSuggestions()
+
+// 命令来源徽章：类名与文案集中在这张表，模板只消费——
+// 避免 class/label 两处平行三元链各自演化、分支漂移；未知来源回退扩展样式
+const SOURCE_BADGES: Record<NonNullable<CommandInfo['source']>, { cls: string, label: string }> = {
+    builtin: { cls: 'badge-ghost', label: '内置' },
+    skill: { cls: 'badge-accent', label: '技能' },
+    prompt: { cls: 'badge-secondary badge-outline', label: 'Prompt' },
+    extension: { cls: 'badge-primary badge-outline', label: '扩展' },
+}
+const sourceBadge = (source: CommandInfo['source']) =>
+    (source && SOURCE_BADGES[source]) || { cls: 'badge-primary badge-outline', label: '扩展' }
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
@@ -363,10 +375,8 @@ defineExpose({
                             class="text-xs opacity-60 whitespace-nowrap overflow-hidden text-ellipsis flex-1 min-w-0">{{
                                 cmd.description }}</span>
                         <span v-if="cmd.source" class="ml-auto badge badge-xs shrink-0"
-                            :class="cmd.source === 'builtin'
-                                ? 'badge-ghost'
-                                : (cmd.source === 'prompt' ? 'badge-secondary badge-outline' : 'badge-primary badge-outline')">
-                            {{ cmd.source === 'builtin' ? '内置' : (cmd.source === 'prompt' ? 'Prompt' : '扩展') }}
+                            :class="sourceBadge(cmd.source).cls">
+                            {{ sourceBadge(cmd.source).label }}
                         </span>
                     </button>
                 </div>
