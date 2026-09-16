@@ -9,6 +9,7 @@ import type { Action } from '../components/a2ui/types'
 import { resolveDynamicRecord } from './useA2UIState'
 import { sendA2uiAction, callA2uiAgentFunction, type A2uiResponseMessage } from './a2uiClient'
 import { updateSurfaceDataModel, deleteSurface } from './useA2UISurfaces'
+import { attachToSessionIfNeeded, useChatState } from './useChatState'
 import { useToast } from './useToast'
 import { i18n } from '../i18n'
 
@@ -50,6 +51,14 @@ export async function handleA2UIAction(
                 surfaces,
             })
             applyResponseMessages(messages)
+            // 服务端 handler 受理 event（question/questionnaire 提交）会以 steer 触发续跑
+            // run——该 run 由服务端发起，客户端没有为它打开 chat SSE 流，不主动 attach 的
+            // 话提交回显与续跑回复都不在任何实时通道上（要刷新页面才可见）。attach 复用
+            // 切会话/刷新恢复的同一机制：run 进行中附着到 settled；已落定则立即 done，
+            // 走 done 分支的全量刷新兜底。仅在成功路径 attach：404/409（面板失效）时
+            // 服务端未受理、无 run。
+            const sessionKey = useChatState().sessionKey
+            if (sessionKey) attachToSessionIfNeeded(sessionKey)
             return
         }
 

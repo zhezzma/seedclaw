@@ -171,7 +171,9 @@ function isHistoryLoadFresh(targetKey: string): boolean {
     return loadedAt !== undefined && performance.now() - loadedAt < HISTORY_LOAD_FRESH_MS
 }
 
-function attachToSessionIfNeeded(targetKey: string) {
+// 导出供跨 composable 复用（useA2UIActions：面板提交后服务端 steer 续跑 run 的流附着入口）。
+// 语义不变：已有活跃 SSE 时跳过（shouldAttachSession）。
+export function attachToSessionIfNeeded(targetKey: string) {
     if (!shouldAttachSession(sseConnections.has(targetKey))) {
         return
     }
