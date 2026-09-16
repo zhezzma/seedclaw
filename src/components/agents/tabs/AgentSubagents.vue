@@ -389,6 +389,9 @@ const parentDeniedToolsCount = computed(() =>
     availableTools.value.filter((t: any) => t.denied).length)
 const parentDisabledSkillsCount = computed(() =>
     availableSkills.value.filter((s: any) => s.enabled === false).length)
+// 卡片徽章排除数：收进 helper 避免模板三元内跨表达式访问可选链（TS18048）
+const deniedToolsCountOf = (s: SubagentConfig) => s.tools?.deniedTools?.length ?? 0
+const disabledSkillsCountOf = (s: SubagentConfig) => s.skills?.disabledSkills?.length ?? 0
 
 </script>
 
@@ -455,8 +458,8 @@ const parentDisabledSkillsCount = computed(() =>
                         <div v-if="agent.tools?.type === 'custom'"
                             class="badge badge-primary badge-outline badge-sm text-xs gap-1">
                             <CommandLineIcon class="w-3 h-3" />
-                            {{ (agent.tools.deniedTools?.length || 0) > 0
-                                ? $t('agent.tools.customToolsExcluded', { count: agent.tools.deniedTools.length })
+                            {{ deniedToolsCountOf(agent) > 0
+                                ? $t('agent.tools.customToolsExcluded', { count: deniedToolsCountOf(agent) })
                                 : $t('agent.tools.customTools') }}
                         </div>
                         <div v-else-if="agent.tools?.type === 'inherit'"
@@ -467,8 +470,8 @@ const parentDisabledSkillsCount = computed(() =>
 
                         <div v-if="agent.skills?.type === 'custom'"
                             class="badge badge-secondary badge-outline badge-sm text-xs gap-1">
-                            {{ (agent.skills.disabledSkills?.length || 0) > 0
-                                ? $t('agent.skills.customSkillsExcluded', { count: agent.skills.disabledSkills.length })
+                            {{ disabledSkillsCountOf(agent) > 0
+                                ? $t('agent.skills.customSkillsExcluded', { count: disabledSkillsCountOf(agent) })
                                 : $t('agent.skills.customSkills') }}
                         </div>
                         <div v-if="agent.skills?.type === 'inherit'"
