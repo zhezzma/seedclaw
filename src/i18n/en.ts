@@ -293,6 +293,10 @@ export default {
             inheritThinkingLevel: 'Inherit Parent Thinking Level',
             mountExtensions: 'Extension Mounts',
             extensionsBadge: '{count} extension(s)',
+            // Whitelist semantics: opposite of tools/skills exclusions (checked = kept available)
+            extensionsHint: 'Checked extensions are mounted (whitelist: none mounted by default); globally disabled extensions cannot be newly mounted, already-mounted ones stay visible with a badge.',
+            noExtensions: 'No mountable extensions',
+            extensionGloballyDisabled: 'Globally disabled',
             systemPrompt: 'System Prompt',
             promptPlaceholder: 'You are a helpful assistant...'
         }

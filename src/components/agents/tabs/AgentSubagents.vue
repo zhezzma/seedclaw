@@ -6,9 +6,9 @@ import { useModelsState } from '@/composables/useModelsState'
 import { useSkillsState } from '@/composables/useSkillsState'
 import { useToast } from '@/composables/useToast'
 import { useI18n } from 'vue-i18n'
-import { PlusIcon, PencilIcon, TrashIcon, UserGroupIcon, CommandLineIcon, CpuChipIcon, ChevronUpIcon, PuzzlePieceIcon } from '@heroicons/vue/24/outline'
+import { PlusIcon, PencilIcon, TrashIcon, UserGroupIcon, CommandLineIcon, CpuChipIcon, ChevronUpIcon } from '@heroicons/vue/24/outline'
 import ModelSelectMenuContent from '@/components/models/ModelSelectMenuContent.vue'
-import A2UIFormDialog from '@/components/extensions/A2UIFormDialog.vue'
+import { apiGet } from '@/composables/api-client'
 
 const props = defineProps<{
     agent: any
@@ -25,16 +25,18 @@ const loading = ref(false)
 const showModal = ref(false)
 const isSubmitting = ref(false)
 
-// 扩展挂载表单：当前正在编辑的目标子代理（null = 关闭）。表单本体是服务端声明的
-// a2ui 组件树（A2UIFormDialog 拉取渲染），客户端不含任何硬编码表单逻辑。
-const mountFormSubagent = ref<SubagentConfig | null>(null)
-
 const subagents = computed(() => subAgentsState.list)
 const availableTools = computed(() => {
     if (!props.agent?.id) return []
     return (agentsState.agentTools[props.agent.id] || []).filter((t: any) => t.name !== 'subagent')
 })
 const availableSkills = ref<any[]>([])
+
+// 可挂载扩展清单（GET /api/extensions 过滤 enabled：全局禁用的扩展不列出）。
+// 列表是全局的，与 agent 无关；随 agent 切换一起刷新只为拿到新鲜数据。
+const availableExtensions = ref<Array<{ id: string; name: string }>>([])
+// 白名单勾选（勾选 = 挂载；与 tools/skills 的排除项语义不同）
+const selectedExtensions = ref<string[]>([])
 
 const availableModelGroups = modelsState.availableModels
 
@@ -191,6 +193,16 @@ const loadAvailableSkills = async () => {
     }
 }
 
+const loadAvailableExtensions = async () => {
+    try {
+        const raw = await apiGet<Array<{ id: string; name: string; enabled: boolean }>>('/api/extensions')
+        availableExtensions.value = raw.filter((e) => e.enabled).map(({ id, name }) => ({ id, name }))
+    } catch (e: any) {
+        // 加载失败保留空清单：已挂载 id 经 extensionOptions 并集兜底仍会显示，不会静默丢失
+        console.error('Failed to load extensions:', e)
+    }
+}
+
 watch(() => props.agent?.id, async (newId) => {
     if (modelsState.providers.value.length === 0) {
         modelsState.loadModels()
@@ -202,6 +214,7 @@ watch(() => props.agent?.id, async (newId) => {
             await subAgentsState.loadSubagents(newId)
             await agentsState.loadAgentTools(newId)
             await loadAvailableSkills()
+            loadAvailableExtensions()
         } catch (e: any) {
             toast.error(e.message || t('agent.subagents.loadError') || 'Failed to load subagents')
         } finally {
@@ -215,6 +228,7 @@ const openAddModal = () => {
     formData.value = initFormData()
     selectedTools.value = []
     selectedSkills.value = []
+    selectedExtensions.value = []
     modelDropdownOpen.value = false
     showModal.value = true
 }
@@ -255,6 +269,8 @@ const openEditModal = (subagent: SubagentConfig) => {
     } else {
         selectedSkills.value = []
     }
+    // 扩展白名单直接播种（勾选 = 挂载，无模式切换）
+    selectedExtensions.value = [...(subagent.extensions ?? [])]
     modelDropdownOpen.value = false
     showModal.value = true
 }
@@ -307,6 +323,9 @@ const saveSubagent = async () => {
         } else if (formData.value.skills) {
             delete formData.value.skills.disabledSkills
         }
+
+        // 扩展白名单直接以勾选为准（空数组 = 不挂载，显式覆盖服务端 existing）
+        formData.value.extensions = [...selectedExtensions.value]
 
         // 构造 wire payload：不 mutate reactive formData（避免错误路径下 select 被 null 污染为空白态）。
         // form '' → wire null：服务端 PUT 路由依靠 "thinkingLevel" in body 区分未传/清空，
@@ -383,6 +402,42 @@ const toggleAllSkills = () => {
     }
 }
 
+// ─── 扩展挂载（白名单：勾选 = 挂载）───
+const toggleExtensionSelection = (id: string) => {
+    if (selectedExtensions.value.includes(id)) {
+        selectedExtensions.value = selectedExtensions.value.filter((e) => e !== id)
+    } else {
+        selectedExtensions.value.push(id)
+    }
+}
+
+/** 展示项 = 可挂载清单 ∪ 已勾选 id（后者如已全局禁用，标记后仍显示，避免静默丢失）。 */
+const extensionOptions = computed(() => {
+    const options = availableExtensions.value.map((e) => ({ ...e, mountable: true }))
+    const known = new Set(options.map((o) => o.id))
+    for (const id of selectedExtensions.value) {
+        if (!known.has(id)) options.push({ id, name: id, mountable: false })
+    }
+    return options
+})
+
+const isAllExtensionsSelected = computed(() => {
+    return availableExtensions.value.length > 0
+        && availableExtensions.value.every((e) => selectedExtensions.value.includes(e.id))
+})
+
+const toggleAllExtensions = () => {
+    if (isAllExtensionsSelected.value) {
+        selectedExtensions.value = []
+    } else {
+        // 全选只覆盖可挂载项（禁用项无法新挂载）；取消勾选则连已挂载的禁用项一并清空
+        selectedExtensions.value = [
+            ...selectedExtensions.value.filter((id) => !availableExtensions.value.some((e) => e.id === id)),
+            ...availableExtensions.value.map((e) => e.id),
+        ]
+    }
+}
+
 // ─── 黑名单语义可视化（tools/skills 实际存储为排除项，勾选 = 保留可用）───
 // inherit 模式下提示父级已排除的数量（复选框区外，不随本表单勾选变化）
 const parentDeniedToolsCount = computed(() =>
@@ -428,10 +483,6 @@ const disabledSkillsCountOf = (s: SubagentConfig) => s.skills?.disabledSkills?.l
                     <div class="flex justify-between items-start mb-2">
                         <h4 class="font-bold text-lg truncate flex-1" :title="agent.name">{{ agent.name }}</h4>
                         <div class="flex gap-1 shrink-0 ml-2">
-                            <button class="btn btn-square btn-ghost btn-xs" @click="mountFormSubagent = agent"
-                                :title="$t('agent.subagents.mountExtensions')">
-                                <PuzzlePieceIcon class="w-4 h-4" />
-                            </button>
                             <button class="btn btn-square btn-ghost btn-xs" @click="openEditModal(agent)"
                                 :title="$t('common.edit')">
                                 <PencilIcon class="w-4 h-4" />
@@ -720,6 +771,47 @@ const disabledSkillsCountOf = (s: SubagentConfig) => s.skills?.disabledSkills?.l
                             </div>
                         </div>
                     </div>
+
+                    <!-- Extensions Mount（白名单：勾选 = 挂载，无模式切换，随表单一次保存） -->
+                    <div class="form-control w-full">
+                        <div class="flex items-center justify-between">
+                            <label class="label"><span class="label-text font-medium">{{
+                                $t('agent.subagents.mountExtensions') }}
+                                    <span class="text-base-content/50 font-normal">({{ $t('common.optional')
+                                    }})</span></span></label>
+                            <button v-if="extensionOptions.length > 0" type="button"
+                                class="btn btn-ghost btn-xs text-xs" @click="toggleAllExtensions">
+                                {{ isAllExtensionsSelected ? ($t('common.deselectAll') || 'Deselect All') :
+                                    ($t('common.selectAll') || 'Select All') }}
+                            </button>
+                        </div>
+
+                        <!-- 白名单语义说明：与 tools/skills 的黑名单（勾选 = 保留可用）相反 -->
+                        <p class="text-xs text-base-content/50 mb-2">{{ $t('agent.subagents.extensionsHint') }}</p>
+
+                        <div class="bg-base-200/50 rounded-xl border border-base-200">
+                            <div class="p-4 max-h-48 overflow-y-auto custom-scrollbar">
+                                <div v-if="extensionOptions.length === 0"
+                                    class="text-center text-sm text-base-content/50 py-2">
+                                    {{ $t('agent.subagents.noExtensions') || 'No mountable extensions' }}
+                                </div>
+                                <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <label v-for="ext in extensionOptions" :key="ext.id"
+                                        class="label cursor-pointer justify-start gap-3 bg-base-100 p-2 rounded-lg border border-base-200 hover:border-primary/30 transition-colors">
+                                        <input type="checkbox" class="checkbox checkbox-sm checkbox-primary"
+                                            :checked="selectedExtensions.includes(ext.id)"
+                                            @change="toggleExtensionSelection(ext.id)" />
+                                        <span class="label-text text-sm font-medium truncate flex-1" :title="ext.id">{{
+                                            ext.name }}</span>
+                                        <!-- 已挂载但已全局禁用：保留勾选可见性，标记后不静默消失 -->
+                                        <span v-if="!ext.mountable"
+                                            class="badge badge-ghost badge-sm text-xs opacity-70 shrink-0">{{
+                                            $t('agent.subagents.extensionGloballyDisabled') }}</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="modal-action mt-6">
@@ -735,14 +827,6 @@ const disabledSkillsCountOf = (s: SubagentConfig) => s.skills?.disabledSkills?.l
                 <button @click="closeModal">close</button>
             </form>
         </dialog>
-
-        <!-- 扩展挂载表单（服务端声明的 a2ui 组件树；保存后刷新列表以更新徽章） -->
-        <A2UIFormDialog v-if="mountFormSubagent"
-            :title="`${$t('agent.subagents.mountExtensions')}: ${mountFormSubagent.name}`"
-            :load-url="`/api/extensions/subagents/mount-form/${encodeURIComponent(props.agent.id)}/${encodeURIComponent(mountFormSubagent.id)}`"
-            :save-url="`/api/extensions/subagents/mount-form/${encodeURIComponent(props.agent.id)}/${encodeURIComponent(mountFormSubagent.id)}`"
-            @saved="subAgentsState.loadSubagents(props.agent.id)"
-            @close="mountFormSubagent = null" />
     </div>
 </template>
 

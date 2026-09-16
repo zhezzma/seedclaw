@@ -293,6 +293,10 @@ export default {
             inheritThinkingLevel: '继承父智能体的思考程度',
             mountExtensions: '扩展挂载',
             extensionsBadge: '{count} 个扩展',
+            // 白名单语义：与 tools/skills 的排除项语义（勾选 = 保留可用）相反
+            extensionsHint: '勾选即挂载该扩展（白名单：基线不挂载任何扩展）；已全局禁用的扩展无法新挂载，已挂载的会带标记保留显示。',
+            noExtensions: '没有可挂载的扩展',
+            extensionGloballyDisabled: '已全局禁用',
             systemPrompt: '系统提示词',
             promptPlaceholder: '你是一个有用的助手...'
         }
