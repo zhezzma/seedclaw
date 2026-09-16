@@ -127,10 +127,14 @@ function resetStreamState(sd: ChatSessionData) {
     sd.compacting = false
 }
 
-/** 绑定 SSE 连接的生命周期清理：done / catch 时统一重置状态并移除连接 */
+/** 绑定 SSE 连接的生命周期清理：done / catch 时统一重置状态并移除连接。
+ *  cleanup 必须做身份校验：retry/edit/compact 是先 abort 旧流再绑新流，
+ *  旧流的 done 在微任务里兑现时新流可能已完成绑定，若无校验会把新 run 的
+ *  状态清零、并把新连接从 sseConnections 误删（导致连接配额耗尽问题复发）。 */
 function bindSSELifecycle(sse: SSEConnection, targetKey: string) {
     sseConnections.set(targetKey, sse)
     const cleanup = () => {
+        if (sseConnections.get(targetKey) !== sse) return
         resetStreamState(getSessionData(targetKey))
         sseConnections.delete(targetKey)
     }

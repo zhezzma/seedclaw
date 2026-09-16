@@ -13,6 +13,7 @@
  */
 
 import { reactive } from 'vue'
+import { setByPath } from '../utils/json-pointer.ts'
 
 export interface SurfaceEntry {
   /** Surface ID */
@@ -69,20 +70,17 @@ export function updateSurfaceDataModel(
   if (entry.processedHashes.has(hash)) return false
   entry.processedHashes.add(hash)
 
+  // 写入必须走防护版 setByPath：这里的 path/value 都是 AI 输出，
+  // 裸遍历（in 检查沿原型链）与 Object.assign 都可被 /__proto__、/constructor/prototype 污染
+  // （代码审核 #2，与 useA2UIState 共用同一实现，勿在本文件复制逻辑）
   if (!path || path === '/') {
     // 根路径：合并到 reactive 对象
     if (typeof value === 'object' && value !== null) {
-      Object.assign(entry.dataModel, value)
+      setByPath(entry.dataModel, '/', value)
     }
   } else {
-    // 子路径：按 JSON Pointer 设置
-    const segments = path.replace(/^\//, '').split('/')
-    let current: any = entry.dataModel
-    for (let i = 0; i < segments.length - 1; i++) {
-      if (!(segments[i] in current)) current[segments[i]] = {}
-      current = current[segments[i]]
-    }
-    current[segments[segments.length - 1]] = value
+    // 子路径：按 JSON Pointer 设置（防原型污染）
+    setByPath(entry.dataModel, path, value)
   }
 
   return true

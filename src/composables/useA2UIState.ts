@@ -21,58 +21,11 @@ import type {
 
 // ==================== JSON Pointer 工具 ====================
 
-/**
- * 通过 JSON Pointer 路径获取值
- * 例如: "/foo/bar/0" → obj.foo.bar[0]
- */
-export function getByPath(obj: any, path: string): any {
-  if (!path || path === '/') return obj
-  const segments = path.replace(/^\//, '').split('/')
-  let current = obj
-  for (const seg of segments) {
-    if (current == null) return undefined
-    // 处理数组索引
-    const index = Number(seg)
-    if (Array.isArray(current) && !isNaN(index)) {
-      current = current[index]
-    } else {
-      // JSON Pointer 需要反转义 ~1 → / 和 ~0 → ~
-      const key = seg.replace(/~1/g, '/').replace(/~0/g, '~')
-      current = current[key]
-    }
-  }
-  return current
-}
-
-/**
- * 通过 JSON Pointer 路径设置值
- */
-export function setByPath(obj: any, path: string, value: any): void {
-  if (!path || path === '/') {
-    Object.assign(obj, value)
-    return
-  }
-  const segments = path.replace(/^\//, '').split('/')
-  let current = obj
-  for (let i = 0; i < segments.length - 1; i++) {
-    const seg = segments[i].replace(/~1/g, '/').replace(/~0/g, '~')
-    const index = Number(seg)
-    if (Array.isArray(current) && !isNaN(index)) {
-      if (current[index] == null) current[index] = {}
-      current = current[index]
-    } else {
-      if (current[seg] == null) current[seg] = {}
-      current = current[seg]
-    }
-  }
-  const lastSeg = segments[segments.length - 1].replace(/~1/g, '/').replace(/~0/g, '~')
-  const lastIndex = Number(lastSeg)
-  if (Array.isArray(current) && !isNaN(lastIndex)) {
-    current[lastIndex] = value
-  } else {
-    current[lastSeg] = value
-  }
-}
+// 实现已抽到零依赖 util：路径/value 来自 AI 输出，防污染写入逻辑
+// 必须被所有写入方（含 useA2UISurfaces 的 updateDataModel 活路径）共用，
+// 不得在本文件内另起炉灶（详见代码审核 #2）。
+import { getByPath, setByPath } from '../utils/json-pointer.ts'
+export { getByPath, setByPath }
 
 // ==================== 动态值解析 ====================
 
@@ -407,8 +360,10 @@ export function useA2UIState() {
       if (!surface) return
       if (path) {
         setByPath(surface.dataModel, path, value)
-      } else {
-        Object.assign(surface.dataModel, value)
+      } else if (typeof value === 'object' && value !== null) {
+        // 走防护版而非 Object.assign：value 含 own key "__proto__" 时
+        // [[Set]] 会触发原型链 setter 造成污染（代码审核 #2）
+        setByPath(surface.dataModel, '', value)
       }
     } else if ('deleteSurface' in msg) {
       surfaces.delete(msg.deleteSurface.surfaceId)

@@ -51,11 +51,16 @@ watch(() => props.agent.id, async (newId) => {
     agentFilesList.value = await agentsState.loadAgentFiles(newId) || []
 }, { immediate: true })
 
+// 请求令牌：慢响应不能把 A 文件内容写进 B 文件（切换后丢弃过期响应）
+let openFileSeq = 0
+
 async function openFile(filename: string) {
+    const seq = ++openFileSeq
     editingFile.value = filename
     showFileModal.value = true
     editingContent.value = '' // Clear previous content while loading
     await agentsState.loadAgentFileContent(props.agent.id, filename)
+    if (seq !== openFileSeq) return // 响应期间已切到其他文件，丢弃
     editingContent.value = agentsState.agentFiles[`${props.agent.id}:${filename}`]?.content || ''
 }
 

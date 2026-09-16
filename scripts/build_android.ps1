@@ -20,11 +20,19 @@ if (Test-Path $envFile) {
 $keystore = "$projectRoot\release.keystore"
 $alias = "seedclaw"
 
+# 签名口令必须显式提供：默认口令回退等价于公开签名私钥，
+# 且 Android 签名密钥不可轮换（代码审核 #3）
 $keystorePass = $env:ANDROID_KEYSTORE_PASS
-if ([string]::IsNullOrWhiteSpace($keystorePass)) { $keystorePass = "android" } 
+if ([string]::IsNullOrWhiteSpace($keystorePass)) {
+    Write-Error "ANDROID_KEYSTORE_PASS not set - refusing to sign with a fallback password"
+    exit 1
+}
 
 $keyPass = $env:ANDROID_KEY_PASS
-if ([string]::IsNullOrWhiteSpace($keyPass)) { $keyPass = "android" }
+if ([string]::IsNullOrWhiteSpace($keyPass)) {
+    # 未单独提供时沿用 keystore 口令（同一口令是常见做法，但必须显式给出第一个）
+    $keyPass = $keystorePass
+}
 
 # 设置 Gradle 所需的环境变量 (供 build.gradle.kts 使用)
 [Environment]::SetEnvironmentVariable("ANDROID_KEYSTORE_PATH", $keystore, "Process")

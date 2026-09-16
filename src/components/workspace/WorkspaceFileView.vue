@@ -423,7 +423,9 @@ defineExpose({
                     class="max-w-full max-h-full object-contain" />
             </div>
 
-            <!-- HTML 预览：用当前 dirty buffer 走 iframe srcdoc，allow-scripts 但不允许同源 -->
+            <!-- HTML 预览：用当前 dirty buffer 走 iframe srcdoc，allow-scripts 但不允许同源。
+                 脚本可执行（用户预览自己的文件属预期功能）；沙箱无 allow-same-origin →
+                 拿不到主文档/存储，隔离面仍然成立。 -->
             <iframe v-else-if="previewMode && previewKind === 'html'" :srcdoc="content" sandbox="allow-scripts"
                 class="absolute inset-0 h-full w-full bg-white border-0"
                 :title="path" />

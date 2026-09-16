@@ -3,6 +3,16 @@
 
 import { writeClipboard } from '../clipboard.ts'
 
+/** HTML 文本转义：插入 innerHTML/属性的不可信内容必须先过这里。
+ *  背景：本渲染器把 AI 输出的 fence 原文拼进 HTML 字符串再走 v-html，
+ *  未转义即构成零交互 XSS（详见代码审核 #1）。 */
+const escapeHtml = (text: string) => text
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#39;')
+
 interface Options {
   svg: string
   buttonClass?: string
@@ -51,7 +61,9 @@ const renderCode = (
 
 
     const rawContent = tokens[idx].content
+    // 属性上下文转义：& 必须最先替换，否则会二次编码后续实体
     const clipboardContent = buildClipboardTextPayload(rawContent)
+      .replaceAll('&', '&amp;')
       .replaceAll('"', '&quot;')
       .replaceAll("'", "&apos;")
 
@@ -76,8 +88,21 @@ const renderCode = (
     }
     // Get language from token info if available
     const language = tokens[idx].info || '';
-    const isPreviewable = ['html', 'svg', 'xml'].includes(language.toLowerCase());
-    const isSvg = language.toLowerCase() === 'svg';
+    const langLower = language.toLowerCase();
+    const isPreviewable = ['html', 'svg', 'xml'].includes(langLower);
+    const isSvg = langLower === 'svg';
+
+    // 预览走 sandbox iframe（sandbox 不含 allow-scripts → 内嵌 <script>/事件处理器一律不执行，
+    // 消除预览按钮 innerHTML 赋值带来的 XSS 面；正确范本见 WorkspaceFileView.vue）。
+    // allow-same-origin 仅为让父文档读取 contentDocument 自适应高度；
+    // html/xml 默认不渲染（data-srcdoc 惰性赋值），svg 默认渲染。
+    const previewSrcDoc = isPreviewable
+      ? `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;background:white;">${rawContent}</body></html>`
+      : ''
+    const previewAttr = escapeHtml(previewSrcDoc)
+    const previewIframe = isPreviewable
+      ? `<iframe class="code-preview-frame" sandbox="allow-same-origin" title="Preview"${isSvg ? ` srcdoc="${previewAttr}"` : ` data-srcdoc="${previewAttr}"`}></iframe>`
+      : ''
 
     // Generate a unique ID for the code block header
     const headerId = `code-header-${Math.random().toString(36).substring(2, 9)}`;
@@ -85,8 +110,8 @@ const renderCode = (
     return `
 <div class="markdown-it-code-title">
   <div id="${headerId}" class="code-header ${options.headerClass}" style="${options.headerStyle}">
-    <div class="code-header-left" onclick="toggleCodeCollapse(this)">
-      <span class="code-language">${language}</span>
+    <div class="code-header-left">
+      <span class="code-language">${escapeHtml(language)}</span>
       <button class="code-collapse-button ${options.collapseButtonClass}" style="${options.collapseButtonStyle}" title="Toggle code" >
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="6 9 12 15 18 9"></polyline>
@@ -95,21 +120,21 @@ const renderCode = (
     </div>
     <div class="code-header-right">
       ${isPreviewable ? `
-      <button class="code-preview-button${isSvg ? ' active' : ''}" title="Preview" onclick="toggleCodePreview(this)">
+      <button class="code-preview-button${isSvg ? ' active' : ''}" title="Preview">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
       </button>` : ''}
-      <button data-clipboard-text="${clipboardContent}" class="code-fullscreen-button" title="Fullscreen" onclick="fullscreenCodeContent(this)">
+      <button data-clipboard-text="${clipboardContent}" class="code-fullscreen-button" title="Fullscreen">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
       </button>
-      <button data-clipboard-text="${clipboardContent}" class="code-copy-button ${options.buttonClass}" style="${options.buttonStyle}" title="Copy code" onclick="copyCodeToClipboard(this)">
+      <button data-clipboard-text="${clipboardContent}" class="code-copy-button ${options.buttonClass}" style="${options.buttonStyle}" title="Copy code">
         ${options.svg}
       </button>
     </div>
   </div>
-  <div class="code-preview${isSvg ? '' : ' hidden'}">${isSvg ? tokens[idx].content : ''}</div>
+  <div class="code-preview${isSvg ? '' : ' hidden'}">${previewIframe}</div>
   <div class="code-content${isSvg ? ' hidden' : ''}">
     ${origRendered}
-    <button class="code-scroll-top-button${rawContent.length > 500 ? '' : ' hidden'}" title="Scroll to code header" onclick="scrollToElement('${headerId}')">
+    <button class="code-scroll-top-button${rawContent.length > 500 ? '' : ' hidden'}" title="Scroll to code header">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="18 15 12 9 6 15"></polyline>
       </svg>
@@ -145,13 +170,18 @@ export default (md: any, options: Options) => {
         if (!codeBlock) return;
         const codeContent = codeBlock.querySelector('.code-content');
         const previewContent = codeBlock.querySelector('.code-preview');
-        const copyButton = codeBlock.querySelector('.code-copy-button') as HTMLElement;
 
-        if (!codeContent || !previewContent || !copyButton) return;
+        if (!codeContent || !previewContent) return;
 
         if (previewContent.classList.contains('hidden')) {
-          const code = copyButton.dataset.clipboardText || '';
-          previewContent.innerHTML = code;
+          // html/xml 预览惰性加载：首次展开才把 data-srcdoc 赋给 srcdoc，
+          // 避免隐藏 iframe 提前加载外链资源。内容已在渲染期存入属性，
+          // 不再走 innerHTML 赋值（原实现即此处的 XSS 注入点）。
+          const frame = previewContent.querySelector('iframe[data-srcdoc]');
+          if (frame && !frame.hasAttribute('srcdoc')) {
+            frame.setAttribute('srcdoc', frame.getAttribute('data-srcdoc') || '');
+            frame.removeAttribute('data-srcdoc');
+          }
           previewContent.classList.remove('hidden');
           codeContent.classList.add('hidden');
           button.classList.add('active');
@@ -160,6 +190,31 @@ export default (md: any, options: Options) => {
           codeContent.classList.remove('hidden');
           button.classList.remove('active');
         }
+      };
+    }
+
+    if (!(window as any).resizeCodePreview) {
+      // sandbox="allow-same-origin"（无 allow-scripts）使父文档可读取 frame 文档以自适应高度，
+      // 同时内嵌脚本因缺少 allow-scripts 无法执行
+      (window as any).resizeCodePreview = (iframe: HTMLIFrameElement) => {
+        const measure = () => {
+          try {
+            const doc = iframe.contentDocument;
+            if (!doc || !doc.body) return;
+            const svg = doc.querySelector('svg');
+            let h = 0;
+            if (svg) {
+              h = Math.ceil(svg.getBoundingClientRect().height);
+            }
+            if (!h) {
+              h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight);
+            }
+            if (h > 0) iframe.style.height = `${h + 16}px`;
+          } catch { /* 沙箱不可达时保持默认高度 */ }
+        };
+        measure();
+        // 外链图片等子资源晚于 onload 改变布局，延迟补测一次
+        setTimeout(measure, 300);
       };
     }
 
@@ -246,6 +301,41 @@ export default (md: any, options: Options) => {
 
 
 
+
+    // 渲染产物不写 onclick=/onload=，交互统一走这里的事件委托（一次性安装）。
+    // 动机：① 未来若启用 CSP（script-src 'self' 会拦内联事件属性，当前 csp 为 null）
+    // 渲染层无需再改；② v-html 注入的节点不逐个绑事件，避免泄漏监听器。
+    // - click 冒泡：按 class 就近匹配目标，分发给上方各处理函数
+    // - load 捕获：load 不冒泡，捕获阶段监听是父文档收到后代 iframe load 的唯一方式
+    if (!(window as any).codeTitleDelegationInstalled) {
+      (window as any).codeTitleDelegationInstalled = true;
+      document.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement | null;
+        if (!target || typeof target.closest !== 'function') return;
+        const w = window as any;
+        const copyBtn = target.closest('.code-copy-button');
+        if (copyBtn) { w.copyCodeToClipboard(copyBtn); return; }
+        const previewBtn = target.closest('.code-preview-button');
+        if (previewBtn) { w.toggleCodePreview(previewBtn); return; }
+        const fullscreenBtn = target.closest('.code-fullscreen-button');
+        if (fullscreenBtn) { w.fullscreenCodeContent(fullscreenBtn); return; }
+        const scrollTopBtn = target.closest('.code-scroll-top-button');
+        if (scrollTopBtn) {
+          // headerId 在渲染期随机生成，无法写在按钮上；从所在容器反查
+          const header = scrollTopBtn.closest('.markdown-it-code-title')?.querySelector('.code-header');
+          if (header && header.id) w.scrollToElement(header.id);
+          return;
+        }
+        const headerLeft = target.closest('.code-header-left');
+        if (headerLeft) w.toggleCodeCollapse(headerLeft);
+      });
+      document.addEventListener('load', (e) => {
+        const t = e.target as HTMLElement | null;
+        if (t && t.classList && t.classList.contains('code-preview-frame')) {
+          (window as any).resizeCodePreview(t as HTMLIFrameElement);
+        }
+      }, true);
+    }
 
     // 定义你想要注入的CSS样式
     const css = `
@@ -337,6 +427,13 @@ export default (md: any, options: Options) => {
   background: white;
   overflow: auto;
   min-height: 50px;
+}
+.markdown-it-code-title .code-preview-frame {
+  border: none;
+  width: 100%;
+  height: 150px;
+  display: block;
+  background: white;
 }
 .markdown-it-code-title .code-preview.hidden {
   display: none;

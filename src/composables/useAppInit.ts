@@ -42,11 +42,18 @@ export function useAppInit() {
         await waitForLocalServerReady()
         if (isLocalServerBootFailed()) return
 
-        await Promise.all([
+        // allSettled 错误隔离：任一加载失败不应阻断其余加载，
+        // 更不能让 WS 连接永不建立（原 Promise.all 一损俱损且无重试）
+        const results = await Promise.allSettled([
             agentsState.loadAgents(),
             sessionsState.loadSessions(),
             loadModels(),
         ])
+        for (const r of results) {
+            if (r.status === 'rejected') {
+                console.error('[AppInit] 初始数据加载失败:', r.reason)
+            }
+        }
 
         // 加载完 agents 后，如果还没有选中的 agent，按优先级兜底：
         // ?agent=<id>（冷刷新/书签直接落在 /new?agent=x 时，路由 watcher 先于本 init

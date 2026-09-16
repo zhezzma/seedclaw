@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
+    "test": "node --experimental-strip-types --test \"tests/*.test.ts\"",
     "tcs": " vue-tsc --noEmit &&  tsc --noEmit --skipLibCheck",
     "build": "npm run tcs && vite build",
     "preview": "vite preview",

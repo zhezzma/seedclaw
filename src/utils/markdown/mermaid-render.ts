@@ -5,6 +5,15 @@ import { useToast } from '../../composables/useToast'
 import { mermaidCache, mermaidState } from './mermaid-cache'
 import { writeClipboard } from '../clipboard.ts'
 
+/** HTML 转义：错误路径里的错误消息与原始图表代码都会拼进 innerHTML，
+ *  未转义即 XSS（代码审核 #1） */
+const escapeHtml = (text: string) => text
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#39;')
+
 //该文件不放在./markdown-it-mermaid中因为使用document..不能被works引用
 
 // 根据模式获取对应的mermaid配置
@@ -17,7 +26,9 @@ function getMermaidConfig(isDark: boolean): MermaidConfig {
         darkMode: isDark,
         look: "handDrawn",
         logLevel: 'error',
-        securityLevel: 'loose', // 允许点击事件
+        // strict：图表代码来自 AI 输出，应用侧从未注册 mermaid click 回调，
+        // loose 放大攻击面（允许内联事件/javascript: 链接）而无任何功能收益
+        securityLevel: 'strict',
         fontFamily: '"Roboto", "PingFang SC", "Microsoft YaHei", sans-serif',
         fontSize: 16,
         flowchart: {
@@ -606,8 +617,8 @@ export async function renderMermaidDiagrams(html: string): Promise<string> {
       </svg>`
             element.innerHTML = `
         <div class="mermaid-error-container">
-          <div class="mermaid-error-icon" title="${errorMessage.replace(/"/g, '"')}">${errorIconSvg}</div>
-          <pre class="language-mermaid"><code class="language-mermaid">${originalCode}</code></pre>
+          <div class="mermaid-error-icon" title="${escapeHtml(errorMessage)}">${errorIconSvg}</div>
+          <pre class="language-mermaid"><code class="language-mermaid">${escapeHtml(originalCode)}</code></pre>
         </div>
       `
         }

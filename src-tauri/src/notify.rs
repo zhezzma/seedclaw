@@ -155,10 +155,17 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> NotifyState {
                                 }
                             };
 
-                            // Set Origin header
-                            request
-                                .headers_mut()
-                                .insert("Origin", HeaderValue::from_str(&origin_clone).unwrap());
+                            // Set Origin header：非法 origin（含非法字符）会使通知静默失效，
+                            // 记日志并放弃本次连接，不能 panic（tokio 任务里 unwrap 会被吞且断连）
+                            match HeaderValue::from_str(&origin_clone) {
+                                Ok(origin_val) => {
+                                    request.headers_mut().insert("Origin", origin_val);
+                                }
+                                Err(e) => {
+                                    eprintln!("[Rust Notify] Invalid origin '{}': {}", origin_clone, e);
+                                    return;
+                                }
+                            }
 
                             // Set Authorization header if token provided
                             if let Some(ref tok) = token_clone {

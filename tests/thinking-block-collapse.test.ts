@@ -50,7 +50,9 @@ test('streaming expansion renders plain text instead of markdown', () => {
 
 test('settled thinking renders markdown once via MarkdownRenderer', () => {
     // 定格后：MarkdownRenderer 一次性渲染
-    const settledSection = sectionBetween('<div v-else class="opacity-80 text-sm border-t border-base-300 pt-2 mt-2">', '</template>')
+    // 锚点只锁定结构性前缀（v-else + 语义类），不锚定纯样式类——
+    // 样式类会随主题调整漂移（曾致 border-t 被暗色模式改动删掉后本测试误红）
+    const settledSection = sectionBetween('<div v-else class="opacity-80 text-sm', '</template>')
     assert.ok(settledSection.includes('MarkdownRenderer'), 'settled branch should render markdown')
 })
 

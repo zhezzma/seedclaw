@@ -32,7 +32,7 @@ if (-not $msvcReady) {
     Write-Host '   winget install --id Microsoft.VisualStudio.BuildTools --override "--passive --norestart --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"' -ForegroundColor White
     Write-Host "`n   安装约 2-3GB (5-20 分钟)，完成后【新开终端】重新运行本脚本。" -ForegroundColor Yellow
     Pause
-    exit
+    exit 1
 }
 Write-Host "   ✅ 已检测到 MSVC C++ 构建工具。" -ForegroundColor Green
 
@@ -56,7 +56,7 @@ npm run tauri build
 if ($LASTEXITCODE -ne 0) {
     Write-Host "`n❌ 构建失败！" -ForegroundColor Red
     Pause
-    exit
+    exit $LASTEXITCODE
 }
 
 # 3. 收集构建产物
