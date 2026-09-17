@@ -68,7 +68,10 @@ let cascadeChain: Promise<void> = Promise.resolve()
 /** 树内 functionCall action（如 ChoicePicker 级联）：callAgentFunction RPC。
  *  args 内的 {path} 绑定必须先对本地 dataModel 解析（服务端不解析渲染端数据模型，
  *  未解析的绑定对象会导致 rpc 参数失配）；updateDataModel 按 surfaceId 过滤后就地
- *  应用。updateComponents 类响应不适用（组件树来自 GET 快照），丢弃并告警。 */
+ *  应用。updateComponents 类响应不适用（组件树来自 GET 快照），丢弃并告警。
+ *  慢操作反馈：rpc 是请求-响应语义，服务端无法中途推进度；扩展可在 args 里声明
+ *  pendingPath/pendingText，发起 rpc 前就地写入 dataModel 让表单显示“稍候”提示，
+ *  完成后由服务端回包的 updateDataModel 覆盖为最终状态。 */
 function onFormAction(action: Action, dataModel: Record<string, any>, _sourceComponentId: string) {
     // 设置表单无 event action 语义（无对应 handler）：告警而非静默吞掉，便于发现表单树误用
     if (!('functionCall' in action)) {
@@ -76,6 +79,11 @@ function onFormAction(action: Action, dataModel: Record<string, any>, _sourceCom
         return
     }
     const fn = action.functionCall
+    const pendingPath = typeof fn.args?.pendingPath === 'string' ? fn.args.pendingPath : undefined
+    const pendingText = typeof fn.args?.pendingText === 'string' ? fn.args.pendingText : undefined
+    if (pendingPath && pendingText) {
+        setByPath(dataModel, pendingPath, pendingText)
+    }
     cascadeChain = cascadeChain
         .then(async () => {
             const result = await callA2uiAgentFunction({

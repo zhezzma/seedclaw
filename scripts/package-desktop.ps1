@@ -10,9 +10,8 @@ src-tauri\resources\seedagent\ 目录的过程。该目录会被 tauri 打进安
     dist\                     seedagent 编译产物（npm run build 生成）
     node_modules\             生产依赖（在装配目录内单独 npm ci --omit=dev，不动 seedagent 仓库）
     seedserver.mjs            服务端单文件 bundle（步骤 ③.5 生成：dist JS 与 pi 包内联进单文件，
-                              dist 仅留 extensions/运行时资产；node_modules 留 jiti/chord
-                              + @alibaba-group ocr 包——code_review 工具的 launcher 白名单
-                              与 win32-x64 平台二进制 ~55MB，运行时经 createRequire 解析）
+                              dist 仅留 extensions/运行时资产；node_modules 仅留 jiti/chord。
+                              ocr 不随包：由扩展设置面板按需安装到用户数据目录）
     package.json / package-lock.json
 
 【完整流程】
@@ -171,7 +170,7 @@ else {
 
     # ③.5 S3 桌面管线（单脚本）：内联审计门禁 → pi 官方 bundle 补丁 → 扩展说明符规范化
     #     → 虚拟模块桥生成 → esbuild 打包 seedserver.mjs → 最小盘裁剪。
-    #     产物：seedserver.mjs + dist/extensions + node_modules 仅 jiti/chord/@alibaba-group ocr。
+    #     产物：seedserver.mjs + dist/extensions + node_modules 仅 jiti/chord。
     #     每次 pi-* 升级后先跑 seedagent scripts/audit-pi-bundle.mjs 守门。
     Write-Host "==> building desktop bundle (build-desktop.mjs)"
     node (Join-Path $SeedagentDir 'scripts\build-desktop.mjs') $staging
