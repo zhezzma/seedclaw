@@ -70,3 +70,66 @@ test('mounted-but-disabled extension ids stay visible instead of silently disapp
         'disabled marker badge must be rendered for non-mountable mounted ids',
     )
 })
+
+test('extensionsMode: custom/config radio switches whitelist vs global-default source', () => {
+    // 模式切换 radio：custom（自身白名单，默认）/ config（跟随全局「动态子代理默认扩展集」）
+    assert.match(
+        source,
+        /value="custom"\s*\n\s*v-model="formData\.extensionsMode"/,
+        'custom mode radio must bind formData.extensionsMode',
+    )
+    assert.match(
+        source,
+        /value="config"\s*\n\s*v-model="formData\.extensionsMode"/,
+        'config mode radio must bind formData.extensionsMode',
+    )
+
+    // 旧数据/非法真值归一化：编辑时归为两态之一，radio 才能正确选中
+    assert.match(
+        source,
+        /formData\.value\.extensionsMode = subagent\.extensionsMode === 'config' \? 'config' : 'custom'/,
+        'edit mode must normalize extensionsMode into the two-state value',
+    )
+
+    // config 模式下勾选区隐藏，仅显示跟随全局默认集的提示；custom 模式才显示白名单区
+    assert.match(
+        source,
+        /v-if="formData\.extensionsMode === 'config'"[\s\S]*?extensionsModeConfigHint/,
+        'config mode must show the follow-global hint instead of the checkbox area',
+    )
+    assert.match(
+        source,
+        /<template v-else>[\s\S]*?extensionsHint/,
+        'custom mode must render the whitelist hint + checkbox area',
+    )
+
+    // 全选按钮只在 custom 模式出现
+    assert.match(
+        source,
+        /v-if="formData\.extensionsMode === 'custom' && extensionOptions\.length > 0"/,
+        'select-all button must be custom-mode only',
+    )
+
+    // 保存归一化：只允许 custom/config 两态入 wire payload
+    assert.match(
+        source,
+        /formData\.value\.extensionsMode = formData\.value\.extensionsMode === 'config' \? 'config' : 'custom'/,
+        'save must normalize extensionsMode into the two-state wire value',
+    )
+
+    // 卡片徽章：config 模式优先显示跟随全局徽章，否则按白名单数量
+    assert.match(
+        source,
+        /v-if="agent\.extensionsMode === 'config'"[\s\S]*?extensionsModeConfigBadge/,
+        'card badge must reflect config mode before falling back to whitelist count',
+    )
+})
+
+test('useSubAgents type carries extensionsMode through the wire layer', () => {
+    const composable = readFileSync(path.join(root, 'src/composables/useSubAgents.ts'), 'utf8')
+    assert.match(
+        composable,
+        /extensionsMode\?: 'custom' \| 'config'/,
+        'SubagentConfig must declare the extensionsMode wire field',
+    )
+})

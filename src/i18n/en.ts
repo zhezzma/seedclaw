@@ -293,6 +293,11 @@ export default {
             inheritThinkingLevel: 'Inherit Parent Thinking Level',
             mountExtensions: 'Extension Mounts',
             extensionsBadge: '{count} extension(s)',
+            // Extension source: custom = own whitelist; config = follows global "Subagent Default Extensions"
+            extensionsModeCustom: 'Custom Selection',
+            extensionsModeConfig: 'Use Configured Extensions',
+            extensionsModeConfigHint: 'Mounts the extensions checked in the global "Subagent Default Extensions" setting; follows global config changes automatically.',
+            extensionsModeConfigBadge: 'Follows Global Extension Config',
             // Whitelist semantics: opposite of tools/skills exclusions (checked = kept available)
             extensionsHint: 'Checked extensions are mounted (whitelist: none mounted by default); globally disabled extensions cannot be newly mounted, already-mounted ones stay visible with a badge.',
             noExtensions: 'No mountable extensions',

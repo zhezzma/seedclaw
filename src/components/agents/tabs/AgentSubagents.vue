@@ -169,7 +169,10 @@ const initFormData = (): SubagentFormData => ({
     model: '',
     thinkingLevel: '',
     tools: { type: 'inherit' },
-    skills: { type: 'none' }
+    skills: { type: 'none' },
+    // 扩展数据来源默认「自定义选择」（与旧数据缺省语义一致）
+    extensionsMode: 'custom',
+    extensions: []
 })
 
 const formData = ref<SubagentFormData>(initFormData())
@@ -271,6 +274,9 @@ const openEditModal = (subagent: SubagentConfig) => {
     }
     // 扩展白名单直接播种（勾选 = 挂载，无模式切换）
     selectedExtensions.value = [...(subagent.extensions ?? [])]
+    // 扩展模式归一化：服务端理论上只会回 config/undefined（parse 已容错），
+    // 这里仍按同款归一化兜底，非法真值也不会让 radio 悬空
+    formData.value.extensionsMode = subagent.extensionsMode === 'config' ? 'config' : 'custom'
     modelDropdownOpen.value = false
     showModal.value = true
 }
@@ -324,8 +330,10 @@ const saveSubagent = async () => {
             delete formData.value.skills.disabledSkills
         }
 
-        // 扩展白名单直接以勾选为准（空数组 = 不挂载，显式覆盖服务端 existing）
+        // 扩展白名单直接以勾选为准（空数组 = 不挂载，显式覆盖服务端 existing）；
+        // config 模式下勾选区隐藏但 selectedExtensions 原样保留，切回 custom 不丢勾选
         formData.value.extensions = [...selectedExtensions.value]
+        formData.value.extensionsMode = formData.value.extensionsMode === 'config' ? 'config' : 'custom'
 
         // 构造 wire payload：不 mutate reactive formData（避免错误路径下 select 被 null 污染为空白态）。
         // form '' → wire null：服务端 PUT 路由依靠 "thinkingLevel" in body 区分未传/清空，
@@ -530,7 +538,12 @@ const disabledSkillsCountOf = (s: SubagentConfig) => s.skills?.disabledSkills?.l
                             {{ $t('agent.skills.inherited') || 'Inherit Skills' }}
                         </div>
 
-                        <div v-if="agent.extensions?.length"
+                        <div v-if="agent.extensionsMode === 'config'"
+                            class="badge badge-accent badge-outline badge-sm text-xs"
+                            :title="$t('agent.subagents.extensionsModeConfigHint')">
+                            {{ $t('agent.subagents.extensionsModeConfigBadge') }}
+                        </div>
+                        <div v-else-if="agent.extensions?.length"
                             class="badge badge-accent badge-outline badge-sm text-xs"
                             :title="$t('agent.subagents.mountExtensions')">
                             {{ $t('agent.subagents.extensionsBadge', { count: agent.extensions.length }) }}
@@ -772,45 +785,66 @@ const disabledSkillsCountOf = (s: SubagentConfig) => s.skills?.disabledSkills?.l
                         </div>
                     </div>
 
-                    <!-- Extensions Mount（白名单：勾选 = 挂载，无模式切换，随表单一次保存） -->
+                    <!-- Extensions Mount（模式切换 + 白名单勾选：custom = 勾选即挂载；config = 跟随全局默认集） -->
                     <div class="form-control w-full">
                         <div class="flex items-center justify-between">
                             <label class="label"><span class="label-text font-medium">{{
                                 $t('agent.subagents.mountExtensions') }}
                                     <span class="text-base-content/50 font-normal">({{ $t('common.optional')
                                     }})</span></span></label>
-                            <button v-if="extensionOptions.length > 0" type="button"
-                                class="btn btn-ghost btn-xs text-xs" @click="toggleAllExtensions">
+                            <button v-if="formData.extensionsMode === 'custom' && extensionOptions.length > 0"
+                                type="button" class="btn btn-ghost btn-xs text-xs" @click="toggleAllExtensions">
                                 {{ isAllExtensionsSelected ? ($t('common.deselectAll') || 'Deselect All') :
                                     ($t('common.selectAll') || 'Select All') }}
                             </button>
                         </div>
 
-                        <!-- 白名单语义说明：与 tools/skills 的黑名单（勾选 = 保留可用）相反 -->
-                        <p class="text-xs text-base-content/50 mb-2">{{ $t('agent.subagents.extensionsHint') }}</p>
+                        <!-- Toggle Mode -->
+                        <div class="flex gap-4 mb-2">
+                            <label class="label cursor-pointer gap-2 justify-start">
+                                <input type="radio" class="radio radio-primary radio-sm" value="custom"
+                                    v-model="formData.extensionsMode" />
+                                <span class="label-text">{{ $t('agent.subagents.extensionsModeCustom') || 'Custom Selection' }}</span>
+                            </label>
+                            <label class="label cursor-pointer gap-2 justify-start">
+                                <input type="radio" class="radio radio-primary radio-sm" value="config"
+                                    v-model="formData.extensionsMode" />
+                                <span class="label-text">{{ $t('agent.subagents.extensionsModeConfig') || 'Use Configured Extensions' }}</span>
+                            </label>
+                        </div>
 
-                        <div class="bg-base-200/50 rounded-xl border border-base-200">
-                            <div class="p-4 max-h-48 overflow-y-auto custom-scrollbar">
-                                <div v-if="extensionOptions.length === 0"
-                                    class="text-center text-sm text-base-content/50 py-2">
-                                    {{ $t('agent.subagents.noExtensions') || 'No mountable extensions' }}
-                                </div>
-                                <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    <label v-for="ext in extensionOptions" :key="ext.id"
-                                        class="label cursor-pointer justify-start gap-3 bg-base-100 p-2 rounded-lg border border-base-200 hover:border-primary/30 transition-colors">
-                                        <input type="checkbox" class="checkbox checkbox-sm checkbox-primary"
-                                            :checked="selectedExtensions.includes(ext.id)"
-                                            @change="toggleExtensionSelection(ext.id)" />
-                                        <span class="label-text text-sm font-medium truncate flex-1" :title="ext.id">{{
-                                            ext.name }}</span>
-                                        <!-- 已挂载但已全局禁用：保留勾选可见性，标记后不静默消失 -->
-                                        <span v-if="!ext.mountable"
-                                            class="badge badge-ghost badge-sm text-xs opacity-70 shrink-0">{{
-                                            $t('agent.subagents.extensionGloballyDisabled') }}</span>
-                                    </label>
+                        <!-- config 模式：跟随全局默认集，勾选区隐藏 -->
+                        <p v-if="formData.extensionsMode === 'config'" class="text-xs text-base-content/50 mb-2">
+                            {{ $t('agent.subagents.extensionsModeConfigHint') }}
+                        </p>
+
+                        <template v-else>
+                            <!-- 白名单语义说明：与 tools/skills 的黑名单（勾选 = 保留可用）相反 -->
+                            <p class="text-xs text-base-content/50 mb-2">{{ $t('agent.subagents.extensionsHint') }}</p>
+
+                            <div class="bg-base-200/50 rounded-xl border border-base-200">
+                                <div class="p-4 max-h-48 overflow-y-auto custom-scrollbar">
+                                    <div v-if="extensionOptions.length === 0"
+                                        class="text-center text-sm text-base-content/50 py-2">
+                                        {{ $t('agent.subagents.noExtensions') || 'No mountable extensions' }}
+                                    </div>
+                                    <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <label v-for="ext in extensionOptions" :key="ext.id"
+                                            class="label cursor-pointer justify-start gap-3 bg-base-100 p-2 rounded-lg border border-base-200 hover:border-primary/30 transition-colors">
+                                            <input type="checkbox" class="checkbox checkbox-sm checkbox-primary"
+                                                :checked="selectedExtensions.includes(ext.id)"
+                                                @change="toggleExtensionSelection(ext.id)" />
+                                            <span class="label-text text-sm font-medium truncate flex-1" :title="ext.id">{{
+                                                ext.name }}</span>
+                                            <!-- 已挂载但已全局禁用：保留勾选可见性，标记后不静默消失 -->
+                                            <span v-if="!ext.mountable"
+                                                class="badge badge-ghost badge-sm text-xs opacity-70 shrink-0">{{
+                                                $t('agent.subagents.extensionGloballyDisabled') }}</span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        </template>
                     </div>
                 </div>
 

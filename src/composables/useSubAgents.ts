@@ -30,6 +30,9 @@ export interface SubagentConfig {
     /** 挂载扩展白名单（服务端归一化小写、去重；空数组=不挂载）。
      *  白名单语义：基线零扩展，列出的扩展才挂载（与 tools/skills 黑名单不同）。 */
     extensions?: string[]
+    /** 扩展白名单数据来源：undefined/'custom' = 按自身 extensions 白名单；
+     *  'config' = 运行时读取全局「动态子代理默认扩展集」，自身 extensions 仅保留不生效。 */
+    extensionsMode?: 'custom' | 'config'
     systemPrompt: string
     filePath?: string
 }

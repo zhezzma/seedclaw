@@ -293,6 +293,11 @@ export default {
             inheritThinkingLevel: '继承父智能体的思考程度',
             mountExtensions: '扩展挂载',
             extensionsBadge: '{count} 个扩展',
+            // 扩展数据来源：custom = 自身白名单勾选；config = 跟随全局「动态子代理默认扩展集」
+            extensionsModeCustom: '自定义选择',
+            extensionsModeConfig: '使用配置中的扩展',
+            extensionsModeConfigHint: '运行时挂载全局设置「动态子代理默认扩展集」中勾选的扩展，随全局配置变更自动跟随。',
+            extensionsModeConfigBadge: '跟随全局扩展配置',
             // 白名单语义：与 tools/skills 的排除项语义（勾选 = 保留可用）相反
             extensionsHint: '勾选即挂载该扩展（白名单：基线不挂载任何扩展）；已全局禁用的扩展无法新挂载，已挂载的会带标记保留显示。',
             noExtensions: '没有可挂载的扩展',
