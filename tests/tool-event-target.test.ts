@@ -119,3 +119,13 @@ test('集成：reactive 历史块的就地赋值能触发 computed 重算（响�
     assert.equal(updated?.toolDetails?.results?.[0]?.subagentSessionId, 'sub-r')
     assert.equal(updated?.toolState, 'tool_running')
 })
+
+test('useChatState 的 start case 同样接入 stream+历史查重（重放/重连双卡防回归）', () => {
+    const source = readFileSync(path.resolve(testDir, '../src/composables/useChatState.ts'), 'utf8')
+    const startCase = source.match(/case 'tool_execution_start':[\s\S]*?\n\s*break/)?.[0]
+    assert.ok(startCase, 'tool_execution_start case 应存在')
+    // stream 按 id 查重 + 历史按 id 查重，命中即跳过 push
+    assert.match(startCase, /stream\.find\(item => item\.type === 'toolCall' && item\.id === data\.toolCallId\)/)
+    assert.match(startCase, /findToolBlockInMessages\(sessionData\.chatMessages, data\.toolCallId\)/)
+    assert.match(startCase, /if \(existing\) break/)
+})

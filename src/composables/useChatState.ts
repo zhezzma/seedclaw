@@ -499,6 +499,19 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string, options
             break
         }
         case 'tool_execution_start':
+            // 查重（与 update/end 的查找同规则）：重连/attach 场景下 toolCall block
+            // 可能已存在于本地——服务端在 assistant message_end（消息落盘，含
+            // toolCall block）之后才执行工具并发 start；而 loadChatHistory/attach
+            // 快照拉回的正是落盘数据。此时再无条件 push 会产生同 id 双卡（历史卡
+            // 永远转圈 calling + stream 卡正常跑完），直到 done 全量刷新才消失。
+            // 正常 live 流不受影响：message_end 固化的是本地 stream（服务端只转发
+            // text/thinking delta，本地 stream 无 toolCall block），start 到达时历史
+            // 无同 id 卡，照常建卡。
+            if (data.toolCallId) {
+                const existing = stream.find(item => item.type === 'toolCall' && item.id === data.toolCallId)
+                    || findToolBlockInMessages(sessionData.chatMessages, data.toolCallId)
+                if (existing) break
+            }
             // 添加新的工具调用 Block
             stream.push({
                 type: 'toolCall',
