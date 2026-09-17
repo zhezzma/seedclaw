@@ -12,7 +12,7 @@ import { apiGet, apiPost } from '../../composables/api-client'
 import { useToast } from '../../composables/useToast'
 import { A2UIRenderer, A2UI_VERSION } from '../a2ui'
 import type { Action } from '../a2ui/types'
-import { setByPath, resolveDynamicRecord } from '../../composables/useA2UIState'
+import { setByPath, resolveDynamicRecord, createA2uiRpcScheduler } from '../../composables/useA2UIState'
 import { callA2uiAgentFunction, type A2uiResponseMessage } from '../../composables/a2uiClient'
 
 const props = defineProps<{
@@ -62,8 +62,10 @@ watch(
 // 设置表单无 surfaceId：rpc 路由按函数名转发，伪 id 仅透传记录
 const formSurfaceId = `form-${typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : Date.now()}`
 
-// 级联请求串行化：快速连续切换 provider 时按序应用响应，避免先发后至乱序覆盖
-let cascadeChain: Promise<void> = Promise.resolve()
+// rpc 调度：快操作（级联）串行防乱序；慢操作（安装类，声明 pendingPath/pendingText）
+// 旁路独立执行——分钟级安装若入链，save()（await 链落地防半更新 dataModel）会被
+// 卡到安装结束（实测三个扩展全中）。慢操作只写状态行路径，与级联字段不相交。
+const rpcScheduler = createA2uiRpcScheduler()
 
 /** 树内 functionCall action（如 ChoicePicker 级联）：callAgentFunction RPC。
  *  args 内的 {path} 绑定必须先对本地 dataModel 解析（服务端不解析渲染端数据模型，
@@ -84,8 +86,12 @@ function onFormAction(action: Action, dataModel: Record<string, any>, _sourceCom
     if (pendingPath && pendingText) {
         setByPath(dataModel, pendingPath, pendingText)
     }
-    cascadeChain = cascadeChain
-        .then(async () => {
+    // 慢操作判定沿用服务端约定：声明了 pendingPath/pendingText 即“慢操作反馈”
+    // （快级联从不声明）。旁路的完成回包照常就地刷新状态行；失败静默
+    // （api-client 已弹全局 toast，表单保持当前状态供重试）。
+    const slow = pendingPath !== undefined && pendingText !== undefined
+    rpcScheduler
+        .schedule(async () => {
             const result = await callA2uiAgentFunction({
                 surfaceId: formSurfaceId,
                 call: fn.call,
@@ -102,17 +108,18 @@ function onFormAction(action: Action, dataModel: Record<string, any>, _sourceCom
                 }
             }
             if (result.error) toast.error(result.error.message)
-        })
+        }, slow)
         .catch(() => {
-            // api-client 已弹全局 toast；表单保持当前状态供重试
+            // 调度器已就地消化，此处兜底（防御未来 schedule 实现变化）
         })
 }
 
 async function save() {
     saving.value = true
     try {
-        // 等待在途级联落地，避免半更新状态的 dataModel 被保存
-        await cascadeChain
+        // 等待在途快级联落地，避免半更新状态的 dataModel 被保存；
+        // 安装类慢操作已旁路（不在此链上），安装中点保存立即落盘，不再被卡
+        await rpcScheduler.settled
         await apiPost(props.saveUrl, {
             dataModel: dataModel.value,
         })

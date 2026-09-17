@@ -114,6 +114,42 @@ export function resolveDynamicStringList(value: DynamicStringList | undefined, d
   return []
 }
 
+// ==================== 表单 RPC 调度 ====================
+
+/**
+ * a2ui 设置表单的 rpc 调度器：快操作（ChoicePicker 级联）串行、慢操作（安装类）旁路。
+ *
+ * 为什么需要分道：串行链本意是防级联响应先发后至乱序覆盖 dataModel；但安装类
+ * rpc 是分钟级请求，入链会把 await 链的 save()（防半更新 dataModel 落盘）与后续
+ * 级联全部卡到安装结束（实测：安装中点保存永久卡死，三个扩展全中）。
+ *
+ * 快慢的判定约定 = 服务端 pendingPath/pendingText 标记（“慢操作反馈”机制，
+ * 快级联不声明）。慢操作只写状态行路径，与级联变更的字段不相交，并行安全；
+ * 完成回包的 updateDataModel 照常就地刷新，保存落盘的是配置键，两不相干。
+ */
+export function createA2uiRpcScheduler() {
+  let chain: Promise<void> = Promise.resolve()
+  return {
+    /** 快操作串行链落地Promise（save 落盘前 await 它，防半更新 dataModel 被保存） */
+    get settled(): Promise<void> {
+      return chain
+    },
+    /**
+     * 调度一个 rpc 执行体。
+     * @param slow true = 安装类慢操作，旁路串行链独立执行；false = 快级联，入链串行
+     */
+    schedule(run: () => Promise<void>, slow: boolean): Promise<void> {
+      if (slow) {
+        // 旁路：失败静默（api-client 已弹全局 toast），不占用链、不让链等待
+        return run().catch(() => {})
+      }
+      const link = chain.then(run, run) // 前序失败已就地消化，此处恒运行
+      chain = link.catch(() => {}) // 链不携带 rejection，防后续级联被毒化
+      return link
+    },
+  }
+}
+
 /** 执行函数调用 */
 export function executeFunctionCall(fn: FunctionCall, dataModel: Record<string, any>): any {
   const args = fn.args || {}
