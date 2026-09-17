@@ -83,12 +83,17 @@ function onFormAction(action: Action, dataModel: Record<string, any>, _sourceCom
     const fn = action.functionCall
     const pendingPath = typeof fn.args?.pendingPath === 'string' ? fn.args.pendingPath : undefined
     const pendingText = typeof fn.args?.pendingText === 'string' ? fn.args.pendingText : undefined
+    const pendingLabelPath = typeof fn.args?.pendingLabelPath === 'string' ? fn.args.pendingLabelPath : undefined
     if (pendingPath && pendingText) {
         setByPath(dataModel, pendingPath, pendingText)
     }
     // 慢操作判定沿用服务端约定：声明了 pendingPath/pendingText 即“慢操作反馈”
-    // （快级联从不声明）。旁路的完成回包照常就地刷新状态行；失败静默
-    // （api-client 已弹全局 toast，表单保持当前状态供重试）。
+    // （快级联从不声明）；pendingLabelPath 同时翻按钮文案——否则会出现
+    // 「关窗重开显示安装中、当场点击按钮却仍是可点的安装按钮」的不对称。
+    // 字面量与表单内容同为中文（a2ui 表单文案由服务端声明，此处仅按钮态）。
+    if (pendingLabelPath) {
+        setByPath(dataModel, pendingLabelPath, '安装中…')
+    }
     const slow = pendingPath !== undefined && pendingText !== undefined
     rpcScheduler
         .schedule(async () => {
