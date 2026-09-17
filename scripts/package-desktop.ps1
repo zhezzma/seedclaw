@@ -11,7 +11,8 @@ src-tauri\resources\seedagent\ 目录的过程。该目录会被 tauri 打进安
     node_modules\             生产依赖（在装配目录内单独 npm ci --omit=dev，不动 seedagent 仓库）
     seedserver.mjs            服务端单文件 bundle（步骤 ③.5 生成：dist JS 与 pi 包内联进单文件，
                               dist 仅留 extensions/运行时资产；node_modules 仅留 jiti/chord。
-                              ocr 不随包：由扩展设置面板按需安装到用户数据目录）
+                              vendor 资产（ocr 运行时 / sol-pi / superpowers）均不随包：
+                              由扩展设置面板按需安装到用户数据目录 vendor/<name>）
     package.json / package-lock.json
 
 【完整流程】
