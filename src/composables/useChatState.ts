@@ -634,20 +634,35 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string, options
             const hasError = !!rawError && !aborted
 
             if (stream.length > 0 || hasError) {
+                // 防御层：与历史同 id 的 toolCall block 不随流固化。正常 live 流中
+                // 历史（本地固化副本）不含同 id 卡，此过滤断言为 no-op；但任何路径
+                // 遗留的流内工具卡（如旧连接残留、快照对账前的窗口）若已被落盘
+                // 数据覆盖，此处阻断它固化成第二条永久消息——否则要等到 done 全量
+                // 刷新才收敛，期间同 id 双卡。文本块无 id 不参与去重（快照对账已
+                // 从根上作废旧流，这里只兜工具卡）。
+                const solidifyContent = (stream.length > 0 ? JSON.parse(JSON.stringify(stream)) : [])
+                    .filter((block: any) => {
+                        if (block?.type !== 'toolCall' || !block.id) return true
+                        return !findToolBlockInMessages(sessionData.chatMessages, block.id)
+                    })
                 // 有内容或有错误信息：固化为一条正式的 assistant 消息
-                const msg: ChatMessage = {
-                    role: 'assistant',
-                    content: stream.length > 0 ? JSON.parse(JSON.stringify(stream)) : [], // 深拷贝，防止引用被后续操作修改
-                    timestamp: endMsg?.timestamp || Date.now(),
-                    id: generateUUID(),
-                    model: endMsg?.model,
-                    provider: endMsg?.provider,
-                    api: endMsg?.api,
+                if (solidifyContent.length > 0 || hasError) {
+                    const msg: ChatMessage = {
+                        role: 'assistant',
+                        content: solidifyContent, // 深拷贝，防止引用被后续操作修改
+                        timestamp: endMsg?.timestamp || Date.now(),
+                        id: generateUUID(),
+                        model: endMsg?.model,
+                        provider: endMsg?.provider,
+                        api: endMsg?.api,
+                    }
+                    if (rawError) {
+                        msg.errorMessage = rawError
+                    }
+                    sessionData.chatMessages = [...sessionData.chatMessages, msg]
                 }
-                if (rawError) {
-                    msg.errorMessage = rawError
-                }
-                sessionData.chatMessages = [...sessionData.chatMessages, msg]
+                // 全部被去重淘汰时同样要重置流（残留块已无效，不能留在 chatStream 里
+                // 继续双显）；空 stream + 无错误的回显路径保持 [] 不变（loading 连续性）
                 sessionData.chatStream = null
             }
             // stream 为空且无错误（user 消息回显）：直接跳过，保持 chatStream 为 [] 不变

@@ -78,7 +78,19 @@ export function applyAttachMessageState(sessionData: ChatSessionData, state: Att
     }
 
     if (state.isStreaming) {
-        sessionData.chatStream = sessionData.chatStream || []
+        // 旧连接遗留的 chatStream 一律作废（不能 `|| []` 保留）：切走再切回走
+        // sessionsMap 缓存路径（不经 loadChatHistory），上一条连接 abort 前 push 进
+        // 流的文本/工具卡仍残留，而快照历史（落盘数据）已含同一 assistant 消息
+        // （pi 在 message_end 落盘、含 toolCall block，之后才执行工具）——
+        //   · 遗留工具卡 + 历史 [text, toolCall] → 同 id 双卡，且随后被 toolResult
+        //     的 message_end 固化成第二条永久消息（直到 done 全量刷新）；
+        //   · 遗留文本（断开时未收 message_end）渲染在历史 [text, toolCall] 之后
+        //     → 「调用工具前的文字跑到工具卡后面」，同样固化成重复消息。
+        // 在飞内容唯一合法来源是上方 streamMessage 快照重建；运行中工具的卡片
+        // 活在历史消息里（start 查重跳过 push，update/end 历史兜底就地更新），
+        // 无需流内重建。[] 而非 null：保持流式态语义（loading 占位与后续 delta
+        // 懒初始化行为一致）。
+        sessionData.chatStream = []
         return
     }
 
