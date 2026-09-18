@@ -275,7 +275,7 @@ jobs:
       - name: upload apk to release
         uses: softprops/action-gh-release@v3
         with:
-          files: src-tauri/gen/android/app/build/outputs/apk/${{ matrix.build_type }}/app-${{ matrix.build_type }}.apk
+          files: src-tauri/gen/android/app/build/outputs/apk/universal/${{ matrix.build_type }}/app-universal-${{ matrix.build_type }}.apk
           token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}
           draft: false

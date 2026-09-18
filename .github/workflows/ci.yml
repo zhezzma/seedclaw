@@ -331,7 +331,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: seedagent-build-latest
-          files: src-tauri/gen/android/app/build/outputs/apk/${{ matrix.build_type }}/app-${{ matrix.build_type }}.apk
+          files: src-tauri/gen/android/app/build/outputs/apk/universal/${{ matrix.build_type }}/app-universal-${{ matrix.build_type }}.apk
           draft: false
           prerelease: true
           overwrite_files: true
