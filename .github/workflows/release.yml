@@ -173,6 +173,10 @@ jobs:
     permissions:
       contents: write
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [release, debug]
     steps:
       - uses: actions/checkout@v5
 
@@ -251,7 +255,7 @@ jobs:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
 
       - name: build android release apk
-        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        if: matrix.build_type == 'release' && env.ANDROID_KEYSTORE_BASE64 != ''
         env:
           ANDROID_KEYSTORE_PATH: ../keystore.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -262,6 +266,7 @@ jobs:
           npx tauri android build --target aarch64
 
       - name: build android debug apk
+        if: matrix.build_type == 'debug'
         run: |
           npx tauri android build --debug --target aarch64
           echo "Listing build artifacts:"
@@ -270,10 +275,7 @@ jobs:
       - name: upload apk to release
         uses: softprops/action-gh-release@v3
         with:
-          files: |
-            src-tauri/gen/android/app/build/outputs/apk/release/app-release.apk
-            src-tauri/gen/android/app/build/outputs/apk/debug/app-debug.apk
-            src-tauri/gen/android/**/*.apk
+          files: src-tauri/gen/android/app/build/outputs/apk/${{ matrix.build_type }}/app-${{ matrix.build_type }}.apk
           token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}
           draft: false
