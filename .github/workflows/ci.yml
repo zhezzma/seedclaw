@@ -246,7 +246,7 @@ jobs:
           java-version: "17"
 
       - name: setup android-sdk
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Configure Android NDK & OpenSSL Env
         run: |
