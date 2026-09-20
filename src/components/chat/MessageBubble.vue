@@ -440,6 +440,26 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
                     :title="$t('common.delete')">
                     <TrashIcon class="h-4 w-4" />
                 </button>
+
+                <!-- Branch Navigation（user 气泡锚点）：分支尾部没有已渲染 assistant 回复时
+                     （停止产生的空 aborted 回复按设计零渲染、回复被删光），user 消息是
+                     分支唯一必现锚点且成为末项；缺了这里，切到该分支（第一页）后
+                     无任何导航/操作，成为死胡同。isLastMessage 门控避免与同回合
+                     assistant 气泡的导航重复渲染同一个 n/n 计数器 -->
+                <div v-if="isLastMessage && branchInfo && branchInfo.siblings.length > 1" class="flex items-center gap-0.5 ml-1">
+                    <button @click="emit('navigate-branch', message, 'prev')" :disabled="branchInfo.currentIndex <= 0"
+                        class="btn btn-ghost btn-xs btn-circle text-base-content/60 hover:text-primary hover:bg-base-200 disabled:opacity-30 disabled:cursor-not-allowed">
+                        <ChevronLeftIcon class="h-3.5 w-3.5" />
+                    </button>
+                    <span class="text-xs text-base-content/50 min-w-[2rem] text-center select-none">
+                        {{ branchInfo.currentIndex + 1 }}/{{ branchInfo.siblings.length }}
+                    </span>
+                    <button @click="emit('navigate-branch', message, 'next')"
+                        :disabled="branchInfo.currentIndex >= branchInfo.siblings.length - 1"
+                        class="btn btn-ghost btn-xs btn-circle text-base-content/60 hover:text-primary hover:bg-base-200 disabled:opacity-30 disabled:cursor-not-allowed">
+                        <ChevronRightIcon class="h-3.5 w-3.5" />
+                    </button>
+                </div>
             </template>
         </div>
 
