@@ -281,26 +281,25 @@ export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
     const showLocalOpen = shouldShowLocalOpenItems(isTauri, effectiveGatewayMode())
     const absPath = buildAbsolutePath(root, entry.path)
 
-    /** 目录 → 系统文件管理器；文件 → 系统默认关联程序。
-     *  动态 import 与 local-server.ts 同模式：非 Tauri 环境不加载插件代码。 */
-    const openWithLocalApp = async () => {
+    /** opener 动作统一入口：动态加载插件（与 local-server.ts 同模式，非 Tauri 不加载）
+     *  + 失败 toast（带动作名前缀）。 */
+    const runOpener = async (
+        labelKey: string,
+        run: (opener: typeof import('@tauri-apps/plugin-opener')) => Promise<void>,
+    ) => {
         try {
-            const { openPath } = await import('@tauri-apps/plugin-opener')
-            await openPath(absPath)
+            const opener = await import('@tauri-apps/plugin-opener')
+            await run(opener)
         } catch (e: any) {
-            toast.error(`${tr('workspace.menu.openLocally')}: ${e?.message || String(e)}`)
+            toast.error(`${tr(labelKey)}: ${e?.message || String(e)}`)
         }
     }
 
+    /** 目录 → 系统文件管理器；文件 → 系统默认关联程序。 */
+    const openWithLocalApp = () => runOpener('workspace.menu.openLocally', o => o.openPath(absPath))
+
     /** 打开所在目录并选中该项（文件 / 目录皆可）。 */
-    const revealInFileManager = async () => {
-        try {
-            const { revealItemInDir } = await import('@tauri-apps/plugin-opener')
-            await revealItemInDir(absPath)
-        } catch (e: any) {
-            toast.error(`${tr('workspace.menu.revealInFileManager')}: ${e?.message || String(e)}`)
-        }
-    }
+    const revealInFileManager = () => runOpener('workspace.menu.revealInFileManager', o => o.revealItemInDir(absPath))
 
     return [
         // 本地打开两项置于顶部（最高频动作）；root 拿不到时禁用（无法拼绝对路径）。

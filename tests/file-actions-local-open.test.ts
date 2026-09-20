@@ -30,33 +30,30 @@ test('useFileActions: 本地打开 gating —— 仅 Tauri 桌面 + local 网关
     assert.match(src, /import \{ effectiveGatewayMode \} from '\.\/local-server'/, 'effectiveGatewayMode must come from local-server')
 })
 
-test('useFileActions: 本地打开菜单项 —— openPath + revealItemInDir 动态 import', () => {
-    // 目录 → 文件管理器；文件 → 默认关联程序。走 opener 插件，零自定义 Rust 命令。
-    assert.match(src, /await import\('@tauri-apps\/plugin-opener'\)/, 'opener plugin must be dynamically imported')
-    assert.match(src, /openPath\(absPath\)/, 'open action must call openPath with absolute path')
-    assert.match(src, /revealItemInDir\(absPath\)/, 'reveal action must call revealItemInDir with absolute path')
-    // 绝对路径复用既有 helper（root 由调用方透入）
-    assert.match(src, /const absPath = buildAbsolutePath\(root, entry\.path\)/, 'must build absolute path via existing helper')
-})
-
-test('useFileActions: 本地打开两项置于菜单顶部，失败 toast 带动作名', () => {
+test('useFileActions: 本地打开两项置于菜单顶部（gating 关闭时整组不渲染）', () => {
     // gating 展开：非 local 环境（remote / 浏览器 / Android）整个数组不渲染
     assert.match(
         src,
         /\.\.\.\(showLocalOpen \? \[\{[\s\S]*?workspace\.menu\.openLocally[\s\S]*?workspace\.menu\.revealInFileManager[\s\S]*?\}\] as ContextMenuItem\[\] : \[\]\)/,
         'local-open items must be behind a single showLocalOpen spread (omitted entirely when gated off)',
     )
-    // 失败必须 toast.error 且带动作名前缀（与 download / sendContent 同模式）
+})
+
+test('useFileActions: 本地打开菜单项 —— runOpener 统一入口 + openPath / revealItemInDir', () => {
+    // 目录 → 文件管理器；文件 → 默认关联程序。走 opener 插件，零自定义 Rust 命令。
+    assert.match(src, /await import\('@tauri-apps\/plugin-opener'\)/, 'opener plugin must be dynamically imported')
+    // 错误处理单一入口：动态加载 + try/catch + toast 只写一份（避免双份漂移）
     assert.match(
         src,
-        /toast\.error\(`\$\{tr\('workspace\.menu\.openLocally'\)\}: \$\{e\?\.message \|\| String\(e\)\}`\)/,
-        'openLocally errors must toast with action-name prefix',
+        /toast\.error\(`\$\{tr\(labelKey\)\}: \$\{e\?\.message \|\| String\(e\)\}`\)/,
+        'runOpener must own the toast.error with action-name prefix (single source)',
     )
-    assert.match(
-        src,
-        /toast\.error\(`\$\{tr\('workspace\.menu\.revealInFileManager'\)\}: \$\{e\?\.message \|\| String\(e\)\}`\)/,
-        'revealInFileManager errors must toast with action-name prefix',
-    )
+    assert.match(src, /runOpener\('workspace\.menu\.openLocally'/, 'open action must route through runOpener with its label key')
+    assert.match(src, /runOpener\('workspace\.menu\.revealInFileManager'/, 'reveal action must route through runOpener with its label key')
+    assert.match(src, /o\.openPath\(absPath\)/, 'open action must call openPath with absolute path')
+    assert.match(src, /o\.revealItemInDir\(absPath\)/, 'reveal action must call revealItemInDir with absolute path')
+    // 绝对路径复用既有 helper（root 由调用方透入）
+    assert.match(src, /const absPath = buildAbsolutePath\(root, entry\.path\)/, 'must build absolute path via existing helper')
 })
 
 test('useFileActions: 本地打开两项依赖 root（拿不到绝对路径时禁用），复制组补 separator', () => {
