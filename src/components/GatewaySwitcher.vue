@@ -145,10 +145,14 @@ const handleExternalLink = () => {
 </script>
 
 <template>
-    <div ref="rootRef" class="relative shrink-0 border-t border-base-300 px-3 py-2">
+    <div ref="rootRef" class="relative shrink-0 border-t border-base-300 px-3 py-1.5">
         <!-- 触发区：当前网关头像 + 名称 + 地址（collapsed 时只留头像）；
-             名称/地址与菜单头保持一致，不随视口宽度隐藏（移动端抽屉同样展示） -->
-        <button ref="triggerRef" type="button" class="flex w-full items-center gap-2 rounded-xl p-1.5 text-left transition-colors hover:bg-base-300/90 cursor-pointer"
+             名称/地址与菜单头保持一致，不随视口宽度隐藏（移动端抽屉同样展示）。
+             高度预算：以头像 h-8(32px) 为基准。两行文字必须压进 32px——默认行高
+             text-sm(20px)+text-xs(16px)=36px 会反超头像成为高度元凶，故两行都挂
+             leading-4(16px)；配按钮 p-1 与容器 py-1.5，整块含上边框约 53px
+             （原约 65px）。改头像尺寸时同步改这里的两行行高，否则文字会重新撑高 -->
+        <button ref="triggerRef" type="button" class="flex w-full items-center gap-2 rounded-xl p-1 text-left transition-colors hover:bg-base-300/90 cursor-pointer"
             :class="collapsed && 'lg:justify-center lg:px-0'"
             :title="activeEntry ? `${activeName} · ${activeHost}` : activeName"
             :aria-label="t('gateway.switchAccount')" :aria-expanded="isOpen" aria-haspopup="menu"
@@ -157,8 +161,8 @@ const handleExternalLink = () => {
                 {{ avatarLetter }}
             </span>
             <span v-if="!collapsed" class="min-w-0 flex-1">
-                <span class="block truncate text-sm font-semibold text-base-content">{{ activeName }}</span>
-                <span class="block truncate text-xs text-base-content/50">{{ activeHost }}</span>
+                <span class="block truncate text-sm font-semibold leading-4 text-base-content">{{ activeName }}</span>
+                <span class="block truncate text-xs leading-4 text-base-content/50">{{ activeHost }}</span>
             </span>
             <ServerStackIcon v-if="!collapsed && activeIsLocal" class="h-4 w-4 shrink-0 text-primary" />
             <CloudIcon v-else-if="!collapsed" class="h-4 w-4 shrink-0 text-base-content/40" />
@@ -176,8 +180,8 @@ const handleExternalLink = () => {
                     {{ avatarLetter }}
                 </span>
                 <span class="min-w-0 flex-1">
-                    <span class="block truncate text-sm font-semibold">{{ activeName }}</span>
-                    <span class="block truncate text-xs text-base-content/50">{{ activeHost }}</span>
+                    <span class="block truncate text-sm font-semibold leading-4">{{ activeName }}</span>
+                    <span class="block truncate text-xs leading-4 text-base-content/50">{{ activeHost }}</span>
                 </span>
             </div>
             <div class="mx-2 my-1 border-t border-base-300"></div>
