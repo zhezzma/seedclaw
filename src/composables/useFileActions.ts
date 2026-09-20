@@ -20,6 +20,8 @@ import {
 } from './workspace-api'
 import { saveBlob } from '../utils/fileDownload'
 import type { ContextMenuItem } from './useContextMenu'
+import { isTauri } from './notify-server-connection'
+import { effectiveGatewayMode } from './local-server'
 import { i18n } from '../i18n'
 import {
     DocumentDuplicateIcon,
@@ -31,6 +33,8 @@ import {
     FolderPlusIcon,
     ArrowUpOnSquareIcon,
     TrashIcon,
+    ArrowTopRightOnSquareIcon,
+    EyeIcon,
 } from '@heroicons/vue/24/outline'
 
 export type FileScope = 'workspace' | 'agent'
@@ -249,6 +253,14 @@ function validateChildName(raw: string | null): string | null {
     return normalized
 }
 
+/** 本地打开菜单项的展示条件：仅 Tauri 桌面 + 本地服务器模式（gatewayMode=local）。
+ *  此时 workspace / agent 目录就在本机，可用系统程序直接打开；
+ *  remote 模式 / 浏览器直连 / Android（bundled=false 强制 remote）路径不在本机，不展示。
+ *  纯函数：isTauri 环境探测与网关模式由调用方传入，便于测试。 */
+export function shouldShowLocalOpenItems(isTauriEnv: boolean, mode: 'local' | 'remote'): boolean {
+    return isTauriEnv && mode === 'local'
+}
+
 export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
     const { entry, scope, agentId, root, onMutated, onDeleted } = args
     const isFile = entry.type === 'file'
@@ -265,10 +277,48 @@ export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
     const rmDir = scope === 'agent' ? deleteAgentDir : deleteDir
     const rename = scope === 'agent' ? renameAgentEntry : renameEntry
 
+    // ── 本地打开（Tauri 桌面 + local 网关）：文件就在本机，交给系统程序打开 ──
+    const showLocalOpen = shouldShowLocalOpenItems(isTauri, effectiveGatewayMode())
+    const absPath = buildAbsolutePath(root, entry.path)
+
+    /** 目录 → 系统文件管理器；文件 → 系统默认关联程序。
+     *  动态 import 与 local-server.ts 同模式：非 Tauri 环境不加载插件代码。 */
+    const openWithLocalApp = async () => {
+        try {
+            const { openPath } = await import('@tauri-apps/plugin-opener')
+            await openPath(absPath)
+        } catch (e: any) {
+            toast.error(`${tr('workspace.menu.openLocally')}: ${e?.message || String(e)}`)
+        }
+    }
+
+    /** 打开所在目录并选中该项（文件 / 目录皆可）。 */
+    const revealInFileManager = async () => {
+        try {
+            const { revealItemInDir } = await import('@tauri-apps/plugin-opener')
+            await revealItemInDir(absPath)
+        } catch (e: any) {
+            toast.error(`${tr('workspace.menu.revealInFileManager')}: ${e?.message || String(e)}`)
+        }
+    }
+
     return [
+        // 本地打开两项置于顶部（最高频动作）；root 拿不到时禁用（无法拼绝对路径）。
+        ...(showLocalOpen ? [{
+            label: tr('workspace.menu.openLocally'),
+            icon: ArrowTopRightOnSquareIcon,
+            disabled: !root,
+            action: openWithLocalApp,
+        }, {
+            label: tr('workspace.menu.revealInFileManager'),
+            icon: EyeIcon,
+            disabled: !root,
+            action: revealInFileManager,
+        }] as ContextMenuItem[] : []),
         {
             label: tr('workspace.menu.copyAbsolutePath'),
             icon: DocumentDuplicateIcon,
+            separator: showLocalOpen,
             action: async () => {
                 await writeClipboard(buildAbsolutePath(root, entry.path))
                 toast.success(tr('workspace.menu.copied'))

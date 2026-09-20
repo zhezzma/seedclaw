@@ -1059,6 +1059,8 @@ export default {
         noAgentFiles: 'No editable config files',
         menu: {
             openFile: 'Open File',
+            openLocally: 'Open with Local Program',
+            revealInFileManager: 'Reveal in File Manager',
             copyAbsolutePath: 'Copy Absolute Path',
             copyRelativePath: 'Copy Relative Path',
             copyName: 'Copy Name',

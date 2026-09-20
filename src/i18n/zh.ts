@@ -1059,6 +1059,8 @@ export default {
         noAgentFiles: '暂无可编辑的配置文件',
         menu: {
             openFile: '打开文件',
+            openLocally: '用本地程序打开',
+            revealInFileManager: '在文件管理器中显示',
             copyAbsolutePath: '复制绝对路径',
             copyRelativePath: '复制相对路径',
             copyName: '复制文件名',
