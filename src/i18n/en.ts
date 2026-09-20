@@ -784,6 +784,7 @@ export default {
         localManaged: 'Local server',
         addServer: 'Add server',
         settings: 'Settings',
+        externalLink: 'External link',
         serverName: 'Server name',
         serverNamePlaceholder: 'Leave empty to use the address as name',
         saveAndConnect: 'Save & connect',

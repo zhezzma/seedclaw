@@ -2,13 +2,13 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { CheckIcon, Cog6ToothIcon, PlusIcon, ServerStackIcon, CloudIcon } from '@heroicons/vue/24/outline'
+import { CheckIcon, Cog6ToothIcon, PlusIcon, ServerStackIcon, CloudIcon, ArrowTopRightOnSquareIcon } from '@heroicons/vue/24/outline'
 import { useUiSettingsStore, type GatewayProfile } from '../stores/setting'
 import { localServer, switchGateway, gatewaySwitchBlockReason } from '../composables/local-server'
 import { useToast } from '../composables/useToast'
 import { gatewayHostLabel } from '../utils/gateway-url'
 
-const props = defineProps<{ collapsed: boolean }>()
+defineProps<{ collapsed: boolean }>()
 
 const { t } = useI18n()
 const router = useRouter()
@@ -58,7 +58,7 @@ const determinePlacement = () => {
     const root = rootRef.value
     const trigger = triggerRef.value
     if (!root || !trigger) return
-    const content = root.querySelector<HTMLElement>('.dropdown-content')
+    const content = root.querySelector<HTMLElement>('.gateway-menu')
     if (!content) return
     const triggerRect = trigger.getBoundingClientRect()
     const spaceBelow = window.innerHeight - triggerRect.bottom
@@ -81,8 +81,8 @@ const toggleMenu = () => {
     else void openMenu()
 }
 
-// 点击菜单外/按 Esc 关闭
-const onDocumentPointerDown = (e: MouseEvent) => {
+// 点击菜单外/按 Esc 关闭（浏览器在触屏设备上合成 mousedown，监听它即可同时覆盖鼠标/触摸）
+const onDocumentMouseDown = (e: MouseEvent) => {
     if (!isOpen.value) return
     const target = e.target as Node | null
     if (target && rootRef.value?.contains(target)) return
@@ -94,16 +94,16 @@ const onDocumentKeydown = (e: KeyboardEvent) => {
 
 watch(isOpen, (open) => {
     if (open) {
-        document.addEventListener('mousedown', onDocumentPointerDown, true)
+        document.addEventListener('mousedown', onDocumentMouseDown, true)
         document.addEventListener('keydown', onDocumentKeydown)
     } else {
-        document.removeEventListener('mousedown', onDocumentPointerDown, true)
+        document.removeEventListener('mousedown', onDocumentMouseDown, true)
         document.removeEventListener('keydown', onDocumentKeydown)
     }
 })
 
 onBeforeUnmount(() => {
-    document.removeEventListener('mousedown', onDocumentPointerDown, true)
+    document.removeEventListener('mousedown', onDocumentMouseDown, true)
     document.removeEventListener('keydown', onDocumentKeydown)
 })
 
@@ -136,24 +136,28 @@ const openSettings = () => {
 
 <template>
     <div ref="rootRef" class="relative shrink-0 border-t border-base-300 px-3 py-2">
-        <!-- 触发区：当前网关头像 + 名称 + 地址（collapsed 时只留头像） -->
+        <!-- 触发区：当前网关头像 + 名称 + 地址（collapsed 时只留头像）；
+             名称/地址与菜单头保持一致，不随视口宽度隐藏（移动端抽屉同样展示） -->
         <button ref="triggerRef" type="button" class="flex w-full items-center gap-2 rounded-xl p-1.5 text-left transition-colors hover:bg-base-300/90 cursor-pointer"
             :class="collapsed && 'lg:justify-center lg:px-0'"
-            :title="activeName" :aria-label="t('gateway.switchAccount')" :aria-expanded="isOpen"
+            :title="activeEntry ? `${activeName} · ${activeHost}` : activeName"
+            :aria-label="t('gateway.switchAccount')" :aria-expanded="isOpen" aria-haspopup="menu"
             @click.stop="toggleMenu">
             <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold" :class="avatarClass">
                 {{ avatarLetter }}
             </span>
-            <span v-if="!collapsed" class="min-w-0 flex-1 lg:block hidden">
+            <span v-if="!collapsed" class="min-w-0 flex-1">
                 <span class="block truncate text-sm font-semibold text-base-content">{{ activeName }}</span>
                 <span class="block truncate text-xs text-base-content/50">{{ activeHost }}</span>
             </span>
-            <ServerStackIcon v-if="!collapsed && activeIsLocal" class="hidden lg:block h-4 w-4 shrink-0 text-primary" />
-            <CloudIcon v-else-if="!collapsed" class="hidden lg:block h-4 w-4 shrink-0 text-base-content/40" />
+            <ServerStackIcon v-if="!collapsed && activeIsLocal" class="h-4 w-4 shrink-0 text-primary" />
+            <CloudIcon v-else-if="!collapsed" class="h-4 w-4 shrink-0 text-base-content/40" />
         </button>
 
         <!-- 账号菜单（弹出层） -->
-        <div v-if="isOpen" class="dropdown-content absolute z-50 w-64 rounded-2xl border border-base-300 bg-base-100 p-1 shadow-lg"
+        <!-- 自定义 hook 类名 gateway-menu：不用 daisyUI 的 dropdown-content，
+             避免无 .dropdown 祖先时依赖其对 closed 态样式的实现细节 -->
+        <div v-if="isOpen" class="gateway-menu absolute z-50 w-64 rounded-2xl border border-base-300 bg-base-100 p-1 shadow-lg"
             :class="openUpward ? 'bottom-full mb-1 left-3' : 'top-full mt-1 left-3'"
             @click.stop>
             <!-- 当前网关详情头 -->
@@ -168,8 +172,8 @@ const openSettings = () => {
             </div>
             <div class="mx-2 my-1 border-t border-base-300"></div>
 
-            <!-- 账号列表：当前条目 ✓，点击切换 -->
-            <ul class="menu menu-compact w-full p-0" role="menu">
+            <!-- 账号列表：当前条目 ✓，点击切换；max-h 封顶内部滚动，条目多时不溢出视口 -->
+            <ul class="menu menu-compact w-full p-0 max-h-64 overflow-y-auto" role="menu">
                 <li v-for="entry in menuEntries" :key="entry.id" role="none">
                     <button type="button" role="menuitem" class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm"
                         :class="entry.id === configStore.activeGatewayId ? 'bg-base-300/60 font-semibold' : ''"
@@ -200,6 +204,14 @@ const openSettings = () => {
                         <Cog6ToothIcon class="h-4 w-4" />
                         {{ t('gateway.settings') }}
                     </button>
+                </li>
+                <!-- 外部链接（原侧栏 Header 跳转按钮的归宿）：设置里配了地址才显示 -->
+                <li v-if="configStore.externalUrl" role="none">
+                    <a :href="configStore.externalUrl" target="_blank" rel="noopener noreferrer" role="menuitem"
+                        class="rounded-xl px-3 py-2 text-sm" @click="closeMenu">
+                        <ArrowTopRightOnSquareIcon class="h-4 w-4" />
+                        {{ t('gateway.externalLink') }}
+                    </a>
                 </li>
             </ul>
         </div>

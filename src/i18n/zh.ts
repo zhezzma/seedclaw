@@ -785,6 +785,7 @@ export default {
         localManaged: '本地服务',
         addServer: '添加服务器',
         settings: '设置',
+        externalLink: '外部链接',
         serverName: '服务器名称',
         serverNamePlaceholder: '留空则使用地址作为名称',
         saveAndConnect: '保存并连接',

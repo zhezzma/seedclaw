@@ -42,7 +42,9 @@ function syncSettings() {
     const settings = useUiSettingsStore()
     if (effectiveGatewayMode() !== 'local') return
     if (!localServer.url || !localServer.token) return
-    // 顶层生效值 + local 条目（条目是真相源，reload 后凭它恢复托管连接）
+    // 顶层生效值 + local 条目镜像双写：reload 后恢复托管连接靠的是顶层值
+    // （loadConfig 对 local 激活条目读顶层值，不读条目），条目仅为账号模型副本，
+    // 两处必须同写，switchGateway 也复用本函数完成双写
     const localEntry = settings.gateways.find((g) => g.id === LOCAL_GATEWAY_ID)
     if (settings.apiBaseUrl !== localServer.url || settings.token !== localServer.token
         || localEntry?.apiBaseUrl !== localServer.url || localEntry?.token !== localServer.token) {
@@ -95,6 +97,10 @@ export function ensureLocalServerLoaded(): Promise<void> {
     if (loadPromise) return loadPromise
     if (!isTauri) {
         loaded = true
+        // 纯 Web 构建没有内嵌服务端，applyStatus 的事件/invoke 路径永远不跑，
+        // 迁移时无条件创建的 local 空壳条目必须在这里主动剔除，
+        // 否则幽灵行永久残留（激活它会被 effectiveGatewayMode 强制降级 remote）
+        useUiSettingsStore().reconcileLocalGateway(false)
         return Promise.resolve()
     }
     loadPromise = (async () => {
@@ -170,11 +176,10 @@ export function switchGateway(id: string) {
     const settings = useUiSettingsStore()
     if (!settings.gateways.some((g) => g.id === id)) return
     settings.setActiveGateway(id)
-    if (id === LOCAL_GATEWAY_ID && localServer.url && localServer.token) {
-        settings.apiBaseUrl = localServer.url
-        settings.token = localServer.token
-        settings.updateGateway(LOCAL_GATEWAY_ID, { apiBaseUrl: localServer.url, token: localServer.token })
-    }
+    // local 条目的「顶层+条目」双写统一收敛到 syncSettings：前置守卫
+    // （gatewaySwitchBlockReason）已保证切 local 时 localServer.url/token 就绪；
+    // remote 条目在 setActiveGateway 内已同步生效值，此处对其是 no-op
+    syncSettings()
     if (window.location.protocol !== 'file:') {
         const targetUrl = gatewaySwitchTargetUrl(window.location.pathname)
         if (targetUrl) {

@@ -314,6 +314,26 @@ test('new-model config round-trips untouched (no phantom migration)', async () =
     assert.equal(saved.gateways.length, 1, 'reload must not duplicate or rewrite entries')
 })
 
+test('local entry id is normalized to LOCAL_GATEWAY_ID (migration + addGateway)', async () => {
+    // 新模型配置里手改的自定义 local id：归一，否则 syncSettings/switchGateway 的
+    // 'id === LOCAL_GATEWAY_ID' 不变量静默失效
+    storage.setItem('openclaw_config', JSON.stringify({
+        apiBaseUrl: '',
+        token: '',
+        activeGatewayId: 'my-local',
+        gateways: [{ id: 'my-local', type: 'local', name: '', apiBaseUrl: '', token: '', lastNewSessionAgentId: '' }],
+    }))
+    const store = await createStore()
+    assert.equal(store.gateways.length, 1)
+    assert.equal(store.gateways[0].id, 'local')
+    assert.equal(store.activeGatewayId, 'local')
+
+    // addGateway 传自定义 id 建 local 条目：同样归一，不会造出第二条 local
+    const entry = store.addGateway({ id: 'another-local', type: 'local', name: '', apiBaseUrl: '', token: '' })
+    assert.equal(entry.id, 'local')
+    assert.equal(store.gateways.filter((g) => g.type === 'local').length, 1)
+})
+
 test('legacy local-only config does not spawn a phantom remote entry', async () => {
     // 旧版 loadConfig 会把托管值无脑 backfill 进 remote*（local 用户也有这两个键，
     // 常等于顶层 apiBaseUrl）：照搬会造出指向本机的幽灵 remote 条目，token 随端口漂移失效
@@ -367,8 +387,9 @@ test('corrupted config keeps at most one local entry', async () => {
     const store = await createStore()
 
     assert.equal(store.gateways.filter((g) => g.type === 'local').length, 1, 'local entry must be unique')
-    // 激活条目被剔除时回落第一个剩余条目
-    assert.equal(store.activeGatewayId, 'l1')
+    // 激活条目被剔除时回落第一个剩余条目；local id 归一为 LOCAL_GATEWAY_ID
+    assert.equal(store.activeGatewayId, 'local')
+    assert.equal(store.gateways[0].name, 'local one', 'first local entry survives dedup')
 })
 
 test('reconcileLocalGateway(true) activates the local entry on a fresh bundled install', async () => {

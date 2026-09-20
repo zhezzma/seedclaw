@@ -9,6 +9,7 @@
  *   - setupDone = true 跳过首次引导向导，直接进 UI
  */
 import { gatewayHostLabel } from './gateway-url.ts'
+import type { useUiSettingsStore } from '../stores/setting.ts'
 
 export interface TunnelHashBootstrap {
     token: string
@@ -27,6 +28,12 @@ export function parseTunnelHash(hash: string): TunnelHashBootstrap | null {
     return { token }
 }
 
+/** settings 桥接：从真实 store 派生，结构与签名不再手工维护（测试传真 store） */
+type GatewaySettingsBridge = Pick<
+    ReturnType<typeof useUiSettingsStore>,
+    'gateways' | 'addGateway' | 'updateGateway' | 'setActiveGateway' | 'save'
+>
+
 /**
  * 应用引导结果到 settings store（apiBaseUrl 取当前 origin，同源直连）。
  * 手机浏览器无内嵌服务端：upsert 一个 remote 网关条目并激活（同源地址已存在
@@ -34,13 +41,7 @@ export function parseTunnelHash(hash: string): TunnelHashBootstrap | null {
  * api-client.getBaseUrl() 在 apiBaseUrl 为空时直接 throw，必须先写入。
  */
 export function applyTunnelBootstrap(
-    settings: {
-        gateways: { id: string, type: 'local' | 'remote', apiBaseUrl: string }[]
-        addGateway: (profile: { type: 'local' | 'remote', name: string, apiBaseUrl: string, token: string }) => { id: string }
-        updateGateway: (id: string, patch: { token: string }) => void
-        setActiveGateway: (id: string) => void
-        save: (patch: Record<string, unknown>) => void
-    },
+    settings: GatewaySettingsBridge,
     origin: string,
     bootstrap: TunnelHashBootstrap,
 ): void {

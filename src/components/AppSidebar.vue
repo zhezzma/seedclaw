@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router'
 import {
     PlusIcon,
     ChatBubbleLeftRightIcon,
-    ArrowTopRightOnSquareIcon,
     ChevronDoubleLeftIcon,
     ChevronDoubleRightIcon,
     CalendarDaysIcon,
@@ -482,11 +481,6 @@ const handleNavClick = (item: any) => {
                 <span class="text-lg font-bold tracking-tight" :class="isCollapsed && 'lg:hidden'">SeedClaw</span>
             </div>
             <div class="flex gap-1">
-                <a v-if="configStore.externalUrl" :href="configStore.externalUrl" target="_blank"
-                    rel="noopener noreferrer" class="btn btn-ghost btn-circle btn-sm hover:bg-base-300"
-                    :class="isCollapsed && 'lg:hidden'">
-                    <ArrowTopRightOnSquareIcon class="h-5 w-5" />
-                </a>
                 <!-- 收起/展开（桌面端，仅图标） -->
                 <button @click="toggleCollapsed"
                     class="btn btn-ghost btn-circle btn-sm hover:bg-base-300 hidden lg:inline-flex"

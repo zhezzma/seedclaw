@@ -35,7 +35,8 @@ export interface EngineConfig<T extends string> {
 }
 
 export interface UiSettings {
-    /** 生效值（唯一真相）：等于激活 gateway 条目的 apiBaseUrl/token。
+    /** 生效值：等于激活 remote 条目的 apiBaseUrl/token；激活 local 条目时由
+     *  local-server 托管覆写（条目是账号模型镜像，reload 恢复靠这两个顶层值）。
      *  所有 API/SSE/WS 消费方只读这两个字段，不感知多网关。 */
     apiBaseUrl: string
     token: string
@@ -212,9 +213,11 @@ const migrateGateways = (parsed: any): {
             if (!raw || typeof raw !== 'object') continue
             const item = raw as Partial<GatewayProfile>
             const type: GatewayType = item.type === 'local' ? 'local' : 'remote'
-            const id = typeof item.id === 'string' && item.id.trim() !== ''
-                ? item.id
-                : type === 'local' ? LOCAL_GATEWAY_ID : generateGatewayId()
+            // local 条目 id 强制归一：syncSettings/switchGateway/草稿哨兵都依赖
+            // 'id === LOCAL_GATEWAY_ID' 不变量，手改配置的自定义 id 不予保留
+            const id = type === 'local'
+                ? LOCAL_GATEWAY_ID
+                : (typeof item.id === 'string' && item.id.trim() !== '' ? item.id : generateGatewayId())
             gateways.push({
                 id,
                 type,
@@ -599,9 +602,10 @@ export const useUiSettingsStore = defineStore('ui-settings', {
 
         addGateway(profile: Omit<GatewayProfile, 'id' | 'lastNewSessionAgentId'> & Partial<Pick<GatewayProfile, 'id' | 'lastNewSessionAgentId'>>): GatewayProfile {
             const entry: GatewayProfile = {
-                id: profile.id && profile.id.trim() !== ''
-                    ? profile.id
-                    : profile.type === 'local' ? LOCAL_GATEWAY_ID : generateGatewayId(),
+                // local 条目 id 恒为 LOCAL_GATEWAY_ID（同迁移规则，见 migrateGateways）
+                id: profile.type === 'local'
+                    ? LOCAL_GATEWAY_ID
+                    : (profile.id && profile.id.trim() !== '' ? profile.id : generateGatewayId()),
                 type: profile.type,
                 name: resolveGatewayName(profile.type, profile.name, profile.apiBaseUrl),
                 apiBaseUrl: profile.apiBaseUrl,
