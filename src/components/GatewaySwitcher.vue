@@ -7,6 +7,7 @@ import { useUiSettingsStore, type GatewayProfile } from '../stores/setting'
 import { localServer, switchGateway, gatewaySwitchBlockReason } from '../composables/local-server'
 import { useToast } from '../composables/useToast'
 import { gatewayHostLabel } from '../utils/gateway-url'
+import { openExternalLink } from '../utils/external-link'
 
 defineProps<{ collapsed: boolean }>()
 
@@ -132,6 +133,15 @@ const openSettings = () => {
     closeMenu()
     void router.push('/settings')
 }
+
+/** 外部链接：JS 触发一次性 <a target="_blank">（utils/external-link），不用 opener 插件、
+ *  不用 window.open——后者在 Tauri WebView 内不可靠。菜单项做成 button 而非 <a>：先关菜单
+ *  再触发，关菜单不拦锚点导航，纯 Web 下同样是新标签页。 */
+const handleExternalLink = () => {
+    const url = configStore.externalUrl
+    closeMenu()
+    if (url) openExternalLink(url)
+}
 </script>
 
 <template>
@@ -205,13 +215,13 @@ const openSettings = () => {
                         {{ t('gateway.settings') }}
                     </button>
                 </li>
-                <!-- 外部链接（原侧栏 Header 跳转按钮的归宿）：设置里配了地址才显示 -->
+                <!-- 外部链接（原侧栏 Header 跳转按钮的归宿）：设置里配了地址才显示。
+                     button + JS 触发锚点（handleExternalLink），导航本身仍是原生 <a target="_blank"> -->
                 <li v-if="configStore.externalUrl" role="none">
-                    <a :href="configStore.externalUrl" target="_blank" rel="noopener noreferrer" role="menuitem"
-                        class="rounded-xl px-3 py-2 text-sm" @click="closeMenu">
+                    <button type="button" role="menuitem" class="rounded-xl px-3 py-2 text-sm" @click="handleExternalLink">
                         <ArrowTopRightOnSquareIcon class="h-4 w-4" />
                         {{ t('gateway.externalLink') }}
-                    </a>
+                    </button>
                 </li>
             </ul>
         </div>
