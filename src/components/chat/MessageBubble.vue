@@ -36,6 +36,10 @@ const props = defineProps<{
     branchInfo?: BranchInfo | null
     /** 是否是最后一条消息，只有最后一条消息的 A2UI Surface 才允许交互 */
     isLastMessage?: boolean
+    /** 分支尾锚：紧随其后的显示项不是本回合 assistant 回复（VirtualMessageList 计算）。
+     *  user 气泡的分支导航门控：仅分支尾部的 user 消息需要承担导航锚点（尾部无已渲染
+     *  回复或分支被续写后分叉点不再是末项），避免与 assistant 气泡的导航重复渲染 n/n */
+    isBranchTail?: boolean
     /** 覆盖助手显示名（子代理轨迹抽屉传子代理名）；不传用当前 agent 名 */
     agentName?: string
 }>()
@@ -442,11 +446,11 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
                 </button>
 
                 <!-- Branch Navigation（user 气泡锚点）：分支尾部没有已渲染 assistant 回复时
-                     （停止产生的空 aborted 回复按设计零渲染、回复被删光），user 消息是
-                     分支唯一必现锚点且成为末项；缺了这里，切到该分支（第一页）后
-                     无任何导航/操作，成为死胡同。isLastMessage 门控避免与同回合
-                     assistant 气泡的导航重复渲染同一个 n/n 计数器 -->
-                <div v-if="isLastMessage && branchInfo && branchInfo.siblings.length > 1" class="flex items-center gap-0.5 ml-1">
+                     （停止产生的空 aborted 回复按设计零渲染、回复被删光），及分支被续写后
+                     分叉点 user 消息不再是最末项时，user 消息是该分支唯一必现的导航锚点；
+                     缺了这里，切到该分支（第一页）后无任何导航/操作，成为死胡同。
+                     isBranchTail 门控避免与同回合 assistant 气泡的导航重复渲染同一个 n/n -->
+                <div v-if="isBranchTail && branchInfo && branchInfo.siblings.length > 1" class="flex items-center gap-0.5 ml-1">
                     <button @click="emit('navigate-branch', message, 'prev')" :disabled="branchInfo.currentIndex <= 0"
                         class="btn btn-ghost btn-xs btn-circle text-base-content/60 hover:text-primary hover:bg-base-200 disabled:opacity-30 disabled:cursor-not-allowed">
                         <ChevronLeftIcon class="h-3.5 w-3.5" />

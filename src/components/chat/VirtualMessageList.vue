@@ -96,6 +96,11 @@ const enrichedItems = computed(() =>
         key: itemKey(msg, i),
         index: i,
         isLast: i === props.messages.length - 1,
+        // 分支尾锚：紧随其后的不是本回合 assistant 回复（无 next / 下一项仍是 user），
+        // 供 user 气泡决定是否挂分支导航。覆盖两种场景：分支尾部没有已渲染回复
+        // （停止产生的空 aborted 按设计零渲染、回复被删光）与分支被续写后
+        // 分叉点 user 消息不再是最末项（isLastMessage 覆盖不了后者）。
+        isBranchTail: props.messages[i + 1]?.role !== 'assistant',
     }))
 )
 
@@ -290,6 +295,7 @@ onBeforeUnmount(() => {
             <div v-if="visibleKeys.has(item.key)" :ref="setRowRef(item.key) as any" class="virtual-row" :data-key="item.key">
                 <MessageBubble :message="item.msg" :is-loading="isBusy && item.isLast" :is-busy="isBusy"
                     :is-last-message="item.isLast"
+                    :is-branch-tail="item.isBranchTail"
                     :branch-info="getBranchInfo(item.msg)" @copy="emit('copy', item.msg)"
                     @read-aloud="emit('read-aloud', item.msg)" @delete="emit('delete', item.msg)"
                     @retry="emit('retry', item.msg)" @fork="emit('fork', item.msg)"
