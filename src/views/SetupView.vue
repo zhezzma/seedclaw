@@ -113,13 +113,23 @@ const handleLocalSubmit = async () => {
     error.value = ''
 
     try {
-        configStore.addGateway({
-            id: LOCAL_GATEWAY_ID,
-            type: 'local',
-            name: t('gateway.localManaged'),
-            apiBaseUrl: localServer.url ?? '',
-            token: localServer.token ?? '',
-        })
+        const existingLocal = configStore.gateways.find((g) => g.id === LOCAL_GATEWAY_ID)
+        if (existingLocal) {
+            // 保留条目上的 lastNewSessionAgentId（迁移来的本地 agent 记忆）：
+            // addGateway 是整条目 upsert，会把记忆字段清掉
+            configStore.updateGateway(LOCAL_GATEWAY_ID, {
+                apiBaseUrl: localServer.url ?? '',
+                token: localServer.token ?? '',
+            })
+        } else {
+            configStore.addGateway({
+                id: LOCAL_GATEWAY_ID,
+                type: 'local',
+                name: t('gateway.localManaged'),
+                apiBaseUrl: localServer.url ?? '',
+                token: localServer.token ?? '',
+            })
+        }
         configStore.setActiveGateway(LOCAL_GATEWAY_ID)
         if (localServer.url && localServer.token) {
             configStore.save({

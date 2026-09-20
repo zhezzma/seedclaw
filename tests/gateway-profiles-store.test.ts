@@ -226,7 +226,7 @@ test('legacy remote config migrates into one activated remote entry', async () =
     }
 })
 
-test('legacy local config migrates into an activated local entry plus an idle remote entry', async () => {
+test('legacy local config migrates into an activated local entry with no phantom remote', async () => {
     storage.setItem('openclaw_config', JSON.stringify({
         apiBaseUrl: 'http://127.0.0.1:18789',
         token: 'managed-token',
@@ -236,15 +236,13 @@ test('legacy local config migrates into an activated local entry plus an idle re
 
     const store = await createStore()
 
+    // local-only 老用户：只有 local 条目（remote 空壳是幽灵行，见专项测试）
+    assert.equal(store.gateways.length, 1)
     assert.equal(store.activeGatewayId, 'local')
     assert.equal(store.activeGateway!.type, 'local')
     assert.equal(store.apiBaseUrl, 'http://127.0.0.1:18789')
     assert.equal(store.token, 'managed-token')
     assert.equal(store.gateways.find((g) => g.id === 'local')!.lastNewSessionAgentId, 'agent-local')
-
-    // 远程条目同时迁移（空壳），供用户之后填写/切换
-    const remote = store.gateways.find((g) => g.type === 'remote')!
-    assert.equal(remote.lastNewSessionAgentId, '')
 })
 
 test('legacy single lastNewSessionAgentId migrates into the entry of the saved gatewayMode', async () => {
@@ -314,4 +312,98 @@ test('new-model config round-trips untouched (no phantom migration)', async () =
 
     const saved = JSON.parse(storage.getItem('openclaw_config')!)
     assert.equal(saved.gateways.length, 1, 'reload must not duplicate or rewrite entries')
+})
+
+test('legacy local-only config does not spawn a phantom remote entry', async () => {
+    // 旧版 loadConfig 会把托管值无脑 backfill 进 remote*（local 用户也有这两个键，
+    // 常等于顶层 apiBaseUrl）：照搬会造出指向本机的幽灵 remote 条目，token 随端口漂移失效
+    storage.setItem('openclaw_config', JSON.stringify({
+        apiBaseUrl: 'http://127.0.0.1:18789',
+        token: 'managed-token',
+        gatewayMode: 'local',
+        remoteApiBaseUrl: 'http://127.0.0.1:18789',
+        remoteToken: 'managed-token',
+        lastLocalNewSessionAgentId: 'agent-local',
+    }))
+
+    const store = await createStore()
+
+    assert.equal(store.gateways.length, 1)
+    assert.equal(store.gateways[0].type, 'local')
+    assert.equal(store.gateways[0].lastNewSessionAgentId, 'agent-local')
+    assert.equal(store.activeGatewayId, 'local')
+    // 顶层生效值保持旧托管值（local-server 就绪后覆写）
+    assert.equal(store.apiBaseUrl, 'http://127.0.0.1:18789')
+})
+
+test('legacy local config with a genuinely distinct remote server keeps both entries', async () => {
+    storage.setItem('openclaw_config', JSON.stringify({
+        apiBaseUrl: 'http://127.0.0.1:18789',
+        token: 'managed-token',
+        gatewayMode: 'local',
+        remoteApiBaseUrl: 'http://vps.example.com:18799',
+        remoteToken: 'remote-token',
+    }))
+
+    const store = await createStore()
+
+    assert.equal(store.gateways.length, 2)
+    assert.equal(store.activeGatewayId, 'local')
+    const remote = store.gateways.find((g) => g.type === 'remote')!
+    assert.equal(remote.apiBaseUrl, 'http://vps.example.com:18799')
+    assert.equal(remote.token, 'remote-token')
+})
+
+test('corrupted config keeps at most one local entry', async () => {
+    storage.setItem('openclaw_config', JSON.stringify({
+        activeGatewayId: 'l2',
+        gateways: [
+            { id: 'l1', type: 'local', name: 'local one', apiBaseUrl: '', token: '', lastNewSessionAgentId: '' },
+            { id: 'l2', type: 'local', name: 'local two', apiBaseUrl: '', token: '', lastNewSessionAgentId: '' },
+            { id: 'r1', type: 'remote', name: 'r', apiBaseUrl: 'http://r', token: 't', lastNewSessionAgentId: '' },
+        ],
+    }))
+
+    const store = await createStore()
+
+    assert.equal(store.gateways.filter((g) => g.type === 'local').length, 1, 'local entry must be unique')
+    // 激活条目被剔除时回落第一个剩余条目
+    assert.equal(store.activeGatewayId, 'l1')
+})
+
+test('reconcileLocalGateway(true) activates the local entry on a fresh bundled install', async () => {
+    // 全新安装：gateways 空、activeGatewayId 空。不激活则 effectiveGatewayMode()
+    // 落到 remote，SetupView 本地卡片不可达（原默认 gatewayMode='local' 的回归）
+    const store = await createStore()
+
+    store.reconcileLocalGateway(true)
+
+    assert.equal(store.activeGatewayId, 'local')
+    assert.equal(store.activeGateway!.type, 'local')
+})
+
+test('removing the active entry falling back to local clears stale remote effective values', async () => {
+    // 回落 local 时顶层必须丢掉被删 remote 的 url/token：否则 UI 显示 local
+    // 激活而 API 仍打向已删除服务器
+    const store = await createStore()
+    const local = store.addGateway({ id: 'local', type: 'local', name: '本地服务', apiBaseUrl: '', token: '' })
+    const a = store.addGateway({ type: 'remote', name: 'a', apiBaseUrl: 'http://a', token: 'ta' })
+    store.setActiveGateway(a.id)
+    assert.equal(store.apiBaseUrl, 'http://a')
+
+    store.removeGateway(a.id)
+
+    assert.equal(store.activeGatewayId, local.id)
+    assert.equal(store.apiBaseUrl, '')
+    assert.equal(store.token, '')
+})
+
+test('updateGateway applies the same name fallback as addGateway', async () => {
+    // 清空名称字段保存：remote 条目回落 host 标签，不留空白标题
+    const store = await createStore()
+    const a = store.addGateway({ type: 'remote', name: 'a', apiBaseUrl: 'http://a', token: 'ta' })
+
+    store.updateGateway(a.id, { name: '   ' })
+
+    assert.equal(store.gateways.find((g) => g.id === a.id)!.name, 'a')
 })

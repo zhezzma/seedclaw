@@ -43,9 +43,9 @@ function syncSettings() {
     if (effectiveGatewayMode() !== 'local') return
     if (!localServer.url || !localServer.token) return
     // 顶层生效值 + local 条目（条目是真相源，reload 后凭它恢复托管连接）
+    const localEntry = settings.gateways.find((g) => g.id === LOCAL_GATEWAY_ID)
     if (settings.apiBaseUrl !== localServer.url || settings.token !== localServer.token
-        || settings.gateways.find((g) => g.id === LOCAL_GATEWAY_ID)?.apiBaseUrl !== localServer.url
-        || settings.gateways.find((g) => g.id === LOCAL_GATEWAY_ID)?.token !== localServer.token) {
+        || localEntry?.apiBaseUrl !== localServer.url || localEntry?.token !== localServer.token) {
         settings.apiBaseUrl = localServer.url
         settings.token = localServer.token
         settings.updateGateway(LOCAL_GATEWAY_ID, { apiBaseUrl: localServer.url, token: localServer.token })
@@ -139,6 +139,21 @@ export async function restartLocalServer(): Promise<void> {
     if (!isTauri) return
     const { invoke } = await import('@tauri-apps/api/core')
     await invoke('server_restart')
+}
+
+/**
+ * 切换网关账号的前置守卫：返回阻止原因的 i18n key，或 null 表示放行。
+ * local 未就绪（failed/无 url/token）不放行——否则 reload 后直接落到启动失败页；
+ * remote 条目没填地址不放行。侧边栏菜单与设置页共用，防止两处守卫漂移。
+ */
+export function gatewaySwitchBlockReason(entry: { type: 'local' | 'remote'; apiBaseUrl: string }):
+    'sidebar.localServerNotReady' | 'sidebar.remoteNotConfigured' | null {
+    if (entry.type === 'local') {
+        return localServer.state === 'failed' || !localServer.url || !localServer.token
+            ? 'sidebar.localServerNotReady'
+            : null
+    }
+    return entry.apiBaseUrl.trim() ? null : 'sidebar.remoteNotConfigured'
 }
 
 /**

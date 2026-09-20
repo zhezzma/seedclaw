@@ -88,6 +88,13 @@ const DEFAULT_VOICE_GATEWAY_URL = 'https://voice.godgodgame.com'
 const DEFAULT_LOCAL_GATEWAY_NAME = '本地服务'
 const DEFAULT_REMOTE_GATEWAY_NAME = '默认服务器'
 
+/** 条目名称兜底：留空时 local 用默认名、remote 用地址 host（再退默认名）。 */
+const resolveGatewayName = (type: GatewayType, name: string, apiBaseUrl: string): string => {
+    if (name.trim() !== '') return name
+    if (type === 'local') return DEFAULT_LOCAL_GATEWAY_NAME
+    return gatewayHostLabel(apiBaseUrl) || DEFAULT_REMOTE_GATEWAY_NAME
+}
+
 const generateGatewayId = (): string => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID()
@@ -211,18 +218,22 @@ const migrateGateways = (parsed: any): {
             gateways.push({
                 id,
                 type,
-                name: typeof item.name === 'string' && item.name.trim() !== ''
-                    ? item.name
-                    : type === 'local' ? DEFAULT_LOCAL_GATEWAY_NAME : DEFAULT_REMOTE_GATEWAY_NAME,
+                name: resolveGatewayName(type, typeof item.name === 'string' ? item.name : '', typeof item.apiBaseUrl === 'string' ? item.apiBaseUrl : ''),
                 apiBaseUrl: typeof item.apiBaseUrl === 'string' ? item.apiBaseUrl : '',
                 token: typeof item.token === 'string' ? item.token : '',
                 lastNewSessionAgentId: typeof item.lastNewSessionAgentId === 'string' ? item.lastNewSessionAgentId : '',
             })
         }
-        // 同一 id 去重（保留先出现的），local 条目最多一条
+        // 同一 id 去重（保留先出现的）；local 条目最多一条（保留首个，其余剔除：
+        // UI 不给 local 删按钮，多余 local 行永远是死行）
         const seen = new Set<string>()
+        let localSeen = false
         const deduped = gateways.filter((g) => {
             if (seen.has(g.id)) return false
+            if (g.type === 'local') {
+                if (localSeen) return false
+                localSeen = true
+            }
             seen.add(g.id)
             return true
         })
@@ -239,12 +250,19 @@ const migrateGateways = (parsed: any): {
         ? parsed.gatewayMode
         : ((typeof parsed?.apiBaseUrl === 'string' && parsed.apiBaseUrl.trim() !== '') ? 'remote' : 'local')
 
-    const legacyRemoteUrl = typeof parsed?.remoteApiBaseUrl === 'string' && parsed.remoteApiBaseUrl.trim() !== ''
+    // 旧版 loadConfig 会把 local 模式的托管值无脑 backfill 进 remote*（remoteApiBaseUrl
+    // 缺省时填 apiBaseUrl）：直接照搬会造出一条指向本机的幽灵 remote 条目，token 随
+    // 端口漂移失效。非 remote 模式下仅当 remote* 与顶层生效值不同才认它是真远程配置
+    const effectiveUrlLegacy = typeof parsed?.apiBaseUrl === 'string' ? parsed.apiBaseUrl : ''
+    const backfilledRemote = legacyMode !== 'remote'
+        && typeof parsed?.remoteApiBaseUrl === 'string'
+        && parsed.remoteApiBaseUrl === effectiveUrlLegacy
+    const legacyRemoteUrl = !backfilledRemote && typeof parsed?.remoteApiBaseUrl === 'string' && parsed.remoteApiBaseUrl.trim() !== ''
         ? parsed.remoteApiBaseUrl
-        : (typeof parsed?.apiBaseUrl === 'string' ? parsed.apiBaseUrl : '')
-    const legacyRemoteToken = typeof parsed?.remoteToken === 'string' && parsed.remoteToken.trim() !== ''
+        : (legacyMode === 'remote' ? effectiveUrlLegacy : '')
+    const legacyRemoteToken = !backfilledRemote && typeof parsed?.remoteToken === 'string' && parsed.remoteToken.trim() !== ''
         ? parsed.remoteToken
-        : (typeof parsed?.token === 'string' ? parsed.token : '')
+        : (legacyMode === 'remote' && typeof parsed?.token === 'string' ? parsed.token : '')
 
     // 旧 last*AgentId 按模式归属；已拆分的 per-mode 字段优先于陈旧的单值（clobber guard）
     const legacySingle = typeof parsed?.lastNewSessionAgentId === 'string' ? parsed.lastNewSessionAgentId : ''
@@ -271,9 +289,10 @@ const migrateGateways = (parsed: any): {
         token: '',
         lastNewSessionAgentId: localAgentId,
     }
-    // local 条目在前：bundled 首次启动默认落在本地服务上（与原默认 gatewayMode='local' 一致）
-    const gateways = [localEntry, remoteEntry]
-    const activeGatewayId = legacyMode === 'remote' ? remoteEntry.id : LOCAL_GATEWAY_ID
+    // 从未配过远程的老用户（local-only）：不建空 URL 幽灵条目，账号菜单/设置列表只显示本地服务
+    const hasLegacyRemote = legacyRemoteUrl.trim() !== ''
+    const gateways = hasLegacyRemote ? [localEntry, remoteEntry] : [localEntry]
+    const activeGatewayId = legacyMode === 'remote' && hasLegacyRemote ? remoteEntry.id : LOCAL_GATEWAY_ID
     return { gateways, activeGatewayId }
 }
 
@@ -439,12 +458,13 @@ const loadConfig = (): UiSettings => {
             // 顶层生效值 = 激活条目（local 条目为空壳时保留旧托管值，
             // 由 local-server 就绪后 syncSettings 覆写）
             const activeEntry = gateways.find((g) => g.id === activeGatewayId) ?? null
-            const effectiveUrl = activeEntry && activeEntry.type === 'remote'
-                ? activeEntry.apiBaseUrl
-                : (typeof parsed.apiBaseUrl === 'string' ? parsed.apiBaseUrl : '')
-            const effectiveToken = activeEntry && activeEntry.type === 'remote'
-                ? activeEntry.token
-                : (typeof parsed.token === 'string' ? parsed.token : '')
+            // 激活 remote 条目 → 条目值即生效值；local/空 → 沿用旧托管值
+            // （由 local-server 就绪后 syncSettings 覆写）
+            const fallbackUrl = typeof parsed.apiBaseUrl === 'string' ? parsed.apiBaseUrl : ''
+            const fallbackToken = typeof parsed.token === 'string' ? parsed.token : ''
+            const useActiveRemote = activeEntry !== null && activeEntry.type === 'remote'
+            const effectiveUrl = useActiveRemote ? activeEntry.apiBaseUrl : fallbackUrl
+            const effectiveToken = useActiveRemote ? activeEntry.token : fallbackToken
             const merged: UiSettings = {
                 ...defaults,
                 ...parsed,
@@ -481,7 +501,6 @@ export const useUiSettingsStore = defineStore('ui-settings', {
         authToken: (state) => state.token,
         activeGateway: (state): GatewayProfile | null =>
             state.gateways.find((g) => g.id === state.activeGatewayId) ?? null,
-        remoteGateways: (state): GatewayProfile[] => state.gateways.filter((g) => g.type === 'remote'),
         isDark: (state) => state.theme === 'dark',
         getAsrConfig: (state) => (engine?: ASREngineType) => {
             const targetEngine = engine ?? state.asrEngine
@@ -584,8 +603,7 @@ export const useUiSettingsStore = defineStore('ui-settings', {
                     ? profile.id
                     : profile.type === 'local' ? LOCAL_GATEWAY_ID : generateGatewayId(),
                 type: profile.type,
-                name: profile.name.trim() !== '' ? profile.name
-                    : profile.type === 'local' ? DEFAULT_LOCAL_GATEWAY_NAME : (gatewayHostLabel(profile.apiBaseUrl) || DEFAULT_REMOTE_GATEWAY_NAME),
+                name: resolveGatewayName(profile.type, profile.name, profile.apiBaseUrl),
                 apiBaseUrl: profile.apiBaseUrl,
                 token: profile.token,
                 lastNewSessionAgentId: profile.lastNewSessionAgentId ?? '',
@@ -604,7 +622,14 @@ export const useUiSettingsStore = defineStore('ui-settings', {
         updateGateway(id: string, patch: Partial<Omit<GatewayProfile, 'id' | 'type'>>) {
             const target = this.gateways.find((g) => g.id === id)
             if (!target) return
-            const next: GatewayProfile = { ...target, ...patch, id: target.id, type: target.type }
+            // 名称与 addGateway 同一兜底规则：清空名称字段保存不留空白条目
+            const next: GatewayProfile = {
+                ...target,
+                ...patch,
+                id: target.id,
+                type: target.type,
+                name: resolveGatewayName(target.type, patch.name ?? target.name, patch.apiBaseUrl ?? target.apiBaseUrl),
+            }
             const index = this.gateways.findIndex((g) => g.id === id)
             this.gateways[index] = next
             if (id === this.activeGatewayId) this.syncActiveGatewayEffective()
@@ -616,10 +641,16 @@ export const useUiSettingsStore = defineStore('ui-settings', {
             if (index < 0) return
             this.gateways.splice(index, 1)
             if (this.activeGatewayId === id) {
-                // 删激活条目：回落第一个剩余条目（无剩余则清空，由向导接管）
+                // 删激活条目：回落第一个剩余条目（无剩余则清空，由向导接管）。
+                // local 条目的顶层值不在此处写（其 url/token 由 local-server 托管，
+                // 就绪后 syncSettings 覆写）；但必须清掉被删 remote 的残留生效值，
+                // 否则 UI 显示 local 激活而 API 仍打向已删除服务器
                 this.activeGatewayId = this.gateways[0]?.id ?? ''
-                this.syncActiveGatewayEffective()
-                if (!this.activeGateway) {
+                const active = this.activeGateway
+                if (active) {
+                    this.apiBaseUrl = active.apiBaseUrl
+                    this.token = active.token
+                } else {
                     this.apiBaseUrl = ''
                     this.token = ''
                 }
@@ -645,6 +676,12 @@ export const useUiSettingsStore = defineStore('ui-settings', {
             if (bundled) {
                 if (localIndex < 0) {
                     this.addGateway({ id: LOCAL_GATEWAY_ID, type: 'local', name: DEFAULT_LOCAL_GATEWAY_NAME, apiBaseUrl: '', token: '' })
+                }
+                // bundled 全新安装：gateways 空转来的迁移产物只有空壳 local 条目且未激活。
+                // 不激活则 effectiveGatewayMode() 落到 remote，引导页本地卡片不可达
+                // （原默认 gatewayMode='local' 的行为回归）
+                if (!this.activeGatewayId && this.gateways.length > 0) {
+                    this.setActiveGateway(this.gateways[0].id)
                 }
             } else if (localIndex >= 0) {
                 this.removeGateway(this.gateways[localIndex].id)

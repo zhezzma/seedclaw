@@ -3,8 +3,8 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { CheckIcon, Cog6ToothIcon, PlusIcon, ServerStackIcon, CloudIcon } from '@heroicons/vue/24/outline'
-import { useUiSettingsStore, LOCAL_GATEWAY_ID, type GatewayProfile } from '../stores/setting'
-import { localServer, switchGateway } from '../composables/local-server'
+import { useUiSettingsStore, type GatewayProfile } from '../stores/setting'
+import { localServer, switchGateway, gatewaySwitchBlockReason } from '../composables/local-server'
 import { useToast } from '../composables/useToast'
 import { gatewayHostLabel } from '../utils/gateway-url'
 
@@ -30,16 +30,14 @@ const menuEntries = computed<GatewayProfile[]>(() => {
 const activeEntry = computed(() => configStore.activeGateway)
 
 const activeName = computed(() => activeEntry.value?.name || t('gateway.noGateway'))
-const activeHost = computed(() => {
-    const entry = activeEntry.value
-    if (!entry) return ''
+const activeIsLocal = computed(() => activeEntry.value?.type === 'local')
+
+const entryHost = (entry: GatewayProfile): string => {
     if (entry.type === 'local') {
-        // local 条目：优先展示托管地址（就绪前回落固定标签）
         return localServer.url ? gatewayHostLabel(localServer.url) : t('gateway.localManaged')
     }
     return gatewayHostLabel(entry.apiBaseUrl) || entry.apiBaseUrl
-})
-const activeIsLocal = computed(() => activeEntry.value?.type === 'local')
+}
 
 // 头像：名称首字母 + 按名称 hash 轮换色板（同 GatewayProfile 稳定同色）
 const AVATAR_COLORS = ['bg-primary text-primary-content', 'bg-secondary text-secondary-content', 'bg-accent text-accent-content', 'bg-info text-info-content', 'bg-success text-success-content', 'bg-warning text-warning-content'] as const
@@ -51,12 +49,8 @@ const avatarClass = computed(() => {
 })
 const avatarLetter = computed(() => Array.from(activeName.value)[0]?.toUpperCase() ?? '?')
 
-const entryHost = (entry: GatewayProfile): string => {
-    if (entry.type === 'local') {
-        return localServer.url ? gatewayHostLabel(localServer.url) : t('gateway.localManaged')
-    }
-    return gatewayHostLabel(entry.apiBaseUrl) || entry.apiBaseUrl
-}
+// 底部触发区与菜单头共用同一 host 展示逻辑
+const activeHost = computed(() => activeEntry.value ? entryHost(activeEntry.value) : '')
 
 // 菜单默认向下弹出；空间不足时翻向上（与 SessionActionMenu 同策略：以下方空间
 // 不足且上方更宽裕为准，避免底部 footer 菜单被视口裁剪）
@@ -113,20 +107,15 @@ onBeforeUnmount(() => {
     document.removeEventListener('keydown', onDocumentKeydown)
 })
 
-/** 切换账号：守卫不可用目标（local 服务端未就绪 / remote 条目未填地址），通过则激活并 reload。 */
+/** 切换账号：共享守卫（local 未就绪/remote 未填地址）拦截，通过则激活并 reload。 */
 const switchTo = (entry: GatewayProfile) => {
     if (entry.id === configStore.activeGatewayId) {
         closeMenu()
         return
     }
-    if (entry.type === 'local') {
-        // failed 时即使残留 url/token 也不放行，否则 reload 后直接落到启动失败页
-        if (localServer.state === 'failed' || !localServer.url || !localServer.token) {
-            toast.warning(t('sidebar.localServerNotReady'))
-            return
-        }
-    } else if (!entry.apiBaseUrl.trim()) {
-        toast.warning(t('sidebar.remoteNotConfigured'))
+    const blocked = gatewaySwitchBlockReason(entry)
+    if (blocked) {
+        toast.warning(t(blocked))
         return
     }
     closeMenu()
@@ -135,7 +124,8 @@ const switchTo = (entry: GatewayProfile) => {
 
 const addServer = () => {
     closeMenu()
-    void router.push('/settings')
+    // 深链：设置页连接弹窗读取 query 直接落入新增草稿态（与打开时聚焦激活条目区分）
+    void router.push({ path: '/settings', query: { gateway: 'new' } })
 }
 
 const openSettings = () => {
@@ -179,9 +169,9 @@ const openSettings = () => {
             <div class="mx-2 my-1 border-t border-base-300"></div>
 
             <!-- 账号列表：当前条目 ✓，点击切换 -->
-            <ul class="menu menu-compact w-full p-0">
-                <li v-for="entry in menuEntries" :key="entry.id">
-                    <button type="button" class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm"
+            <ul class="menu menu-compact w-full p-0" role="menu">
+                <li v-for="entry in menuEntries" :key="entry.id" role="none">
+                    <button type="button" role="menuitem" class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm"
                         :class="entry.id === configStore.activeGatewayId ? 'bg-base-300/60 font-semibold' : ''"
                         @click="switchTo(entry)">
                         <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
@@ -198,15 +188,15 @@ const openSettings = () => {
             <div class="mx-2 my-1 border-t border-base-300"></div>
 
             <!-- 添加服务器 / 设置（原侧栏 Header 两按钮的归宿） -->
-            <ul class="menu menu-compact w-full p-0">
-                <li>
-                    <button type="button" class="rounded-xl px-3 py-2 text-sm" @click="addServer">
+            <ul class="menu menu-compact w-full p-0" role="menu">
+                <li role="none">
+                    <button type="button" role="menuitem" class="rounded-xl px-3 py-2 text-sm" @click="addServer">
                         <PlusIcon class="h-4 w-4" />
                         {{ t('gateway.addServer') }}
                     </button>
                 </li>
-                <li>
-                    <button type="button" class="rounded-xl px-3 py-2 text-sm" @click="openSettings">
+                <li role="none">
+                    <button type="button" role="menuitem" class="rounded-xl px-3 py-2 text-sm" @click="openSettings">
                         <Cog6ToothIcon class="h-4 w-4" />
                         {{ t('gateway.settings') }}
                     </button>

@@ -767,7 +767,7 @@ export default {
             appConnectTitle: 'App remote mode',
             tokenLabel: 'Token: ',
             urlLabel: 'URL: ',
-            appConnectHint: 'Phone App → Settings → Gateway mode → Remote server, then enter the URL and token above',
+            appConnectHint: 'Phone App → tap the server switcher at the bottom of the sidebar → Add server, then enter the URL and token above',
             lanReady: 'LAN direct access (always available): phone on the same network as the PC; no VPS needed',
             lanNoIp: 'No LAN address detected (check network connection)',
             lanFirewallHint: 'If the phone cannot connect: check Windows Firewall allows this app/port',

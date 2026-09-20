@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import {
     type ASREngineType,
     type TTSEngineType,
@@ -29,10 +29,11 @@ import {
 import ViewHeader from '@/components/ViewHeader.vue'
 import { useConfirm } from '../composables/useConfirm'
 import { useToast } from '../composables/useToast'
-import { localServer, restartLocalServer, switchGateway } from '../composables/local-server'
-import { LOCAL_GATEWAY_ID, type GatewayProfile } from '../stores/setting'
+import { localServer, restartLocalServer, switchGateway, gatewaySwitchBlockReason } from '../composables/local-server'
+import type { GatewayProfile } from '../stores/setting'
 
 const router = useRouter()
+const route = useRoute()
 const { t } = useI18n()
 const configStore = useUiSettingsStore()
 const { confirm } = useConfirm()
@@ -66,6 +67,18 @@ const editingEntry = computed<GatewayProfile | null>(() =>
         ? null
         : configStore.gateways.find((g) => g.id === editForm.value.editingGatewayId) ?? null)
 const editingIsLocal = computed(() => editingEntry.value?.type === 'local')
+// 列表可见条目：local 仅 bundled 构建存在（reconcile 在非 Tauri 的 web 构建
+// 不跑，迁移来的 local 条目留着就是不可激活、不可删的幽灵行）；local 置顶
+const visibleGateways = computed<GatewayProfile[]>(() => {
+    const list = configStore.gateways.filter((g) => g.type === 'remote' || localServer.bundled)
+    return [...list.filter((g) => g.type === 'local'), ...list.filter((g) => g.type === 'remote')]
+})
+const isNewDraft = computed(() => editForm.value.editingGatewayId === NEW_GATEWAY_DRAFT)
+// 编辑区标题：local 托管条目 / 新增草稿 / 已存在条目编辑
+const editorTitle = computed(() =>
+    editingIsLocal.value
+        ? t('gateway.localManaged')
+        : isNewDraft.value ? t('gateway.addServer') : t('common.edit'))
 
 const cloneConfig = <T extends string>(config: EngineConfig<T>): EngineConfig<T> => ({ ...config })
 
@@ -80,16 +93,23 @@ const loadTtsFormForEngine = (engine: TTSEngineType) => {
 }
 
 const openConnectionModal = () => {
-    // 打开时聚焦当前激活条目（没有则落入新增草稿）
-    const active = configStore.activeGateway
-    if (active) {
-        selectGatewayForEdit(active.id)
+    // 打开时聚焦当前激活条目（没有则落入新增草稿）；
+    // 深链 /settings?gateway=new（侧边栏菜单「添加服务器」）强制落入新增草稿
+    if (route.query.gateway !== 'new' && configStore.activeGateway) {
+        selectGatewayForEdit(configStore.activeGateway.id)
     } else {
         startNewGatewayDraft()
     }
     const modal = document.getElementById('basic_settings_modal') as HTMLDialogElement
     if (modal) modal.showModal()
 }
+
+// 深链进入：清理 query（避免刷新/前进后退再次弹窗）后自动打开连接弹窗
+onMounted(() => {
+    if (route.query.gateway !== 'new') return
+    void router.replace({ path: '/settings' })
+    openConnectionModal()
+})
 
 /** 选中某条目进入编辑（local 条目地址/token 只读，由 local-server 托管）。 */
 const selectGatewayForEdit = (id: string) => {
@@ -117,7 +137,10 @@ const startNewGatewayDraft = () => {
 const saveConnection = () => {
     const url = editForm.value.apiBaseUrl.trim()
     if (editForm.value.editingGatewayId === NEW_GATEWAY_DRAFT) {
-        if (!url) return
+        if (!url) {
+            toast.warning(t('setup.enterGatewayUrl'))
+            return
+        }
         const entry = configStore.addGateway({
             type: 'remote',
             name: editForm.value.name.trim(),
@@ -129,7 +152,11 @@ const saveConnection = () => {
     }
     const id = editForm.value.editingGatewayId
     const entry = configStore.gateways.find((g) => g.id === id)
-    if (!entry || entry.type === 'local' || !url) return
+    if (!entry || entry.type === 'local') return
+    if (!url) {
+        toast.warning(t('setup.enterGatewayUrl'))
+        return
+    }
     configStore.updateGateway(id, {
         name: editForm.value.name.trim(),
         apiBaseUrl: url,
@@ -138,16 +165,12 @@ const saveConnection = () => {
     switchGateway(id)
 }
 
-/** 列表行点击 = 切换激活账号（守卫与侧栏菜单一致，通过则保存并 reload）。 */
+/** 列表行点击 = 切换激活账号（共享守卫：local 未就绪/remote 未填地址，通过则保存并 reload）。 */
 const activateGateway = (entry: GatewayProfile) => {
     if (entry.id === configStore.activeGatewayId) return
-    if (entry.type === 'local') {
-        if (localServer.state === 'failed' || !localServer.url || !localServer.token) {
-            toast.warning(t('sidebar.localServerNotReady'))
-            return
-        }
-    } else if (!entry.apiBaseUrl.trim()) {
-        toast.warning(t('sidebar.remoteNotConfigured'))
+    const blocked = gatewaySwitchBlockReason(entry)
+    if (blocked) {
+        toast.warning(t(blocked))
         return
     }
     switchGateway(entry.id)
@@ -159,10 +182,18 @@ const removeGatewayEntry = async (entry: GatewayProfile) => {
         t('settings.removeGateway'),
     )
     if (!ok) return
+    const wasActive = entry.id === configStore.activeGatewayId
     configStore.removeGateway(entry.id)
-    // 删的是编辑中的条目：编辑态切到新的激活条目（或新增草稿）
+    const active = configStore.activeGateway
+    // 删的是激活条目且还有剩余：与 activateGateway 一致走 switchGateway 整页
+    // reload，让全局连接/会话列表/SSE/WS 重新绑定（否则弹窗显示新账号而
+    // 应用其余部分仍在跟已删除的服务器通信，数据混台）
+    if (wasActive && active) {
+        switchGateway(active.id)
+        return
+    }
+    // 无剩余网关（或删的不是激活条目）：仅修正编辑态，不 reload
     if (editForm.value.editingGatewayId === entry.id) {
-        const active = configStore.activeGateway
         if (active) selectGatewayForEdit(active.id)
         else startNewGatewayDraft()
     }
@@ -462,7 +493,7 @@ const logout = async () => {
 
             <!-- 服务器账号列表：单选即激活（切换会重载），local 托管条目置顶且不可删除 -->
             <ul class="space-y-1 mb-3">
-                <li v-for="entry in configStore.gateways" :key="entry.id"
+                <li v-for="entry in visibleGateways" :key="entry.id"
                     class="flex items-center gap-2 rounded-xl border px-3 py-2 transition-colors"
                     :class="entry.id === configStore.activeGatewayId ? 'border-primary/40 bg-primary/10' : 'border-base-300'">
                     <button type="button" class="flex min-w-0 flex-1 items-center gap-2 text-left cursor-pointer"
@@ -491,7 +522,7 @@ const logout = async () => {
                 {{ $t('gateway.addServer') }}
             </button>
 
-            <div class="divider my-0 mb-4">{{ editingIsLocal ? $t('settings.gatewayModeLocal') : (editForm.editingGatewayId === '__new__' ? $t('gateway.addServer') : $t('common.edit')) }}</div>
+            <div class="divider my-0 mb-4">{{ editorTitle }}</div>
 
             <div class="form-control w-full space-y-4">
                 <!-- local 托管条目：地址/令牌只读，展示服务端状态与重启入口 -->

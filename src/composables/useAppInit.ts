@@ -8,7 +8,7 @@ import { useCronState } from './useCronState'
 import { useModelsState } from './useModelsState'
 import { useSkillsState } from './useSkillsState'
 import { connectServer } from './notify-server-connection'
-import { effectiveGatewayMode, ensureLocalServerLoaded, waitForLocalServerReady, isLocalServerBootFailed } from './local-server'
+import { ensureLocalServerLoaded, waitForLocalServerReady, isLocalServerBootFailed } from './local-server'
 import { useExecApproval } from './useExecApproval'
 import { useCommandState } from './useCommandState'
 import { isNewSession } from '../utils/route-helpers'
@@ -64,8 +64,6 @@ export function useAppInit() {
                 ? route.query.agent
                 : ''
             const knownRequested = requestedAgent && agentsState.agentsList.some(a => a.id === requestedAgent)
-            // 记住的选择按网关模式区分：本地/远程是两台服务器，agent id 互不相通。
-            // 此处已在 ensureLocalServerLoaded() 之后，bundled 标志已就绪，判定可信
             const settingsStore = useUiSettingsStore()
             // 记住的选择按激活网关条目隔离：各服务器 agent id 命名空间互不相通。
             // 此处已在 ensureLocalServerLoaded() 之后，bundled 标志已就绪，判定可信
