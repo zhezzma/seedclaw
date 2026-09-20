@@ -18,6 +18,7 @@ import {
 } from 'vue'
 import type { DisplayMessage } from '../../composables/useChatMessages'
 import type { BranchInfo } from './MessageBubble.vue'
+import { computeBranchTailFlags } from '../../utils/chatBranchTail'
 import MessageBubble from './MessageBubble.vue'
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -90,19 +91,19 @@ const estimateTopForKey = (targetKey: string): number => {
 // ──────────────────────────────────────────────────────────────────────────
 // 增强后的消息列表
 // ──────────────────────────────────────────────────────────────────────────
-const enrichedItems = computed(() =>
-    props.messages.map((msg, i) => ({
+const enrichedItems = computed(() => {
+    // 分支尾锚判定抽到 utils/chatBranchTail.ts 的纯函数：公式虽一行，但正确性是
+    // 拓扑相关的（死胡同末项 / 续写分支 / 正常回合 / 排队尾 / 瞬态行各有期望值），
+    // 独立导出后可逐拓扑表驱动断言，而不是在 SFC 里只能做源码字符串钉子。
+    const branchTailFlags = computeBranchTailFlags(props.messages)
+    return props.messages.map((msg, i) => ({
         msg,
         key: itemKey(msg, i),
         index: i,
         isLast: i === props.messages.length - 1,
-        // 分支尾锚：紧随其后的不是本回合 assistant 回复（无 next / 下一项仍是 user），
-        // 供 user 气泡决定是否挂分支导航。覆盖两种场景：分支尾部没有已渲染回复
-        // （停止产生的空 aborted 按设计零渲染、回复被删光）与分支被续写后
-        // 分叉点 user 消息不再是最末项（isLastMessage 覆盖不了后者）。
-        isBranchTail: props.messages[i + 1]?.role !== 'assistant',
+        isBranchTail: branchTailFlags[i],
     }))
-)
+})
 
 // ──────────────────────────────────────────────────────────────────────────
 // 可见范围计算

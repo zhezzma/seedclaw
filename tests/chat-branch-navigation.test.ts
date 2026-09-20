@@ -177,3 +177,62 @@ test('user message on aborted-branch resolves sibling navigation and leaf throug
     // 叶子解析穿过 custom/session_info 到达空 aborted assistant
     assert.equal(findLeafId('user-1', indexes), 'branch-summary')
 })
+
+// 复审钉子（3eea829 发现 B）：user 尾锚的兄弟列表必须与 assistant 侧 parentSiblings
+// 同口径——只数「自己 + 有活跃消息后代的兄弟」。无活跃后代的分支（回复被删光）
+// 不占计数、不从活分支跳入；自身恒保留（死分支的逃逸锚点）。assistant 直系兄弟
+// 不走此过滤（回复级分支，契约见上方 direct assistant siblings 钉子）。
+test('user branch-tail navigation filters reply-less siblings but keeps self', () => {
+    const tree: SessionTreeEntry[] = [
+        { id: 'root', parentId: null, type: 'root' },
+        // 分支1：尾部 user 消息，其下是零渲染的空 aborted assistant（真实 entry，非删除）
+        { id: 'user-tail', parentId: 'root', type: 'message', message: { role: 'user' } },
+        { id: 'assistant-aborted', parentId: 'user-tail', type: 'message', message: { role: 'assistant' } },
+        // 分支2：回复被删光的死分支
+        { id: 'user-dead', parentId: 'root', type: 'message', message: { role: 'user' } },
+        { id: 'assistant-deleted', parentId: 'user-dead', type: 'message', message: { role: 'assistant', deletedAt: '2026-03-17T00:00:00Z' } },
+        // 分支3：有活跃回复的活分支
+        { id: 'user-live', parentId: 'root', type: 'message', message: { role: 'user' } },
+        { id: 'assistant-live', parentId: 'user-live', type: 'message', message: { role: 'assistant' } },
+    ]
+
+    const indexes = buildBranchIndexes(tree)
+
+    // 从死分支尾锚出发：user-dead 被过滤（无活跃后代），自身保留 → 可逃逸到活分支
+    assert.deepEqual(
+        getBranchInfo({ role: 'user', entryId: 'user-dead', parentEntryId: 'root' }, indexes),
+        { siblings: ['user-tail', 'user-dead', 'user-live'], currentIndex: 1 },
+    )
+    // 从空 aborted 尾锚出发：自身保留（真实 entry 计为活跃后代），user-dead 过滤
+    assert.deepEqual(
+        getBranchInfo({ role: 'user', entryId: 'user-tail', parentEntryId: 'root' }, indexes),
+        { siblings: ['user-tail', 'user-live'], currentIndex: 0 },
+    )
+    // 从活分支 user 消息出发：与 assistant 侧 parentSiblings 完全同口径（死分支不占计数）
+    assert.deepEqual(
+        getBranchInfo({ role: 'user', entryId: 'user-live', parentEntryId: 'root' }, indexes),
+        { siblings: ['user-tail', 'user-live'], currentIndex: 1 },
+    )
+    assert.deepEqual(
+        getBranchInfo({ role: 'assistant', entryId: 'assistant-live', parentEntryId: 'user-live' }, indexes),
+        { siblings: ['user-tail', 'user-live'], currentIndex: 1 },
+    )
+})
+
+// 过滤后仅剩自身时返回 null：没有可切目标就不挂导航（与 assistant 侧一致）
+test('user branch-tail navigation returns null when only self survives filtering', () => {
+    const tree: SessionTreeEntry[] = [
+        { id: 'root', parentId: null, type: 'root' },
+        { id: 'user-dead', parentId: 'root', type: 'message', message: { role: 'user' } },
+        { id: 'assistant-deleted', parentId: 'user-dead', type: 'message', message: { role: 'assistant', deletedAt: '2026-03-17T00:00:00Z' } },
+        { id: 'user-live', parentId: 'root', type: 'message', message: { role: 'user' } },
+        { id: 'assistant-live-deleted', parentId: 'user-live', type: 'message', message: { role: 'assistant', deletedAt: '2026-03-17T00:00:00Z' } },
+    ]
+
+    const indexes = buildBranchIndexes(tree)
+
+    assert.equal(
+        getBranchInfo({ role: 'user', entryId: 'user-dead', parentEntryId: 'root' }, indexes),
+        null,
+    )
+})

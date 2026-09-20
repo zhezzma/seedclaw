@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
+import { computeBranchTailFlags } from '../src/utils/chatBranchTail.ts'
+
 const testDir = path.dirname(fileURLToPath(import.meta.url))
 const componentPath = path.resolve(testDir, '../src/components/chat/MessageBubble.vue')
 const source = readFileSync(componentPath, 'utf8')
@@ -62,18 +64,43 @@ test('user branch navigation sits in normal mode after delete button', () => {
 
 // isBranchTail 公式钉子：紧随其后的显示项不是 assistant 回复即分支尾锚
 // （覆盖死胡同末项与「停止后直接续写」两个场景；正常回合 next 为 assistant，不渲染）
-test('virtual list computes isBranchTail from next message role', () => {
+test('virtual list wires computeBranchTailFlags into MessageBubble', () => {
     const source = readFileSync(
         path.resolve(testDir, '../src/components/chat/VirtualMessageList.vue'),
         'utf8',
     )
 
     assert.ok(
-        source.includes("props.messages[i + 1]?.role !== 'assistant'"),
-        'isBranchTail should be true when next display item is not an assistant reply',
+        source.includes("from '../../utils/chatBranchTail'"),
+        'virtual list should import the branch-tail helper',
+    )
+    assert.ok(
+        source.includes('computeBranchTailFlags(props.messages)'),
+        'virtual list should compute branch-tail flags from the display list',
     )
     assert.ok(
         source.includes(':is-branch-tail="item.isBranchTail"'),
         'isBranchTail should be wired through to MessageBubble',
     )
+})
+
+// computeBranchTailFlags 逐拓扑表驱动断言：正确性是拓扑相关的，源码字符串钉子
+// 无法区分正确公式与看似合理的错公式（如 === 'user'、忽略末项）。
+test('computeBranchTailFlags marks user anchors only without a following assistant reply', () => {
+    const flags = (roles: string[]) => computeBranchTailFlags(roles.map(role => ({ role })))
+
+    // 死胡同末项：分支尾部没有已渲染回复（空 aborted 零渲染 / 回复被删光）
+    assert.deepEqual(flags(['user']), [true])
+    // 停止后直接续写（新消息挂在空 aborted 之下）：分叉点 userA 是尾锚，uB 不是
+    assert.deepEqual(flags(['user', 'user', 'assistant']), [true, false, false])
+    // 正常回合：下一项就是本回合 assistant 回复 → 不渲染（避免与 assistant 侧双 n/n）
+    assert.deepEqual(flags(['user', 'assistant']), [false, false])
+    // 多轮线性：只有末项 user（无回复）是尾锚
+    assert.deepEqual(flags(['assistant', 'user', 'assistant', 'user']), [false, false, false, true])
+    // 末项为排队中的 steer/follow-up（user 角色）：其前的 user 仍是尾锚
+    assert.deepEqual(flags(['user', 'user']), [true, true])
+    // 瞬态窗口（已知、稳态恢复）：流式占位/压缩行是 assistant 角色，短暂压制尾锚
+    assert.deepEqual(flags(['user', 'assistant']), [false, false])
+    // 非 user 行恒为 false
+    assert.deepEqual(flags(['assistant', 'toolResult']), [false, false])
 })

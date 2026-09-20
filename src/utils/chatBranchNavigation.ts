@@ -187,7 +187,16 @@ export const findLeafId = (startId: string, indexes: BranchIndexes): string => {
 export const getBranchInfo = (msg: BranchMessageLike, indexes: BranchIndexes): BranchInfo | null => {
     if (!msg.entryId || !msg.parentEntryId) return null
 
-    const ownSiblings = getLiveMessageSiblings(msg.parentEntryId, msg.role, indexes)
+    const liveSiblings = getLiveMessageSiblings(msg.parentEntryId, msg.role, indexes)
+    // user 角色的兄弟列表即分支列表（user 尾锚的导航目标，见 MessageBubble user footer）。
+    // 与下方 assistant 回退路径的 parentSiblings 保持同口径：只数「自己 + 有活跃消息
+    // 后代的兄弟」——无活跃后代的分支（回复被删光）不占计数、不从活分支跳入，但
+    // 自身恒保留（死分支的逃逸锚点：从死分支仍可切回活分支），经 /tree 亦可达。
+    // assistant 直系兄弟（role==='assistant' 的 ownSiblings）不走此过滤：那批 sibling
+    // 本身就是回复级分支，契约见 chat-branch-navigation.test.ts 的既有钉子。
+    const ownSiblings = msg.role === 'user'
+        ? liveSiblings.filter(id => id === msg.entryId || findFirstDescendantMessageId(id, indexes) !== null)
+        : liveSiblings
     if (ownSiblings.length > 1) {
         const currentIndex = ownSiblings.indexOf(msg.entryId)
         if (currentIndex >= 0) {
