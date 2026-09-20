@@ -4,19 +4,17 @@ export const INPUT_HISTORY_STORAGE_KEY = 'seedclaw_input_history'
 export const INPUT_DRAFTS_STORAGE_KEY = 'seedclaw_input_drafts'
 export const INPUT_HISTORY_MAX = 100
 export const INPUT_DRAFT_MAX_LENGTH = 20000
-/** 旧版 /new 草稿哨兵：不分网关模式，本地/远程切换会窜台，已废弃（load 时剥离，不迁移——草稿是临时态） */
+/** 旧版 /new 草稿哨兵：不分网关，本地/远程切换会窜台，已废弃（load 时剥离，不迁移——草稿是临时态） */
 const LEGACY_NEW_SESSION_DRAFT_KEY = '__new_session__'
-/** /new 新会话页没有 sessionKey，其输入草稿按网关模式落到哨兵 key：
- *  本地/远程两侧是不同服务器的输入框，且切换时 applyGatewayMode 会把路由改写到 /new
- *  再 reload，共用单值哨兵会让一侧打的草稿在另一侧恢复出来 */
-const NEW_SESSION_DRAFT_KEYS = {
-    local: '__new_session_local__',
-    remote: '__new_session_remote__',
-} as const
+/** /new 新会话页没有 sessionKey，其输入草稿按激活网关条目落到哨兵 key：
+ *  各条目是不同服务器的输入框，且切换账号时 switchGateway 会把路由改写到 /new
+ *  再 reload，共用单值哨兵会让一台服务器上打的草稿在另一台上恢复出来。
+ *  旧版的两个模式哨兵（__new_session_local__ / __new_session_remote__）同样废弃：
+ *  local 条目 id 固定为 'local' 恰好兼容旧 local 哨兵，remote 条目 id 是随机 uuid。 */
+const LEGACY_REMOTE_NEW_SESSION_DRAFT_KEY = '__new_session_remote__'
 
-/** 按网关模式取 /new 草稿哨兵 key（mode 由调用方传：store 不感知网关，避免循环依赖）。
- *  查表而非三元：未来新增模式时编译器会强制补 key，而不是静默归入 local */
-export const newSessionDraftKeyFor = (mode: 'local' | 'remote'): string => NEW_SESSION_DRAFT_KEYS[mode]
+/** 按网关条目 id 取 /new 草稿哨兵 key（id 由调用方从激活条目取：store 不感知网关，避免循环依赖）。 */
+export const newSessionDraftKeyFor = (gatewayId: string): string => `__new_session_${gatewayId}__`
 
 export interface InputHistoryState {
     histories: Record<string, string[]>
@@ -77,20 +75,23 @@ const loadHistoryState = (): InputHistoryState['histories'] => {
     }
 }
 
-const loadDrafts = (): Record<string, string> => {
+/** loadDrafts 的可测形态：storage 显式注入（node:test 无法驱动 pinia store 初始化时序）。 */
+export const loadDraftsForTest = (storage: Storage | null | undefined): Record<string, string> => {
     try {
-        const storage = getStorage()
         const raw = storage?.getItem(INPUT_DRAFTS_STORAGE_KEY)
         if (!raw) return {}
         const normalized = normalizeDraftRecord(JSON.parse(raw))
         // 废弃哨兵剥离：否则旧键残留在 record 里永远清不掉
         delete normalized[LEGACY_NEW_SESSION_DRAFT_KEY]
+        delete normalized[LEGACY_REMOTE_NEW_SESSION_DRAFT_KEY]
         return normalized
     } catch (error) {
         console.error('Failed to load input drafts:', error)
         return {}
     }
 }
+
+const loadDrafts = (): Record<string, string> => loadDraftsForTest(getStorage())
 
 export const useInputHistoryStore = defineStore('input-history', {
     state: (): InputHistoryState => ({ histories: loadHistoryState(), drafts: loadDrafts() }),

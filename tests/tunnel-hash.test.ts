@@ -38,7 +38,7 @@ test('parseTunnelHash returns null for missing/empty token or non-hash input', (
     assert.equal(parseTunnelHash('#token=%20%20'), null)
 })
 
-test('applyTunnelBootstrap writes same-origin remote config into settings', () => {
+test('applyTunnelBootstrap upserts an activated same-origin remote gateway entry', () => {
     const settings = useUiSettingsStore()
     settings.apiBaseUrl = ''
     settings.token = ''
@@ -46,16 +46,33 @@ test('applyTunnelBootstrap writes same-origin remote config into settings', () =
 
     applyTunnelBootstrap(settings, 'http://159.138.99.139:18799', { token: 'sekret' })
 
+    // 顶层生效值（api-client.getBaseUrl() 依赖 apiBaseUrl 非空，此处必须已可直连）
     assert.equal(settings.apiBaseUrl, 'http://159.138.99.139:18799')
     assert.equal(settings.token, 'sekret')
-    assert.equal(settings.gatewayMode, 'remote')
-    assert.equal(settings.remoteApiBaseUrl, 'http://159.138.99.139:18799')
-    assert.equal(settings.remoteToken, 'sekret')
-    assert.equal(settings.setupDone, true)
-    // api-client.getBaseUrl() 依赖 apiBaseUrl 非空，此处必须已可直连
     assert.ok(settings.apiBaseUrl.trim() !== '')
+    // 条目化：一条激活的 remote 网关，名称取 host 标签
+    assert.equal(settings.gateways.length, 1)
+    assert.equal(settings.gateways[0].type, 'remote')
+    assert.equal(settings.gateways[0].apiBaseUrl, 'http://159.138.99.139:18799')
+    assert.equal(settings.gateways[0].token, 'sekret')
+    assert.equal(settings.gateways[0].name, '159.138.99.139:18799')
+    assert.equal(settings.activeGatewayId, settings.gateways[0].id)
+    assert.equal(settings.setupDone, true)
     // 落盘（localStorage）
     assert.match(globalThis.localStorage.getItem('openclaw_config') ?? '', /"token":"sekret"/)
+})
+
+test('applyTunnelBootstrap reuses the existing same-origin entry instead of duplicating', () => {
+    const settings = useUiSettingsStore()
+    const existing = settings.addGateway({ type: 'remote', name: 'vps', apiBaseUrl: 'http://159.138.99.139:18799/', token: 'old' })
+
+    applyTunnelBootstrap(settings, 'http://159.138.99.139:18799', { token: 'sekret' })
+
+    assert.equal(settings.gateways.length, 1, 'same-origin entry must be reused, not duplicated')
+    assert.equal(settings.gateways[0].id, existing.id)
+    assert.equal(settings.gateways[0].token, 'sekret')
+    assert.equal(settings.activeGatewayId, existing.id)
+    assert.equal(settings.token, 'sekret')
 })
 
 test('stripHashFromUrl removes hash while keeping path and search', () => {

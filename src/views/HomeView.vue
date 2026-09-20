@@ -76,12 +76,12 @@ const virtualMessageListRef = ref<InstanceType<typeof VirtualMessageList> | null
 const welcomeAgentDropdownRef = ref<HTMLDetailsElement | null>(null)
 
 // 欢迎页 agent 下拉选择（与原 ChatHeader 下拉行为一致：selectAgent + 命令列表跟随）
-// 明确选择会持久化到 settingsStore：/new 与冷启动兜底优先复用它，而不是永远第一个。
-// 按网关模式分字段保存：本地/远程是两台服务器，agent id 命名空间互不相通
+// 明确选择会持久化到 settingsStore 的激活网关条目：/new 与冷启动兜底优先复用它，
+// 而不是永远第一个。按条目隔离：各服务器 agent id 命名空间互不相通
 const selectWelcomeAgent = async (agentId: string) => {
     chatState.selectAgent(agentId)
     setCurrentAgent(agentId)
-    settingsStore.setLastNewSessionAgent(agentId, effectiveGatewayMode())
+    settingsStore.setLastNewSessionAgentId(agentId)
     await loadCommands(agentId)
     if (welcomeAgentDropdownRef.value) {
         welcomeAgentDropdownRef.value.open = false
@@ -806,9 +806,7 @@ watch(() => [route.params.sessionkey, route.path, route.query.agent], async ([se
         // （+ 入口的 ?agent= 仅当次生效，不写回存储，避免改变默认选择）。
         const requestedAgent = typeof route.query.agent === 'string' ? route.query.agent : ''
         const knownRequested = requestedAgent && agentsState.agentsList.some(a => a.id === requestedAgent)
-        const rememberedAgent = effectiveGatewayMode() === 'remote'
-            ? settingsStore.lastRemoteNewSessionAgentId
-            : settingsStore.lastLocalNewSessionAgentId
+        const rememberedAgent = settingsStore.activeGateway?.lastNewSessionAgentId ?? ''
         const knownRemembered = rememberedAgent && agentsState.agentsList.some(a => a.id === rememberedAgent)
         const defaultAgentId = agentsState.agentsList[0]?.id ?? ''
         const targetAgentId = knownRequested ? requestedAgent : (knownRemembered ? rememberedAgent : defaultAgentId)

@@ -4,7 +4,7 @@
  * （reload 后会错过早期事件，必须主动拉）。
  */
 import { reactive } from 'vue'
-import { useUiSettingsStore } from '../stores/setting'
+import { useUiSettingsStore, LOCAL_GATEWAY_ID } from '../stores/setting.ts'
 import { gatewaySwitchTargetUrl } from '../utils/route-helpers'
 import { isTauri } from './notify-server-connection'
 
@@ -34,7 +34,7 @@ export const localServer: ServerStatus = reactive({
 export function effectiveGatewayMode(): 'local' | 'remote' {
     if (!localServer.bundled) return 'remote'
     const settings = useUiSettingsStore()
-    return settings.gatewayMode === 'local' ? 'local' : 'remote'
+    return settings.activeGateway?.type === 'local' ? 'local' : 'remote'
 }
 
 /** local 模式下把 Rust 侧托管地址写进 settings（消费方 api-client/notify 等零改动）。 */
@@ -42,16 +42,22 @@ function syncSettings() {
     const settings = useUiSettingsStore()
     if (effectiveGatewayMode() !== 'local') return
     if (!localServer.url || !localServer.token) return
-    if (settings.apiBaseUrl !== localServer.url || settings.token !== localServer.token) {
+    // 顶层生效值 + local 条目（条目是真相源，reload 后凭它恢复托管连接）
+    if (settings.apiBaseUrl !== localServer.url || settings.token !== localServer.token
+        || settings.gateways.find((g) => g.id === LOCAL_GATEWAY_ID)?.apiBaseUrl !== localServer.url
+        || settings.gateways.find((g) => g.id === LOCAL_GATEWAY_ID)?.token !== localServer.token) {
         settings.apiBaseUrl = localServer.url
         settings.token = localServer.token
-        settings.persist()
+        settings.updateGateway(LOCAL_GATEWAY_ID, { apiBaseUrl: localServer.url, token: localServer.token })
     }
 }
 
 function applyStatus(s: Partial<ServerStatus>) {
     Object.assign(localServer, s)
     if (localServer.state === 'running') everRunning = true
+    // local 条目保活/自洁：bundled 构建确保有托管条目可切；未打包构建剔除
+    // （store 迁移时会建 local 条目，Web/Android 上留着会污染账号菜单）
+    useUiSettingsStore().reconcileLocalGateway(localServer.bundled)
     syncSettings()
 }
 
@@ -136,42 +142,23 @@ export async function restartLocalServer(): Promise<void> {
 }
 
 /**
- * 切换网关模式并落盘（设置弹窗与侧栏快捷按钮共用）。
- * - local：写 gatewayMode，内置服务端就绪时同步托管地址到 apiBaseUrl/token
- * - remote：写 gatewayMode 与 remote* 字段，并把连接信息写入 apiBaseUrl/token
- *   （remote 参数缺省时沿用已保存的远程配置，供快捷切换场景使用）
- * 完成后整页 reload（file: 协议除外），与原设置弹窗行为一致。
- * reload 前若路由停在 /chat/<sessionKey>，先改写到 /new：两侧会话互不相通，
+ * 切换网关账号并整页 reload（侧边栏账号菜单与设置页共用）。
+ * - 激活目标条目：remote 条目顶层值由 setActiveGateway 同步；local 条目若内置
+ *   服务端已有地址，立即写入 apiBaseUrl/token——否则 reload 后 App 启动抢跑的
+ *   数据加载会先用旧远程值拉数据，出现"刷新后仍显示远程数据、需再手动刷新"的问题。
+ * reload 前若路由停在 /chat/<sessionKey>，先改写到 /new：各服务器会话互不相通，
  * 保留旧 key 会让 reload 后的路由指向对端不存在的会话。
  * file: 协议分支不 reload 也不改写：保持 URL 与路由状态一致（该分支在
  * Tauri v2 实际不可达，属遗留防御，勿单独给 file: 加 replaceState）。
  */
-export function applyGatewayMode(
-    mode: 'local' | 'remote',
-    remote?: { url: string, token: string },
-) {
+export function switchGateway(id: string) {
     const settings = useUiSettingsStore()
-    if (mode === 'local') {
-        // 切本地时若内置服务端已有地址，立即写入 apiBaseUrl/token：
-        // 否则 reload 后 App 启动抢跑的数据加载会先用旧远程值拉数据，
-        // 出现"刷新后仍显示远程数据、需再手动刷新"的问题
-        settings.save({
-            gatewayMode: 'local',
-            ...(localServer.url && localServer.token ? {
-                apiBaseUrl: localServer.url,
-                token: localServer.token,
-            } : {}),
-        })
-    } else {
-        const url = (remote?.url ?? settings.remoteApiBaseUrl).trim()
-        const token = remote?.token ?? settings.remoteToken
-        settings.save({
-            gatewayMode: 'remote',
-            remoteApiBaseUrl: url,
-            remoteToken: token,
-            apiBaseUrl: url,
-            token,
-        })
+    if (!settings.gateways.some((g) => g.id === id)) return
+    settings.setActiveGateway(id)
+    if (id === LOCAL_GATEWAY_ID && localServer.url && localServer.token) {
+        settings.apiBaseUrl = localServer.url
+        settings.token = localServer.token
+        settings.updateGateway(LOCAL_GATEWAY_ID, { apiBaseUrl: localServer.url, token: localServer.token })
     }
     if (window.location.protocol !== 'file:') {
         const targetUrl = gatewaySwitchTargetUrl(window.location.pathname)

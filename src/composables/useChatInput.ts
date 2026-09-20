@@ -7,7 +7,6 @@ import { readFile } from '../utils/fileReader'
 import { createRuntimeId } from '../utils/runtime-id.ts'
 import { useCommandState, type CommandInfo } from './useCommandState'
 import { useInputHistoryStore, newSessionDraftKeyFor } from '../stores/inputHistory'
-import { effectiveGatewayMode } from './local-server'
 import { decideArrowKeyPriority, shouldOpenCommandSuggestions } from '../utils/chat-input-key-routing.ts'
 import { getMicrophoneErrorMessage } from '../utils/microphone-errors'
 
@@ -62,7 +61,7 @@ const { filterCommands } = useCommandState()
 watch(inputText, (val) => {
     // 按当前 session 记录输入框内容（草稿）：切换会话时恢复，发送时输入被清空、草稿随之清除。
     // /new 新会话页没有 sessionKey，落到按网关模式区分的哨兵 key 上（两侧服务器互不窜台）
-    useInputHistoryStore().setDraft(_sessionKeyResolver?.() || newSessionDraftKeyFor(effectiveGatewayMode()), val)
+    useInputHistoryStore().setDraft(_sessionKeyResolver?.() || newSessionDraftKeyFor(useUiSettingsStore().activeGatewayId), val)
 
     const fromHistoryNavigation = suppressCommandSuggestionsOnce.value
     suppressCommandSuggestionsOnce.value = false
@@ -204,7 +203,7 @@ const pushInputHistory = (text: string, sessionKey?: string) => {
 
 /** 会话切换时调用：把该 session 的草稿恢复到输入框（无草稿则清空） */
 const restoreSessionDraft = () => {
-    const key = _sessionKeyResolver?.() || newSessionDraftKeyFor(effectiveGatewayMode())
+    const key = _sessionKeyResolver?.() || newSessionDraftKeyFor(useUiSettingsStore().activeGatewayId)
     inputText.value = useInputHistoryStore().getDraft(key)
     // 切换会话退出历史浏览态
     historyIndex.value = -1

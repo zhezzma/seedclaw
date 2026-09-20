@@ -18,3 +18,17 @@ export function isLocalGateway(apiBaseUrl: string): boolean {
         return false;
     }
 }
+
+/**
+ * 取网关地址的 host 标签（hostname:port）用于账号菜单显示；非法/空地址返回 ''。
+ * 手机隧道 origin 形如 http://159.138.99.139:18799 → '159.138.99.139:18799'。
+ */
+export function gatewayHostLabel(apiBaseUrl: string): string {
+    const trimmed = (apiBaseUrl ?? "").trim();
+    if (!trimmed) return '';
+    try {
+        return new URL(trimmed).host;
+    } catch {
+        return '';
+    }
+}

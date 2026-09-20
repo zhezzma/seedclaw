@@ -1,8 +1,31 @@
 import { defineStore } from 'pinia'
+import { gatewayHostLabel } from '../utils/gateway-url.ts'
 
 export type ASREngineType = 'fun-asr' | 'voice-gateway'
 export type TTSEngineType = 'edge' | 'qwen' | 'voice-gateway'
 export type BusySendBehavior = 'steer' | 'follow'
+
+export type GatewayType = 'local' | 'remote'
+
+/**
+ * 网关账号（profile）：一台服务器 + 一份连接凭据 + 该服务器上的新会话页 agent 记忆。
+ * - local：bundled 构建的内置服务端，id 固定 LOCAL_GATEWAY_ID，apiBaseUrl/token 由
+ *   local-server 托管写入（端口漂移、首次生成 UUID），用户不可编辑。
+ * - remote：用户维护的远程 seedagent 服务器，可任意增删改。
+ * lastNewSessionAgentId 按条目隔离：各服务器 agent id 命名空间互不相通，
+ * 共用单值会在切换时互相覆盖/窜台。
+ */
+export interface GatewayProfile {
+    id: string
+    type: GatewayType
+    name: string
+    apiBaseUrl: string
+    token: string
+    lastNewSessionAgentId: string
+}
+
+/** 托管 local 条目的固定 id：bundled 守卫、reconcile 与草稿哨兵都依赖它稳定。 */
+export const LOCAL_GATEWAY_ID = 'local'
 
 export interface EngineConfig<T extends string> {
     engine: T
@@ -12,18 +35,15 @@ export interface EngineConfig<T extends string> {
 }
 
 export interface UiSettings {
+    /** 生效值（唯一真相）：等于激活 gateway 条目的 apiBaseUrl/token。
+     *  所有 API/SSE/WS 消费方只读这两个字段，不感知多网关。 */
     apiBaseUrl: string
     token: string
-    gatewayMode: 'local' | 'remote'
-    remoteApiBaseUrl: string
-    remoteToken: string
+    /** 全部网关账号；local 条目最多一条且仅 bundled 构建存在。 */
+    gateways: GatewayProfile[]
+    /** 当前激活的 gateway id；顶层 apiBaseUrl/token 随它派生。 */
+    activeGatewayId: string
     deviceName: string
-    /** 新会话页（欢迎页）下拉最后明确选中的 agent：/new 与冷启动兜底优先复用它（校验存在性），
-     *  而非永远回落第一个 agent。仅在用户显式选择时写入。
-     *  按 gatewayMode 分 local/remote 两份持久化：两侧是两台独立服务器，agent id 命名空间
-     *  互不相通，共用单值会在模式切换时互相覆盖/窜台（bundled 客户端可随时切换） */
-    lastLocalNewSessionAgentId: string
-    lastRemoteNewSessionAgentId: string
     /** 首次引导是否已完成：bundled 本地模式下 apiBaseUrl 由服务托管、恒为已配置，
      *  是否弹回主界面只能以"跑完过向导"为准（否则永远进不了引导页） */
     setupDone: boolean
@@ -65,6 +85,16 @@ export interface UiSettings {
 
 const CONFIG_KEY = 'openclaw_config'
 const DEFAULT_VOICE_GATEWAY_URL = 'https://voice.godgodgame.com'
+const DEFAULT_LOCAL_GATEWAY_NAME = '本地服务'
+const DEFAULT_REMOTE_GATEWAY_NAME = '默认服务器'
+
+const generateGatewayId = (): string => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID()
+    }
+    // 兜底：老运行环境无 crypto.randomUUID（node:test 的旧版本 / 非安全上下文 http）
+    return `gw-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
 
 const defaultAsrConfigs = (): EngineConfig<ASREngineType>[] => ([
     { engine: 'fun-asr', baseUrl: '', token: '', model: '' },
@@ -156,6 +186,97 @@ const normalizeBusySendBehavior = (value: unknown): BusySendBehavior => {
     return value === 'steer' || value === 'follow' ? value : 'follow'
 }
 
+/**
+ * 网关模型迁移（旧版 → GatewayProfile[] + activeGatewayId）：
+ * 旧字段 gatewayMode / remoteApiBaseUrl / remoteToken / lastLocal|RemoteNewSessionAgentId
+ * 全部收编进条目。local 条目无脑建（id 固定 'local'）：非 bundled 构建由
+ * reconcileLocalGateway(false) 剔除；bundled 构建由它保活。
+ * 顶层 apiBaseUrl/token（生效值）按激活条目重写，旧 remote* 值不会丢——
+ * 它们在 remote 条目里，激活即恢复。
+ */
+const migrateGateways = (parsed: any): {
+    gateways: GatewayProfile[]
+    activeGatewayId: string
+} => {
+    if (Array.isArray(parsed?.gateways)) {
+        // 新模型配置：仅做规范化（手改/损坏容错），不重建
+        const gateways: GatewayProfile[] = []
+        for (const raw of parsed.gateways) {
+            if (!raw || typeof raw !== 'object') continue
+            const item = raw as Partial<GatewayProfile>
+            const type: GatewayType = item.type === 'local' ? 'local' : 'remote'
+            const id = typeof item.id === 'string' && item.id.trim() !== ''
+                ? item.id
+                : type === 'local' ? LOCAL_GATEWAY_ID : generateGatewayId()
+            gateways.push({
+                id,
+                type,
+                name: typeof item.name === 'string' && item.name.trim() !== ''
+                    ? item.name
+                    : type === 'local' ? DEFAULT_LOCAL_GATEWAY_NAME : DEFAULT_REMOTE_GATEWAY_NAME,
+                apiBaseUrl: typeof item.apiBaseUrl === 'string' ? item.apiBaseUrl : '',
+                token: typeof item.token === 'string' ? item.token : '',
+                lastNewSessionAgentId: typeof item.lastNewSessionAgentId === 'string' ? item.lastNewSessionAgentId : '',
+            })
+        }
+        // 同一 id 去重（保留先出现的），local 条目最多一条
+        const seen = new Set<string>()
+        const deduped = gateways.filter((g) => {
+            if (seen.has(g.id)) return false
+            seen.add(g.id)
+            return true
+        })
+        const activeGatewayId = typeof parsed.activeGatewayId === 'string'
+            && deduped.some((g) => g.id === parsed.activeGatewayId)
+            ? parsed.activeGatewayId
+            : (deduped[0]?.id ?? '')
+        return { gateways: deduped, activeGatewayId }
+    }
+
+    // ---- 旧配置迁移 ----
+    // 旧 gatewayMode 归一化规则沿用：有远程地址 → remote，否则 local
+    const legacyMode: GatewayType = parsed?.gatewayMode === 'local' || parsed?.gatewayMode === 'remote'
+        ? parsed.gatewayMode
+        : ((typeof parsed?.apiBaseUrl === 'string' && parsed.apiBaseUrl.trim() !== '') ? 'remote' : 'local')
+
+    const legacyRemoteUrl = typeof parsed?.remoteApiBaseUrl === 'string' && parsed.remoteApiBaseUrl.trim() !== ''
+        ? parsed.remoteApiBaseUrl
+        : (typeof parsed?.apiBaseUrl === 'string' ? parsed.apiBaseUrl : '')
+    const legacyRemoteToken = typeof parsed?.remoteToken === 'string' && parsed.remoteToken.trim() !== ''
+        ? parsed.remoteToken
+        : (typeof parsed?.token === 'string' ? parsed.token : '')
+
+    // 旧 last*AgentId 按模式归属；已拆分的 per-mode 字段优先于陈旧的单值（clobber guard）
+    const legacySingle = typeof parsed?.lastNewSessionAgentId === 'string' ? parsed.lastNewSessionAgentId : ''
+    const remoteAgentId = typeof parsed?.lastRemoteNewSessionAgentId === 'string'
+        ? parsed.lastRemoteNewSessionAgentId
+        : (legacyMode === 'remote' ? legacySingle : '')
+    const localAgentId = typeof parsed?.lastLocalNewSessionAgentId === 'string'
+        ? parsed.lastLocalNewSessionAgentId
+        : (legacyMode === 'local' ? legacySingle : '')
+
+    const remoteEntry: GatewayProfile = {
+        id: generateGatewayId(),
+        type: 'remote',
+        name: gatewayHostLabel(legacyRemoteUrl) || DEFAULT_REMOTE_GATEWAY_NAME,
+        apiBaseUrl: legacyRemoteUrl,
+        token: legacyRemoteToken,
+        lastNewSessionAgentId: remoteAgentId,
+    }
+    const localEntry: GatewayProfile = {
+        id: LOCAL_GATEWAY_ID,
+        type: 'local',
+        name: DEFAULT_LOCAL_GATEWAY_NAME,
+        apiBaseUrl: '',
+        token: '',
+        lastNewSessionAgentId: localAgentId,
+    }
+    // local 条目在前：bundled 首次启动默认落在本地服务上（与原默认 gatewayMode='local' 一致）
+    const gateways = [localEntry, remoteEntry]
+    const activeGatewayId = legacyMode === 'remote' ? remoteEntry.id : LOCAL_GATEWAY_ID
+    return { gateways, activeGatewayId }
+}
+
 const migrateLegacyVoiceSettings = (parsed: any, next: UiSettings): UiSettings => {
     const asrConfigs = mergeEngineConfigs(defaultAsrConfigs(), parsed?.asrConfigs)
     const ttsConfigs = mergeEngineConfigs(defaultTtsConfigs(), parsed?.ttsConfigs)
@@ -239,12 +360,9 @@ const migrateLegacyVoiceSettings = (parsed: any, next: UiSettings): UiSettings =
 const getDefaultSettings = (): UiSettings => ({
     apiBaseUrl: '',
     token: '',
-    gatewayMode: 'local',
-    remoteApiBaseUrl: '',
-    remoteToken: '',
+    gateways: [],
+    activeGatewayId: '',
     deviceName: 'SeedClaw',
-    lastLocalNewSessionAgentId: '',
-    lastRemoteNewSessionAgentId: '',
     setupDone: false,
     theme: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
     isSidebarOpen: false,
@@ -309,30 +427,31 @@ const loadConfig = (): UiSettings => {
                     ...(parsedWsPanel.statusGroups ?? {}),
                 },
             }
-            // 迁移：老版本没有 gatewayMode；已配置远程地址的保持 remote 并保留原值，否则默认 local
-            if (parsed.gatewayMode !== 'local' && parsed.gatewayMode !== 'remote') {
-                parsed.gatewayMode = (typeof parsed.apiBaseUrl === 'string' && parsed.apiBaseUrl.trim() !== '') ? 'remote' : 'local'
-            }
-            if (typeof parsed.remoteApiBaseUrl !== 'string') parsed.remoteApiBaseUrl = parsed.apiBaseUrl ?? ''
-            if (typeof parsed.remoteToken !== 'string') parsed.remoteToken = parsed.token ?? ''
-            // 迁移：旧版单值 lastNewSessionAgentId 不区分网关模式，本地/远程切换时会窜台；
-            // 按保存时的 gatewayMode 归属到对应字段。delete 不设类型守卫：
-            // 非法值也一并剥离，避免死键随 ...parsed 流入 state 被反复持久化
-            if (typeof parsed.lastNewSessionAgentId === 'string') {
-                if (parsed.gatewayMode === 'remote') {
-                    if (typeof parsed.lastRemoteNewSessionAgentId !== 'string') parsed.lastRemoteNewSessionAgentId = parsed.lastNewSessionAgentId
-                } else if (typeof parsed.lastLocalNewSessionAgentId !== 'string') {
-                    parsed.lastLocalNewSessionAgentId = parsed.lastNewSessionAgentId
-                }
-            }
+            // 网关模型迁移：旧 gatewayMode/remote*/last*AgentId 字段收编进 gateways 条目；
+            // 旧键从 parsed 剥离，避免死键随 ...parsed 流入 state 被反复回写
+            const { gateways, activeGatewayId } = migrateGateways(parsed)
+            delete parsed.gatewayMode
+            delete parsed.remoteApiBaseUrl
+            delete parsed.remoteToken
+            delete parsed.lastLocalNewSessionAgentId
+            delete parsed.lastRemoteNewSessionAgentId
             delete parsed.lastNewSessionAgentId
-            // 同类守卫：手改/损坏配置里的非字符串值归一化，避免脏类型永久 round-trip。
-            // 必须在迁移之后执行，否则空串会占位、旧值迁不进去
-            if (typeof parsed.lastLocalNewSessionAgentId !== 'string') parsed.lastLocalNewSessionAgentId = ''
-            if (typeof parsed.lastRemoteNewSessionAgentId !== 'string') parsed.lastRemoteNewSessionAgentId = ''
+            // 顶层生效值 = 激活条目（local 条目为空壳时保留旧托管值，
+            // 由 local-server 就绪后 syncSettings 覆写）
+            const activeEntry = gateways.find((g) => g.id === activeGatewayId) ?? null
+            const effectiveUrl = activeEntry && activeEntry.type === 'remote'
+                ? activeEntry.apiBaseUrl
+                : (typeof parsed.apiBaseUrl === 'string' ? parsed.apiBaseUrl : '')
+            const effectiveToken = activeEntry && activeEntry.type === 'remote'
+                ? activeEntry.token
+                : (typeof parsed.token === 'string' ? parsed.token : '')
             const merged: UiSettings = {
                 ...defaults,
                 ...parsed,
+                apiBaseUrl: effectiveUrl,
+                token: effectiveToken,
+                gateways,
+                activeGatewayId,
                 asrConfigs: defaults.asrConfigs,
                 ttsConfigs: defaults.ttsConfigs,
                 workspacePanel: mergedWsPanel,
@@ -360,6 +479,9 @@ export const useUiSettingsStore = defineStore('ui-settings', {
     getters: {
         isConfigured: (state) => state.apiBaseUrl.trim() !== '' && state.token.trim() !== '',
         authToken: (state) => state.token,
+        activeGateway: (state): GatewayProfile | null =>
+            state.gateways.find((g) => g.id === state.activeGatewayId) ?? null,
+        remoteGateways: (state): GatewayProfile[] => state.gateways.filter((g) => g.type === 'remote'),
         isDark: (state) => state.theme === 'dark',
         getAsrConfig: (state) => (engine?: ASREngineType) => {
             const targetEngine = engine ?? state.asrEngine
@@ -446,12 +568,94 @@ export const useUiSettingsStore = defineStore('ui-settings', {
             this.persist()
         },
 
-        setLastNewSessionAgent(id: string, mode: 'local' | 'remote') {
-            if (mode === 'remote') {
-                this.lastRemoteNewSessionAgentId = id
-            } else {
-                this.lastLocalNewSessionAgentId = id
+        // ---------- 网关账号（GatewayProfile）管理 ----------
+
+        /** 顶层生效值同步：apiBaseUrl/token 永远等于激活条目（remote）或托管 local 的值。 */
+        syncActiveGatewayEffective() {
+            const active = this.activeGateway
+            if (!active || active.type !== 'remote') return
+            this.apiBaseUrl = active.apiBaseUrl
+            this.token = active.token
+        },
+
+        addGateway(profile: Omit<GatewayProfile, 'id' | 'lastNewSessionAgentId'> & Partial<Pick<GatewayProfile, 'id' | 'lastNewSessionAgentId'>>): GatewayProfile {
+            const entry: GatewayProfile = {
+                id: profile.id && profile.id.trim() !== ''
+                    ? profile.id
+                    : profile.type === 'local' ? LOCAL_GATEWAY_ID : generateGatewayId(),
+                type: profile.type,
+                name: profile.name.trim() !== '' ? profile.name
+                    : profile.type === 'local' ? DEFAULT_LOCAL_GATEWAY_NAME : (gatewayHostLabel(profile.apiBaseUrl) || DEFAULT_REMOTE_GATEWAY_NAME),
+                apiBaseUrl: profile.apiBaseUrl,
+                token: profile.token,
+                lastNewSessionAgentId: profile.lastNewSessionAgentId ?? '',
             }
+            // 同 id 覆盖（upsert 语义：tunnel 引导等场景按 id 落条）
+            const index = this.gateways.findIndex((g) => g.id === entry.id)
+            if (index >= 0) {
+                this.gateways[index] = entry
+            } else {
+                this.gateways.push(entry)
+            }
+            this.persist()
+            return entry
+        },
+
+        updateGateway(id: string, patch: Partial<Omit<GatewayProfile, 'id' | 'type'>>) {
+            const target = this.gateways.find((g) => g.id === id)
+            if (!target) return
+            const next: GatewayProfile = { ...target, ...patch, id: target.id, type: target.type }
+            const index = this.gateways.findIndex((g) => g.id === id)
+            this.gateways[index] = next
+            if (id === this.activeGatewayId) this.syncActiveGatewayEffective()
+            this.persist()
+        },
+
+        removeGateway(id: string) {
+            const index = this.gateways.findIndex((g) => g.id === id)
+            if (index < 0) return
+            this.gateways.splice(index, 1)
+            if (this.activeGatewayId === id) {
+                // 删激活条目：回落第一个剩余条目（无剩余则清空，由向导接管）
+                this.activeGatewayId = this.gateways[0]?.id ?? ''
+                this.syncActiveGatewayEffective()
+                if (!this.activeGateway) {
+                    this.apiBaseUrl = ''
+                    this.token = ''
+                }
+            }
+            this.persist()
+        },
+
+        setActiveGateway(id: string) {
+            if (!this.gateways.some((g) => g.id === id)) return
+            this.activeGatewayId = id
+            this.syncActiveGatewayEffective()
+            this.persist()
+        },
+
+        /**
+         * local 条目保活/自洁：bundled=true 确保有且仅有一条托管 local 条目（空壳保号，
+         * 端口/token 由 local-server 就绪后写入）；bundled=false 剔除——
+         * 未打包构建（Web/Android）没有内嵌服务端，留着会污染账号菜单。
+         * 激活的 local 条目被剔除时回落第一个 remote 条目。
+         */
+        reconcileLocalGateway(bundled: boolean) {
+            const localIndex = this.gateways.findIndex((g) => g.type === 'local')
+            if (bundled) {
+                if (localIndex < 0) {
+                    this.addGateway({ id: LOCAL_GATEWAY_ID, type: 'local', name: DEFAULT_LOCAL_GATEWAY_NAME, apiBaseUrl: '', token: '' })
+                }
+            } else if (localIndex >= 0) {
+                this.removeGateway(this.gateways[localIndex].id)
+            }
+        },
+
+        /** 新会话页最后选中的 agent 写入激活条目（per-gateway，不窜台）。 */
+        setLastNewSessionAgentId(id: string) {
+            const active = this.activeGateway
+            if (!active) return
+            active.lastNewSessionAgentId = id
             this.persist()
         },
 

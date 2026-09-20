@@ -9,14 +9,13 @@ const homeViewPath = path.resolve(testDir, '../src/views/HomeView.vue')
 const source = readFileSync(homeViewPath, 'utf8')
 
 test('new-session route reuses the remembered welcome agent before falling back to the first agent', () => {
-    // 无 query 时先复用 settingsStore 里按网关模式记住的选择（用户上次在欢迎页
+    // 无 query 时先复用激活网关条目里记住的选择（用户上次在欢迎页
     // 下拉里的明确选择），校验存在性（已删除则跳过），最后才回落第一个 agent。
-    // 必须经 effectiveGatewayMode() 分字段读：本地/远程 agent id 互不相通，
-    // 全局单值会在模式切换时窜台
+    // 必须按条目读：各服务器 agent id 互不相通，全局单值会在切换账号时窜台
     assert.match(
         source,
-        /const rememberedAgent = effectiveGatewayMode\(\) === 'remote'[\s\S]*?settingsStore\.lastRemoteNewSessionAgentId[\s\S]*?settingsStore\.lastLocalNewSessionAgentId/,
-        'new-session route should read the remembered welcome agent per gateway mode',
+        /const rememberedAgent = settingsStore\.activeGateway\?\.lastNewSessionAgentId \?\? ''/,
+        'new-session route should read the remembered welcome agent from the active gateway entry',
     )
 
     assert.match(
@@ -41,14 +40,14 @@ test('new-session route reuses the remembered welcome agent before falling back 
 })
 
 test('welcome dropdown selection persists to the settings store', () => {
-    // selectWelcomeAgent（用户明确选择）必须写回 settingsStore 且携带当前网关模式：
-    // 否则 /new 与冷启动兜底拿不到记住的值，或本地/远程两侧互相覆盖
+    // selectWelcomeAgent（用户明确选择）必须写回 settingsStore 的激活条目：
+    // 否则 /new 与冷启动兜底拿不到记住的值，或各服务器之间互相覆盖
     const selectFn = source.match(/const selectWelcomeAgent = async \(agentId: string\) => \{[\s\S]*?\n\}/)?.[0] ?? ''
     assert.ok(selectFn, 'selectWelcomeAgent should exist in HomeView')
     assert.match(
         selectFn,
-        /settingsStore\.setLastNewSessionAgent\(agentId, effectiveGatewayMode\(\)\)/,
-        'welcome dropdown selection should be persisted with the current gateway mode',
+        /settingsStore\.setLastNewSessionAgentId\(agentId\)/,
+        'welcome dropdown selection should be persisted into the active gateway entry',
     )
 })
 

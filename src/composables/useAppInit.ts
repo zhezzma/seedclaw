@@ -67,9 +67,9 @@ export function useAppInit() {
             // 记住的选择按网关模式区分：本地/远程是两台服务器，agent id 互不相通。
             // 此处已在 ensureLocalServerLoaded() 之后，bundled 标志已就绪，判定可信
             const settingsStore = useUiSettingsStore()
-            const rememberedAgent = effectiveGatewayMode() === 'remote'
-                ? settingsStore.lastRemoteNewSessionAgentId
-                : settingsStore.lastLocalNewSessionAgentId
+            // 记住的选择按激活网关条目隔离：各服务器 agent id 命名空间互不相通。
+            // 此处已在 ensureLocalServerLoaded() 之后，bundled 标志已就绪，判定可信
+            const rememberedAgent = settingsStore.activeGateway?.lastNewSessionAgentId ?? ''
             const knownRemembered = rememberedAgent && agentsState.agentsList.some(a => a.id === rememberedAgent)
             const targetAgentId = knownRequested
                 ? requestedAgent
