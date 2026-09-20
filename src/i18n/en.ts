@@ -785,9 +785,11 @@ export default {
         addServer: 'Add server',
         settings: 'Settings',
         externalLink: 'External link',
+        save: 'Save',
+        connect: 'Connect',
+        reconnect: 'Reconnect',
         serverName: 'Server name',
         serverNamePlaceholder: 'Leave empty to use the address as name',
-        saveAndConnect: 'Save & connect',
     },
     settings: {
         title: 'Settings',

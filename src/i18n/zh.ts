@@ -786,9 +786,11 @@ export default {
         addServer: '添加服务器',
         settings: '设置',
         externalLink: '外部链接',
+        save: '保存',
+        connect: '连接',
+        reconnect: '重新连接',
         serverName: '服务器名称',
         serverNamePlaceholder: '留空则使用地址作为名称',
-        saveAndConnect: '保存并连接',
     },
     settings: {
         title: '设置',

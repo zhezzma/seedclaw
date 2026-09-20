@@ -129,17 +129,20 @@ const startNewGatewayDraft = () => {
 }
 
 /**
- * 保存并连接：
- * - 新增草稿：创建条目并激活（switchGateway 负责同步生效值 + reload）
- * - 已存在条目：先把编辑写回条目，再激活并连接
+ * 保存（纯持久化，不连接）：
+ * - 新增草稿：创建条目，编辑态落到新条目（不激活——连接是显式动作）；
+ *   若当前没有任何激活条目（理论边角），保存后自动激活避免应用陷入无网关状态
+ * - 已存在 remote 条目：写回条目（激活条目的生效值由 updateGateway 同步，
+ *   但活动连接仍用旧值，重连需点「连接」）
  * local 条目不走这里（地址/令牌托管，弹窗内只读）
+ * @returns 是否保存成功（空地址 toast 拦截并返回 false）
  */
-const saveConnection = () => {
+const saveGatewayForm = (): boolean => {
     const url = editForm.value.apiBaseUrl.trim()
     if (editForm.value.editingGatewayId === NEW_GATEWAY_DRAFT) {
         if (!url) {
             toast.warning(t('setup.enterGatewayUrl'))
-            return
+            return false
         }
         const entry = configStore.addGateway({
             type: 'remote',
@@ -147,27 +150,42 @@ const saveConnection = () => {
             apiBaseUrl: url,
             token: editForm.value.token,
         })
-        switchGateway(entry.id)
-        return
+        // 编辑态跟随新条目：保存后可直接点该行「连接」激活
+        editForm.value.editingGatewayId = entry.id
+        if (!configStore.activeGateway) configStore.setActiveGateway(entry.id)
+        toast.success(t('common.savedSuccess'))
+        return true
     }
     const id = editForm.value.editingGatewayId
     const entry = configStore.gateways.find((g) => g.id === id)
-    if (!entry || entry.type === 'local') return
+    if (!entry || entry.type === 'local') return false
     if (!url) {
         toast.warning(t('setup.enterGatewayUrl'))
-        return
+        return false
     }
     configStore.updateGateway(id, {
         name: editForm.value.name.trim(),
         apiBaseUrl: url,
         token: editForm.value.token,
     })
-    switchGateway(id)
+    toast.success(t('common.savedSuccess'))
+    return true
 }
 
-/** 列表行点击 = 切换激活账号（共享守卫：local 未就绪/remote 未填地址，通过则保存并 reload）。 */
-const activateGateway = (entry: GatewayProfile) => {
-    if (entry.id === configStore.activeGatewayId) return
+/**
+ * 连接（显式激活）：共享守卫拦截（local 未就绪/remote 未填地址），
+ * 通过则 switchGateway 整页 reload 重绑全局连接。激活条目同样放行——
+ * 编辑激活条目后生效值已同步但活动连接仍是旧值，「重新连接」负责重绑。
+ * 表单正停留在该 remote 条目时，先把未保存修改写回再连接，避免连到旧地址。
+ */
+const connectGateway = (entry: GatewayProfile) => {
+    if (
+        entry.type === 'remote'
+        && editForm.value.editingGatewayId === entry.id
+        && !saveGatewayForm()
+    ) {
+        return
+    }
     const blocked = gatewaySwitchBlockReason(entry)
     if (blocked) {
         toast.warning(t(blocked))
@@ -185,7 +203,7 @@ const removeGatewayEntry = async (entry: GatewayProfile) => {
     const wasActive = entry.id === configStore.activeGatewayId
     configStore.removeGateway(entry.id)
     const active = configStore.activeGateway
-    // 删的是激活条目且还有剩余：与 activateGateway 一致走 switchGateway 整页
+    // 删的是激活条目且还有剩余：与 connectGateway 一致走 switchGateway 整页
     // reload，让全局连接/会话列表/SSE/WS 重新绑定（否则弹窗显示新账号而
     // 应用其余部分仍在跟已删除的服务器通信，数据混台）
     if (wasActive && active) {
@@ -491,13 +509,17 @@ const logout = async () => {
         <div class="modal-box">
             <h3 class="font-bold text-lg mb-4">{{ $t('settings.gatewaySettings') }}</h3>
 
-            <!-- 服务器账号列表：单选即激活（切换会重载），local 托管条目置顶且不可删除 -->
+            <!-- 服务器账号列表：点行 = 选中编辑（不切换、无副作用）；「连接」才切换激活（会重载）。
+                 local 托管条目置顶且不可删除；选中行加高亮环，与「当前」徽标（激活态）区分 -->
             <ul class="space-y-1 mb-3">
                 <li v-for="entry in visibleGateways" :key="entry.id"
                     class="flex items-center gap-2 rounded-xl border px-3 py-2 transition-colors"
-                    :class="entry.id === configStore.activeGatewayId ? 'border-primary/40 bg-primary/10' : 'border-base-300'">
+                    :class="[
+                        entry.id === configStore.activeGatewayId ? 'border-primary/40 bg-primary/10' : 'border-base-300',
+                        editForm.editingGatewayId === entry.id && 'ring-2 ring-primary/40',
+                    ]">
                     <button type="button" class="flex min-w-0 flex-1 items-center gap-2 text-left cursor-pointer"
-                        :title="$t('gateway.switchAccount')" @click="activateGateway(entry)">
+                        :title="$t('common.edit')" @click="selectGatewayForEdit(entry.id)">
                         <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
                             :class="entry.type === 'local' ? 'bg-primary/15 text-primary' : 'bg-base-300 text-base-content/70'">
                             {{ Array.from(entry.name)[0]?.toUpperCase() ?? '?' }}
@@ -508,8 +530,11 @@ const logout = async () => {
                         </span>
                         <span v-if="entry.id === configStore.activeGatewayId" class="badge badge-primary badge-sm shrink-0">{{ $t('gateway.current') }}</span>
                     </button>
-                    <button type="button" class="btn btn-ghost btn-xs shrink-0" @click="selectGatewayForEdit(entry.id)">
-                        {{ $t('common.edit') }}
+                    <!-- 连接（显式激活，激活条目显示「重新连接」：编辑激活条目后负责重绑） -->
+                    <button type="button" class="btn btn-ghost btn-xs shrink-0"
+                        :title="entry.id === configStore.activeGatewayId ? $t('gateway.reconnect') : $t('gateway.connect')"
+                        @click="connectGateway(entry)">
+                        {{ entry.id === configStore.activeGatewayId ? $t('gateway.reconnect') : $t('gateway.connect') }}
                     </button>
                     <button v-if="entry.type === 'remote'" type="button" class="btn btn-ghost btn-xs shrink-0 text-error"
                         @click="removeGatewayEntry(entry)">
@@ -572,7 +597,7 @@ const logout = async () => {
             <div class="modal-action">
                 <form method="dialog">
                     <button class="btn btn-ghost mr-2">{{ $t('common.cancel') }}</button>
-                    <button v-if="!editingIsLocal" class="btn btn-primary" @click="saveConnection">{{ $t('gateway.saveAndConnect') }}</button>
+                    <button v-if="!editingIsLocal" class="btn btn-primary" @click="saveGatewayForm">{{ $t('gateway.save') }}</button>
                 </form>
             </div>
         </div>
