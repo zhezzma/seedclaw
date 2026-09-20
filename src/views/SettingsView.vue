@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
@@ -24,18 +24,25 @@ import {
     ClockIcon,
     ChatBubbleLeftRightIcon,
     LinkIcon,
+    PlusIcon,
 } from '@heroicons/vue/24/outline'
 import ViewHeader from '@/components/ViewHeader.vue'
 import { useConfirm } from '../composables/useConfirm'
-import { localServer, effectiveGatewayMode, restartLocalServer, applyGatewayMode } from '../composables/local-server'
+import { useToast } from '../composables/useToast'
+import { localServer, restartLocalServer, switchGateway } from '../composables/local-server'
+import { LOCAL_GATEWAY_ID, type GatewayProfile } from '../stores/setting'
 
 const router = useRouter()
 const { t } = useI18n()
 const configStore = useUiSettingsStore()
 const { confirm } = useConfirm()
+const toast = useToast()
 
+/** 连接弹窗的编辑态：__new__ 表示「新增服务器」草稿；其余为已存在条目 id。 */
+const NEW_GATEWAY_DRAFT = '__new__'
 const editForm = ref({
-    gatewayMode: 'remote' as 'local' | 'remote',
+    editingGatewayId: NEW_GATEWAY_DRAFT,
+    name: '',
     apiBaseUrl: '',
     token: '',
     asrEngine: 'fun-asr' as ASREngineType,
@@ -54,6 +61,12 @@ const editForm = ref({
     },
 })
 
+const editingEntry = computed<GatewayProfile | null>(() =>
+    editForm.value.editingGatewayId === NEW_GATEWAY_DRAFT
+        ? null
+        : configStore.gateways.find((g) => g.id === editForm.value.editingGatewayId) ?? null)
+const editingIsLocal = computed(() => editingEntry.value?.type === 'local')
+
 const cloneConfig = <T extends string>(config: EngineConfig<T>): EngineConfig<T> => ({ ...config })
 
 const loadAsrFormForEngine = (engine: ASREngineType) => {
@@ -67,25 +80,91 @@ const loadTtsFormForEngine = (engine: TTSEngineType) => {
 }
 
 const openConnectionModal = () => {
-    const mode = effectiveGatewayMode()
-    editForm.value = {
-        ...editForm.value,
-        gatewayMode: mode,
-        apiBaseUrl: mode === 'remote' ? configStore.remoteApiBaseUrl : (localServer.url ?? ''),
-        token: mode === 'remote' ? configStore.remoteToken : (localServer.token ?? ''),
+    // 打开时聚焦当前激活条目（没有则落入新增草稿）
+    const active = configStore.activeGateway
+    if (active) {
+        selectGatewayForEdit(active.id)
+    } else {
+        startNewGatewayDraft()
     }
     const modal = document.getElementById('basic_settings_modal') as HTMLDialogElement
     if (modal) modal.showModal()
 }
 
-const onGatewayModeChange = (event: Event) => {
-    const mode = (event.target as HTMLSelectElement).value as 'local' | 'remote'
-    if (mode === 'local') {
-        editForm.value.apiBaseUrl = localServer.url ?? ''
-        editForm.value.token = localServer.token ?? ''
-    } else {
-        editForm.value.apiBaseUrl = configStore.remoteApiBaseUrl
-        editForm.value.token = configStore.remoteToken
+/** 选中某条目进入编辑（local 条目地址/token 只读，由 local-server 托管）。 */
+const selectGatewayForEdit = (id: string) => {
+    const entry = configStore.gateways.find((g) => g.id === id)
+    if (!entry) return
+    editForm.value.editingGatewayId = id
+    editForm.value.name = entry.name
+    editForm.value.apiBaseUrl = entry.apiBaseUrl
+    editForm.value.token = entry.token
+}
+
+const startNewGatewayDraft = () => {
+    editForm.value.editingGatewayId = NEW_GATEWAY_DRAFT
+    editForm.value.name = ''
+    editForm.value.apiBaseUrl = ''
+    editForm.value.token = ''
+}
+
+/**
+ * 保存并连接：
+ * - 新增草稿：创建条目并激活（switchGateway 负责同步生效值 + reload）
+ * - 已存在条目：先把编辑写回条目，再激活并连接
+ * local 条目不走这里（地址/令牌托管，弹窗内只读）
+ */
+const saveConnection = () => {
+    const url = editForm.value.apiBaseUrl.trim()
+    if (editForm.value.editingGatewayId === NEW_GATEWAY_DRAFT) {
+        if (!url) return
+        const entry = configStore.addGateway({
+            type: 'remote',
+            name: editForm.value.name.trim(),
+            apiBaseUrl: url,
+            token: editForm.value.token,
+        })
+        switchGateway(entry.id)
+        return
+    }
+    const id = editForm.value.editingGatewayId
+    const entry = configStore.gateways.find((g) => g.id === id)
+    if (!entry || entry.type === 'local' || !url) return
+    configStore.updateGateway(id, {
+        name: editForm.value.name.trim(),
+        apiBaseUrl: url,
+        token: editForm.value.token,
+    })
+    switchGateway(id)
+}
+
+/** 列表行点击 = 切换激活账号（守卫与侧栏菜单一致，通过则保存并 reload）。 */
+const activateGateway = (entry: GatewayProfile) => {
+    if (entry.id === configStore.activeGatewayId) return
+    if (entry.type === 'local') {
+        if (localServer.state === 'failed' || !localServer.url || !localServer.token) {
+            toast.warning(t('sidebar.localServerNotReady'))
+            return
+        }
+    } else if (!entry.apiBaseUrl.trim()) {
+        toast.warning(t('sidebar.remoteNotConfigured'))
+        return
+    }
+    switchGateway(entry.id)
+}
+
+const removeGatewayEntry = async (entry: GatewayProfile) => {
+    const ok = await confirm(
+        t('settings.removeGatewayConfirm', { name: entry.name }),
+        t('settings.removeGateway'),
+    )
+    if (!ok) return
+    configStore.removeGateway(entry.id)
+    // 删的是编辑中的条目：编辑态切到新的激活条目（或新增草稿）
+    if (editForm.value.editingGatewayId === entry.id) {
+        const active = configStore.activeGateway
+        if (active) selectGatewayForEdit(active.id)
+        else startNewGatewayDraft()
     }
 }
 
@@ -107,14 +186,6 @@ const onAsrEngineChange = (event: Event) => {
 
 const onTtsEngineChange = (event: Event) => {
     loadTtsFormForEngine((event.target as HTMLSelectElement).value as TTSEngineType)
-}
-
-const saveConnection = () => {
-    const mode = editForm.value.gatewayMode
-    // 落盘与 reload 逻辑在 local-server.applyGatewayMode（与侧栏快捷切换按钮共用）
-    applyGatewayMode(mode, mode === 'remote'
-        ? { url: editForm.value.apiBaseUrl.trim(), token: editForm.value.token }
-        : undefined)
 }
 
 const localStateText = () => {
@@ -388,51 +459,89 @@ const logout = async () => {
     <dialog id="basic_settings_modal" class="modal">
         <div class="modal-box">
             <h3 class="font-bold text-lg mb-4">{{ $t('settings.gatewaySettings') }}</h3>
-            <div class="form-control w-full space-y-4">
-                <div>
-                    <label class="label">
-                        <span class="label-text">{{ $t('settings.gatewayMode') }}</span>
-                    </label>
-                    <select v-model="editForm.gatewayMode" class="select select-bordered w-full" @change="onGatewayModeChange">
-                        <option v-if="localServer.bundled" value="local">{{ $t('settings.gatewayModeLocal') }}</option>
-                        <option value="remote">{{ $t('settings.gatewayModeRemote') }}</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="label">
-                        <span class="label-text">{{ $t('settings.gatewayUrl') }}</span>
-                    </label>
-                    <input type="text" v-model="editForm.apiBaseUrl" :placeholder="$t('settings.gatewayUrlPlaceholder')"
-                        :disabled="editForm.gatewayMode === 'local'" class="input input-bordered w-full" />
-                </div>
-                <div v-if="editForm.gatewayMode === 'local'" class="text-sm space-y-2">
-                    <p class="text-base-content/70">
-                        {{ localStateText() }}
-                        <span v-if="localServer.bundled" class="block text-xs text-base-content/50 mt-1">
-                            {{ $t('settings.localServerManagedHint') }}
+
+            <!-- 服务器账号列表：单选即激活（切换会重载），local 托管条目置顶且不可删除 -->
+            <ul class="space-y-1 mb-3">
+                <li v-for="entry in configStore.gateways" :key="entry.id"
+                    class="flex items-center gap-2 rounded-xl border px-3 py-2 transition-colors"
+                    :class="entry.id === configStore.activeGatewayId ? 'border-primary/40 bg-primary/10' : 'border-base-300'">
+                    <button type="button" class="flex min-w-0 flex-1 items-center gap-2 text-left cursor-pointer"
+                        :title="$t('gateway.switchAccount')" @click="activateGateway(entry)">
+                        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+                            :class="entry.type === 'local' ? 'bg-primary/15 text-primary' : 'bg-base-300 text-base-content/70'">
+                            {{ Array.from(entry.name)[0]?.toUpperCase() ?? '?' }}
                         </span>
-                    </p>
-                    <p class="text-xs text-base-content/50 flex items-center gap-2">
-                        <span>{{ $t('settings.localServerLogHint') }}: {{ localServer.dataDir ? localServer.dataDir + '\\logs' : '~/.seedagent/logs' }}</span>
-                        <button class="btn btn-ghost btn-xs" @click="onCopyLogPath">{{ $t('settings.copyLogPath') }}</button>
-                    </p>
-                    <button v-if="localServer.state === 'failed' || localServer.state === 'running'"
-                        class="btn btn-outline btn-sm" @click="onRestartServer">
-                        {{ $t('settings.restartServer') }}
+                        <span class="min-w-0 flex-1">
+                            <span class="block truncate text-sm font-semibold">{{ entry.name }}</span>
+                            <span class="block truncate text-xs text-base-content/50">{{ entry.type === 'local' ? $t('gateway.localManaged') : entry.apiBaseUrl }}</span>
+                        </span>
+                        <span v-if="entry.id === configStore.activeGatewayId" class="badge badge-primary badge-sm shrink-0">{{ $t('gateway.current') }}</span>
                     </button>
-                </div>
-                <div>
-                    <label class="label">
-                        <span class="label-text">{{ $t('settings.token') }}</span>
-                    </label>
-                    <input type="text" v-model="editForm.token" :placeholder="$t('settings.tokenPlaceholder')"
-                        :disabled="editForm.gatewayMode === 'local'" class="input input-bordered w-full" />
-                </div>
+                    <button type="button" class="btn btn-ghost btn-xs shrink-0" @click="selectGatewayForEdit(entry.id)">
+                        {{ $t('common.edit') }}
+                    </button>
+                    <button v-if="entry.type === 'remote'" type="button" class="btn btn-ghost btn-xs shrink-0 text-error"
+                        @click="removeGatewayEntry(entry)">
+                        {{ $t('common.delete') }}
+                    </button>
+                </li>
+            </ul>
+            <button type="button" class="btn btn-outline btn-sm btn-block gap-2 mb-4" @click="startNewGatewayDraft">
+                <PlusIcon class="h-4 w-4" />
+                {{ $t('gateway.addServer') }}
+            </button>
+
+            <div class="divider my-0 mb-4">{{ editingIsLocal ? $t('settings.gatewayModeLocal') : (editForm.editingGatewayId === '__new__' ? $t('gateway.addServer') : $t('common.edit')) }}</div>
+
+            <div class="form-control w-full space-y-4">
+                <!-- local 托管条目：地址/令牌只读，展示服务端状态与重启入口 -->
+                <template v-if="editingIsLocal">
+                    <div class="text-sm space-y-2">
+                        <p class="text-base-content/70">
+                            {{ localStateText() }}
+                            <span v-if="localServer.bundled" class="block text-xs text-base-content/50 mt-1">
+                                {{ $t('settings.localServerManagedHint') }}
+                            </span>
+                        </p>
+                        <p class="text-xs text-base-content/50 flex items-center gap-2">
+                            <span>{{ $t('settings.localServerLogHint') }}: {{ localServer.dataDir ? localServer.dataDir + '\\logs' : '~/.seedagent/logs' }}</span>
+                            <button class="btn btn-ghost btn-xs" @click="onCopyLogPath">{{ $t('settings.copyLogPath') }}</button>
+                        </p>
+                        <button v-if="localServer.state === 'failed' || localServer.state === 'running'"
+                            class="btn btn-outline btn-sm" @click="onRestartServer">
+                            {{ $t('settings.restartServer') }}
+                        </button>
+                    </div>
+                </template>
+                <!-- remote 条目/新增草稿：名称 + 地址 + 令牌 -->
+                <template v-else>
+                    <div>
+                        <label class="label">
+                            <span class="label-text">{{ $t('gateway.serverName') }}</span>
+                        </label>
+                        <input type="text" v-model="editForm.name" :placeholder="$t('gateway.serverNamePlaceholder')"
+                            class="input input-bordered w-full" />
+                    </div>
+                    <div>
+                        <label class="label">
+                            <span class="label-text">{{ $t('settings.gatewayUrl') }}</span>
+                        </label>
+                        <input type="text" v-model="editForm.apiBaseUrl" :placeholder="$t('settings.gatewayUrlPlaceholder')"
+                            class="input input-bordered w-full" />
+                    </div>
+                    <div>
+                        <label class="label">
+                            <span class="label-text">{{ $t('settings.token') }}</span>
+                        </label>
+                        <input type="text" v-model="editForm.token" :placeholder="$t('settings.tokenPlaceholder')"
+                            class="input input-bordered w-full" />
+                    </div>
+                </template>
             </div>
             <div class="modal-action">
                 <form method="dialog">
                     <button class="btn btn-ghost mr-2">{{ $t('common.cancel') }}</button>
-                    <button class="btn btn-primary" @click="saveConnection">{{ $t('common.save') }}</button>
+                    <button v-if="!editingIsLocal" class="btn btn-primary" @click="saveConnection">{{ $t('gateway.saveAndConnect') }}</button>
                 </form>
             </div>
         </div>

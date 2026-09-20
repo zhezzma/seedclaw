@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { useUiSettingsStore } from '../stores/setting'
+import { useUiSettingsStore, LOCAL_GATEWAY_ID } from '../stores/setting'
 import { localServer, effectiveGatewayMode, restartLocalServer } from '../composables/local-server'
 import { apiGet } from '../composables/api-client'
 import { useModelsState, type KnownApi } from '../composables/useModelsState'
@@ -107,20 +107,29 @@ const handleFileChange = (event: Event) => {
 
 // --- Step 1: Connection Logic ---
 
-// 本地模式：服务端由 Rust 托管，无需手填地址；就绪后写 gatewayMode 并进入后续步骤
+// 本地模式：服务端由 Rust 托管，无需手填地址；就绪后写 local 条目并进入后续步骤
 const handleLocalSubmit = async () => {
     isLoading.value = true
     error.value = ''
 
     try {
-        configStore.save({
-            gatewayMode: 'local',
-            ...(localServer.url && localServer.token ? {
+        configStore.addGateway({
+            id: LOCAL_GATEWAY_ID,
+            type: 'local',
+            name: t('gateway.localManaged'),
+            apiBaseUrl: localServer.url ?? '',
+            token: localServer.token ?? '',
+        })
+        configStore.setActiveGateway(LOCAL_GATEWAY_ID)
+        if (localServer.url && localServer.token) {
+            configStore.save({
                 apiBaseUrl: localServer.url,
                 token: localServer.token,
-            } : {}),
-            deviceName: deviceName.value.trim() || 'SeedClaw'
-        })
+                deviceName: deviceName.value.trim() || 'SeedClaw'
+            })
+        } else {
+            configStore.save({ deviceName: deviceName.value.trim() || 'SeedClaw' })
+        }
         await checkNextSteps()
     } catch (e: any) {
         error.value = e instanceof Error ? e.message : t('setup.connectionFailed')
@@ -153,15 +162,20 @@ const handleConnectionSubmit = async () => {
 
     try {
         // Save configuration first
-        // 远程模式显式落 gatewayMode 与 remote* 字段（切换本地/远程的持久化依据）
-        configStore.save({
-            gatewayMode: 'remote',
-            remoteApiBaseUrl: apiBaseUrl.value.trim(),
-            remoteToken: authToken.value.trim(),
-            apiBaseUrl: apiBaseUrl.value.trim(),
-            token: authToken.value.trim(),
-            deviceName: deviceName.value.trim() || 'SeedClaw'
-        })
+        // 远程模式：创建（或按 URL 复用）第一个远程条目并激活
+        const url = apiBaseUrl.value.trim()
+        const token = authToken.value.trim()
+        const existing = configStore.gateways.find(
+            (g) => g.type === 'remote' && g.apiBaseUrl.replace(/\/+$/, '') === url.replace(/\/+$/, ''),
+        )
+        if (existing) {
+            configStore.updateGateway(existing.id, { token })
+            configStore.setActiveGateway(existing.id)
+        } else {
+            const entry = configStore.addGateway({ type: 'remote', name: '', apiBaseUrl: url, token })
+            configStore.setActiveGateway(entry.id)
+        }
+        configStore.save({ deviceName: deviceName.value.trim() || 'SeedClaw' })
 
         // Connection successful.
         // Determine if we need to show Model/Agent setup steps.
