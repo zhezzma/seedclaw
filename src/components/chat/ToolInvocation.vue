@@ -273,7 +273,7 @@ function openTrace(subId?: string) {
     <div class="card   bg-base-200  overflow-hidden  ">
         <!-- Header -->
         <div @click="toggleOpen"
-            class="flex items-center gap-2 px-3 py-2 cursor-pointer select-none  bg-base-100  text-sm">
+            class="flex items-center gap-2 px-3 py-2 cursor-pointer select-none  bg-base-200  text-sm">
             <!-- Status Icon -->
             <div class="flex-none">
                 <span v-if="state === 'calling'" class="loading loading-spinner loading-xs text-primary"></span>
@@ -302,7 +302,7 @@ function openTrace(subId?: string) {
         </div>
 
         <!-- Subagent Progress (visible even when collapsed) -->
-        <div v-if="isSubagentTool && state === 'calling' && subagentResults.length > 0" class="px-3 py-2">
+        <div v-if="isSubagentTool && state === 'calling' && subagentResults.length > 0" class="px-3 py-2 pt-0">
             <div v-for="(r, idx) in subagentResults" :key="idx"
                 class="flex items-center gap-2 py-1" :class="{ 'border-t border-base-200 mt-1 pt-1': Number(idx) > 0 }">
                 <!-- Status icon -->
@@ -332,7 +332,7 @@ function openTrace(subId?: string) {
         </div>
 
         <!-- Details Body -->
-        <div v-if="isOpen" class="p-3 space-y-3" >
+        <div v-if="isOpen" class="px-3 py-2 pt-0 space-y-2" >
                 <!-- Arguments -->
                 <div>
                     <div class="flex items-center gap-2 mb-1 flex-wrap">
