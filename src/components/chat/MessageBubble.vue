@@ -299,7 +299,7 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
         <div v-if="message.role === 'user'"
             class="max-w-full md:max-w-[90%] chat-bubble bg-primary/10 text-base-content relative transition-opacity duration-200"
             :class="message.pending ? 'opacity-70' : ''">
-            <div class="whitespace-normal flex flex-col gap-2">
+            <div class="whitespace-normal flex flex-col gap-2 my-2">
                 <!-- Edit mode: textarea shown above invisible original content -->
                 <textarea v-if="isEditing" v-model="editText" rows="4"
                     class="textarea textarea-bordered w-full bg-base-100 text-base-content text-sm resize-y min-h-[80px]"
@@ -472,7 +472,7 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
              避免用 chat-bubble 默认的 base-300 底色(亮灰大卡片，与内部思考块/工具行叠灰阶补丁)。
              用户消息 10% tint、AI 5%，主次分明；尾巴(::before)随 background-color:inherit 同色 -->
         <div v-else class="max-w-full md:max-w-[90%] w-full chat-bubble relative">
-            <div class="whitespace-normal flex flex-col gap-2">
+            <div class="whitespace-normal flex flex-col gap-2 my-2">
                 <!-- Loading indicator if empty or just waiting -->
                 <div v-if="isLoading && (!message.blocks.length || (message.blocks.length === 1 && message.blocks[0].type === 'text' && !message.blocks[0].text))"
                     class="loading loading-dots loading-sm opacity-50 "></div>
@@ -553,7 +553,7 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
                         <span>Unknown block type: {{ block.text }}</span>
                     </div>
                     <div v-else-if="block.type === 'error'"
-                        class="alert alert-error text-xs p-2 my-1 flex items-start gap-2">
+                        class="alert alert-error text-xs px-3 py-1 flex items-start gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-5 w-5 mt-0.5"
                             fill="none" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

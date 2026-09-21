@@ -97,6 +97,13 @@ function Stop-ProcessesUnder([string]$Dir, [string]$Reason) {
     if ($victims) { Start-Sleep -Milliseconds 800 }
 }
 
+# 执行前清掉 target\debug：残留的 debug 增量产物会干扰构建。先结束从 debug 目录
+# 运行的 tauri dev 残留实例（文件被锁会删不掉），再删除（深路径走 Remove-LongPath）
+$debugDir = Join-Path $root 'src-tauri\target\debug'
+Stop-ProcessesUnder $debugDir "target\debug 内残留的 tauri dev 实例"
+Write-Host "==> removing $debugDir"
+Remove-LongPath $debugDir
+
 if ($SkipStage) {
     Write-Host "==> -SkipStage: reuse staging at $staging"
     Assert-Staging $staging
