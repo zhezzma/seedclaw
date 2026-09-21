@@ -4,7 +4,7 @@ import { SessionRow, useSessionsState } from './useSessionsState'
 import { apiGet, apiPost, apiDelete } from './api-client'
 import { startChatSSE, attachSessionSSE, startRetrySSE, startEditSSE, startCompactSSE, type ChatPromptBody, type SSEConnection } from './sse-client'
 import { AgentInfo, useAgentsState } from './useAgentsState'
-import { applyAttachMessageState, getLastMessageEntryId, shouldAttachSession } from '../utils/chat-attach'
+import { applyAttachMessageState, getLastMessageEntryId, markContentIndex, shouldAttachSession } from '../utils/chat-attach'
 import { findToolBlockInMessages } from '../utils/tool-event-target'
 import { isAbortErrorMessage } from '../utils/chatMessageRender'
 import { type KnownApi } from './useModelsState'
@@ -481,19 +481,40 @@ const handleSSEEvent = (eventType: string, data: any, targetKey: string, options
         case 'text_delta':
         case 'thinking_delta': {
             // 合并文本增量（text_delta）或思考过程增量（thinking_delta）
-            // 策略：若 stream 的最后一个 block 类型相同，则追加内容；否则插入新 block
-            // 这样可以将连续的同类型 delta 合并为一个 block，减少渲染次数
+            // 定位策略（两层）：
+            // 1. 优先按服务端转发的 contentIndex（pi 消息 content 数组下标）定位目标块：
+            //    openai 兼容网关（如 step 系列模型）的 reasoning 增量可能交错出现在
+            //    正文中间，但始终指向消息里同一个 thinking 块（contentIndex 不变）。若按
+            //    「末尾块同类型才合并」处理，mid-text 思考增量会被当成新块插进正文中间，
+            //    正文被劈成两段、思考块翻倍（流式渲染与落盘历史不一致）。
+            //    新下标首次出现 → 在末尾新建带 _ci 标记的块（内容顺序与下标顺序一致）。
+            // 2. contentIndex 缺省（旧服务端）：退回「末尾块同类型则追加，否则新建」。
+            // _ci 是纯前端流内路由标记：定义与打标见 chat-attach.markContentIndex，
+            // 固化时随 JSON 深拷贝天然剥离，不进历史。
             const type = eventType === 'text_delta' ? 'text' : 'thinking'
             const contentKey = type // 'text' or 'thinking'
 
             if (data?.delta) {
-                const lastBlock = stream.length > 0 ? stream[stream.length - 1] : null
-                if (lastBlock?.type === type) {
-                    // 同类型：追加到末尾 block
-                    lastBlock[contentKey] = (lastBlock[contentKey] || '') + data.delta
+                const ci = typeof data.contentIndex === 'number' ? data.contentIndex : null
+                let targetBlock: any = null
+                if (ci !== null) {
+                    targetBlock = stream.find((b: any) => b._ci === ci)
+                    if (!targetBlock) {
+                        targetBlock = { type, [contentKey]: data.delta }
+                        markContentIndex(targetBlock, ci)
+                        stream.push(targetBlock)
+                    } else {
+                        targetBlock[contentKey] = (targetBlock[contentKey] || '') + data.delta
+                    }
                 } else {
-                    // 不同类型（如从 thinking 切换到 text）：插入新 block
-                    stream.push({ type, [contentKey]: data.delta })
+                    const lastBlock = stream.length > 0 ? stream[stream.length - 1] : null
+                    if (lastBlock?.type === type) {
+                        // 同类型：追加到末尾 block
+                        lastBlock[contentKey] = (lastBlock[contentKey] || '') + data.delta
+                    } else {
+                        // 不同类型（如从 thinking 切换到 text）：插入新 block
+                        stream.push({ type, [contentKey]: data.delta })
+                    }
                 }
             }
             break

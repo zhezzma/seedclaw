@@ -22,6 +22,16 @@ export function getLastMessageEntryId(messages: ChatMessage[]): string | undefin
     return lastMessage?.entryId || undefined
 }
 
+/**
+ * 流内 delta 路由标记：块上记录它在 pi 消息 content 数组中的下标（即 SSE delta
+ * 事件的 contentIndex）。写入方：attach 快照重放（本文件）与 live 新建块
+ * （useChatState text/thinking_delta）；读取方：useChatState 按下标就地合并增量。
+ * 不可枚举：不进 JSON 序列化（message_end 固化/快照拷贝天然剥离），deepEqual 不受污染。
+ */
+export function markContentIndex(block: object, contentIndex: number): void {
+    Object.defineProperty(block, '_ci', { value: contentIndex, enumerable: false })
+}
+
 export function shouldAttachSession(hasActiveSSE: boolean): boolean {
     return !hasActiveSSE
 }
@@ -70,10 +80,21 @@ export function applyAttachMessageState(sessionData: ChatSessionData, state: Att
         // 渲染成永远转圈的 calling 卡；随后 tool_execution_start 再 push 一份
         // 完整参数的同 id block，同一调用出现两张卡。toolCall 卡统一由
         // tool_execution_start 用完整参数重建（与 live 流程一致）。
-        const replayed = state.streamMessage.content.filter(
-            (block: any) => block?.type !== 'toolCall',
-        )
-        sessionData.chatStream = JSON.parse(JSON.stringify(replayed))
+        // 保留块时按下标打 _ci 标记：快照 content 即 pi partial 消息的 content 数组，
+        // 原始数组下标 = 后续 live delta 的 contentIndex，重放后增量按 _ci 就地合并
+        //（见 useChatState text/thinking_delta）；toolCall 占位下标不能挤占文本/思考
+        // 块的下标，故必须在过滤前计算下标。_ci 为不可枚举：JSON 拷贝/固化天然剥离。
+        const replayed: any[] = []
+        state.streamMessage.content.forEach((block: any, index: number) => {
+            if (block?.type === 'toolCall') return
+            const copy = JSON.parse(JSON.stringify(block))
+            if (typeof copy === 'object' && copy !== null) {
+                markContentIndex(copy, index)
+            }
+            replayed.push(copy)
+        })
+        // replayed 已是逐块深拷贝（与旧的整包 JSON 拷贝同语义，切断对快照对象的引用）
+        sessionData.chatStream = replayed
         return
     }
 
