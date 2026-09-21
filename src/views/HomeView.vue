@@ -575,7 +575,12 @@ const navigateBranch = async (msg: DisplayMessage, direction: 'prev' | 'next') =
 
     // 找到目标分支的叶子节点 ID（后端需要 leaf ID 才能返回完整分支）
     const leafId = findBranchLeafId(info.siblings[newIndex], branchIndexes.value)
-    await chatState.navigateBranch(leafId)
+    const navigated = await chatState.navigateBranch(leafId)
+    if (!navigated) {
+        // 运行中导航按钮已隐藏，走到这里只剩渲染竞态/网络失败（服务端 streaming 409 等）
+        useToast().error(t('chat.treeJumpFailed'))
+        return
+    }
     // 切换后强制滚动到底部（延迟确保 DOM 渲染完成）
     scrollToBottom(true)
     setTimeout(() => scrollToBottom(true), 200)

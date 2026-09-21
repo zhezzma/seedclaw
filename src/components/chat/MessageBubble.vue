@@ -449,8 +449,9 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
                      （停止产生的空 aborted 回复按设计零渲染、回复被删光），及分支被续写后
                      分叉点 user 消息不再是最末项时，user 消息是该分支唯一必现的导航锚点；
                      缺了这里，切到该分支（第一页）后无任何导航/操作，成为死胡同。
-                     isBranchTail 门控避免与同回合 assistant 气泡的导航重复渲染同一个 n/n -->
-                <div v-if="isBranchTail && branchInfo && branchInfo.siblings.length > 1" class="flex items-center gap-0.5 ml-1">
+                     isBranchTail 门控避免与同回合 assistant 气泡的导航重复渲染同一个 n/n；
+                     !isBusy 与 assistant 侧一致：run 期间两侧导航整体不渲染 -->
+                <div v-if="!isBusy && isBranchTail && branchInfo && branchInfo.siblings.length > 1" class="flex items-center gap-0.5 ml-1">
                     <button @click="emit('navigate-branch', message, 'prev')" :disabled="branchInfo.currentIndex <= 0"
                         class="btn btn-ghost btn-xs btn-circle text-base-content/60 hover:text-primary hover:bg-base-200 disabled:opacity-30 disabled:cursor-not-allowed">
                         <ChevronLeftIcon class="h-3.5 w-3.5" />
@@ -612,7 +613,10 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
             </button>
 
             <!-- Branch Navigation -->
-            <div v-if="branchInfo && branchInfo.siblings.length > 1" class="flex items-center gap-0.5 ml-1">
+            <!-- busy 期间整块不渲染：运行中切分支会把会话级流状态泄漏到目标分支视图，
+                 且服务端会替换在途 agent 的内存上下文导致 run 失踪；隐藏比禁用更简单一致
+                 （服务端 409 兑底非 UI 路径） -->
+            <div v-if="!isBusy && branchInfo && branchInfo.siblings.length > 1" class="flex items-center gap-0.5 ml-1">
                 <button @click="emit('navigate-branch', message, 'prev')" :disabled="branchInfo.currentIndex <= 0"
                     class="btn btn-ghost btn-xs btn-circle text-base-content/60 hover:text-primary hover:bg-base-200 disabled:opacity-30 disabled:cursor-not-allowed">
                     <ChevronLeftIcon class="h-3.5 w-3.5" />

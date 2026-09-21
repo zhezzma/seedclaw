@@ -754,8 +754,18 @@ const abortChat = async (sessionKey?: string) => {
     }
     if (targetKey) {
         const sd = getSessionData(targetKey)
+        // 快照落地守卫：/abort 在途期间用户可能已 retry/edit/发新消息（新 run 的
+        // chatRunId 会变、且会绑定新 SSE）。此刻的快照对新 run 是陈旧数据：落地会清掉
+        // 新 run 的流状态、用旧分支消息覆盖 chatMessages（运行中带 entryId 的消息会让
+        // 分支导航中途显形，进而在运行中切分支，把别的分支的流式气泡/思考占位符泄漏到
+        // 目标分支视图）。新 run 的 SSE/done 自会刷新，整包丢弃。
+        // 注意：被中止的 run 自身 chatRunId 恒非空，不能作为陈旧信号——必须比对
+        // runId 是否发生变化（旧 SSE 的 cleanup 因身份校验不会 resetStreamState）。
+        const runIdAtAbort = sd.chatRunId
+        const abortSnapshotStale = () => sseConnections.has(targetKey) || sd.chatRunId !== runIdAtAbort
         try {
             const result = await apiPost<{ messages?: ChatMessage[], isStreaming?: boolean }>(`/api/chat/${targetKey}/abort`)
+            if (abortSnapshotStale()) return
             // 服务端 /abort 已同步清空 steer/followUp 队列（含账本），本地排队视图一并清空
             if (sd.pendingQueue.length > 0) {
                 sd.pendingQueue = []
@@ -781,6 +791,9 @@ const abortChat = async (sessionKey?: string) => {
             }
         } catch {
             // Ignore abort errors
+            // 守卫同上：catch 路径的 chatSending=false / resetStreamState 同样不能压掉
+            // 在途期间新启动 run 的状态
+            if (abortSnapshotStale()) return
             sd.chatSending = false
         }
         resetStreamState(sd)

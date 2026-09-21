@@ -12,9 +12,10 @@
  * 为什么不是「所有 user 消息」：下一项就是本回合 assistant 回复的正常回合，
  * 导航由 assistant 气泡提供，user 侧再挂一份会对同一回合重复渲染 n/n 计数器。
  *
- * 已知瞬态窗口不成立（稳态即恢复，与 assistant 侧导航在 busy 时的既有暴露
- * 一致）：流式占位气泡与压缩指示行是 assistant 角色，会短暂压制其前的 user
- * 锚点；排队中的 steer/follow-up 气泡是 user 角色，不影响尾锚判定。
+ * 已知瞬态窗口：流式占位气泡与压缩指示行是 assistant 角色，会短暂压制其前的
+ * user 锚点；排队中的 steer/follow-up 气泡是 user 角色，不影响尾锚判定。
+ * 这些瞬态行只出现在 busy 期，而 busy 期两侧分支导航整体不渲染
+ * （MessageBubble !isBusy 门控），因此该窗口对 UI 不可达，稳态即恢复。
  */
 
 /** 最小消息形状：只需要 role 参与判定（DisplayMessage / 排队气泡均满足） */
