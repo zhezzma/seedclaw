@@ -12,7 +12,7 @@
 /* 自定义深色主题：同名覆盖内置 dark（未列出的变量全部继承内置值，见 daisyUI 5 docs/themes）。
    设计意图：内置 dark 是 hue 252 的冷蓝灰，且 base-300(21%)比背景(25%)更黑——
    全局 50+ 处 border-base-300 形同虚设，大面积低对比冷灰糊成一片，是“压抑感”的来源。
-   新配色改用暖中性 hue 80：背景对齐 Discord/Claude.ai 的深灰档位，边框明显可见。
+   新配色为无彩中性（chroma 0）：背景对齐 ChatGPT 的黑色档位（#212121/#171717），边框明显可见。
    强调色走极简灰白（Vercel/Linear 式无彩风）：primary≈白，按钮白底深字，
    用户气泡 bg-primary/10 变成淡灰白提亮 tint。
    语义色(info/success/warning/error)全部继承内置彩色：灰白极简只作用于界面骨架
@@ -21,11 +21,11 @@
 @plugin "daisyui/theme" {
     name: "dark";
     color-scheme: dark; /* 同名覆盖不会继承此字段，缺省会掉回 normal（深色下滚动条/原生控件变浅色） */
-    --color-base-100: oklch(29.5% 0.006 80); /* 主背景：对齐 Discord/Claude.ai 档位（原 25.33% 太暗太冷） */
-    --color-base-200: oklch(26% 0.006 80); /* 侧栏/面板/代码块 */
-    --color-base-300: oklch(35.5% 0.008 80); /* 边框/hover：≈#444，清晰可见 */
-    --color-base-content: oklch(94% 0.004 80);
-    --color-neutral: oklch(26.5% 0.007 80);
+    --color-base-100: oklch(22.5% 0 0); /* 主背景：ChatGPT #212121 */
+    --color-base-200: oklch(17.5% 0 0); /* 侧栏/面板/代码块：ChatGPT 侧栏 #171717 */
+    --color-base-300: oklch(31% 0 0); /* 边框/hover：≈#2f2f2f，比表面亮、清晰可见 */
+    --color-base-content: oklch(93% 0 0);
+    --color-neutral: oklch(26% 0 0);
     --color-primary: oklch(93% 0.004 80); /* 白：按钮/链接/选中态/用户气泡 tint */
     --color-primary-content: oklch(23% 0.006 80);
     --color-secondary: oklch(70% 0.005 80);
@@ -34,9 +34,9 @@
     --color-accent-content: oklch(23% 0.006 80);
 }
 
-/* 暗色下 base-200(26%)比背景 base-100(29.5%)还暗，作为分隔线呈“纯黑发丝线”
+/* 暗色下 base-200(17.5%)比背景 base-100(22.5%)还暗，作为分隔线呈“纯黑发丝线”
    （亮色模式里边框比背景深是常态，无此问题）。仅在暗色作用域把它们统一提升为
-   base-300(35.5%，比表面亮)；亮色模式不受影响。面板底色 bg-base-200 不在此列 */
+   base-300(31%，比表面亮)；亮色模式不受影响。面板底色 bg-base-200 不在此列 */
 [data-theme="dark"] .border-base-200,
 [data-theme="dark"] .border-base-200\/50,
 [data-theme="dark"] .border-base-200\/60 {

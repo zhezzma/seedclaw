@@ -273,7 +273,7 @@ function openTrace(subId?: string) {
     <div class="card   bg-base-200  overflow-hidden  ">
         <!-- Header -->
         <div @click="toggleOpen"
-            class="flex items-center gap-2 p-3 cursor-pointer select-none  bg-base-100  text-sm">
+            class="flex items-center gap-2 px-3 py-2 cursor-pointer select-none  bg-base-100  text-sm">
             <!-- Status Icon -->
             <div class="flex-none">
                 <span v-if="state === 'calling'" class="loading loading-spinner loading-xs text-primary"></span>

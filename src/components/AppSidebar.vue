@@ -493,10 +493,11 @@ const handleNavClick = (item: any) => {
         </div>
 
         <!-- New Chat Button -->
-        <div class="shrink-0 px-4" :class="isCollapsed && 'lg:px-2'">
+        <div class="shrink-0 px-4" >
             <button @click="createNewSession"
-                class="btn btn-primary btn-block btn-sm gap-2 shadow-md hover:shadow-lg transition-shadow rounded-xl h-10"
-                :title="$t('sidebar.newChat')">
+            :class="isCollapsed && 'px-0'"
+                class="btn btn-primary btn-block btn-sm gap-2 shadow-md hover:shadow-lg transition-shadow rounded-xl"
+                :title="$t('sidebar.newChat')"  >
                 <PlusIcon class="h-5 w-5" />
                 <span class="font-medium" :class="isCollapsed && 'lg:hidden'">{{ $t('sidebar.newChat') }}</span>
             </button>
@@ -511,13 +512,13 @@ const handleNavClick = (item: any) => {
         <!-- Nav -->
         <div class="shrink-0 px-3 flex flex-col gap-1.5">
             <button v-for="item in navItems" :key="item.label" @click="handleNavClick(item)"
-                class="group flex items-center gap-3  p-1 w-full rounded-2xl text-left transition-all duration-200 hover:bg-base-300/90 hover:border-base-300 hover:shadow-sm border border-transparent  active:scale-[0.98] cursor-pointer"
+                class="group flex items-center gap-3  px-1 w-full rounded-2xl text-left transition-all duration-200 hover:bg-base-300/90 hover:border-base-300 hover:shadow-sm border border-transparent  active:scale-[0.98] cursor-pointer"
                 :class="[
                     { 'bg-base-300 dark:bg-primary/20  shadow-sm': isItemActive(item) },
                     isCollapsed && 'lg:justify-center',
                 ]" :title="$t(item.label)">
-                <div class="p-1 rounded-xl transition-colors duration-200 group-hover:bg-primary/10 group-hover:text-primary text-base-content/60"
-                    :class="{ 'bg-primary/10 text-primary': isItemActive(item) }">
+                <div class="p-1 rounded-xl transition-colors duration-200  group-hover:text-primary text-base-content/60"
+                    :class="{ ' text-primary': isItemActive(item) }">
                     <component :is="item.icon" class="h-5 w-5" />
                 </div>
                 <span class="font-medium text-sm text-base-content/70 group-hover:text-base-content transition-colors"

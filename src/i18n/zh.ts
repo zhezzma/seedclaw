@@ -572,7 +572,7 @@ export default {
     },
     chat: {
         you: '你',
-        reasoning: '思考过程 (Reasoning)',
+        reasoning: '思考过程',
         readAloud: '朗读',
         retry: '重试',
         fork: '从此处分叉',

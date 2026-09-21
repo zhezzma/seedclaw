@@ -192,12 +192,12 @@ const handleExternalLink = () => {
                     <button type="button" role="menuitem" class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm"
                         :class="entry.id === configStore.activeGatewayId ? 'bg-base-300/60 font-semibold' : ''"
                         @click="switchTo(entry)">
-                        <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+                        <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
                             :class="entry.type === 'local' ? 'bg-primary/15 text-primary' : 'bg-base-300 text-base-content/70'">
                             {{ Array.from(entry.name)[0]?.toUpperCase() ?? '?' }}
                         </span>
                         <span class="min-w-0 flex-1 truncate text-left">{{ entry.name }}</span>
-                        <span class="shrink-0 text-xs text-base-content/40 truncate max-w-[8rem]">{{ entryHost(entry) }}</span>
+                        <span class="shrink-0 text-xs text-base-content/40 truncate max-w-[6rem]">{{ entryHost(entry) }}</span>
                         <CheckIcon v-if="entry.id === configStore.activeGatewayId" class="h-4 w-4 shrink-0 text-primary" />
                     </button>
                 </li>
@@ -205,20 +205,8 @@ const handleExternalLink = () => {
 
             <div class="mx-2 my-1 border-t border-base-300"></div>
 
-            <!-- 添加服务器 / 设置（原侧栏 Header 两按钮的归宿） -->
             <ul class="menu menu-compact w-full p-0" role="menu">
-                <li role="none">
-                    <button type="button" role="menuitem" class="rounded-xl px-3 py-2 text-sm" @click="addServer">
-                        <PlusIcon class="h-4 w-4" />
-                        {{ t('gateway.addServer') }}
-                    </button>
-                </li>
-                <li role="none">
-                    <button type="button" role="menuitem" class="rounded-xl px-3 py-2 text-sm" @click="openSettings">
-                        <Cog6ToothIcon class="h-4 w-4" />
-                        {{ t('gateway.settings') }}
-                    </button>
-                </li>
+      
                 <!-- 外部链接（原侧栏 Header 跳转按钮的归宿）：设置里配了地址才显示。
                      button + JS 触发锚点（handleExternalLink），导航本身仍是原生 <a target="_blank"> -->
                 <li v-if="configStore.externalUrl" role="none">
@@ -227,7 +215,25 @@ const handleExternalLink = () => {
                         {{ t('gateway.externalLink') }}
                     </button>
                 </li>
+                <!-- 设置 -->
+                <li role="none">
+                    <button type="button" role="menuitem" class="rounded-xl px-3 py-2 text-sm" @click="openSettings">
+                        <Cog6ToothIcon class="h-4 w-4" />
+                        {{ t('gateway.settings') }}
+                    </button>
+                </li>
             </ul>
         </div>
     </div>
 </template>
+
+<style scoped>
+/* daisyUI .menu 的按下(:active)高亮默认取 --color-neutral（暗色下比弹出层背景还暗，
+   视觉上是"点一下闪黑块"且随 0.2s transition 短暂停留）。这两个变量是 daisyUI
+   直接声明在 .menu(ul) 自身上的，不能设在祖先靠继承覆盖（会被遮蔽），
+   必须选中 ul 本身。改成与 hover 一致的 base-content 10% 混合色 */
+.gateway-menu :where(ul.menu) {
+    --menu-active-bg: color-mix(in oklab, var(--color-base-content) 10%, transparent);
+    --menu-active-fg: var(--color-base-content);
+}
+</style>

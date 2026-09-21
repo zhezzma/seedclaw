@@ -254,6 +254,10 @@ const onCopyLogPath = () => {
     navigator.clipboard.writeText(dir)
 }
 
+const onCopyToken = () => {
+    if (localServer.token) navigator.clipboard.writeText(localServer.token)
+}
+
 const saveSilenceDuration = (event: Event) => {
     const ms = Math.max(0, Math.floor(Number((event.target as HTMLInputElement).value) || 0))
     configStore.save({ silenceDuration: ms })
@@ -555,14 +559,22 @@ const logout = async () => {
                     <div class="text-sm space-y-2">
                         <p class="text-base-content/70">
                             {{ localStateText() }}
+                        </p>
+
+                        <div v-if="localServer.token" class="flex items-center gap-2 ">
+                            <span class="shrink-0">{{ $t('settings.token') }}</span>
+                            <code class="font-mono text-xs break-all  text-base-content/50">{{ localServer.token }}</code>
+                            <button type="button" class="btn btn-ghost btn-xs shrink-0" @click="onCopyToken">
+                                {{ $t('common.copy') }}
+                            </button>
+                        </div>
+
+                        <p>
                             <span v-if="localServer.bundled" class="block text-xs text-base-content/50 mt-1">
                                 {{ $t('settings.localServerManagedHint') }}
                             </span>
                         </p>
-                        <p class="text-xs text-base-content/50 flex items-center gap-2">
-                            <span>{{ $t('settings.localServerLogHint') }}: {{ localServer.dataDir ? localServer.dataDir + '\\logs' : '~/.seedagent/logs' }}</span>
-                            <button class="btn btn-ghost btn-xs" @click="onCopyLogPath">{{ $t('settings.copyLogPath') }}</button>
-                        </p>
+         
                         <button v-if="localServer.state === 'failed' || localServer.state === 'running'"
                             class="btn btn-outline btn-sm" @click="onRestartServer">
                             {{ $t('settings.restartServer') }}
