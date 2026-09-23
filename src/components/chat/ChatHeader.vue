@@ -248,11 +248,6 @@ defineExpose({
 
 
                 <!-- PC -->
-                <button @click="settingsStore.toggleTheme()" class="btn btn-ghost btn-circle btn-xs hidden lg:flex">
-                    <SunIcon v-if="settingsStore.isDark" class="h-5 w-5" />
-                    <MoonIcon v-else class="h-5 w-5" />
-                </button>
-
                 <!-- <button @click="settingsStore.toggleLayout()" class="btn btn-ghost btn-circle btn-xs hidden lg:flex"
                     :title="settingsStore.isWideMode ? $t('chat.switchToNarrow') : $t('chat.switchToWide')">
                     <ArrowsPointingInIcon v-if="settingsStore.isWideMode" class="h-5 w-5" />

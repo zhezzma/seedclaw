@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { CheckIcon, Cog6ToothIcon, PlusIcon, ServerStackIcon, CloudIcon, ArrowTopRightOnSquareIcon } from '@heroicons/vue/24/outline'
+import { CheckIcon, Cog6ToothIcon, SunIcon, MoonIcon, ServerStackIcon, CloudIcon, ArrowTopRightOnSquareIcon } from '@heroicons/vue/24/outline'
 import { useUiSettingsStore, type GatewayProfile } from '../stores/setting'
 import { localServer, switchGateway, gatewaySwitchBlockReason } from '../composables/local-server'
 import { useToast } from '../composables/useToast'
@@ -20,6 +20,7 @@ const isOpen = ref(false)
 const openUpward = ref(false)
 const rootRef = ref<HTMLElement | null>(null)
 const triggerRef = ref<HTMLElement | null>(null)
+
 
 // 账号菜单项：local 托管条目（仅 bundled 构建）置顶 + 用户维护的 remote 条目
 const menuEntries = computed<GatewayProfile[]>(() => {
@@ -150,33 +151,48 @@ const handleExternalLink = () => {
              名称/地址与菜单头保持一致，不随视口宽度隐藏（移动端抽屉同样展示）。
              高度预算：以头像 h-8(32px) 为基准。两行文字必须压进 32px——默认行高
              text-sm(20px)+text-xs(16px)=36px 会反超头像成为高度元凶，故两行都挂
-             leading-4(16px)；配按钮 p-1 与容器 py-1.5，整块含上边框约 53px
+             leading-4(16px)；配触发容器 p-1 与容器 py-1.5，整块含上边框约 53px
              （原约 65px）。改头像尺寸时同步改这里的两行行高，否则文字会重新撑高 -->
-        <button ref="triggerRef" type="button" class="flex w-full items-center gap-2 rounded-xl p-1 text-left transition-colors hover:bg-base-300/90 cursor-pointer"
-            :class="collapsed && 'lg:justify-center lg:px-0'"
-            :title="activeEntry ? `${activeName} · ${activeHost}` : activeName"
-            :aria-label="t('gateway.switchAccount')" :aria-expanded="isOpen" aria-haspopup="menu"
-            @click.stop="toggleMenu">
-            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold" :class="avatarClass">
-                {{ avatarLetter }}
-            </span>
-            <span v-if="!collapsed" class="min-w-0 flex-1">
-                <span class="block truncate text-sm font-semibold leading-4 text-base-content">{{ activeName }}</span>
-                <span class="block truncate text-xs leading-4 text-base-content/50">{{ activeHost }}</span>
-            </span>
-            <ServerStackIcon v-if="!collapsed && activeIsLocal" class="h-4 w-4 shrink-0 text-primary" />
-            <CloudIcon v-else-if="!collapsed" class="h-4 w-4 shrink-0 text-base-content/40" />
-        </button>
+        <!-- 外层 div 只做布局、不触发事件；头像+名称+图标包进内层 button，由它触发下拉 -->
+        <div ref="triggerRef" class="flex w-full items-center gap-2 p-1"
+            :class="collapsed && 'lg:justify-center lg:px-0'">
+            <button type="button"
+                class="flex flex-1 min-w-0 items-center gap-2 rounded-xl text-left transition-colors hover:bg-base-300/90  px-2  cursor-pointer"
+                :title="activeEntry ? `${activeName} · ${activeHost}` : activeName" :aria-label="t('gateway.switchAccount')"
+                :aria-expanded="isOpen" aria-haspopup="menu" @click.stop="toggleMenu">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+                    :class="avatarClass">
+                    {{ avatarLetter }}
+                </span>
+                <span v-if="!collapsed" class="min-w-0 flex-1">
+                    <span class="block truncate text-sm font-semibold leading-4 text-base-content">{{ activeName }}</span>
+                    <span class="block truncate text-xs leading-4 text-base-content/50">{{ activeHost }}</span>
+                </span>
+                <ServerStackIcon v-if="!collapsed && activeIsLocal" class="h-4 w-4 shrink-0 text-primary" />
+                <CloudIcon v-else-if="!collapsed" class="h-4 w-4 shrink-0 text-base-content/40" />
+            </button>
+
+
+            <button @click="configStore.toggleTheme()" type="button" 
+                class="btn btn-ghost btn-circle btn-xs">
+                <SunIcon v-if="configStore.isDark" class="h-4 w-4" />
+                <MoonIcon v-else class="h-4 w-4" />
+            </button>
+            <button type="button" class="btn btn-ghost btn-circle btn-xs" @click="openSettings">
+                <Cog6ToothIcon class="h-4 w-4" />
+            </button>
+        </div>
 
         <!-- 账号菜单（弹出层） -->
         <!-- 自定义 hook 类名 gateway-menu：不用 daisyUI 的 dropdown-content，
              避免无 .dropdown 祖先时依赖其对 closed 态样式的实现细节 -->
-        <div v-if="isOpen" class="gateway-menu absolute z-50 w-64 rounded-2xl border border-base-300 bg-base-100 p-1 shadow-lg"
-            :class="openUpward ? 'bottom-full mb-1 left-3' : 'top-full mt-1 left-3'"
-            @click.stop>
+        <div v-if="isOpen"
+            class="gateway-menu absolute z-50 w-64 rounded-2xl border border-base-300 bg-base-100 p-1 shadow-lg"
+            :class="openUpward ? 'bottom-full mb-1 left-3' : 'top-full mt-1 left-3'" @click.stop>
             <!-- 当前网关详情头 -->
             <div class="flex items-center gap-2 px-3 py-2">
-                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold" :class="avatarClass">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+                    :class="avatarClass">
                     {{ avatarLetter }}
                 </span>
                 <span class="min-w-0 flex-1">
@@ -192,13 +208,16 @@ const handleExternalLink = () => {
                     <button type="button" role="menuitem" class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm"
                         :class="entry.id === configStore.activeGatewayId ? 'bg-base-300/60 font-semibold' : ''"
                         @click="switchTo(entry)">
-                        <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+                        <span
+                            class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
                             :class="entry.type === 'local' ? 'bg-primary/15 text-primary' : 'bg-base-300 text-base-content/70'">
                             {{ Array.from(entry.name)[0]?.toUpperCase() ?? '?' }}
                         </span>
                         <span class="min-w-0 flex-1 truncate text-left">{{ entry.name }}</span>
-                        <span class="shrink-0 text-xs text-base-content/40 truncate max-w-[6rem]">{{ entryHost(entry) }}</span>
-                        <CheckIcon v-if="entry.id === configStore.activeGatewayId" class="h-4 w-4 shrink-0 text-primary" />
+                        <span class="shrink-0 text-xs text-base-content/40 truncate max-w-[6rem]">{{ entryHost(entry)
+                            }}</span>
+                        <CheckIcon v-if="entry.id === configStore.activeGatewayId"
+                            class="h-4 w-4 shrink-0 text-primary" />
                     </button>
                 </li>
             </ul>
@@ -206,20 +225,14 @@ const handleExternalLink = () => {
             <div class="mx-2 my-1 border-t border-base-300"></div>
 
             <ul class="menu menu-compact w-full p-0" role="menu">
-      
+
                 <!-- 外部链接（原侧栏 Header 跳转按钮的归宿）：设置里配了地址才显示。
                      button + JS 触发锚点（handleExternalLink），导航本身仍是原生 <a target="_blank"> -->
                 <li v-if="configStore.externalUrl" role="none">
-                    <button type="button" role="menuitem" class="rounded-xl px-3 py-2 text-sm" @click="handleExternalLink">
+                    <button type="button" role="menuitem" class="rounded-xl px-3 py-2 text-sm"
+                        @click="handleExternalLink">
                         <ArrowTopRightOnSquareIcon class="h-4 w-4" />
                         {{ t('gateway.externalLink') }}
-                    </button>
-                </li>
-                <!-- 设置 -->
-                <li role="none">
-                    <button type="button" role="menuitem" class="rounded-xl px-3 py-2 text-sm" @click="openSettings">
-                        <Cog6ToothIcon class="h-4 w-4" />
-                        {{ t('gateway.settings') }}
                     </button>
                 </li>
             </ul>
