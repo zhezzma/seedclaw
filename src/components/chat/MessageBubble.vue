@@ -297,9 +297,9 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
         <!-- User Message Bubble -->
         <!-- pending（排队中）气泡：半透明标识未落盘状态，转正后恢复 -->
         <div v-if="message.role === 'user'"
-            class="max-w-full md:max-w-[90%] chat-bubble bg-primary/10 text-base-content relative transition-opacity duration-200"
+            class="max-w-full md:max-w-[90%] chat-bubble bg-primary/10 text-base-content relative transition-opacity duration-200 px-2"
             :class="message.pending ? 'opacity-70' : ''">
-            <div class="whitespace-normal flex flex-col gap-2 my-2">
+            <div class="whitespace-normal flex flex-col gap-2  ">
                 <!-- Edit mode: textarea shown above invisible original content -->
                 <textarea v-if="isEditing" v-model="editText" rows="4"
                     class="textarea textarea-bordered w-full bg-base-100 text-base-content text-sm resize-y min-h-[80px]"
@@ -472,8 +472,8 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
         <!-- 极简风：AI 气泡用 primary(白)5% tint——比页面背景微亮一档的软气泡，
              避免用 chat-bubble 默认的 base-300 底色(亮灰大卡片，与内部思考块/工具行叠灰阶补丁)。
              用户消息 10% tint、AI 5%，主次分明；尾巴(::before)随 background-color:inherit 同色 -->
-        <div v-else class="max-w-full md:max-w-[90%] w-full chat-bubble relative">
-            <div class="whitespace-normal flex flex-col gap-2 my-2">
+        <div v-else class="max-w-full md:max-w-[90%] w-full chat-bubble relative px-2">
+            <div class="whitespace-normal flex flex-col gap-2 ">
                 <!-- Loading indicator if empty or just waiting -->
                 <div v-if="isLoading && (!message.blocks.length || (message.blocks.length === 1 && message.blocks[0].type === 'text' && !message.blocks[0].text))"
                     class="loading loading-dots loading-sm opacity-50 "></div>
