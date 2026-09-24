@@ -581,18 +581,18 @@ const handleNavClick = (item: any) => {
                 <template v-for="session in sessionListItems" :key="session.key">
                     <!-- 分组头：agent 名（仅分组模式），点击展开/收起该组会话 -->
                     <div v-if="session.kind === 'group'" role="button" tabindex="0"
-                        class="flex items-center gap-2 mt-2.5 mb-1 px-2 py-1 rounded-lg bg-base-300 text-sm font-semibold text-base-content/80 cursor-pointer select-none transition-colors"
+                        class="flex items-center gap-2 mt-2.5 mb-1 px-2 py-1  cursor-pointer select-none transition-colors"
                         :title="session.label" :aria-expanded="!isGroupCollapsed(session.groupKey)"
                         @click="toggleGroup(session.groupKey)"
                         @keydown.enter.prevent="toggleGroup(session.groupKey)"
                         @keydown.space.prevent="toggleGroup(session.groupKey)">
                         <component :is="isGroupCollapsed(session.groupKey) ? FolderIcon : FolderOpenIcon"
                             class="h-4 w-4 shrink-0" aria-hidden="true" />
-                        <span class="truncate flex-1">{{ session.label }}</span>
+                        <span class="truncate flex-1 font-semibold text-sm  hover:text-base-content " :class="isGroupCollapsed(session.groupKey) ? 'text-base-content/90' : 'text-base-content/50'">{{ session.label }}</span>
                         <!-- 为该 agent 新建对话：未分组（无 agentId）不显示；
                              click/keydown 阻止冒泡，避免顺带触发展开/收起 -->
                         <button v-if="session.groupKey" type="button"
-                            class="btn btn-ghost btn-circle btn-xs shrink-0 text-base-content/50 hover:text-primary hover:bg-base-100/70"
+                            class="btn btn-ghost btn-circle btn-xs shrink-0 "
                             :title="$t('sidebar.newChatForAgent')" :aria-label="$t('sidebar.newChatForAgent')"
                             @click.stop="createSessionForAgent(session.groupKey)"
                             @keydown.stop>
@@ -603,8 +603,8 @@ const handleNavClick = (item: any) => {
                         @contextmenu.prevent="openSessionContextMenu(session.key)"
                         class="flex items-center gap-2 px-3 py-1 rounded-xl cursor-pointer transition-colors group"
                         :class="activeSessionKey === session.key
-                            ? 'bg-base-300/80  '
-                            : 'hover:bg-base-300/80'">
+                            ? 'bg-base-300  '
+                            : 'hover:bg-base-300'">
                         <template v-if="session.pinned">
                             <span class="h-4 w-4 shrink-0 inline-flex items-center justify-center" :title="$t('sidebar.pin')" aria-hidden="true">📌</span>
                             <span class="sr-only">{{ $t('sidebar.pin') }}</span>

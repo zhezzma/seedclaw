@@ -22,9 +22,9 @@
 @plugin "daisyui/theme" {
     name: "dark";
     color-scheme: dark; /* 同名覆盖不会继承此字段，缺省会掉回 normal（深色下滚动条/原生控件变浅色） */
-    --color-base-100: oklch(14% 0 0); /* 主背景：最暗端（≈#101010） */
-    --color-base-200: oklch(22% 0 0); /* 侧栏/面板/代码块：比主背景亮一档（≈#161616） */
-    --color-base-300: oklch(30% 0 0); /* 边框/hover：最亮端（≈#1c1c1c），边框比背景浅 */
+    --color-base-100: oklch(15% 0 0); /* 主背景：最暗端（≈#101010） */
+    --color-base-200: oklch(20% 0 0); /* 侧栏/面板/代码块：比主背景亮一档（≈#161616） */
+    --color-base-300: oklch(25% 0 0); /* 边框/hover：最亮端（≈#1c1c1c），边框比背景浅 */
     --color-base-content: oklch(93% 0 0);
     --color-neutral: oklch(26% 0 0);
     --color-primary: oklch(93% 0.004 80); /* 白：按钮/链接/选中态/用户气泡 tint */
