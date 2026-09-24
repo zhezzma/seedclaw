@@ -53,7 +53,7 @@ async function doRebind() {
 <template>
     <div :class="{ modal: true, 'modal-open': show }">
         <div class="modal-box max-w-lg bg-base-100 rounded-2xl p-0 overflow-hidden flex flex-col">
-            <div class="px-5 py-4 border-b border-base-200 flex items-center justify-between">
+            <div class="px-5 py-4 border-b border-base-300 flex items-center justify-between">
                 <div class="flex items-center gap-2 font-semibold">
                     <FolderOpenIcon class="w-5 h-5 text-primary" />
                     {{ t('workspaceBinding.rebindTitle') }}
@@ -67,7 +67,7 @@ async function doRebind() {
                 <WorkspacePathField v-model="path" :agent-id="agentId" @validated="onValidated" />
             </div>
 
-            <div class="px-5 py-4 border-t border-base-200 flex justify-end gap-2">
+            <div class="px-5 py-4 border-t border-base-300 flex justify-end gap-2">
                 <button class="btn btn-ghost btn-sm" @click="emit('close')">{{ t('common.cancel') }}</button>
                 <button class="btn btn-primary btn-sm" :disabled="isBusy || !lastResult"
                     @click="doRebind">{{ t('workspaceBinding.rebindAction') }}</button>

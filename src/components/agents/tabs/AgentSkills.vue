@@ -176,7 +176,7 @@ const openSkillDoc = async (skill: any, type: 'agent' | 'system' | 'global') => 
             </div>
 
             <div v-else-if="!agentSkills.length"
-                class="text-center p-8 border-2 border-dashed border-base-200 rounded-lg">
+                class="text-center p-8 border-2 border-dashed border-base-300 rounded-lg">
                 <CubeTransparentIcon class="w-10 h-10 mx-auto mb-2 text-base-content/30" />
                 <p class="text-base-content/50">{{ $t('skills.noAgentSkills') }}</p>
                 <p class="text-xs text-base-content/40 mt-1">{{ $t('skills.installFromStore') }}</p>
@@ -184,7 +184,7 @@ const openSkillDoc = async (skill: any, type: 'agent' | 'system' | 'global') => 
 
             <div v-else class="grid grid-cols-1 gap-3">
                 <div v-for="skill in agentSkills" :key="skill.id"
-                    class="card bg-base-100 border border-base-200 shadow-sm">
+                    class="card bg-base-200 border border-base-300 shadow-sm">
                     <div class="card-body p-4 flex-row items-center justify-between gap-4">
                         <div class="flex items-center gap-3 overflow-hidden">
                             <div
@@ -240,13 +240,13 @@ const openSkillDoc = async (skill: any, type: 'agent' | 'system' | 'global') => 
                 <span class="badge badge-ghost badge-sm font-normal normal-case">{{ systemSkills.length }}</span>
             </h3>
 
-            <div v-if="!systemSkills.length" class="text-center p-8 border-2 border-dashed border-base-200 rounded-lg">
+            <div v-if="!systemSkills.length" class="text-center p-8 border-2 border-dashed border-base-300 rounded-lg">
                 <p class="text-base-content/50">{{ $t('skills.noSystemSkills') }}</p>
             </div>
 
             <div v-else class="grid grid-cols-1 gap-3">
                 <div v-for="skill in systemSkills" :key="skill.id"
-                    class="card bg-base-100 border border-base-200 shadow-sm opacity-90 hover:opacity-100 transition-opacity">
+                    class="card bg-base-200 border border-base-300 shadow-sm opacity-90 hover:opacity-100 transition-opacity">
                     <div class="card-body p-4 flex-row items-center justify-between gap-4">
                         <div class="flex items-center gap-3 overflow-hidden">
                             <div
@@ -292,13 +292,13 @@ const openSkillDoc = async (skill: any, type: 'agent' | 'system' | 'global') => 
                 <span class="badge badge-ghost badge-sm font-normal normal-case">{{ globalSkills.length }}</span>
             </h3>
 
-            <div v-if="!globalSkills.length" class="text-center p-8 border-2 border-dashed border-base-200 rounded-lg">
+            <div v-if="!globalSkills.length" class="text-center p-8 border-2 border-dashed border-base-300 rounded-lg">
                 <p class="text-base-content/50">{{ $t('skills.noGlobalSkills') }}</p>
             </div>
 
             <div v-else class="grid grid-cols-1 gap-3">
                 <div v-for="skill in globalSkills" :key="skill.id"
-                    class="card bg-base-100 border border-base-200 shadow-sm opacity-75 hover:opacity-100 transition-opacity">
+                    class="card bg-base-200 border border-base-300 shadow-sm opacity-75 hover:opacity-100 transition-opacity">
                     <div class="card-body p-4 flex-row items-center justify-between gap-4">
                         <div class="flex items-center gap-3 overflow-hidden">
                             <div
@@ -347,7 +347,7 @@ const openSkillDoc = async (skill: any, type: 'agent' | 'system' | 'global') => 
         <!-- Skill Doc Modal -->
         <dialog id="skill_doc_modal" class="modal">
             <div class="modal-box w-11/12 max-w-4xl bg-base-100 p-0 overflow-hidden flex flex-col h-[80vh]">
-                <div class="p-4 border-b border-base-200 flex justify-between items-center bg-base-200/50">
+                <div class="p-4 border-b border-base-300 flex justify-between items-center bg-base-200/50">
                     <h3 class="font-bold text-lg flex items-center gap-2">
                         <DocumentTextIcon class="w-5 h-5 text-primary" />
                         {{ currentSkillDocTitle }}
@@ -362,7 +362,7 @@ const openSkillDoc = async (skill: any, type: 'agent' | 'system' | 'global') => 
                     </div>
                     <div v-else class="prose prose-sm max-w-none">
                         <pre
-                            class="whitespace-pre-wrap font-mono text-sm bg-base-200/30 p-4 rounded-lg border border-base-200">{{ currentSkillDocContent }}</pre>
+                            class="whitespace-pre-wrap font-mono text-sm bg-base-200/30 p-4 rounded-lg border border-base-300">{{ currentSkillDocContent }}</pre>
                     </div>
                 </div>
             </div>

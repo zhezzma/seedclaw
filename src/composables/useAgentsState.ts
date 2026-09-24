@@ -8,6 +8,8 @@ export interface CompactionSettings {
     enabled?: boolean;
     reserveTokens?: number;
     keepRecentTokens?: number;
+    /** 按模型覆盖 reserveTokens/keepRecentTokens（pi 0.87.1+，键为 provider/model 或 model id） */
+    modelOverrides?: Record<string, { reserveTokens?: number; keepRecentTokens?: number }>;
 }
 
 export interface BranchSummarySettings {
@@ -19,8 +21,24 @@ export interface RetrySettings {
     enabled?: boolean;
     maxRetries?: number;
     baseDelayMs?: number;
-    maxDelayMs?: number;
+    /** agent 级重试退避上限（pi 默认 60000ms） */
+    maxAgentDelayMs?: number;
+    /** provider 级请求设置（作用于每个 LLM 请求） */
+    provider?: {
+        timeoutMs?: number;
+        maxRetries?: number;
+        maxRetryDelayMs?: number;
+    };
 }
+
+export interface ThinkingBudgetsSettings {
+    minimal?: number;
+    low?: number;
+    medium?: number;
+    high?: number;
+}
+
+export type CacheWarmingMode = 'off' | 'streaming' | 'idle'
 
 export interface AgentInfo {
     id: string
@@ -39,6 +57,9 @@ export interface AgentInfo {
     compaction?: boolean | CompactionSettings
     branchSummary?: boolean | BranchSummarySettings
     retry?: number | RetrySettings
+    thinkingBudgets?: ThinkingBudgetsSettings
+    /** 未配置时 upstream 默认 streaming */
+    cacheWarming?: CacheWarmingMode
     hideThinkingBlock?: boolean
     heartbeat?: {
         every?: string

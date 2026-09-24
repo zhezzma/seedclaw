@@ -304,7 +304,7 @@ function openTrace(subId?: string) {
         <!-- Subagent Progress (visible even when collapsed) -->
         <div v-if="isSubagentTool && state === 'calling' && subagentResults.length > 0" class="px-3 py-2 pt-0">
             <div v-for="(r, idx) in subagentResults" :key="idx"
-                class="flex items-center gap-2 py-1" :class="{ 'border-t border-base-200 mt-1 pt-1': Number(idx) > 0 }">
+                class="flex items-center gap-2 py-1" :class="{ 'border-t border-base-300 mt-1 pt-1': Number(idx) > 0 }">
                 <!-- Status icon -->
                 <span class="text-sm flex-none">{{ getStatusIcon(r.status) }}</span>
                 <!-- Agent name（min-w-0 + break-all：长名收缩换行，保住右侧状态/耗时/轨迹入口） -->

@@ -177,9 +177,9 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="flex flex-col h-full bg-base-200/50">
+    <div class="flex flex-col h-full ">
         <!-- Header -->
-        <ViewHeader :title="$t('log.title')" class="bg-base-100 border-b border-base-200 shadow-sm z-10">
+        <ViewHeader :title="$t('log.title')">
             <template #actions>
                 <div class="flex items-center gap-2">
                     <!-- Auto-refresh toggle -->
@@ -205,14 +205,14 @@ onUnmounted(() => {
         </ViewHeader>
 
         <!-- Toolbar -->
-        <div class="shrink-0 bg-base-100 border-b border-base-200 p-4 shadow-sm z-0">
+        <div class="px-6 pt-2 pb-0  z-0">
             <div class="flex flex-row gap-2 items-center">
                 <!-- Search -->
                 <div class="flex-1 relative group min-w-0">
                     <MagnifyingGlassIcon
                         class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/40 group-focus-within:text-primary transition-colors" />
                     <input type="text" v-model="searchQuery" :placeholder="$t('log.searchPlaceholder')"
-                        class="input input-bordered input-sm w-full pl-9 bg-base-200/50 focus:bg-base-100 focus:border-primary transition-all" />
+                        class="input input-bordered input-sm w-full pl-9 bg-base-200/50 focus:bg-base-200 focus:border-primary transition-all" />
                 </div>
 
                 <!-- Filters Group -->
@@ -251,8 +251,8 @@ onUnmounted(() => {
 
                 <!-- Empty state -->
                 <div v-else-if="!filteredLogs.length && !logsState.logsLoading"
-                    class="flex flex-col items-center justify-center py-20 text-base-content/40 bg-base-100 rounded-2xl border border-base-200 border-dashed">
-                    <div class="bg-base-200 p-4 rounded-full mb-4">
+                    class="flex flex-col items-center justify-center py-20 text-base-content/40 bg-base-200 rounded-2xl border border-base-300 border-dashed">
+                    <div class="bg-base-300 p-4 rounded-full mb-4">
                         <InformationCircleIcon class="w-8 h-8 opacity-50" />
                     </div>
                     <p class="text-lg font-medium">{{ $t('log.noLogs') }}</p>
@@ -261,11 +261,11 @@ onUnmounted(() => {
 
                 <!-- Log Table -->
                 <div v-else
-                    class="bg-base-100 rounded-xl shadow-sm border border-base-200 overflow-hidden flex flex-col h-full">
+                    class="bg-base-200 rounded-xl shadow-sm border border-base-300 overflow-hidden flex flex-col h-full">
                     <div class="overflow-x-auto w-full">
                         <!-- table-fixed：列宽固定，消息列占剩余空间自动换行，杜绝横向滚动条 -->
                         <table class="table table-sm w-full table-fixed [&_th]:py-2.5 [&_td]:py-2.5">
-                            <thead class="bg-base-200/50 text-base-content/70">
+                            <thead class="bg-base-300/50 text-base-content/70">
                                 <tr>
                                     <th class="w-24 sm:w-40 pl-4 sm:pl-6 font-semibold">{{ $t('common.time') }}</th>
                                     <th class="hidden md:table-cell w-24 text-center font-semibold">{{ $t('log.level') }}</th>
@@ -275,7 +275,7 @@ onUnmounted(() => {
                             </thead>
                             <tbody class="text-sm">
                                 <tr v-for="(log, index) in filteredLogs" :key="index"
-                                    class="group hover:bg-base-200/40 transition-colors border-b border-base-100 last:border-0">
+                                    class="group hover:bg-base-300/40 last:border-0">
                                     <td
                                         class="pl-4 sm:pl-6 whitespace-nowrap font-mono text-xs opacity-60 group-hover:opacity-100 transition-opacity truncate">
                                         {{ formatTime(log.timestamp) }}
@@ -301,10 +301,10 @@ onUnmounted(() => {
                                                 <InformationCircleIcon class="w-5 h-5" />
                                             </div>
                                             <div tabindex="0"
-                                                class="dropdown-content z-[50] card card-compact w-80 p-0 shadow-xl bg-base-100 text-base-content border border-base-200 backdrop-blur-md">
+                                                class="dropdown-content z-[50] card card-compact w-80 p-0 shadow-xl bg-base-100 text-base-content border border-base-300 backdrop-blur-md">
                                                 <div class="card-body gap-0 p-0">
                                                     <div
-                                                        class="px-4 py-2 bg-base-200/50 border-b border-base-200 font-bold text-xs uppercase tracking-wider text-base-content/60">
+                                                        class="px-4 py-2 bg-base-200/50 border-b border-base-300 font-bold text-xs uppercase tracking-wider text-base-content/60">
                                                         {{ $t('log.metadata') }}
                                                     </div>
                                                     <div class="p-2 max-h-60 overflow-y-auto custom-scrollbar">
@@ -331,7 +331,7 @@ onUnmounted(() => {
 
                 <!-- Pagination -->
                 <div
-                    class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-4 bg-base-100 py-1 px-3 rounded-xl border border-base-200 shadow-sm">
+                    class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-4 bg-base-200 py-1 px-3 rounded-xl border border-base-300 shadow-sm">
                     <span class="text-xs font-medium text-base-content/60 order-2 sm:order-1">
                         {{ $t('log.page') }} <span class="font-bold text-base-content">{{ logsState.page }}</span> {{
                             $t('log.of') }} <span class="font-bold text-base-content">{{ logsState.totalPages }}</span>
@@ -340,13 +340,13 @@ onUnmounted(() => {
                             $t('log.entries') }}
                     </span>
 
-                    <div class="join bg-base-200/50 p-1 rounded-lg order-1 sm:order-2">
+                    <div class="join bg-base-300/50 p-1 rounded-lg order-1 sm:order-2">
                         <button class="join-item btn btn-sm btn-ghost hover:bg-base-100 hover:shadow-sm transition-all"
                             @click="logsState.prevPage()" :disabled="logsState.page <= 1">
                             « {{ $t('common.prev') }}
                         </button>
                         <button
-                            class="join-item btn btn-sm bg-base-100 shadow-sm border border-base-200 px-4 min-w-[3rem] pointer-events-none">
+                            class="join-item btn btn-sm bg-base-100 shadow-sm border border-base-300 px-4 min-w-[3rem] pointer-events-none">
                             {{ logsState.page }}
                         </button>
                         <button class="join-item btn btn-sm btn-ghost hover:bg-base-100 hover:shadow-sm transition-all"

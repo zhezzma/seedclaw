@@ -315,7 +315,7 @@ const submitForm = async () => {
             class="modal-box w-full md:w-11/12 max-w-4xl p-0 bg-base-100 overflow-hidden shadow-2xl rounded-2xl md:h-auto h-full max-h-full md:max-h-[90vh] flex flex-col">
             <!-- Header -->
             <div
-                class="px-6 py-4 border-b border-base-200 flex items-center justify-between bg-base-100/50 backdrop-blur-sm sticky top-0 z-20 shrink-0">
+                class="px-6 py-4 border-b border-base-300 flex items-center justify-between bg-base-100/50 backdrop-blur-sm sticky top-0 z-20 shrink-0">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
                         <SparklesIcon class="w-6 h-6" />
@@ -365,7 +365,7 @@ const submitForm = async () => {
                         </div>
 
                         <!-- Identity Card (Grouped, Single Column Layout) -->
-                        <div class="w-full card bg-base-200/50 border border-base-200 p-4 space-y-4">
+                        <div class="w-full card bg-base-200/50 border border-base-300 p-4 space-y-4">
                             <div
                                 class="flex items-center gap-2 text-xs font-bold text-base-content/40 uppercase tracking-widest pl-1 mb-1">
                                 <IdentificationIcon class="w-3 h-3" />
@@ -503,7 +503,7 @@ const submitForm = async () => {
 
 
                         <!-- Technical Settings -->
-                        <div class="bg-base-200/40 rounded-xl p-5 border border-base-200/60">
+                        <div class="bg-base-200/40 rounded-xl p-5 border border-base-300">
                             <h4
                                 class="text-xs font-bold text-base-content/60 mb-4 uppercase tracking-wider flex items-center gap-2">
                                 <CpuChipIcon class="w-4 h-4" />
@@ -563,7 +563,7 @@ const submitForm = async () => {
 
             <!-- Footer -->
             <div
-                class="px-6 py-4 border-t border-base-200 flex justify-end gap-3 bg-base-100 sticky bottom-0 z-20 shrink-0">
+                class="px-6 py-4 border-t border-base-300 flex justify-end gap-3 bg-base-100 sticky bottom-0 z-20 shrink-0">
                 <button class="btn btn-ghost hover:bg-base-200" @click="handleClose">{{ t('common.cancel') }}</button>
                 <button class="btn btn-primary min-w-[120px] shadow-lg shadow-primary/20" @click="submitForm"
                     :disabled="!isFormValid || isBusy">
@@ -573,7 +573,7 @@ const submitForm = async () => {
             </div>
         </div>
 
-        <div class="modal-backdrop bg-base-300/80 backdrop-blur-sm" @click="handleClose">
+        <div class="modal-backdrop" @click="handleClose">
             <button class="cursor-default">close</button>
         </div>
     </div>

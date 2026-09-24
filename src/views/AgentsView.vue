@@ -74,7 +74,7 @@ watch(() => [agentsState.agentsList, route.query.agentId], ([agentsList, current
             Desktop (lg):
                 - Always Visible (w-80)
         -->
-        <div class="h-full bg-base-100/40 flex flex-col shrink-0" :class="[
+        <div class="h-full bg-base-200/40 flex flex-col shrink-0" :class="[
             selectedAgentId ? 'hidden lg:flex lg:w-80' : 'w-full lg:w-80 flex'
         ]">
             <AgentSidebar :agents="agentsState.agentsList || []" :selectedId="selectedAgentId ?? null"

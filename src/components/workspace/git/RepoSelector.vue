@@ -6,6 +6,7 @@
  * 点击下拉选择别的仓库，错误仓库灰色降级 + tooltip 显示原因。
  */
 import { ref, computed } from 'vue'
+import { onClickOutside } from '@vueuse/core'
 import {
     ChevronDownIcon, ExclamationTriangleIcon, CheckIcon,
 } from '@heroicons/vue/24/outline'
@@ -16,6 +17,9 @@ const emit = defineEmits<{ (e: 'select', repo: string): void }>()
 const git = useWorkspaceGit()
 
 const open = ref(false)
+const root = ref<HTMLElement | null>(null)
+// 点击下拉以外的任意区域自动收起（触发按钮在容器内，toggle 行为不受影响）
+onClickOutside(root, () => { open.value = false })
 const current = computed(() => {
     const found = git.repos.value.find(r => r.path === props.selectedRepo)
     if (found || !props.selectedRepo) return found ?? null
@@ -33,8 +37,8 @@ function onPick(repo: string) {
 </script>
 
 <template>
-    <div class="relative px-2 py-2 border-b border-base-200 bg-base-100 sticky top-0 z-10">
-        <button class="flex items-center gap-2 w-full text-left text-sm hover:bg-base-200 rounded px-2 py-1"
+    <div ref="root" class="relative   bg-base-300 sticky  top-0 z-10">
+        <button class="flex items-center gap-2 w-full text-left text-sm  cursor-pointer  rounded p-2  "
             :title="current?.path" @click="open = !open">
             <span class="font-mono text-xs">⎇</span>
             <span class="font-medium truncate flex-1">
@@ -50,10 +54,10 @@ function onPick(repo: string) {
         </button>
 
         <div v-if="open"
-            class="absolute left-2 right-2 mt-1 bg-base-100 border border-base-200 rounded-lg shadow-lg max-h-64 overflow-y-auto z-20">
+            class="absolute left-0 right-0 bg-base-300  rounded-b-lg shadow-lg max-h-64 overflow-y-auto z-20">
             <button v-for="repo in git.repos.value" :key="repo.path"
-                class="flex items-center gap-2 w-full text-left text-sm hover:bg-base-200 px-3 py-1.5"
-                :class="{ 'bg-base-200': props.selectedRepo === repo.path }" @click="onPick(repo.path)">
+                class="flex items-center gap-2 w-full text-left text-sm hover:bg-base-200/50 px-3 py-1.5  border-t border-base-200/50"
+                :class="{ 'bg-base-200/50': props.selectedRepo === repo.path }" @click="onPick(repo.path)">
                 <ExclamationTriangleIcon v-if="repo.error" class="h-3.5 w-3.5 text-warning shrink-0" :title="repo.error" />
                 <span v-else class="font-mono text-xs">⎇</span>
                 <span class="truncate flex-1" :class="repo.error ? 'text-base-content/40' : ''">{{ repo.name }}</span>

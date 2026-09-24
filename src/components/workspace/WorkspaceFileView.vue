@@ -418,7 +418,7 @@ defineExpose({
         <div class="relative flex-1 min-h-0">
             <!-- 图片：独占容器，居中、等比缩放 -->
             <div v-if="isImage && imageObjectUrl"
-                class="absolute inset-0 flex items-center justify-center overflow-auto bg-base-200/40 p-4">
+                class="absolute inset-0 flex items-center justify-center overflow-auto p-4">
                 <img :src="imageObjectUrl" :alt="path"
                     class="max-w-full max-h-full object-contain" />
             </div>

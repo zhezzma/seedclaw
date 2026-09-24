@@ -857,10 +857,10 @@ async function applyDefaultSessionBehavior() {
 <template>
     <div class="h-full w-full flex">
         <!-- Sidebar drawer (Mobile) -->
-        <div class="drawer lg:hidden absolute inset-0 pointer-events-none z-[100]">
+        <div class="drawer lg:hidden absolute inset-0 pointer-events-none z-100">
             <input id="sidebar-drawer" type="checkbox" class="drawer-toggle pointer-events-auto" />
             <div class="drawer-side pointer-events-auto h-full">
-                <label for="sidebar-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
+                <label for="sidebar-drawer" aria-label="close sidebar" class="drawer-overlay app-backdrop"></label>
                 <div class="w-80 h-full bg-base-200">
                     <AppSidebar />
                 </div>
@@ -923,7 +923,7 @@ async function applyDefaultSessionBehavior() {
                                                     class="h-4 w-4" />
                                             </a>
                                         </li>
-                                        <li class="mt-1 border-t border-base-300/60 pt-1">
+                                        <li class="mt-1 border-t border-base-300 pt-1">
                                             <a @click="showAgentFormModal = true"
                                                 class="flex items-center gap-2 text-base-content/80">
                                                 <FolderOpenIcon class="h-4 w-4 opacity-70" />
@@ -1000,7 +1000,7 @@ async function applyDefaultSessionBehavior() {
                 :checked="wsPanel.isOpen.value"
                 @change="(e: Event) => (e.target as HTMLInputElement).checked ? wsPanel.open() : wsPanel.close()" />
             <div class="drawer-side pointer-events-auto h-full">
-                <label for="workspace-drawer" :aria-label="$t('common.close')" class="drawer-overlay"></label>
+                <label for="workspace-drawer" :aria-label="$t('common.close')" class="drawer-overlay app-backdrop"></label>
                 <div class="h-full bg-base-100" style="width: min(85vw, 400px)">
                     <WorkspacePanel v-if="mobilePanelMounted" :agent-id="chatState.agentsSelectedId || ''" :mobile="true" />
                 </div>

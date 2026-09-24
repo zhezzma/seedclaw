@@ -83,7 +83,7 @@ const handleProviderSaved = (providerId: string) => {
 
                         <!-- Content -->
                         <div class="flex-1 flex items-center py-3 pr-4 border-b min-w-0 group-last:border-none "
-                            :class="selectedId === provider.id ? 'border-base-300/0 ' : 'border-base-300 '">
+                            :class="selectedId === provider.id ? 'border-none ' : 'border-base-300 '">
                             <div class="flex-1 min-w-0">
                                 <div class="font-bold text-[15px] text-base-content truncate">
                                     {{ provider.id }}

@@ -478,7 +478,7 @@ const disabledSkillsCountOf = (s: SubagentConfig) => s.skills?.disabledSkills?.l
         </div>
 
         <div v-else-if="subagents.length === 0"
-            class="flex flex-col items-center justify-center p-12 text-base-content/50 border-2 border-dashed border-base-200 rounded-2xl">
+            class="flex flex-col items-center justify-center p-12 text-base-content/50 border-2 border-dashed border-base-300 rounded-2xl">
             <UserGroupIcon class="w-12 h-12 mb-4 opacity-20" />
             <p>{{ $t('agent.subagents.noAgents') || 'No subagents configured yet' }}</p>
             <button class="btn btn-ghost btn-sm mt-4" @click="openAddModal">{{ $t('common.create') }}</button>
@@ -486,7 +486,7 @@ const disabledSkillsCountOf = (s: SubagentConfig) => s.skills?.disabledSkills?.l
 
         <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div v-for="agent in subagents" :key="agent.id"
-                class="card bg-base-100 border border-base-200 shadow-sm hover:shadow-md transition-all">
+                class="card bg-base-200 border border-base-300 shadow-sm hover:shadow-md transition-all">
                 <div class="card-body p-4">
                     <div class="flex justify-between items-start mb-2">
                         <h4 class="font-bold text-lg truncate flex-1" :title="agent.name">{{ agent.name }}</h4>
@@ -619,7 +619,7 @@ const disabledSkillsCountOf = (s: SubagentConfig) => s.skills?.disabledSkills?.l
                         <div v-if="modelDropdownOpen" ref="modelPanelRef" :style="modelDropdownStyle"
                             class="z-[200] bg-base-100 rounded-box border border-base-300 shadow-xl overflow-hidden flex flex-col">
                             <button type="button" @click="clearModelSelection"
-                                class="flex items-center gap-2 px-4 py-2 text-left text-xs hover:bg-base-200 transition-colors border-b border-base-200 shrink-0"
+                                class="flex items-center gap-2 px-4 py-2 text-left text-xs hover:bg-base-200 transition-colors border-b border-base-300 shrink-0"
                                 :class="{ 'bg-primary/10 text-primary': !selectedModelValue }">
                                 {{ $t('agent.form.modelPlaceholder') || 'Inherit Parent Model' }}
                             </button>
@@ -697,7 +697,7 @@ const disabledSkillsCountOf = (s: SubagentConfig) => s.skills?.disabledSkills?.l
 
                         <!-- Checkboxes when custom -->
                         <div v-if="formData.tools.type === 'custom'"
-                            class="bg-base-200/50 rounded-xl border border-base-200">
+                            class="bg-base-200/50 rounded-xl border border-base-300">
                             <div class="p-4 max-h-48 overflow-y-auto custom-scrollbar">
                                 <!-- 黑名单语义说明：实际存储为排除项（deniedTools），勾选 = 允许使用 -->
                                 <p class="text-xs text-base-content/50 mb-3">{{ $t('agent.tools.hint') }}</p>
@@ -707,7 +707,7 @@ const disabledSkillsCountOf = (s: SubagentConfig) => s.skills?.disabledSkills?.l
                                 </div>
                                 <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                     <label v-for="tool in availableTools" :key="tool.name"
-                                        class="label cursor-pointer justify-start gap-3 bg-base-100 p-2 rounded-lg border border-base-200 hover:border-primary/30 transition-colors">
+                                        class="label cursor-pointer justify-start gap-3 bg-base-100 p-2 rounded-lg border border-base-300 hover:border-primary/30 transition-colors">
                                         <input type="checkbox" class="checkbox checkbox-sm checkbox-primary"
                                             :checked="selectedTools.includes(tool.name)"
                                             @change="toggleToolSelection(tool.name)" />
@@ -763,7 +763,7 @@ const disabledSkillsCountOf = (s: SubagentConfig) => s.skills?.disabledSkills?.l
 
                         <!-- Checkboxes when custom -->
                         <div v-if="formData.skills.type === 'custom'"
-                            class="bg-base-200/50 rounded-xl border border-base-200">
+                            class="bg-base-200/50 rounded-xl border border-base-300">
                             <div class="p-4 max-h-48 overflow-y-auto custom-scrollbar">
                                 <!-- 黑名单语义说明：实际存储为排除项（disabledSkills），勾选 = 加载 -->
                                 <p class="text-xs text-base-content/50 mb-3">{{ $t('agent.skills.hint') }}</p>
@@ -773,7 +773,7 @@ const disabledSkillsCountOf = (s: SubagentConfig) => s.skills?.disabledSkills?.l
                                 </div>
                                 <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                     <label v-for="skill in availableSkills" :key="skill.id"
-                                        class="label cursor-pointer justify-start gap-3 bg-base-100 p-2 rounded-lg border border-base-200 hover:border-primary/30 transition-colors">
+                                        class="label cursor-pointer justify-start gap-3 bg-base-100 p-2 rounded-lg border border-base-300 hover:border-primary/30 transition-colors">
                                         <input type="checkbox" class="checkbox checkbox-sm checkbox-primary"
                                             :checked="selectedSkills.includes(skill.id)"
                                             @change="toggleSkillSelection(skill.id)" />
@@ -822,7 +822,7 @@ const disabledSkillsCountOf = (s: SubagentConfig) => s.skills?.disabledSkills?.l
                             <!-- 白名单语义说明：与 tools/skills 的黑名单（勾选 = 保留可用）相反 -->
                             <p class="text-xs text-base-content/50 mb-2">{{ $t('agent.subagents.extensionsHint') }}</p>
 
-                            <div class="bg-base-200/50 rounded-xl border border-base-200">
+                            <div class="bg-base-200/50 rounded-xl border border-base-300">
                                 <div class="p-4 max-h-48 overflow-y-auto custom-scrollbar">
                                     <div v-if="extensionOptions.length === 0"
                                         class="text-center text-sm text-base-content/50 py-2">
@@ -830,7 +830,7 @@ const disabledSkillsCountOf = (s: SubagentConfig) => s.skills?.disabledSkills?.l
                                     </div>
                                     <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                         <label v-for="ext in extensionOptions" :key="ext.id"
-                                            class="label cursor-pointer justify-start gap-3 bg-base-100 p-2 rounded-lg border border-base-200 hover:border-primary/30 transition-colors">
+                                            class="label cursor-pointer justify-start gap-3 bg-base-100 p-2 rounded-lg border border-base-300 hover:border-primary/30 transition-colors">
                                             <input type="checkbox" class="checkbox checkbox-sm checkbox-primary"
                                                 :checked="selectedExtensions.includes(ext.id)"
                                                 @change="toggleExtensionSelection(ext.id)" />

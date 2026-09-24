@@ -24,7 +24,6 @@ export function createMarkdownItInstance(options: MarkdownConfigOptions = {}): M
     }).disable('code') // disable('code')告诉 markdown-it 实例，让它忽略"缩进代码块"的解析规则。
 
     md.use(mdct, {
-        headerClass: "code-header-bg",
         svg: `<svg fill="none" viewBox="0 0 24 24" width="1em" height="1em" class="t-icon t-icon-copy" slot="icon"><path fill="currentColor" d="M2 2h13v5.5h-2V4H4v9h3.5v2H2V2zm7 7h13v13H9V9zm2 2v9h9v-9h-9z"></path></svg>`,
         onCopySuccess: options.onCopySuccess || (() => { }),
         onCopyError: () => { },

@@ -302,7 +302,7 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
             <div class="whitespace-normal flex flex-col gap-2  ">
                 <!-- Edit mode: textarea shown above invisible original content -->
                 <textarea v-if="isEditing" v-model="editText" rows="4"
-                    class="textarea textarea-bordered w-full bg-base-100 text-base-content text-sm resize-y min-h-[80px]"
+                    class="textarea textarea-bordered w-full bg-base-200 text-base-content text-sm resize-y min-h-[80px]"
                     @keydown.ctrl.enter="submitEdit" />
                 <!-- Original content: visible normally, invisible (but still in layout) when editing to preserve width -->
                 <div :class="{ 'invisible h-0 overflow-hidden': isEditing }">
@@ -313,7 +313,7 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
                         <!-- A2UI Action Block（用户对交互面板的操作记录） -->
                         <div v-else-if="block.type === 'a2ui-action'" class="my-1 min-w-[240px] max-w-sm">
                             <div
-                                class="collapse collapse-arrow border border-base-content/10 bg-base-100/50 backdrop-blur-sm shadow-sm rounded-lg">
+                                class="collapse collapse-arrow border border-base-content/10 bg-base-200/50 backdrop-blur-sm shadow-sm rounded-lg">
                                 <input type="checkbox" />
                                 <div class="collapse-title p-2 min-h-0 flex items-center gap-2">
                                     <span class="text-lg opacity-80">⚡</span>
@@ -330,7 +330,7 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
                                         class="text-[10px] font-semibold text-base-content/40 uppercase tracking-wider mb-1 mt-1">
                                         {{ $t('chat.a2uiActionRaw') }}</div>
                                     <pre
-                                        class="text-[11px] leading-tight bg-base-200/50 p-2 rounded overflow-x-auto text-base-content/60 whitespace-pre-wrap max-h-60 overflow-y-auto">{{ JSON.stringify(block.a2uiPayload, null, 2) }}</pre>
+                                        class="text-[11px] leading-tight bg-base-300/50 p-2 rounded overflow-x-auto text-base-content/60 whitespace-pre-wrap max-h-60 overflow-y-auto">{{ JSON.stringify(block.a2uiPayload, null, 2) }}</pre>
                                 </div>
                             </div>
                         </div>
@@ -410,7 +410,7 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
             <!-- Normal mode: show action buttons -->
             <template v-else>
                 <button @click="emit('copy', message)"
-                    class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-primary hover:bg-base-200"
+                    class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-primary hover:bg-base-300"
                     :title="$t('common.copy')">
                     <ClipboardIcon class="h-4 w-4" />
                 </button>
@@ -453,7 +453,7 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
                      !isBusy 与 assistant 侧一致：run 期间两侧导航整体不渲染 -->
                 <div v-if="!isBusy && isBranchTail && branchInfo && branchInfo.siblings.length > 1" class="flex items-center gap-0.5 ml-1">
                     <button @click="emit('navigate-branch', message, 'prev')" :disabled="branchInfo.currentIndex <= 0"
-                        class="btn btn-ghost btn-xs btn-circle text-base-content/60 hover:text-primary hover:bg-base-200 disabled:opacity-30 disabled:cursor-not-allowed">
+                        class="btn btn-ghost btn-xs btn-circle text-base-content/60 hover:text-primary hover:bg-base-300 disabled:opacity-30 disabled:cursor-not-allowed">
                         <ChevronLeftIcon class="h-3.5 w-3.5" />
                     </button>
                     <span class="text-xs text-base-content/50 min-w-[2rem] text-center select-none">
@@ -461,7 +461,7 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
                     </span>
                     <button @click="emit('navigate-branch', message, 'next')"
                         :disabled="branchInfo.currentIndex >= branchInfo.siblings.length - 1"
-                        class="btn btn-ghost btn-xs btn-circle text-base-content/60 hover:text-primary hover:bg-base-200 disabled:opacity-30 disabled:cursor-not-allowed">
+                        class="btn btn-ghost btn-xs btn-circle text-base-content/60 hover:text-primary hover:bg-base-300 disabled:opacity-30 disabled:cursor-not-allowed">
                         <ChevronRightIcon class="h-3.5 w-3.5" />
                     </button>
                 </div>
@@ -571,12 +571,12 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
         <!-- Assistant Actions (Fixed) -->
         <div v-if="message.role !== 'user'" class="chat-footer mt-1 flex items-center gap-1">
             <button @click="emit('copy', message)"
-                class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-primary hover:bg-base-200"
+                class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-primary hover:bg-base-300"
                 :title="$t('common.copy')">
                 <ClipboardIcon class="h-4 w-4" />
             </button>
             <button @click="emit('read-aloud', message)"
-                class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-primary hover:bg-base-200"
+                class="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:text-primary hover:bg-base-300"
                 :class="{ 'bg-green-100 text-green-600 hover:bg-green-200 hover:text-green-700': currentReadingMsgId === message.id }"
                 :title="$t('chat.readAloud')">
                 <template v-if="currentReadingMsgId === message.id">
@@ -618,7 +618,7 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
                  （服务端 409 兑底非 UI 路径） -->
             <div v-if="!isBusy && branchInfo && branchInfo.siblings.length > 1" class="flex items-center gap-0.5 ml-1">
                 <button @click="emit('navigate-branch', message, 'prev')" :disabled="branchInfo.currentIndex <= 0"
-                    class="btn btn-ghost btn-xs btn-circle text-base-content/60 hover:text-primary hover:bg-base-200 disabled:opacity-30 disabled:cursor-not-allowed">
+                    class="btn btn-ghost btn-xs btn-circle text-base-content/60 hover:text-primary hover:bg-base-300 disabled:opacity-30 disabled:cursor-not-allowed">
                     <ChevronLeftIcon class="h-3.5 w-3.5" />
                 </button>
                 <span class="text-xs text-base-content/50 min-w-[2rem] text-center select-none">
@@ -626,7 +626,7 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
                 </span>
                 <button @click="emit('navigate-branch', message, 'next')"
                     :disabled="branchInfo.currentIndex >= branchInfo.siblings.length - 1"
-                    class="btn btn-ghost btn-xs btn-circle text-base-content/60 hover:text-primary hover:bg-base-200 disabled:opacity-30 disabled:cursor-not-allowed">
+                    class="btn btn-ghost btn-xs btn-circle text-base-content/60 hover:text-primary hover:bg-base-300 disabled:opacity-30 disabled:cursor-not-allowed">
                     <ChevronRightIcon class="h-3.5 w-3.5" />
                 </button>
             </div>

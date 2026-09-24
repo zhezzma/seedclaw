@@ -60,9 +60,9 @@ const handleResolve = async (value: string | boolean) => {
 </script>
 
 <template>
-    <div v-if="currentRequest"
-        class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-        <div class="bg-base-100 rounded-lg shadow-xl p-6 w-full max-w-lg border border-base-200">
+    <dialog v-if="currentRequest" class="modal modal-open z-[9999]">
+        <div class="modal-backdrop"></div>
+        <div class="row-start-1 col-start-1 bg-base-100 rounded-lg shadow-xl p-6 w-full max-w-lg border border-base-300">
             <div class="mb-4">
                 <h3 class="text-lg font-bold">{{ currentRequest.title || $t('execApproval.title') }}</h3>
                 <p class="text-sm text-base-content/60">{{ timeLeft }}</p>
@@ -70,7 +70,7 @@ const handleResolve = async (value: string | boolean) => {
 
             <!-- Message / Command Display -->
             <div v-if="currentRequest.message"
-                class="bg-base-200/50 p-4 rounded-md font-mono text-sm break-all mb-6 border border-base-200 whitespace-pre-wrap max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-base-300 scrollbar-track-transparent">
+                class="bg-base-200/50 p-4 rounded-md font-mono text-sm break-all mb-6 border border-base-300 whitespace-pre-wrap max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-base-300 scrollbar-track-transparent">
                 {{ currentRequest.message }}
             </div>
 
@@ -109,5 +109,5 @@ const handleResolve = async (value: string | boolean) => {
                 </template>
             </div>
         </div>
-    </div>
+    </dialog>
 </template>

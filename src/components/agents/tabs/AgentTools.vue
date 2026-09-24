@@ -65,12 +65,12 @@ const getTooltipTip = (tool: any) => {
 
         <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 p-1">
             <div v-for="tool in tools" :key="tool.name"
-                class="card bg-base-100 border border-base-200 shadow-sm hover:shadow-md transition-all h-full tooltip tooltip-top"
+                class="card bg-base-200 border border-base-300 shadow-sm hover:shadow-md transition-all h-full tooltip tooltip-top"
                 :data-tip="getTooltipTip(tool)">
                 <div class="card-body p-4 flex flex-col items-center text-center gap-2">
                     <!-- Icon -->
                     <div class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 mb-1 transition-colors"
-                        :class="tool.denied ? 'bg-base-200 text-base-content/30' : 'bg-primary/10 text-primary'">
+                        :class="tool.denied ? 'bg-base-300 text-base-content/30' : 'bg-primary/10 text-primary'">
                         <CommandLineIcon class="w-6 h-6" />
                     </div>
 
@@ -87,7 +87,7 @@ const getTooltipTip = (tool: any) => {
                     </div>
 
                     <!-- Action -->
-                    <div class="card-actions w-full justify-center mt-2 pt-2 border-t border-base-100">
+                    <div class="card-actions w-full justify-center mt-2 pt-2 border-t border-base-300">
                         <label class="label cursor-pointer gap-2 p-0">
                             <span class="label-text text-xs text-base-content/40 font-mono">{{ tool.denied ? 'OFF' :
                                 'ON' }}</span>

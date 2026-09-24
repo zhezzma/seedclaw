@@ -137,7 +137,7 @@ function onNewAgentDir() {
     <div class="flex flex-col h-full text-sm">
         <!-- Workspace section header：左侧标题 + 右侧 + 文件 / + 目录。
              视觉与底部 CollapsibleSection 的 header 一致，让两块感觉成对。 -->
-        <div class="flex items-stretch bg-base-200/50 border-b border-base-200 shrink-0">
+        <div class="flex items-stretch bg-base-300/50 border-b border-base-300 shrink-0">
             <div
                 class="flex-1 flex items-center gap-1 px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/70 select-none">
                 <span class="flex-1 text-left truncate">{{ $t('workspace.workspace') }}</span>

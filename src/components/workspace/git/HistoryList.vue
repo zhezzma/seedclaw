@@ -94,7 +94,7 @@ function relativeTime(iso: string): string {
         </div>
         <template v-else>
             <div v-for="commit in git.commits.value" :key="commit.sha">
-                <button class="flex items-center gap-2 w-full text-left px-2 py-1 hover:bg-base-200"
+                <button class="flex items-center gap-2 w-full text-left px-2 py-1 hover:bg-base-300"
                     :title="commit.subject" @click="toggleCommit(commit.sha)"
                     @contextmenu="onCommitContextMenu($event, commit)">
                     <ChevronDownIcon v-if="git.commitExpanded.value[commit.sha]" class="h-3 w-3 shrink-0" />
@@ -109,7 +109,7 @@ function relativeTime(iso: string): string {
                         <span class="loading loading-spinner loading-xs" />
                     </div>
                     <button v-for="f in git.commitFiles.value[commit.sha] || []" :key="f.path"
-                        class="flex items-center gap-2 w-full text-left px-2 py-0.5 hover:bg-base-200 font-mono"
+                        class="flex items-center gap-2 w-full text-left px-2 py-0.5 hover:bg-base-300 font-mono"
                         @click="onOpenDiff({ ref: commit.sha, file: f.path })"
                         @contextmenu="onCommitFileContextMenu($event, commit, f)">
                         <DocumentIcon class="h-3 w-3 shrink-0 text-base-content/40" />
@@ -118,7 +118,7 @@ function relativeTime(iso: string): string {
                 </div>
             </div>
             <button v-if="git.commitsHasMore.value"
-                class="w-full text-center px-2 py-1 text-base-content/60 hover:bg-base-200"
+                class="w-full text-center px-2 py-1 text-base-content/60 hover:bg-base-300"
                 :disabled="git.commitsLoading.value" @click="git.loadMoreLog(agentId, repo)">
                 {{ git.commitsLoading.value ? $t('common.loading') : $t('workspace.loadMore') }}
             </button>

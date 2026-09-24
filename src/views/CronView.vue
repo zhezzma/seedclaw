@@ -273,7 +273,7 @@ onMounted(() => {
                         <div
                             v-for="job in cronState.cronJobs"
                             :key="job.id"
-                            class="card bg-base-100 shadow-sm border border-base-200 cursor-pointer hover:border-primary transition-colors hover:shadow-md group h-full"
+                            class="card bg-base-200 shadow-sm border border-base-300 cursor-pointer hover:border-primary transition-colors hover:shadow-md group h-full"
                             @click="handleViewLogs(job)"
                         >
                             <div class="card-body p-3 sm:p-4">
@@ -310,7 +310,7 @@ onMounted(() => {
                                     <p class="truncate">{{ getExecutionTargetSummary(job) }}</p>
                                     <p class="truncate">{{ $t('delivery.targets') }}: {{ getDeliverySummary(job.deliveryTargets) }}</p>
 
-                                    <div class="flex items-center justify-between pt-2 border-t border-base-200">
+                                    <div class="flex items-center justify-between pt-2 border-t border-base-300">
                                         <span class="opacity-50">{{ job.createdAt ? formatDate(job.createdAt) : '' }}</span>
                                         <div class="flex items-center gap-1">
                                             <button

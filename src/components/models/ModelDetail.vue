@@ -212,7 +212,7 @@ const handleClearModels = async () => {
 
                     <!-- Model Cards -->
                     <div v-for="item in modelList" :key="item.id" @click="openEditModel(item.original)"
-                        class="aspect-square cursor-pointer bg-base-100 shadow-sm rounded-lg p-3 sm:p-4 flex flex-col transition-all group relative cursor-default border border-base-200 hover:border-primary hover:shadow-md">
+                        class="aspect-square cursor-pointer bg-base-200 shadow-sm rounded-lg p-3 sm:p-4 flex flex-col transition-all group relative border border-base-300 hover:border-primary hover:shadow-md">
 
                         <!-- Hover Actions -->
                         <div

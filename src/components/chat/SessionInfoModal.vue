@@ -44,12 +44,12 @@ const rows = computed<InfoRow[]>(() => {
 <template>
     <Teleport to="body">
         <Transition name="session-info-fade">
-            <div v-if="open" class="fixed inset-0 z-[210] flex items-center justify-center p-3 sm:p-6">
-                <button class="absolute inset-0 bg-base-300/55 backdrop-blur-sm" type="button"
+            <dialog v-if="open" class="modal modal-open z-[210]">
+                <button class="modal-backdrop" type="button"
                     :aria-label="$t('common.close')" @click="emit('close')"></button>
 
                 <section
-                    class="relative flex w-full max-w-lg max-h-[86vh] flex-col overflow-hidden rounded-2xl border border-base-content/10 bg-base-100 shadow-2xl">
+                    class="row-start-1 col-start-1 m-3 sm:m-6 relative flex w-full max-w-lg max-h-[86vh] flex-col overflow-hidden rounded-2xl border border-base-content/10 bg-base-100 shadow-2xl">
                     <header
                         class="flex items-center justify-between gap-3 border-b border-base-content/10 bg-base-200/55 px-4 py-3">
                         <div class="flex items-center gap-2 min-w-0">
@@ -82,7 +82,7 @@ const rows = computed<InfoRow[]>(() => {
                         </dl>
                     </div>
                 </section>
-            </div>
+            </dialog>
         </Transition>
     </Teleport>
 </template>

@@ -105,7 +105,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
                     class="fixed bg-base-100 border border-base-300 rounded-md shadow-lg py-1 min-w-[180px] max-w-[280px] text-sm focus:outline-none"
                     :style="{ left: finalX + 'px', top: finalY + 'px' }" @click.stop>
                     <template v-for="(item, idx) in items" :key="idx">
-                        <li v-if="item.separator" role="separator" class="my-1 border-t border-base-200" />
+                        <li v-if="item.separator" role="separator" class="my-1 border-t border-base-300" />
                         <li role="none">
                             <button type="button" role="menuitem"
                                 class="w-full text-left px-3 py-1.5 hover:bg-base-200 focus:bg-base-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"

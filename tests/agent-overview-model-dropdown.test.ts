@@ -37,7 +37,7 @@ test('agent overview reuses the shared model menu content component instead of a
 test('agent overview basic info card keeps dropdowns visible outside the card bounds', () => {
     assert.match(
         source,
-        /class="card bg-base-100 shadow-sm overflow-visible"/,
+        /class="card bg-base-200 shadow-sm overflow-visible"/,
         'AgentOverview should avoid clipping the shared model dropdown with overflow-hidden',
     )
 })

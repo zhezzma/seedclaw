@@ -56,12 +56,10 @@ function closeModal() {
     <!-- Modal -->
     <Teleport to="body">
       <Transition name="fade">
-        <div
-          v-if="isOpen"
-          class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          @click.self="closeModal"
-        >
-          <div class="bg-base-100 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-auto border border-base-300 p-5 relative">
+        <dialog v-if="isOpen" class="modal modal-open z-50">
+          <button class="modal-backdrop" type="button" aria-label="close"
+            @click="closeModal"></button>
+          <div class="row-start-1 col-start-1 m-4 bg-base-100 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-auto border border-base-300 p-5 relative">
             <!-- 关闭按钮 -->
             <button
               @click="closeModal"
@@ -80,7 +78,7 @@ function closeModal() {
               />
             </div>
           </div>
-        </div>
+        </dialog>
       </Transition>
     </Teleport>
   </div>

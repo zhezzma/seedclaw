@@ -34,11 +34,11 @@ function onHeaderClick() {
 </script>
 
 <template>
-    <div class="border-t border-base-200 shrink-0">
+    <div class="border-t border-base-300 shrink-0">
         <!-- header：toggle button + 可选 actions slot 平级；统一 bg-base-200/50 看上去是一行 -->
-        <div class="flex items-stretch bg-base-200/50">
+        <div class="flex items-stretch bg-base-300/50">
             <button type="button"
-                class="flex-1 flex items-center gap-1 px-2 py-1.5 hover:bg-base-200 text-xs font-semibold uppercase tracking-wide text-base-content/70 select-none"
+                class="flex-1 flex items-center gap-1 px-2 py-1.5 hover:bg-base-300 text-xs font-semibold uppercase tracking-wide text-base-content/70 select-none"
                 @click="onHeaderClick">
                 <ChevronDownIcon v-if="open" class="h-3.5 w-3.5 shrink-0" />
                 <ChevronRightIcon v-else class="h-3.5 w-3.5 shrink-0" />

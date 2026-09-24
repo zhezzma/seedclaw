@@ -168,7 +168,7 @@ watch(target, () => {
 <template>
     <div ref="rootRef" tabindex="-1" role="region" :aria-label="breadcrumb || $t('workspace.tabFiles')"
         class="flex flex-col h-full bg-base-100 outline-none">
-        <div class="flex items-center gap-2 p-2 border-b border-base-200 shrink-0">
+        <div class="flex items-center gap-2 p-2 border-b border-base-300 shrink-0">
             <button class="btn btn-ghost btn-sm btn-circle" :title="$t('common.back')" @click="close()">
                 <ArrowLeftIcon class="h-5 w-5" />
             </button>

@@ -250,7 +250,7 @@ const handleInstall = async (skill: any, agentId?: string) => {
 
             <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4">
                 <div v-for="skill in skills" :key="skill.skill._id"
-                    class="card bg-base-100 border border-base-200 shadow-sm hover:shadow-md transition-shadow">
+                    class="card bg-base-200 border border-base-300 shadow-sm hover:shadow-md transition-shadow">
                     <div class="card-body p-4">
                         <div class="flex justify-between items-start mb-2">
                             <div class="flex items-center gap-3 min-w-0 overflow-hidden">
@@ -274,7 +274,7 @@ const handleInstall = async (skill: any, agentId?: string) => {
                             {{ skill.skill.summary || $t('agent.noDescriptionFallback') }}
                         </p>
 
-                        <div class="flex items-center justify-between mt-auto pt-2 border-t border-base-200">
+                        <div class="flex items-center justify-between mt-auto pt-2 border-t border-base-300">
                             <div class="flex gap-2 text-xs text-base-content/60">
                                 <span class="flex items-center gap-1" title="Downloads">
                                     ⬇️ {{ skill.skill.stats?.downloads || 0 }}
@@ -300,7 +300,7 @@ const handleInstall = async (skill: any, agentId?: string) => {
         <dialog id="install_modal" class="modal" :class="{ 'modal-open': showInstallModal }">
             <div class="modal-box w-11/12 max-w-5xl h-[90vh] md:h-[80vh] flex flex-col p-0 overflow-hidden">
                 <!-- Header -->
-                <div class="flex justify-between items-center p-3 md:p-4 border-b border-base-200 bg-base-100 shrink-0">
+                <div class="flex justify-between items-center p-3 md:p-4 border-b border-base-300 bg-base-100 shrink-0">
                     <h3 class="font-bold text-base md:text-lg flex items-center gap-2 pr-8 max-w-[80%] min-w-0">
                         <CpuChipIcon class="w-5 h-5 md:w-6 md:h-6 text-primary shrink-0" />
                         <span class="truncate">{{ $t('skills.installTitle', { name: selectedSkill?.skill?.displayName })
@@ -347,8 +347,8 @@ const handleInstall = async (skill: any, agentId?: string) => {
 
                     <!-- Right: Install Options (Bottom on mobile) -->
                     <div
-                        class="w-full md:w-80 border-t md:border-t-0 md:border-l border-base-200 bg-base-100 flex flex-col order-1 md:order-2 shrink-0 max-h-[40vh] md:max-h-full">
-                        <div class="p-3 md:p-4 border-b border-base-200 bg-base-50 shrink-0">
+                        class="w-full md:w-80 border-t md:border-t-0 md:border-l border-base-300 bg-base-100 flex flex-col order-1 md:order-2 shrink-0 max-h-[40vh] md:max-h-full">
+                        <div class="p-3 md:p-4 border-b border-base-300 bg-base-50 shrink-0">
                             <h4 class="font-bold text-xs md:text-sm uppercase tracking-wider text-base-content/60 mb-1">
                                 {{ $t('skills.installTo') }}
                             </h4>
@@ -410,7 +410,7 @@ const handleInstall = async (skill: any, agentId?: string) => {
                         </div>
 
                         <!-- Footer Actions -->
-                        <div class="p-3 md:p-4 border-t border-base-200 bg-base-50 shrink-0">
+                        <div class="p-3 md:p-4 border-t border-base-300 bg-base-50 shrink-0">
                             <div class="flex flex-col gap-3">
                                 <button class="btn btn-primary btn-md w-full shadow-lg" @click="confirmInstall"
                                     :disabled="installingSkills[selectedSkill?.skill._id]">

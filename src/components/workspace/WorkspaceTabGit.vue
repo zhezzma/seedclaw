@@ -424,7 +424,7 @@ async function onPrimary() {
             <RepoSelector :selected-repo="selectedRepo" @select="onPickRepo" />
 
             <!-- Commit bar：消息 textarea 在上，提交按钮另起一行 — VSCode 风格 -->
-            <div v-if="selectedRepo" class="px-2 pt-2 pb-1 border-b border-base-200">
+            <div v-if="selectedRepo" class="px-2 pt-2 pb-1 border-b border-base-300">
                 <textarea ref="textareaRef" v-model="commitMessage" rows="2"
                     class="textarea textarea-bordered textarea-xs w-full min-h-[2.5rem] resize-y leading-snug font-mono"
                     :aria-label="$t('workspace.git.messagePlaceholder')"

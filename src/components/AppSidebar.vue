@@ -10,6 +10,8 @@ import {
     ArchiveBoxIcon,
     HashtagIcon,
     FolderOpenIcon,
+    ArrowLeftStartOnRectangleIcon,
+    ArrowRightStartOnRectangleIcon,
 } from '@heroicons/vue/24/outline'
 import { FolderIcon } from '@heroicons/vue/24/solid'
 import { SIDEBAR_ITEMS } from '../config/navigation'
@@ -472,7 +474,7 @@ const handleNavClick = (item: any) => {
 </script>
 
 <template>
-    <div class="flex flex-col h-full bg-base-100/90 pt-[env(safe-area-inset-top)]">
+    <div class="flex flex-col h-full bg-base-200 pt-[env(safe-area-inset-top)]">
         <!-- Header -->
         <div class="shrink-0 px-5 py-3 flex items-center justify-between"
             :class="isCollapsed && 'lg:flex-col lg:items-center lg:gap-2 lg:px-0'">
@@ -486,8 +488,8 @@ const handleNavClick = (item: any) => {
                     class="btn btn-ghost btn-circle btn-sm hover:bg-base-300 hidden lg:inline-flex"
                     :title="isCollapsed ? $t('sidebar.expand') : $t('sidebar.collapse')"
                     :aria-label="isCollapsed ? $t('sidebar.expand') : $t('sidebar.collapse')">
-                    <ChevronDoubleRightIcon v-if="isCollapsed" class="h-5 w-5" />
-                    <ChevronDoubleLeftIcon v-else class="h-5 w-5" />
+                    <ArrowRightStartOnRectangleIcon v-if="isCollapsed" class="h-5 w-5" />
+                    <ArrowLeftStartOnRectangleIcon v-else class="h-5 w-5" />
                 </button>
             </div>
         </div>
@@ -514,7 +516,7 @@ const handleNavClick = (item: any) => {
             <button v-for="item in navItems" :key="item.label" @click="handleNavClick(item)"
                 class="group flex items-center gap-3  px-1 w-full rounded-2xl text-left transition-all duration-200 hover:bg-base-300/90 hover:border-base-300 hover:shadow-sm border border-transparent  active:scale-[0.98] cursor-pointer"
                 :class="[
-                    { 'bg-base-300 dark:bg-primary/20  shadow-sm': isItemActive(item) },
+                    { 'bg-base-300 shadow-sm': isItemActive(item) },
                     isCollapsed && 'lg:justify-center',
                 ]" :title="$t(item.label)">
                 <div class="p-1 rounded-xl transition-colors duration-200  group-hover:text-primary text-base-content/60"
@@ -540,11 +542,11 @@ const handleNavClick = (item: any) => {
 
         <!-- Session Tabs: 对话 / 计划 / 归档（胶囊分段控件）+ 分组开关 -->
         <div class="shrink-0 px-3 pt-2 pb-1 flex items-center gap-1" :class="isCollapsed && 'lg:hidden'">
-            <div role="tablist" class="flex flex-1 min-w-0 items-center gap-0.5 rounded-full bg-base-300/60 p-1">
+            <div role="tablist" class="flex flex-1 min-w-0 items-center gap-0.5 rounded-full bg-base-300 p-1">
                 <button v-for="tab in SESSION_TABS" :key="tab.key" role="tab" type="button"
                     class="flex flex-1 min-w-0 items-center justify-center gap-1 rounded-full px-2 py-1 text-xs font-medium whitespace-nowrap cursor-pointer border transition-all duration-200"
                     :class="sessionTab === tab.key
-                        ? 'bg-base-100 border-base-300/80 shadow-sm text-base-content'
+                        ? 'bg-base-100 border-base-300 shadow-sm text-base-content'
                         : 'border-transparent text-base-content/55 hover:text-base-content'"
                     :aria-selected="sessionTab === tab.key"
                     @click="switchSessionTab(tab.key)">
@@ -579,7 +581,7 @@ const handleNavClick = (item: any) => {
                 <template v-for="session in sessionListItems" :key="session.key">
                     <!-- 分组头：agent 名（仅分组模式），点击展开/收起该组会话 -->
                     <div v-if="session.kind === 'group'" role="button" tabindex="0"
-                        class="flex items-center gap-2 mt-2.5 mb-1 px-2 py-1 rounded-lg bg-base-300/50 text-sm font-semibold text-base-content/60 cursor-pointer select-none hover:bg-base-300/70 transition-colors"
+                        class="flex items-center gap-2 mt-2.5 mb-1 px-2 py-1 rounded-lg bg-base-300 text-sm font-semibold text-base-content/80 cursor-pointer select-none transition-colors"
                         :title="session.label" :aria-expanded="!isGroupCollapsed(session.groupKey)"
                         @click="toggleGroup(session.groupKey)"
                         @keydown.enter.prevent="toggleGroup(session.groupKey)"
@@ -601,8 +603,8 @@ const handleNavClick = (item: any) => {
                         @contextmenu.prevent="openSessionContextMenu(session.key)"
                         class="flex items-center gap-2 px-3 py-1 rounded-xl cursor-pointer transition-colors group"
                         :class="activeSessionKey === session.key
-                            ? 'bg-primary/10 dark:bg-primary/15 hover:bg-primary/15 dark:hover:bg-primary/20'
-                            : 'hover:bg-base-300'">
+                            ? 'bg-base-300/80  '
+                            : 'hover:bg-base-300/80'">
                         <template v-if="session.pinned">
                             <span class="h-4 w-4 shrink-0 inline-flex items-center justify-center" :title="$t('sidebar.pin')" aria-hidden="true">📌</span>
                             <span class="sr-only">{{ $t('sidebar.pin') }}</span>

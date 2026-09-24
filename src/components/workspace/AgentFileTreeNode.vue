@@ -90,7 +90,7 @@ async function onDeleted(deletedPath: string) {
 
 <template>
     <div>
-        <div class="flex items-center gap-1.5 hover:bg-base-200 cursor-pointer py-0.5 truncate"
+        <div class="flex items-center gap-1.5 hover:bg-base-300 cursor-pointer py-0.5 truncate"
             :style="{ paddingLeft: padding }" :title="entry.path" @click="onClick(entry)"
             @contextmenu="onRowContextMenu">
             <ChevronDownIcon v-if="entry.type === 'dir' && expanded" class="h-3.5 w-3.5 shrink-0 text-base-content/40" />

@@ -3,7 +3,7 @@ import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useToast } from '../../../composables/useToast'
 
 import { useModelsState } from '../../../composables/useModelsState'
-import { AgentInfo, useAgentsState } from '../../../composables/useAgentsState'
+import { AgentInfo, useAgentsState, type CacheWarmingMode, type RetrySettings, type ThinkingBudgetsSettings } from '../../../composables/useAgentsState'
 import { useI18n } from 'vue-i18n'
 import {
     FingerPrintIcon,
@@ -247,6 +247,21 @@ const hideThinkingBlock = computed({
     }
 })
 
+/** pi 未配置时 getCacheWarmingMode() 默认 streaming；服务端返回的是生效值 */
+const cacheWarming = computed({
+    get: () => props.agent?.cacheWarming ?? 'streaming',
+    set: async (val: CacheWarmingMode) => {
+        try {
+            await agentsState.updateAgent({
+                agentId: props.agent.id,
+                cacheWarming: val
+            })
+        } catch (err: any) {
+            toast.error(err.message || String(err))
+        }
+    }
+})
+
 const compactionModal = ref<HTMLDialogElement | null>(null)
 const compactionSettings = ref<{
     enabled: boolean;
@@ -330,20 +345,33 @@ const retrySettings = ref<{
     enabled: boolean;
     maxRetries: number;
     baseDelayMs: number;
-    maxDelayMs: number;
+    maxAgentDelayMs: number;
+    providerTimeoutMs: number | '';
+    providerMaxRetries: number | '';
+    providerMaxRetryDelayMs: number | '';
 }>({
     enabled: false,
     maxRetries: 3,
     baseDelayMs: 1000,
-    maxDelayMs: 10000
+    maxAgentDelayMs: 60000,
+    providerTimeoutMs: '',
+    providerMaxRetries: '',
+    providerMaxRetryDelayMs: ''
 })
+
+/** number input 清空时 v-model.number 会得到 ''，统一归一为 undefined（不写该字段） */
+const toNumOrUndefined = (v: number | '' | undefined): number | undefined =>
+    (v === undefined || v === '' || Number.isNaN(v)) ? undefined : v
 
 const openRetryModal = () => {
     const r = props.agent?.retry;
     let enabled = false;
     let maxRetries = 3;
     let baseDelayMs = 1000;
-    let maxDelayMs = 10000;
+    let maxAgentDelayMs = 60000;
+    let providerTimeoutMs: number | '' = '';
+    let providerMaxRetries: number | '' = '';
+    let providerMaxRetryDelayMs: number | '' = '';
 
     if (typeof r === 'number') {
         enabled = r > 0;
@@ -352,21 +380,83 @@ const openRetryModal = () => {
         enabled = r.enabled ?? false;
         maxRetries = r.maxRetries ?? 3;
         baseDelayMs = r.baseDelayMs ?? 1000;
-        maxDelayMs = r.maxDelayMs ?? 10000;
+        // pi 默认 60000（DEFAULT_MAX_AGENT_RETRY_DELAY_MS）；旧客户端写入的 maxDelayMs 是无效字段，不读
+        maxAgentDelayMs = r.maxAgentDelayMs ?? 60000;
+        providerTimeoutMs = r.provider?.timeoutMs ?? '';
+        providerMaxRetries = r.provider?.maxRetries ?? '';
+        providerMaxRetryDelayMs = r.provider?.maxRetryDelayMs ?? '';
     }
 
-    retrySettings.value = { enabled, maxRetries, baseDelayMs, maxDelayMs }
+    retrySettings.value = { enabled, maxRetries, baseDelayMs, maxAgentDelayMs, providerTimeoutMs, providerMaxRetries, providerMaxRetryDelayMs }
     retryModal.value?.showModal()
 }
 
 const saveRetry = async () => {
     try {
+        const provider: RetrySettings['provider'] = {}
+        const providerTimeoutMs = toNumOrUndefined(retrySettings.value.providerTimeoutMs)
+        const providerMaxRetries = toNumOrUndefined(retrySettings.value.providerMaxRetries)
+        const providerMaxRetryDelayMs = toNumOrUndefined(retrySettings.value.providerMaxRetryDelayMs)
+        if (providerTimeoutMs !== undefined) provider.timeoutMs = providerTimeoutMs
+        if (providerMaxRetries !== undefined) provider.maxRetries = providerMaxRetries
+        if (providerMaxRetryDelayMs !== undefined) provider.maxRetryDelayMs = providerMaxRetryDelayMs
+        // 主字段同样归一：清空 = 省略字段（pi 默认生效），避免 v-model.number 的 '' 原样落盘
+        const maxRetries = toNumOrUndefined(retrySettings.value.maxRetries)
+        const baseDelayMs = toNumOrUndefined(retrySettings.value.baseDelayMs)
+        const maxAgentDelayMs = toNumOrUndefined(retrySettings.value.maxAgentDelayMs)
         await agentsState.updateAgent({
             agentId: props.agent.id,
-            retry: { ...retrySettings.value }
+            retry: {
+                enabled: retrySettings.value.enabled,
+                ...(maxRetries !== undefined ? { maxRetries } : {}),
+                ...(baseDelayMs !== undefined ? { baseDelayMs } : {}),
+                ...(maxAgentDelayMs !== undefined ? { maxAgentDelayMs } : {}),
+                ...(Object.keys(provider).length > 0 ? { provider } : {})
+            }
         })
         toast.success(t('common.savedSuccess'))
         retryModal.value?.close()
+    } catch (err: any) {
+        toast.error(err.message || String(err))
+    }
+}
+
+const thinkingBudgetsModal = ref<HTMLDialogElement | null>(null)
+const thinkingBudgetsSettings = ref<{ minimal: number | ''; low: number | ''; medium: number | ''; high: number | '' }>({
+    minimal: '',
+    low: '',
+    medium: '',
+    high: ''
+})
+
+const openThinkingBudgetsModal = () => {
+    const b = props.agent?.thinkingBudgets;
+    thinkingBudgetsSettings.value = {
+        minimal: b?.minimal ?? '',
+        low: b?.low ?? '',
+        medium: b?.medium ?? '',
+        high: b?.high ?? ''
+    }
+    thinkingBudgetsModal.value?.showModal()
+}
+
+const saveThinkingBudgets = async () => {
+    try {
+        const budgets: ThinkingBudgetsSettings = {}
+        const minimal = toNumOrUndefined(thinkingBudgetsSettings.value.minimal)
+        const low = toNumOrUndefined(thinkingBudgetsSettings.value.low)
+        const medium = toNumOrUndefined(thinkingBudgetsSettings.value.medium)
+        const high = toNumOrUndefined(thinkingBudgetsSettings.value.high)
+        if (minimal !== undefined) budgets.minimal = minimal
+        if (low !== undefined) budgets.low = low
+        if (medium !== undefined) budgets.medium = medium
+        if (high !== undefined) budgets.high = high
+        await agentsState.updateAgent({
+            agentId: props.agent.id,
+            thinkingBudgets: budgets
+        })
+        toast.success(t('common.savedSuccess'))
+        thinkingBudgetsModal.value?.close()
     } catch (err: any) {
         toast.error(err.message || String(err))
     }
@@ -484,12 +574,12 @@ const handleDeleteAgent = async () => {
                     <FingerPrintIcon class="w-4 h-4" />
                     {{ $t('agent.basicInfo') }}
                 </h4>
-                <div class="card bg-base-100 shadow-sm overflow-visible">
+                <div class="card bg-base-200 shadow-sm overflow-visible">
                     <ul class="divide-y divide-base-300">
-                        <li class="flex items-center justify-between p-4 bg-base-100 gap-2">
+                        <li class="flex items-center justify-between p-4 bg-base-200 gap-2">
                             <span class="font-medium text-base-content/90">{{ $t('agent.workspace') }}</span>
                             <div class="flex items-center gap-2 min-w-0">
-                                <div class="font-mono text-xs bg-base-200 px-2 py-1 rounded text-base-content/70 truncate max-w-[160px] md:max-w-sm"
+                                <div class="font-mono text-xs bg-base-300 px-2 py-1 rounded text-base-content/70 truncate max-w-[160px] md:max-w-sm"
                                     :title="agent.workspaceDir">
                                     {{ agent.workspaceDir || '-' }}
                                 </div>
@@ -497,7 +587,7 @@ const handleDeleteAgent = async () => {
                                     @click="showWorkspaceDialog = true">{{ $t('workspaceBinding.editBinding') }}</button>
                             </div>
                         </li>
-                        <li class="flex items-center justify-between p-4 bg-base-100">
+                        <li class="flex items-center justify-between p-4 bg-base-200">
                             <span class="font-medium text-base-content/90">{{ $t('workspaceBinding.trustDefaultLabel') }}</span>
                             <div class="flex-1 max-w-[250px] flex flex-col items-end gap-1">
                                 <select v-model="defaultProjectTrust" class="select select-bordered select-sm w-full font-sans">
@@ -507,14 +597,14 @@ const handleDeleteAgent = async () => {
                                 </select>
                             </div>
                         </li>
-                        <li class="flex items-center justify-between p-4 bg-base-100">
+                        <li class="flex items-center justify-between p-4 bg-base-200">
                             <span class="font-medium text-base-content/90">{{ $t('agent.agentDir') }}</span>
-                            <div class="font-mono text-xs bg-base-200 px-2 py-1 rounded text-base-content/70 truncate max-w-[200px] md:max-w-md"
+                            <div class="font-mono text-xs bg-base-300 px-2 py-1 rounded text-base-content/70 truncate max-w-[200px] md:max-w-md"
                                 :title="agent.agentDir">
                                 {{ agent.agentDir || '-' }}
                             </div>
                         </li>
-                        <li class="flex items-center justify-between p-4 bg-base-100">
+                        <li class="flex items-center justify-between p-4 bg-base-200">
                             <span class="font-medium text-base-content/90">{{ $t('agent.mainModel') }}</span>
 
                             <div ref="modelDropdownRef" class="flex-1 max-w-[250px] flex flex-col items-end gap-1 relative">
@@ -539,7 +629,7 @@ const handleDeleteAgent = async () => {
                                 </div>
                             </div>
                         </li>
-                        <li class="flex items-center justify-between p-4 bg-base-100">
+                        <li class="flex items-center justify-between p-4 bg-base-200">
                             <span class="font-medium text-base-content/90">{{ $t('chat.thinkingLevel') }}</span>
                             <div class="flex-1 max-w-[250px] flex flex-col items-end gap-1">
                                 <select v-model="defaultThinkingLevel" class="select select-bordered select-sm w-full font-sans">
@@ -553,7 +643,7 @@ const handleDeleteAgent = async () => {
                                 </select>
                             </div>
                         </li>
-                        <li class="flex items-center justify-between p-4 bg-base-100">
+                        <li class="flex items-center justify-between p-4 bg-base-200">
                             <span class="font-medium text-base-content/90">{{ $t('agent.steeringMode') }}</span>
                             <div class="flex-1 max-w-[250px] flex flex-col items-end gap-1">
                                 <select v-model="steeringMode" class="select select-bordered select-sm w-full font-sans">
@@ -562,7 +652,7 @@ const handleDeleteAgent = async () => {
                                 </select>
                             </div>
                         </li>
-                        <li class="flex items-center justify-between p-4 bg-base-100">
+                        <li class="flex items-center justify-between p-4 bg-base-200">
                             <span class="font-medium text-base-content/90">{{ $t('agent.followUpMode') }}</span>
                             <div class="flex-1 max-w-[250px] flex flex-col items-end gap-1">
                                 <select v-model="followUpMode" class="select select-bordered select-sm w-full font-sans">
@@ -571,19 +661,36 @@ const handleDeleteAgent = async () => {
                                 </select>
                             </div>
                         </li>
-                        <li class="flex items-center justify-between p-4 bg-base-100">
+                        <li class="flex items-center justify-between p-4 bg-base-200">
                             <span class="font-medium text-base-content/90">{{ $t('agent.compactionSettings') }}</span>
                             <button class="btn btn-sm btn-outline font-sans" @click="openCompactionModal">{{ $t('common.settings') }}</button>
                         </li>
-                        <li class="flex items-center justify-between p-4 bg-base-100">
+                        <li class="flex items-center justify-between p-4 bg-base-200">
                             <span class="font-medium text-base-content/90">{{ $t('agent.branchSummarySettings') }}</span>
                             <button class="btn btn-sm btn-outline font-sans" @click="openBranchSummaryModal">{{ $t('common.settings') }}</button>
                         </li>
-                        <li class="flex items-center justify-between p-4 bg-base-100">
+                        <li class="flex items-center justify-between p-4 bg-base-200">
                             <span class="font-medium text-base-content/90">{{ $t('agent.retrySettings') }}</span>
                             <button class="btn btn-sm btn-outline font-sans" @click="openRetryModal">{{ $t('common.settings') }}</button>
                         </li>
-                        <li class="flex items-center justify-between p-4 bg-base-100">
+                        <li class="flex items-center justify-between p-4 bg-base-200">
+                            <div>
+                                <h5 class="font-medium text-base-content/90">{{ $t('agent.cacheWarming') }}</h5>
+                                <p class="text-xs text-base-content/60 mt-1 max-w-[200px] md:max-w-md">{{ $t('agent.cacheWarmingDesc') }}</p>
+                            </div>
+                            <div class="flex-1 max-w-[250px] flex flex-col items-end gap-1">
+                                <select v-model="cacheWarming" class="select select-bordered select-sm w-full font-sans">
+                                    <option value="off">{{ $t('agent.cacheWarmingOff') }}</option>
+                                    <option value="streaming">{{ $t('agent.cacheWarmingStreaming') }}</option>
+                                    <option value="idle">{{ $t('agent.cacheWarmingIdle') }}</option>
+                                </select>
+                            </div>
+                        </li>
+                        <li class="flex items-center justify-between p-4 bg-base-200">
+                            <span class="font-medium text-base-content/90">{{ $t('agent.thinkingBudgets') }}</span>
+                            <button class="btn btn-sm btn-outline font-sans" @click="openThinkingBudgetsModal">{{ $t('common.settings') }}</button>
+                        </li>
+                        <li class="flex items-center justify-between p-4 bg-base-200">
                             <div>
                                 <h5 class="font-medium text-base-content/90">{{ $t('agent.heartbeatSettings') }}</h5>
                                 <p class="text-xs text-base-content/60 mt-1 max-w-[200px] md:max-w-md">
@@ -592,7 +699,7 @@ const handleDeleteAgent = async () => {
                             </div>
                             <button class="btn btn-sm btn-outline font-sans" @click="openHeartbeatModal">{{ $t('common.settings') }}</button>
                         </li>
-                        <li class="flex items-center justify-between p-4 bg-base-100">
+                        <li class="flex items-center justify-between p-4 bg-base-200">
                             <span class="font-medium text-base-content/90">{{ $t('agent.hideThinkingBlock') }}</span>
                             <input type="checkbox" v-model="hideThinkingBlock" class="toggle toggle-primary toggle-sm" />
                         </li>
@@ -701,10 +808,36 @@ const handleDeleteAgent = async () => {
 
                     <div class="form-control w-full mb-6">
                         <label class="label">
-                            <span class="label-text">{{ $t('agent.retryMaxDelayMs') }}</span>
+                            <span class="label-text">{{ $t('agent.retryMaxAgentDelayMs') }}</span>
                         </label>
-                        <input type="number" v-model.number="retrySettings.maxDelayMs"
+                        <input type="number" v-model.number="retrySettings.maxAgentDelayMs"
                             class="input input-bordered w-full" :disabled="!retrySettings.enabled" />
+                    </div>
+
+                    <div class="divider text-xs text-base-content/60 mt-0 mb-2">{{ $t('agent.retryProviderSection') }}</div>
+
+                    <div class="form-control w-full mb-4">
+                        <label class="label">
+                            <span class="label-text">{{ $t('agent.retryProviderTimeoutMs') }}</span>
+                        </label>
+                        <input type="number" v-model.number="retrySettings.providerTimeoutMs"
+                            class="input input-bordered w-full" :placeholder="$t('agent.retryProviderUnsetHint')" />
+                    </div>
+
+                    <div class="form-control w-full mb-4">
+                        <label class="label">
+                            <span class="label-text">{{ $t('agent.retryProviderMaxRetries') }}</span>
+                        </label>
+                        <input type="number" v-model.number="retrySettings.providerMaxRetries"
+                            class="input input-bordered w-full" :placeholder="$t('agent.retryProviderUnsetHint')" />
+                    </div>
+
+                    <div class="form-control w-full mb-6">
+                        <label class="label">
+                            <span class="label-text">{{ $t('agent.retryProviderMaxRetryDelayMs') }}</span>
+                        </label>
+                        <input type="number" v-model.number="retrySettings.providerMaxRetryDelayMs"
+                            class="input input-bordered w-full" :placeholder="$t('agent.retryProviderUnsetHint')" />
                     </div>
 
                     <div class="modal-action mt-0">
@@ -712,6 +845,55 @@ const handleDeleteAgent = async () => {
                             <button class="btn btn-ghost mr-2">{{ $t('common.cancel') }}</button>
                         </form>
                         <button class="btn btn-primary px-8" @click="saveRetry">{{ $t('common.save') }}</button>
+                    </div>
+                </div>
+                <form method="dialog" class="modal-backdrop">
+                    <button>close</button>
+                </form>
+            </dialog>
+
+            <dialog ref="thinkingBudgetsModal" class="modal">
+                <div class="modal-box">
+                    <h3 class="font-bold text-lg mb-2">{{ $t('agent.thinkingBudgets') }}</h3>
+                    <p class="text-sm text-base-content/70 mb-4">{{ $t('agent.thinkingBudgetsDesc') }}</p>
+
+                    <div class="form-control w-full mb-4">
+                        <label class="label">
+                            <span class="label-text">{{ $t('agent.thinkingBudgetMinimal') }}</span>
+                        </label>
+                        <input type="number" v-model.number="thinkingBudgetsSettings.minimal"
+                            class="input input-bordered w-full" :placeholder="$t('agent.thinkingBudgetUnsetHint')" />
+                    </div>
+
+                    <div class="form-control w-full mb-4">
+                        <label class="label">
+                            <span class="label-text">{{ $t('agent.thinkingBudgetLow') }}</span>
+                        </label>
+                        <input type="number" v-model.number="thinkingBudgetsSettings.low"
+                            class="input input-bordered w-full" :placeholder="$t('agent.thinkingBudgetUnsetHint')" />
+                    </div>
+
+                    <div class="form-control w-full mb-4">
+                        <label class="label">
+                            <span class="label-text">{{ $t('agent.thinkingBudgetMedium') }}</span>
+                        </label>
+                        <input type="number" v-model.number="thinkingBudgetsSettings.medium"
+                            class="input input-bordered w-full" :placeholder="$t('agent.thinkingBudgetUnsetHint')" />
+                    </div>
+
+                    <div class="form-control w-full mb-6">
+                        <label class="label">
+                            <span class="label-text">{{ $t('agent.thinkingBudgetHigh') }}</span>
+                        </label>
+                        <input type="number" v-model.number="thinkingBudgetsSettings.high"
+                            class="input input-bordered w-full" :placeholder="$t('agent.thinkingBudgetUnsetHint')" />
+                    </div>
+
+                    <div class="modal-action mt-0">
+                        <form method="dialog">
+                            <button class="btn btn-ghost mr-2">{{ $t('common.cancel') }}</button>
+                        </form>
+                        <button class="btn btn-primary px-8" @click="saveThinkingBudgets">{{ $t('common.save') }}</button>
                     </div>
                 </div>
                 <form method="dialog" class="modal-backdrop">
@@ -772,12 +954,12 @@ const handleDeleteAgent = async () => {
                 @close="showWorkspaceDialog = false" @updated="onWorkspaceUpdated" />
 
             <!-- Danger Zone -->
-            <div class="space-y-2 pt-6 border-t border-base-200/50">
+            <div class="space-y-2 pt-6 border-t border-base-300">
                 <h4 class="text-sm font-medium text-error/80 px-2 flex items-center gap-2">
                     <ExclamationTriangleIcon class="w-4 h-4" />
                     {{ $t('agent.dangerZone') }}
                 </h4>
-                <div class="card bg-base-100 border border-error/20 shadow-sm overflow-hidden">
+                <div class="card bg-base-200 border border-error/20 shadow-sm overflow-hidden">
                     <div class="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                         <div>
                             <h3 class="font-medium text-base-content">{{ $t('agent.deleteAgent') }}</h3>

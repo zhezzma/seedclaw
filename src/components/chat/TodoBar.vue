@@ -97,7 +97,7 @@ const groups = (list: TodoTask[]) => ({
                         <div class="text-base-content/40 pt-0.5">{{ t(SECTION_KEY[key]) }}</div>
                         <div v-for="item in group" :key="item.id"
                             class="flex items-center gap-2 rounded-lg border border-base-300 px-2 py-1"
-                            :class="item.status === 'completed' ? 'bg-base-100/40 text-base-content/40 line-through' : (item.status === 'in_progress' ? 'bg-base-200 border-primary/30 ' : 'bg-base-100')">
+                            :class="item.status === 'completed' ? 'bg-base-200/40 text-base-content/40 line-through' : (item.status === 'in_progress' ? 'bg-base-200 border-primary/30 ' : 'bg-base-200')">
                             <span class="shrink-0" aria-hidden="true">{{ item.status === 'completed' ? '✓' : item.status === 'in_progress' ? '◐' : '○' }}</span>
                             <span class="min-w-0 flex-1 truncate" :title="item.description || item.subject">
                                 {{ item.status === 'in_progress' && item.activeForm ? item.activeForm : item.subject }}

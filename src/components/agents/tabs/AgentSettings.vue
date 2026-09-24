@@ -90,10 +90,10 @@ async function saveCurrentFile() {
                     <DocumentTextIcon class="w-4 h-4" />
                     {{ group.title }}
                 </h4>
-                <div class="card bg-base-100 shadow-sm overflow-hidden">
+                <div class="card bg-base-200 shadow-sm overflow-hidden">
                     <ul class="divide-y divide-base-300">
                         <li v-for="file in group.files" :key="file.name"
-                            class="flex items-center justify-between p-4 bg-base-100 hover:bg-base-200/50 transition-colors cursor-pointer"
+                            class="flex items-center justify-between p-4 bg-base-200 hover:bg-base-300/50 transition-colors cursor-pointer"
                             @click="openFile(file.name)">
                             <div class="flex items-center gap-3">
                                 <DocumentTextIcon class="w-5 h-5 text-base-content/40" />
@@ -129,7 +129,7 @@ async function saveCurrentFile() {
         <dialog class="modal" :class="{ 'modal-open': showFileModal }">
             <div class="modal-box w-11/12 max-w-5xl h-[80vh] flex flex-col p-0 bg-base-100">
                 <!-- Header -->
-                <div class="flex items-center justify-between px-6 py-4 border-b border-base-200">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-base-300">
                     <div class="flex items-center gap-2">
                         <h3 class="font-bold text-lg">{{ editingFileLabel }}</h3>
                         <span class="text-xs font-mono opacity-50">{{ editingFileName }}</span>
@@ -151,7 +151,7 @@ async function saveCurrentFile() {
                 </div>
 
                 <!-- Footer -->
-                <div class="px-6 py-4 border-t border-base-200 flex justify-end gap-2 bg-base-100">
+                <div class="px-6 py-4 border-t border-base-300 flex justify-end gap-2 bg-base-100">
                     <button class="btn btn-ghost" @click="closeFileModal">{{ $t('common.cancel') }}</button>
                     <button class="btn btn-primary gap-2" @click="saveCurrentFile">
                         {{ $t('common.save') }}

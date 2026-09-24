@@ -23,7 +23,7 @@ const childVueComp = computed(() => {
 
 <template>
   <div
-    class="a2ui-card card bg-base-100 shadow-sm border border-base-300 rounded-xl"
+    class="a2ui-card card bg-base-200 shadow-sm border border-base-300 rounded-xl"
     :style="comp.weight != null ? { flex: comp.weight } : undefined"
   >
     <div class="card-body p-4">

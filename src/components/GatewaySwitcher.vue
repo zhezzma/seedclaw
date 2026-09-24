@@ -158,6 +158,7 @@ const handleExternalLink = () => {
             :class="collapsed && 'lg:justify-center lg:px-0'">
             <button type="button"
                 class="flex flex-1 min-w-0 items-center gap-2 rounded-xl text-left transition-colors hover:bg-base-300/90  px-2  cursor-pointer"
+                :class="collapsed && 'lg:justify-center lg:px-0'"
                 :title="activeEntry ? `${activeName} · ${activeHost}` : activeName" :aria-label="t('gateway.switchAccount')"
                 :aria-expanded="isOpen" aria-haspopup="menu" @click.stop="toggleMenu">
                 <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
@@ -173,12 +174,13 @@ const handleExternalLink = () => {
             </button>
 
 
-            <button @click="configStore.toggleTheme()" type="button" 
-                class="btn btn-ghost btn-circle btn-xs">
+            <!-- 折叠态只留头像（w-16 塞不下这两个按钮），与组件内其它 collapsed 类一致挂 lg: 前缀 -->
+            <button @click="configStore.toggleTheme()" type="button"
+                class="btn btn-ghost btn-circle btn-xs" :class="collapsed && 'lg:hidden'">
                 <SunIcon v-if="configStore.isDark" class="h-4 w-4" />
                 <MoonIcon v-else class="h-4 w-4" />
             </button>
-            <button type="button" class="btn btn-ghost btn-circle btn-xs" @click="openSettings">
+            <button type="button" class="btn btn-ghost btn-circle btn-xs" :class="collapsed && 'lg:hidden'" @click="openSettings">
                 <Cog6ToothIcon class="h-4 w-4" />
             </button>
         </div>

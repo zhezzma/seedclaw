@@ -77,7 +77,7 @@ test('MessageBubble 两处 fork 按钮不受 isBusy 控制隐藏（AI 回复期�
 test('SubagentTraceDrawer 遮罩在桌面端不再 pointer-events-none（点击可关闭）', () => {
     const source = readFileSync(path.resolve(testDir, '../src/components/chat/SubagentTraceDrawer.vue'), 'utf8')
 
-    const overlayIdx = source.indexOf('fixed inset-0 z-40 bg-black/30')
+    const overlayIdx = source.indexOf('fixed inset-0 z-40 app-backdrop')
     assert.notEqual(overlayIdx, -1, '应存在全屏遮罩元素')
     const overlayTag = source.slice(source.lastIndexOf('<div', overlayIdx), source.indexOf('/>', overlayIdx))
 

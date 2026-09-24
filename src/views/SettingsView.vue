@@ -332,7 +332,7 @@ const logout = async () => {
 </script>
 
 <template>
-    <div class="flex flex-col h-full bg-base-200">
+    <div class="flex flex-col h-full ">
         <ViewHeader :title="$t('settings.title')" :is-main-page="true">
         </ViewHeader>
 
@@ -340,9 +340,9 @@ const logout = async () => {
             <div class="max-w-2xl mx-auto p-4 space-y-6">
                 <div class="space-y-2">
                     <h4 class="text-sm font-medium text-base-content/60 px-2">{{ $t('settings.basic') }}</h4>
-                    <div class="card bg-base-100 shadow-sm">
+                    <div class="card bg-base-200 shadow-sm">
                         <ul class="divide-y divide-base-300">
-                            <li class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors"
+                            <li class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-300 transition-colors"
                                 @click="openConnectionModal">
                                 <div class="flex items-center gap-3">
                                     <ServerIcon class="h-5 w-5 text-base-content/60" />
@@ -423,9 +423,9 @@ const logout = async () => {
 
                 <div class="space-y-2">
                     <h4 class="text-sm font-medium text-base-content/60 px-2">{{ $t('settings.voice') }}</h4>
-                    <div class="card bg-base-100 shadow-sm">
+                    <div class="card bg-base-200 shadow-sm">
                         <ul class="divide-y divide-base-300">
-                            <li class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors"
+                            <li class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-300 transition-colors"
                                 @click="openAsrModal">
                                 <div class="flex items-center gap-3">
                                     <MicrophoneIcon class="h-5 w-5 text-base-content/60" />
@@ -437,7 +437,7 @@ const logout = async () => {
                                 </div>
                                 <ChevronRightIcon class="h-5 w-5 text-base-content/40" />
                             </li>
-                            <li class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors"
+                            <li class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-300 transition-colors"
                                 @click="openTtsModal">
                                 <div class="flex items-center gap-3">
                                     <SpeakerWaveIcon class="h-5 w-5 text-base-content/60" />
@@ -467,10 +467,10 @@ const logout = async () => {
 
                 <div class="space-y-2">
                     <h4 class="text-sm font-medium text-base-content/60 px-2">{{ $t('settings.helpFeedback') }}</h4>
-                    <div class="card bg-base-100 shadow-sm">
+                    <div class="card bg-base-200 shadow-sm">
                         <ul class="divide-y divide-base-300">
                             <li @click="navigateToLogs"
-                                class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors">
+                                class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-300 transition-colors">
                                 <div class="flex items-center gap-3">
                                     <DocumentTextIcon class="h-5 w-5 text-base-content/60" />
                                     <div>
@@ -483,7 +483,7 @@ const logout = async () => {
 
                             <li>
                                 <a href="https://github.com/zhezzma/seedclaw" target="_blank" rel="noopener noreferrer"
-                                    class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-200 transition-colors">
+                                    class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-300 transition-colors">
                                     <div class="flex items-center gap-3">
                                         <QuestionMarkCircleIcon class="h-5 w-5 text-base-content/60" />
                                         <span class="font-medium">{{ $t('settings.usageHelp') }}</span>

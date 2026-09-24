@@ -351,7 +351,7 @@ export default (md: any, options: Options) => {
   align-items: center;
   padding: 8px 16px;
   font-size: 0.9em;
-  background-color: #2d2d2d;
+  background-color: var(--color-base-200);
   z-index:1;
 }
 
@@ -474,7 +474,7 @@ export default (md: any, options: Options) => {
   border-radius: 50%;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   z-index: 10;
-  background-color: rgba(200, 200, 200, 0.8);
+  background-color: color-mix(in oklab, var(--color-base-100) 80%, transparent);
 }
 
 .markdown-it-code-title .code-scroll-top-button:hover {

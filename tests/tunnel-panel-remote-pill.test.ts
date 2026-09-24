@@ -72,7 +72,7 @@ test('App 区随视图渲染对应地址；远程隧道区仅远程模式渲染�
     // 分隔线已删除：模式互斥后顶部说明已标明当前模式，无需再分隔；
     // App 区改为柔和底色卡片分组，同样不得回退为裸分隔线
     assert.doesNotMatch(panel, /<div class="divider/)
-    assert.doesNotMatch(panel, /pt-3 border-t border-base-200/, 'App 区用底色卡片分组，不用裸分隔线')
+    assert.doesNotMatch(panel, /pt-3 border-t border-base-300/, 'App 区用底色卡片分组，不用裸分隔线')
 
     // 顶部说明随视图切换，不再依赖 remoteShareUrl（未连接的远程模式也要显示远程说明）
     assert.match(panel,

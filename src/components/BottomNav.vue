@@ -34,7 +34,7 @@ const navigateTo = (tab: typeof tabs[0]) => {
     <!-- Bottom navigation (mobile only) -->
     <nav class="fixed bottom-0 left-0 right-0 lg:hidden z-50">
         <!-- Glassmorphism background -->
-        <div class="bg-base-100/80 backdrop-blur-xl border-t border-base-300/50 shadow-lg">
+        <div class="bg-base-100/80 backdrop-blur-xl border-t border-base-300 shadow-lg">
             <div class="flex items-center justify-around px-2 py-2 safe-area-bottom">
                 <button v-for="tab in tabs" :key="tab.route" @click="navigateTo(tab)"
                     class="flex flex-col items-center justify-center gap-1 px-4 py-2 rounded-2xl transition-all duration-200"

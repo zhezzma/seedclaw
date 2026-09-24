@@ -340,7 +340,7 @@ const handleAgentSubmit = async () => {
         </div>
 
         <div
-            class="card bg-base-100/80 backdrop-blur-xl shadow-2xl w-full max-w-md border border-base-300/50 relative z-10 transition-all duration-500">
+            class="card bg-base-100/80 backdrop-blur-xl shadow-2xl w-full max-w-md border border-base-300 relative z-10 transition-all duration-500">
             <div class="card-body p-8">
                 <!-- Header -->
                 <div class="text-center mb-8">

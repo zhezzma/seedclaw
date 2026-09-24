@@ -91,7 +91,7 @@ onMounted(loadExtensions)
             <!-- 格子 -->
             <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div v-for="item in extensions" :key="item.id"
-                    class="card bg-base-100 shadow-sm border border-base-200 hover:border-primary transition-colors hover:shadow-md h-full">
+                    class="card bg-base-200 shadow-sm border border-base-300 hover:border-primary transition-colors hover:shadow-md h-full">
                     <div class="card-body p-4 gap-2">
                         <div class="flex items-center justify-between gap-2">
                             <div class="flex items-center gap-2 min-w-0">

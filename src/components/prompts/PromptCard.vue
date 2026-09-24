@@ -48,7 +48,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div class="card bg-base-100 border border-base-200 shadow-sm hover:shadow-md transition-shadow">
+    <div class="card bg-base-200 border border-base-300 shadow-sm hover:shadow-md transition-shadow">
         <div class="card-body p-4">
             <div class="flex items-start justify-between mb-2">
                 <div class="flex items-center gap-2 min-w-0">
@@ -66,7 +66,7 @@ onBeforeUnmount(() => {
             <p v-if="prompt.description" class="text-sm text-base-content/70 line-clamp-2 mb-2">
                 {{ prompt.description }}
             </p>
-            <div class="flex items-center gap-1 mt-auto pt-2 border-t border-base-200">
+            <div class="flex items-center gap-1 mt-auto pt-2 border-t border-base-300">
                 <button class="btn btn-ghost btn-xs flex-1" @click="emit('toggle')">
                     {{ expanded ? $t('common.close') : $t('common.clickToView') }}
                 </button>
@@ -87,7 +87,7 @@ onBeforeUnmount(() => {
                 </template>
             </div>
             <div v-if="expanded"
-                class="mt-2 p-3 bg-base-200 rounded-lg text-xs font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">
+                class="mt-2 p-3 bg-base-300 rounded-lg text-xs font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">
                 {{ prompt.content }}
             </div>
         </div>

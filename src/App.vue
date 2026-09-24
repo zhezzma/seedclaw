@@ -158,7 +158,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="fixed inset-0 bg-base-200 overflow-hidden text-base-content font-sans">
+    <div class="fixed inset-0 bg-base-100 overflow-hidden text-base-content font-sans">
         <RouterView />
         <MessagePlugin />
         <ExecApprovalModal />

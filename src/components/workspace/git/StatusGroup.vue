@@ -80,12 +80,12 @@ function onInlineClick(e: MouseEvent, action: InlineAction) {
 </script>
 
 <template>
-    <div v-if="changes.length > 0 || alwaysShow" class="border-b border-base-200">
+    <div v-if="changes.length > 0 || alwaysShow" class="border-b border-base-300">
         <!-- header：左侧 toggle + 标题；右侧 actions slot（stage all / discard all 等）。
              空 list 时 toggle 被禁用，免得点击之后点击举动什么都不发生。 -->
         <div class="flex items-stretch">
             <button class="flex-1 flex items-center gap-1 text-left text-xs px-2 py-1"
-                :class="changes.length > 0 ? 'hover:bg-base-200' : 'cursor-default text-base-content/50'"
+                :class="changes.length > 0 ? 'hover:bg-base-300' : 'cursor-default text-base-content/50'"
                 :disabled="changes.length === 0"
                 @click="toggle">
                 <ChevronDownIcon v-if="open && changes.length > 0" class="h-3 w-3" />
@@ -101,7 +101,7 @@ function onInlineClick(e: MouseEvent, action: InlineAction) {
         <div v-if="open && changes.length > 0">
             <!-- 行容器加 .group：让行内按钮可以用 lg:group-hover 控制 PC 上的可见性。 -->
             <div v-for="(change, idx) in changes" :key="`${change.path}-${idx}`"
-                class="group flex items-center gap-2 text-xs px-3 py-1 hover:bg-base-200 font-mono cursor-pointer"
+                class="group flex items-center gap-2 text-xs px-3 py-1 hover:bg-base-300 font-mono cursor-pointer"
                 :title="change.path" @click="onClick(change)" @contextmenu="onRowContextMenu($event, change)">
                 <span class="w-3 shrink-0" :class="statusClass(change.status)">{{ change.status }}</span>
                 <span class="truncate flex-1">

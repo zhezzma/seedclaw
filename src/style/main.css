@@ -12,7 +12,8 @@
 /* 自定义深色主题：同名覆盖内置 dark（未列出的变量全部继承内置值，见 daisyUI 5 docs/themes）。
    设计意图：内置 dark 是 hue 252 的冷蓝灰，且 base-300(21%)比背景(25%)更黑——
    全局 50+ 处 border-base-300 形同虚设，大面积低对比冷灰糊成一片，是“压抑感”的来源。
-   新配色为无彩中性（chroma 0）：背景对齐 ChatGPT 的黑色档位（#212121/#171717），边框明显可见。
+   新配色为无彩中性（chroma 0）：三档 base 与亮色镜像——base-100 主背景为最暗端，
+   base-200/300 依次变亮（边框比背景浅，与亮色“边框比背景深”同构）。
    强调色走极简灰白（Vercel/Linear 式无彩风）：primary≈白，按钮白底深字，
    用户气泡 bg-primary/10 变成淡灰白提亮 tint。
    语义色(info/success/warning/error)全部继承内置彩色：灰白极简只作用于界面骨架
@@ -21,9 +22,9 @@
 @plugin "daisyui/theme" {
     name: "dark";
     color-scheme: dark; /* 同名覆盖不会继承此字段，缺省会掉回 normal（深色下滚动条/原生控件变浅色） */
-    --color-base-100: oklch(22.5% 0 0); /* 主背景：ChatGPT #212121 */
-    --color-base-200: oklch(17.5% 0 0); /* 侧栏/面板/代码块：ChatGPT 侧栏 #171717 */
-    --color-base-300: oklch(31% 0 0); /* 边框/hover：≈#2f2f2f，比表面亮、清晰可见 */
+    --color-base-100: oklch(14% 0 0); /* 主背景：最暗端（≈#101010） */
+    --color-base-200: oklch(22% 0 0); /* 侧栏/面板/代码块：比主背景亮一档（≈#161616） */
+    --color-base-300: oklch(30% 0 0); /* 边框/hover：最亮端（≈#1c1c1c），边框比背景浅 */
     --color-base-content: oklch(93% 0 0);
     --color-neutral: oklch(26% 0 0);
     --color-primary: oklch(93% 0.004 80); /* 白：按钮/链接/选中态/用户气泡 tint */
@@ -34,17 +35,32 @@
     --color-accent-content: oklch(23% 0.006 80);
 }
 
-/* 暗色下 base-200(17.5%)比背景 base-100(22.5%)还暗，作为分隔线呈“纯黑发丝线”
-   （亮色模式里边框比背景深是常态，无此问题）。仅在暗色作用域把它们统一提升为
-   base-300(31%，比表面亮)；亮色模式不受影响。面板底色 bg-base-200 不在此列 */
-[data-theme="dark"] .border-base-200,
-[data-theme="dark"] .border-base-200\/50,
-[data-theme="dark"] .border-base-200\/60 {
-    border-color: var(--color-base-300);
+/* 弹窗/抽屉遮罩统一色：亮色=黑 40%（同 daisyUI 默认），暗色=白 5%。
+   配合全局磨砂（见下）：blur 消除背景细节，极淡底色只负责提亮反衬暗色弹窗 + 磨砂材质感 */
+:root {
+    --app-backdrop: oklch(0% 0 0 / 0.4);
 }
 
-[data-theme="dark"] .ring-base-200 {
-    --tw-ring-color: var(--color-base-300);
+[data-theme="dark"] {
+    --app-backdrop: oklch(100% 0 0 / 0.05);
+}
+
+.app-backdrop {
+    background-color: var(--app-backdrop);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+/* daisyUI modal 的遮罩画在 .modal 自身（打开时），modal-backdrop 只是布局层，
+   默认硬编码 oklch(0% 0 0/.4)——统一改由变量控制，并统一加磨砂（同 backdrop-blur-sm 的 8px）。
+   modal-backdrop 仅保留布局/点击职责，不另加底色（避免与 .modal 背景双层叠加） */
+.modal.modal-open,
+.modal[open],
+.modal:target,
+.modal-toggle:checked + .modal {
+    background-color: var(--app-backdrop);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 }
 
 /* Utility: hide scrollbar but keep scroll behavior */
@@ -233,22 +249,6 @@ html, body {
 
 #app {
     height: 100%;
-}
-
-[data-theme="light"] .markdown-it-code-title .code-header-bg {
-    background-color: #f5f5f5;
-}
-
-[data-theme="dark"] .markdown-it-code-title .code-header-bg {
-    background-color: var(--color-base-300);
-}
-
-[data-theme="light"] .markdown-it-code-title .code-scroll-top-button {
-    background-color: rgba(255, 255, 255, 0.8);
-}
-
-[data-theme="dark"] .markdown-it-code-title .code-scroll-top-button {
-    background-color: color-mix(in oklab, var(--color-base-300) 80%, transparent);
 }
 
 /*覆盖圆角*/
