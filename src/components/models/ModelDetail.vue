@@ -158,7 +158,7 @@ const handleClearModels = async () => {
             <!-- 顶栏（兼作标题栏拖拽区 + 为悬浮窗口键预留右侧）；返回键仅移动端显示（回列表），桌面由侧栏切换 -->
             <ViewHeader :title="provider.id" wc-pad>
                 <template #left>
-                    <button class="btn btn-ghost btn-sm btn-circle lg:hidden" aria-label="Back" @click="$emit('back')">
+                    <button class="btn btn-ghost btn-sm btn-circle lg:hidden" :aria-label="$t('common.back')" @click="$emit('back')">
                         <ArrowLeftIcon class="h-5 w-5" />
                     </button>
                 </template>

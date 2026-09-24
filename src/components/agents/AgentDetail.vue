@@ -82,7 +82,7 @@ const handleAgentSaved = async () => {
         <!-- 顶栏：标题 + 拖拽区 + 窗口键预留；← 返回键仅移动端显示（PC 端经侧栏切换智能体） -->
         <ViewHeader :title="agent?.name || 'Agent'" wc-pad>
             <template #left>
-                <button class="btn btn-ghost btn-sm btn-circle lg:hidden" @click="$emit('back')" aria-label="Back">
+                <button class="btn btn-ghost btn-sm btn-circle lg:hidden" @click="$emit('back')" :aria-label="$t('common.back')">
                     <ArrowLeftIcon class="h-5 w-5" />
                 </button>
             </template>
