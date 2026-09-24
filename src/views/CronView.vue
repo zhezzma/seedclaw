@@ -244,7 +244,7 @@ onMounted(() => {
     <div class="flex flex-col h-full">
         <ViewHeader :title="$t('cron.title')" wc-pad :is-main-page="true">
             <template #actions>
-                <div class="flex items-center lg:gap-5">
+                <div class="flex items-center gap-5">
                     <button @click="handleOpenAdd" class="btn btn-ghost btn-circle btn-xs" :title="$t('cron.newJob')">
                         <PlusIcon class="w-5 h-5" />
                     </button>

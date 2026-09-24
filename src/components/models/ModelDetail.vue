@@ -163,7 +163,7 @@ const handleClearModels = async () => {
                     </button>
                 </template>
                 <template #actions>
-                    <div class="flex items-center lg:gap-5">
+                    <div class="flex items-center gap-5">
                         <button v-if="provider.custom" @click="syncModels" class="btn btn-ghost btn-circle btn-xs"
                             :disabled="syncing" :title="$t('common.sync')">
                             <ArrowPathIcon class="h-5 w-5" :class="syncing ? 'animate-spin' : ''" />
