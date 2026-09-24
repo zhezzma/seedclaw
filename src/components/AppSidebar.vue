@@ -630,8 +630,9 @@ const handleNavClick = (item: any) => {
             </div>
         </div>
 
-        <!-- 网关账号区：当前网关名称+地址，点击弹出账号菜单（切换账号/添加服务器/设置） -->
-        <GatewaySwitcher :collapsed="isCollapsed" />
+        <!-- 网关账号区：当前网关名称+地址，点击弹出账号菜单（切换账号/添加服务器/设置）；
+             菜单关闭时发 navigate，移动端在此收起抽屉 -->
+        <GatewaySwitcher :collapsed="isCollapsed" @navigate="closeSidebarDrawer" />
     </div>
 
     <SessionInfoModal :open="infoModalOpen" :session="infoSession" :loading="infoLoading"

@@ -11,6 +11,9 @@ import { openExternalLink } from '../utils/external-link'
 
 defineProps<{ collapsed: boolean }>()
 
+// 菜单关闭统一发 navigate：菜单内动作（跳转/外链）的收尾，如移动端收抽屉，交父级处理
+const emit = defineEmits<{ (e: 'navigate'): void }>()
+
 const { t } = useI18n()
 const router = useRouter()
 const toast = useToast()
@@ -76,6 +79,7 @@ const openMenu = async () => {
 
 const closeMenu = () => {
     isOpen.value = false
+    emit('navigate')
 }
 
 const toggleMenu = () => {
