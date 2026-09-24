@@ -4,7 +4,6 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAgentsState } from '../composables/useAgentsState'
 import { useUiSettingsStore } from '@/stores/setting'
 import { useI18n } from 'vue-i18n'
-import ViewHeader from '@/components/ViewHeader.vue'
 
 // Components
 import AgentSidebar from '../components/agents/AgentSidebar.vue'
@@ -24,23 +23,23 @@ const selectedAgentId = computed(() => {
     return (route.query.agentId as string) || undefined
 })
 
-const selectedAgentName = computed(() => {
-    if (!selectedAgentId.value) return ''
-    const list = agentsState.agentsList || []
-    const agent = list.find((a: any) => a.id === selectedAgentId.value)
-    return agent?.name || agent?.identity?.name || agent?.id || 'Agent'
-})
-
 const selectAgent = (agentId: string) => {
     // Update URL query parameter
     router.push({ query: { ...route.query, agentId } })
 }
 
 const clearSelection = () => {
-    // Return to list view (Mobile)
-    const query = { ...route.query }
-    delete query.agentId
-    router.replace({ query })
+    // 返回列表（移动端）：上一条历史就是本页列表时用 back() 弹栈；
+    // replace 会改写当前项而非回退，栈里留下重复列表页，列表页需按两次返回才能退出。
+    // 深链直达详情时无列表历史可回，才 replace 清掉 agentId
+    const backPath = (window.history.state as any)?.back
+    if (typeof backPath === 'string' && backPath.split('?')[0] === route.path) {
+        router.back()
+    } else {
+        const query = { ...route.query }
+        delete query.agentId
+        router.replace({ query })
+    }
 }
 
 const handleAgentCreated = async (newAgentId: string) => {
@@ -92,11 +91,6 @@ watch(() => [agentsState.agentsList, route.query.agentId], ([agentsList, current
         <div class="h-full flex flex-col min-w-0" :class="[
             selectedAgentId ? 'w-full flex lg:flex-1' : 'hidden lg:flex lg:flex-1'
         ]">
-
-            <!-- Mobile Back Button Header (Only on Mobile + Selected) -->
-            <div class="lg:hidden shrink-0">
-                <ViewHeader :title="selectedAgentName" @click="clearSelection"></ViewHeader>
-            </div>
 
             <AgentDetail v-if="selectedAgentId" :agent-id="selectedAgentId" @back="clearSelection"
                 class="flex-1 overflow-hidden" />

@@ -2,7 +2,8 @@
 import { computed, ref } from 'vue'
 import { useModelsState, AvailableModel, OAuthProviders } from '../../composables/useModelsState'
 import { useI18n } from 'vue-i18n'
-import { ArrowPathIcon, PencilIcon, TrashIcon, PlusIcon, ArrowTopRightOnSquareIcon } from '@heroicons/vue/24/outline' // Explicit import just in case
+import { ArrowLeftIcon, ArrowPathIcon, PencilIcon, TrashIcon, PlusIcon, ArrowTopRightOnSquareIcon } from '@heroicons/vue/24/outline' // Explicit import just in case
+import ViewHeader from '../ViewHeader.vue'
 import ProviderFormModal from './ProviderFormModal.vue'
 import ModelFormModal from './ModelFormModal.vue'
 import OAuthModal from './OAuthModal.vue'
@@ -11,9 +12,10 @@ const props = defineProps<{
     providerId: string
 }>()
 
-// 删除提供商后通知父组件切换选中项
+// 删除提供商后通知父组件切换选中项；back：移动端返回键回列表
 const emit = defineEmits<{
     (e: 'deleted'): void
+    (e: 'back'): void
 }>()
 
 const { t } = useI18n()
@@ -153,34 +155,38 @@ const handleClearModels = async () => {
 <template>
     <div class="h-full w-full relative">
         <div v-if="provider" class="h-full flex flex-col ">
-            <!-- Header -->
-            <div class="px-6 py-6 border-b border-base-300">
-                <div class="flex items-center gap-2">
-                    <div class="flex-1 min-w-0">
-                        <h1 class="text-xl font-bold truncate">{{ provider.id }}</h1>
-                        <p class="text-sm text-base-content/60 truncate">{{ provider.baseUrl }}</p>
+            <!-- 顶栏（兼作标题栏拖拽区 + 为悬浮窗口键预留右侧）；返回键仅移动端显示（回列表），桌面由侧栏切换 -->
+            <ViewHeader :title="provider.id" wc-pad :is-main-page="true">
+                <template #left>
+                    <button class="btn btn-ghost btn-sm btn-circle lg:hidden" aria-label="Back" @click="$emit('back')">
+                        <ArrowLeftIcon class="h-5 w-5" />
+                    </button>
+                </template>
+                <template #actions>
+                    <div class="flex items-center lg:gap-5">
+                        <button v-if="provider.custom" @click="syncModels" class="btn btn-ghost btn-circle btn-xs"
+                            :disabled="syncing" :title="$t('common.sync')">
+                            <ArrowPathIcon class="h-5 w-5" :class="syncing ? 'animate-spin' : ''" />
+                        </button>
+                        <button v-if="provider.type === 'oauth' || OAuthProviders.includes(props.providerId)"
+                            @click="showOAuthModal = true" class="btn btn-ghost btn-circle btn-xs"
+                            :title="$t('provider.login', 'Login')">
+                            <ArrowTopRightOnSquareIcon class="h-5 w-5" />
+                        </button>
+                        <button @click="openEditProvider" class="btn btn-ghost btn-circle btn-xs"
+                            :title="$t('common.edit')">
+                            <PencilIcon class="h-5 w-5" />
+                        </button>
+                        <button v-if="provider.custom" @click="deleteProvider" class="btn btn-ghost btn-circle btn-xs"
+                            :title="$t('common.delete')">
+                            <TrashIcon class="h-5 w-5" />
+                        </button>
                     </div>
-                    <button @click="syncModels" class="btn btn-ghost btn-sm" :disabled="syncing" v-if="provider.custom">
-                        <ArrowPathIcon class="w-4 h-4" :class="syncing ? 'animate-spin' : ''" />
-                        {{ $t('common.sync') }}
-                    </button>
-                    <button @click="showOAuthModal = true" class="btn btn-ghost btn-outline btn-sm"
-                        v-if="provider.type === 'oauth' || OAuthProviders.includes(props.providerId)">
-                        <ArrowTopRightOnSquareIcon class="w-4 h-4" />
-                        {{ $t('provider.login', 'Login') }}
-                    </button>
-                    <button @click="openEditProvider" class="btn btn-ghost btn-sm">
-                        <PencilIcon class="w-4 h-4" />
-                        {{ $t('common.edit') }}
-                    </button>
-                    <button @click="deleteProvider" class="btn btn-ghost btn-sm" v-if="provider.custom">
-                        <TrashIcon class="w-4 h-4" />
-                        {{ $t('common.delete') }}
-                    </button>
-                </div>
-                <div v-if="syncError" class="mt-2 text-sm text-error">{{ syncError }}</div>
-                <div v-if="syncResult" class="mt-2 text-sm text-success">{{ syncResult }}</div>
-            </div>
+
+                </template>
+            </ViewHeader>
+            <div v-if="syncError" class="shrink-0 px-4 py-1 text-sm text-error">{{ syncError }}</div>
+            <div v-if="syncResult" class="shrink-0 px-4 py-1 text-sm text-success">{{ syncResult }}</div>
 
 
             <!-- Content -->

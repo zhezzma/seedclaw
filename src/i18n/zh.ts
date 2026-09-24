@@ -817,7 +817,6 @@ export default {
         language: '语言',
         dark: '深色',
         light: '浅色',
-        showBottomNav: '显示底部导航',
         notifications: '消息通知',
         notConfigured: '未配置',
         voice: '语音设置',

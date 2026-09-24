@@ -91,7 +91,7 @@ const toggleExpand = (id: string) => {
 
 <template>
     <div class="h-full flex flex-col overflow-hidden">
-        <ViewHeader :title="$t('prompt.title')" :is-main-page="true" />
+        <ViewHeader :title="$t('prompt.title')" wc-pad :is-main-page="true" />
 
         <div class="flex-1 overflow-y-auto p-4 space-y-8">
             <!-- Loading -->

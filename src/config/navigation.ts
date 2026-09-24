@@ -29,7 +29,6 @@ export interface NavItem {
     query?: Record<string, string>
     activeIcon?: any
     showInSidebar?: boolean
-    showInBottomNav?: boolean
 }
 
 export const ALL_NAV_ITEMS: NavItem[] = [
@@ -38,66 +37,57 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         icon: HomeIcon,
         activeIcon: HomeIconSolid,
         route: 'home',
-        showInSidebar: false,
-        showInBottomNav: true
+        showInSidebar: false
     },
     {
         label: 'agent.agents',
         icon: Squares2X2Icon,
         activeIcon: Squares2X2IconSolid,
         route: 'agents',
-        showInSidebar: true,
-        showInBottomNav: true
+        showInSidebar: true
     },
     {
         label: 'sidebar.models',
         icon: CubeIcon,
         activeIcon: CubeIconSolid,
         route: 'models',
-        showInSidebar: true,
-        showInBottomNav: true
+        showInSidebar: true
     },
     {
         label: 'extensions.title',
         icon: PuzzlePieceIcon,
         activeIcon: PuzzlePieceIconSolid,
         route: 'extensions',
-        showInSidebar: true,
-        showInBottomNav: true
+        showInSidebar: true
     },
     {
         label: 'prompt.title',
         icon: DocumentTextIcon,
         activeIcon: DocumentTextIconSolid,
         route: 'prompts',
-        showInSidebar: true,
-        showInBottomNav: true
+        showInSidebar: true
     },
     {
         label: 'sidebar.cron',
         icon: ClockIcon,
         activeIcon: ClockIconSolid,
         route: 'cron',
-        showInSidebar: true,
-        showInBottomNav: true
+        showInSidebar: true
     },
     {
         label: 'sidebar.skills',
         icon: SparklesIcon,
         activeIcon: SparklesIconSolid,
         route: 'skills',
-        showInSidebar: false,
-        showInBottomNav: false
+        showInSidebar: false
     },
     {
         label: 'settings.title',
         icon: Cog6ToothIcon,
         activeIcon: Cog6ToothIconSolid,
         route: 'settings',
-        showInSidebar: false, // Sidebar has a separate settings button usually
-        showInBottomNav: true
+        showInSidebar: false // Sidebar has a separate settings button usually
     }
 ]
 
 export const SIDEBAR_ITEMS = ALL_NAV_ITEMS.filter(item => item.showInSidebar)
-export const BOTTOM_NAV_ITEMS = ALL_NAV_ITEMS.filter(item => item.showInBottomNav)

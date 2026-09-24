@@ -34,7 +34,8 @@ test('ViewHeader supports hiding the bottom border via showBorder (default true)
 test('ChatHeader hides the border on the new-session page and shows it in a session', () => {
     assert.match(
         chatHeaderSource,
-        /<ViewHeader\s+:show-border="isSession">/,
+        // 后随属性（如 wc-pad 预留悬浮窗口键宽度）不影响 showBorder 绑定语义
+        /<ViewHeader\s+:show-border="isSession"(?:\s[^>]*)?>/,
         'ChatHeader should bind showBorder to isSession (hidden on the new-session page)',
     )
 })

@@ -4,7 +4,8 @@
  * - 提供 tab 切换 (Files / Git)，子组件用 :key=agentId 跨 agent 强制 remount
  * - 左侧 splitter 拖动调整宽度（240～600）；拖动时用本地 ref 实时刷新视觉，
  *   仅 mouseup 时一次性 persist 到 settings store，避免每像素一次 localStorage 写
- * - 顶部刷新按钮真正重拉数据（清缓存 + 立即 reload）
+ * - 刷新入口：桌面=面板右键菜单（刷新/新建）+ Files 空白左键 + 文件行菜单「刷新」
+ *   （共用 useWorkspaceRefresh）；移动端 drawer 顶部保留 🔄/✕ 按钮（无悬浮窗口键，不重叠）
  * - Agent 切换时通过 ensureAgent 守护各 store 归属（条件 reset，同 agent 重挂不清 cache）
  *
  * 模板用单根 `<div class="contents">` 包裹 splitter + aside：Vue 3 多根 SFC 不会
@@ -12,7 +13,11 @@
  * `display:contents` 让 wrapper 不参与布局，splitter 与 aside 仍是父 flex 的 item。
  */
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
-import { XMarkIcon, ArrowPathIcon, FolderIcon, CodeBracketIcon } from '@heroicons/vue/24/outline'
+import { XMarkIcon, ArrowPathIcon, DocumentPlusIcon, FolderPlusIcon, FolderIcon, CodeBracketIcon } from '@heroicons/vue/24/outline'
+import { useI18n } from 'vue-i18n'
+import { useContextMenu, type ContextMenuItem } from '../../composables/useContextMenu'
+import { useWorkspaceRefresh } from '../../composables/useWorkspaceRefresh'
+import { runNewFileFlow, runNewDirFlow } from '../../composables/useFileActions'
 import { useWorkspacePanel, PANEL_MIN_WIDTH, PANEL_MAX_WIDTH } from '../../composables/useWorkspacePanel'
 import { useWorkspaceTree } from '../../composables/useWorkspaceTree'
 import { useWorkspaceGit } from '../../composables/useWorkspaceGit'
@@ -99,61 +104,50 @@ onUnmounted(() => {
     document.body.style.cursor = ''
 })
 
-// ─── 顶部刷新 ────────────────────────────────────────────────────
-// 真正重拉，而不是只清缓存。spec §6.4: 顶部 🔄 = 全部刷新。
-// - Files tab 下：保留 expanded 路径，refresh 后并发重拉，避免用户辛苦展开的深层目录折叠回去
-// - Git tab 下：先 await loadRepos 拿最新列表，再决定当前 repo 是否还有效（避免对外部已删除的 repo 拉数据）
-// isRefreshing 守卫：避免连点高频重复请求
-const isRefreshing = ref(false)
-async function refresh() {
-    if (isRefreshing.value) return
-    isRefreshing.value = true
-    // agent 快照：await 期间切 agent 的话，旧 agent 的展开路径/仓库选择
-    // 不能打到已归属新 agent 的 store 上（loadPath 有归属守护，这里提前止损）。
-    const agentId = props.agentId
-    try {
-        if (panel.activeTab.value === 'files') {
-            const expandedPaths = tree.expandedPaths()
-            tree.refresh()
-            await tree.loadPath(agentId, '')
-            if (props.agentId !== agentId) return
-            await Promise.all(expandedPaths.map(p => tree.loadPath(agentId, p)))
-            // 树重展开期间也可能切 agent：agentFiles 已被 ensureAgent(reset) 归属
-            // 新 agent，新 tab（:key 重挂）的 immediate watch 已同步建好在飞占位；
-            // 此时继续走 agentFiles.refresh() 会把新 agent 的占位无条件清掉，而
-            // 下面的 loadPath(旧 agent) 被归属守护 no-op，无人重拉 → Agent Files
-            // 区卡死空白（isLoading/error/entries 全空，模板三连 v-if 全不命中），
-            // 直到手动收起/展开或再点刷新。
-            if (props.agentId !== agentId) return
-            // 底部 agent 文件区只在展开时才重拉，避免隐式快照过鲜
-            if (panel.bottomSections.value.agentFiles) {
-                const agentExpanded = agentFiles.expandedPaths()
-                agentFiles.refresh()
-                await agentFiles.loadPath(agentId, '')
-                await Promise.all(agentExpanded.map(p => agentFiles.loadPath(agentId, p)))
-            }
-        } else {
-            await git.loadRepos(agentId)
-            if (props.agentId !== agentId) return
-            let repo = panel.getRepoForAgent(agentId)
-            // 只在没有选择时回退 repos[0]；显式选过的仓库即使不在列表（嵌套仓库）
-            // 也保留 —— 与 WorkspaceTabGit.onMounted 同语义。
-            if (!repo) {
-                repo = git.repos.value[0]?.path ?? null
-                if (repo) panel.setRepoForAgent(agentId, repo)
-            }
-            if (repo) {
-                await Promise.all([
-                    // 手动刷新显式带 refresh=1：服务端先 git fetch 刷 upstream，
-                    // 否则 ↓behind 永远基于本地过期的 remote-tracking ref。
-                    git.loadStatus(agentId, repo, { refresh: true }),
-                    git.loadLog(agentId, repo),
-                ])
-            }
-        }
-    } finally {
-        isRefreshing.value = false
+// ─── 面板刷新（原顶部 🔄 按钮已删：与悬浮窗口键重叠）───
+// 全量刷新逻辑抽到 useWorkspaceRefresh（面板右键菜单 / Files tab 空白左键 / 文件行菜单「刷新」共用）
+const { isRefreshing, refreshAll } = useWorkspaceRefresh()
+
+// ─── 面板右键菜单 ───
+// 文件树行自带右键菜单（行 handler 已 preventDefault），这里用 defaultPrevented
+// 区分：只响应面板空白处/git 行的右键，不覆盖行菜单。
+// Files tab 下补充根目录新建入口；Git tab 只有刷新 —— 全面板只有空白菜单 + 文件行菜单两种。
+const { t } = useI18n()
+const ctxMenu = useContextMenu()
+// 桌面端 Tauri：面板头部兼作标题栏拖拽区（与 ViewHeader 同一语义）
+const isDesktopTauri = (!!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__)
+    && !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+
+function onPanelContextMenu(e: MouseEvent) {
+    if (props.mobile || e.defaultPrevented) return
+    e.preventDefault()
+    const items: ContextMenuItem[] = [{
+        label: t('common.refresh'),
+        icon: ArrowPathIcon,
+        action: () => refreshAll(props.agentId, () => props.agentId),
+    }]
+    if (panel.activeTab.value === 'files') {
+        items.push(
+            {
+                label: t('workspace.menu.newFile'),
+                icon: DocumentPlusIcon,
+                separator: true,
+                action: () => runNewFileFlow({
+                    agentId: props.agentId, scope: 'workspace', parentPath: '',
+                    onMutated: () => refreshAll(props.agentId, () => props.agentId),
+                }),
+            },
+            {
+                label: t('workspace.menu.newDir'),
+                icon: FolderPlusIcon,
+                action: () => runNewDirFlow({
+                    agentId: props.agentId, scope: 'workspace', parentPath: '',
+                    onMutated: () => refreshAll(props.agentId, () => props.agentId),
+                }),
+            },
+        )
     }
+    ctxMenu.openAt(items, { x: e.clientX, y: e.clientY })
 }
 </script>
 
@@ -169,9 +163,12 @@ async function refresh() {
         <!-- panel -->
         <aside class="bg-base-200 flex flex-col shrink-0 overflow-hidden"
             :class="mobile ? 'flex-1 w-full' : 'border-l border-base-300'"
-            :style="mobile ? undefined : { width: effectiveWidth + 'px' }">
-            <!-- header: tabs + actions -->
-            <div class="flex items-center justify-between border-b border-base-300 px-2 py-2 shrink-0">
+            :style="mobile ? undefined : { width: effectiveWidth + 'px' }"
+            @contextmenu="onPanelContextMenu">
+            <!-- header: tabs。桌面右侧留白给悬浮窗口键（deep 拖拽使头部空白可拖动窗口/双击最大化）；
+                 移动端 drawer 保留刷新/关闭按钮 -->
+            <div class="flex items-center justify-between border-b border-base-300 px-2 py-2 shrink-0"
+                :data-tauri-drag-region="isDesktopTauri ? 'deep' : undefined">
                 <div class="tabs tabs-sm">
                     <a class="tab tab-bordered gap-1" :class="{ 'tab-active': panel.activeTab.value === 'files' }"
                         @click="panel.setTab('files')">
@@ -184,9 +181,10 @@ async function refresh() {
                         <span>{{ $t('workspace.tabGit') }}</span>
                     </a>
                 </div>
-                <div class="flex items-center gap-0">
+                <!-- 仅移动端：桌面端该位置被悬浮窗口键占用 -->
+                <div v-if="mobile" class="flex items-center gap-0">
                     <button class="btn btn-ghost btn-xs btn-circle" :title="$t('common.refresh')"
-                        :disabled="isRefreshing" @click="refresh">
+                        :disabled="isRefreshing" @click="refreshAll(props.agentId, () => props.agentId)">
                         <ArrowPathIcon class="h-4 w-4" :class="{ 'animate-spin': isRefreshing }" />
                     </button>
                     <button class="btn btn-ghost btn-xs btn-circle" :title="$t('common.close')" @click="panel.close()">

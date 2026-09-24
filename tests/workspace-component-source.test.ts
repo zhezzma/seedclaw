@@ -107,7 +107,7 @@ test('WorkspaceTabGit: 加载 workspaceRoot + 菜单传绝对路径 + HistoryLis
     assert.match(src, /:on-open-file="openCommitFile"/, 'must pass onOpenFile to HistoryList for commit file open')
 })
 
-test('WorkspaceTabGit: 空白区点击刷新（5s 节流）', () => {
+test('WorkspaceTabGit: 空白区点击刷新（无节流，每次点击都重拉）', () => {
     const src = read('src/components/workspace/WorkspaceTabGit.vue')
     // 滚动容器挂 @click.self：只有点到容器自身空白处才触发，
     // 列表行 / 按钮 / 输入框 / 下拉等子元素不受影响
@@ -116,9 +116,8 @@ test('WorkspaceTabGit: 空白区点击刷新（5s 节流）', () => {
     assert.match(src, /function onBlankAreaClick[\s\S]*?void loadAll\(repo\)/, 'blank click must reuse loadAll (status+log)')
     // 无选中仓库直接忽略
     assert.match(src, /function onBlankAreaClick[\s\S]*?if \(!repo\) return/, 'must ignore blank click when no repo selected')
-    // 5s 时间戳节流：连点不会狂刷（refresh=1 会 git fetch，开销不小）
-    assert.match(src, /5000/, 'throttle interval must be 5s')
-    assert.match(src, /lastBlankAreaRefreshAt < BLANK_AREA_REFRESH_INTERVAL_MS/, 'must throttle by timestamp window')
+    // 节流已按需求移除：不应再有时间窗口节流残留
+    assert.doesNotMatch(src, /BLANK_AREA_REFRESH_INTERVAL_MS/, 'throttle was intentionally removed')
     // 拖拽选中文本松手在空白处：click 落在公共祖先（容器），.self 挡不住 →
     // pointerdown 起点位移 >4px 视为拖拽，不触发刷新
     assert.match(src, /@pointerdown="onBlankAreaPointerDown"/, 'must track pointerdown origin')
@@ -500,10 +499,14 @@ test('RepoSelector: 嵌套仓库（不在 /repos 列表）合成仅名字的展�
     assert.match(src, /lastIndexOf\('\/'\)/, 'must derive display name for nested repo selection')
 })
 
-test('WorkspacePanel: refresh 快照 agentId + 手动刷新带 refresh=1', () => {
-    const src = read('src/components/workspace/WorkspacePanel.vue')
-    assert.match(src, /const agentId = props\.agentId/, 'refresh must snapshot agentId')
-    assert.match(src, /props\.agentId !== agentId/, 'refresh must bail out on agent switch')
+test('useWorkspaceRefresh: refreshAll 快照 agentId + 手动刷新带 refresh=1', () => {
+    // 刷新逻辑已从 WorkspacePanel 抽到 useWorkspaceRefresh（面板右键菜单 / Files 空白左键 / 文件行菜单共用）
+    const src = read('src/composables/useWorkspaceRefresh.ts')
+    // agentId 以参数快照传入；stale() 实时复查 = 防刷新中途切 agent 造成跨 agent 写串
+    assert.match(src, /async function refreshAll\(agentId: string, getLiveAgentId\?: \(\) => string\)/,
+        'refreshAll must snapshot agentId and accept live-agent getter')
+    assert.match(src, /const stale = \(\) => !!getLiveAgentId && getLiveAgentId\(\) !== agentId/,
+        'refreshAll must detect agent switch via stale()')
     assert.match(src, /refresh: true/, 'manual refresh must ask server to fetch upstream')
     // 树重展开 Promise.all 之后也必须复查：期间切 agent 时 agentFiles 已被
     // ensureAgent(reset) 归属新 agent，新 tab 的 immediate watch 已建好在飞占位；
@@ -512,12 +515,16 @@ test('WorkspacePanel: refresh 快照 agentId + 手动刷新带 refresh=1', () =>
     // 源码为 CRLF 行尾：归一化后再做位置断言
     const norm = src.replace(/\r\n/g, '\n')
     const iAll = norm.indexOf('await Promise.all(expandedPaths.map')
-    const iRecheck = norm.indexOf('if (props.agentId !== agentId) return', iAll)
+    const iRecheck = norm.indexOf('if (stale()) return', iAll)
     // 带换行匹配真实调用语句（本测试上方源码注释里也提到了 agentFiles.refresh()）
     const iAgentRefresh = norm.indexOf('agentFiles.refresh()\n', iAll)
     assert.ok(iAll !== -1, 'refresh must re-expand tree paths')
     assert.ok(iRecheck !== -1 && iAgentRefresh !== -1 && iRecheck < iAgentRefresh,
         'refresh must re-check agent ownership after tree re-expand await, BEFORE agentFiles.refresh() wipes new agent placeholder')
+    // 调用方必须接线 live getter（等价于旧实现的 props.agentId !== agentId 实时比较）
+    const panelSrc = read('src/components/workspace/WorkspacePanel.vue')
+    assert.match(panelSrc, /refreshAll\(props\.agentId, \(\) => props\.agentId\)/,
+        'panel must wire live agent getter so refresh bails out on agent switch')
 })
 
 test('WorkspaceViewer: close 等待保存落地后再走丢弃确认', () => {

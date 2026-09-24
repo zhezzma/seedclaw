@@ -14,8 +14,8 @@ test('sidebar defines three session tabs with pill segmented-control styling', (
     assert.match(sidebarSource, /\{ key: 'plans', labelKey: 'sidebar\.tabPlans', icon: CalendarDaysIcon \}/)
     assert.match(sidebarSource, /\{ key: 'archived', labelKey: 'sidebar\.tabArchived', icon: ArchiveBoxIcon \}/)
     // 胶囊分段控件：圆角灰底容器，选中项白底描边阴影
-    assert.match(sidebarSource, /rounded-full bg-base-300\/60 p-1/)
-    assert.match(sidebarSource, /sessionTab === tab\.key\s*\n\s*\? 'bg-base-100 border-base-300\/80 shadow-sm text-base-content'/)
+    assert.match(sidebarSource, /rounded-full bg-base-300 p-1/)
+    assert.match(sidebarSource, /sessionTab === tab\.key\s*\n\s*\? 'bg-base-100 border-base-300 shadow-sm text-base-content'/)
     // 每个 tab 都有可访问性选中态
     assert.match(sidebarSource, /:aria-selected="sessionTab === tab\.key"/)
     // 旧 daisyUI tabs-boxed 结构不应残留

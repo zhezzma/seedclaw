@@ -179,7 +179,7 @@ onUnmounted(() => {
 <template>
     <div class="flex flex-col h-full ">
         <!-- Header -->
-        <ViewHeader :title="$t('log.title')">
+        <ViewHeader :title="$t('log.title')" wc-pad>
             <template #actions>
                 <div class="flex items-center gap-2">
                     <!-- Auto-refresh toggle -->

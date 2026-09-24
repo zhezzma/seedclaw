@@ -27,6 +27,7 @@ import {
     DocumentCheckIcon,
     DocumentDuplicateIcon,
     ArrowUturnLeftIcon,
+    ArrowPathIcon,
 } from '@heroicons/vue/24/outline'
 
 export type GitGroup = 'unstaged' | 'staged'
@@ -54,6 +55,8 @@ export interface GitFileMenuArgs extends GitFileMenuCommonArgs {
     /** 仅 unstaged + untracked 有效；调用者透入 git.discard(agentId, repo, [file.path])。
      *  factory 在调用前已弹过 confirm。 */
     onDiscard?: () => Promise<void>
+    /** 刷新当前仓库状态（status+log，与 Git tab 空白左键刷新同语义）；不传则不显示该项。 */
+    onRefresh?: () => void | Promise<void>
 }
 
 function tr(key: string, params?: Record<string, unknown>): string {
@@ -121,7 +124,7 @@ export function buildGitFileMenu(args: GitFileMenuCommonArgs): ContextMenuItem[]
 }
 
 export function buildGitFileMenuItems(args: GitFileMenuArgs): ContextMenuItem[] {
-    const { file, group, onOpenDiff, onOpenFile, absolutePath, onStage, onUnstage, onDiscard } = args
+    const { file, group, onOpenDiff, onOpenFile, absolutePath, onStage, onUnstage, onDiscard, onRefresh } = args
     const toast = useToast()
     const { confirm } = useConfirm()
     const isUntracked = isUntrackedFile(file)
@@ -175,6 +178,15 @@ export function buildGitFileMenuItems(args: GitFileMenuArgs): ContextMenuItem[] 
                 try { await onDiscard() }
                 catch (e: any) { toast.error(`${tr('workspace.git.discard')}: ${e?.message || e}`) }
             },
+        })
+    }
+
+    if (onRefresh) {
+        items.push({
+            label: tr('common.refresh'),
+            icon: ArrowPathIcon,
+            separator: true,
+            action: () => { void onRefresh() },
         })
     }
 

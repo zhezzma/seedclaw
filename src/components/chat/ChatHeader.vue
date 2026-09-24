@@ -28,6 +28,8 @@ import { apiGet, apiPost } from '../../composables/api-client'
 
 defineProps<{
     sessionName?: string
+    /** Workspace 面板可见时（占据窗口右侧全高），悬浮窗口键压在面板上而非顶栏，无需预留 */
+    panelVisible?: boolean
 }>()
 
 
@@ -185,7 +187,7 @@ defineExpose({
 </script>
 
 <template>
-    <ViewHeader :show-border="isSession">
+    <ViewHeader :show-border="isSession" :wc-pad="!panelVisible">
         <!-- Back Button or Hamburger -->
         <template #left>
             <div class="flex-none lg:hidden">
@@ -211,7 +213,7 @@ defineExpose({
 
         <!-- Actions -->
         <template #actions>
-            <div class="flex items-center lg:gap-2">
+            <div class="flex items-center lg:gap-5">
                 <!-- Connection Status Indicator -->
                 <div class="relative group flex items-center" @click.stop="showUsageTip = !showUsageTip" role="button"
                     tabindex="0" :aria-expanded="showUsageTip"

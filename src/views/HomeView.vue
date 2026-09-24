@@ -872,7 +872,7 @@ async function applyDefaultSessionBehavior() {
 
             <!-- Header 始终可见：panel toggle / 主题 / 会话树 / 通知都依赖它 -->
             <ChatHeader ref="chatHeaderRef" @start-voice-chat="startVoiceChat" @open-session-tree="openSessionTree"
-                :session-name="currentSessionName" />
+                :session-name="currentSessionName" :panel-visible="showWorkspacePanel" />
 
             <!-- Main content area: chat messages OR viewer -->
             <div class="flex-1 flex flex-col min-h-0">

@@ -212,7 +212,7 @@ const handleInstall = async (skill: any, agentId?: string) => {
 
 <template>
     <div class="h-full flex flex-col overflow-hidden bg-base-100">
-        <ViewHeader :title="$t('skills.title')" :is-main-page="true">
+        <ViewHeader :title="$t('skills.title')" wc-pad :is-main-page="true">
             <template #actions>
 
                 <div class="flex gap-2">

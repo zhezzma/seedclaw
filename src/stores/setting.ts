@@ -52,7 +52,6 @@ export interface UiSettings {
     isSidebarCollapsed: boolean
     isSidebarGrouped: boolean
     isWideMode: boolean
-    showBottomNav: boolean
     asrEngine: ASREngineType
     ttsEngine: TTSEngineType
     asrConfigs: EngineConfig<ASREngineType>[]
@@ -389,7 +388,6 @@ const getDefaultSettings = (): UiSettings => ({
     isSidebarCollapsed: false,
     isSidebarGrouped: false,
     isWideMode: true,
-    showBottomNav: false,
     asrEngine: 'fun-asr',
     ttsEngine: 'edge',
     asrConfigs: defaultAsrConfigs(),

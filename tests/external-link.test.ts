@@ -65,7 +65,7 @@ test('账号菜单外部链接：button + JS 触发锚点，不引插件不用 w
     // 菜单项是 button（先关菜单再触发，关菜单不拦导航），不是自带 target=_blank 的 <a>
     assert.match(
         switcherSource,
-        /<button type="button" role="menuitem" class="rounded-xl px-3 py-2 text-sm" @click="handleExternalLink">/,
+        /<button type="button" role="menuitem" class="rounded-xl px-3 py-2 text-sm"\s+@click="handleExternalLink">/,
         'external link menu item must be a button wired to handleExternalLink',
     )
     assert.match(switcherSource, /from ['"]\.\.\/utils\/external-link(?:\.ts)?['"]/)

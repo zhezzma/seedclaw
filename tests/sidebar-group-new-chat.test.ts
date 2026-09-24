@@ -9,10 +9,10 @@ const zhSource = readFileSync(path.join(root, 'src/i18n/zh.ts'), 'utf8')
 const enSource = readFileSync(path.join(root, 'src/i18n/en.ts'), 'utf8')
 
 test('agent group header shows a + button to start a new chat for that agent', () => {
-    // 组头名称占 flex-1，把 + 按钮推到行右侧
+    // 组头名称占 flex-1（后随字体/颜色类随样式迭代），把 + 按钮推到行右侧
     assert.match(
         sidebarSource,
-        /<span class="truncate flex-1">\{\{ session\.label \}\}<\/span>/,
+        /<span class="truncate flex-1[^"]*"[^>]*>\{\{ session\.label \}\}<\/span>/,
         'group header label should stretch so the + button sits on the right',
     )
 

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useUiSettingsStore } from './stores/setting'
 import MessagePlugin from './components/MessagePlugin.vue'
 import ConfirmPlugin from './components/ConfirmPlugin.vue'
+import WindowControls from './components/WindowControls.vue'
 import ExecApprovalModal from './components/ExecApprovalModal.vue'
 import { useAppInit } from './composables/useAppInit'
 import { ApiError } from './composables/api-client'
@@ -160,6 +161,7 @@ onUnmounted(() => {
 <template>
     <div class="fixed inset-0 bg-base-100 overflow-hidden text-base-content font-sans">
         <RouterView />
+        <WindowControls />
         <MessagePlugin />
         <ExecApprovalModal />
         <ConfirmPlugin />

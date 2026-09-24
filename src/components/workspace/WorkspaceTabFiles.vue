@@ -19,6 +19,7 @@ import { useWorkspaceTree } from '../../composables/useWorkspaceTree'
 import { useAgentFiles } from '../../composables/useAgentFiles'
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
 import { useWorkspacePanel } from '../../composables/useWorkspacePanel'
+import { useWorkspaceRefresh } from '../../composables/useWorkspaceRefresh'
 import { useWorkspaceGit } from '../../composables/useWorkspaceGit'
 import { useToast } from '../../composables/useToast'
 import { useConfirm } from '../../composables/useConfirm'
@@ -37,6 +38,8 @@ const git = useWorkspaceGit()
 const toast = useToast()
 const { confirm } = useConfirm()
 const { t } = useI18n()
+// 空白左键刷新与面板右键菜单/文件行菜单共用同一套全量刷新
+const { refreshAll } = useWorkspaceRefresh()
 
 onMounted(() => {
     tree.loadPath(props.agentId, '')
@@ -131,6 +134,18 @@ function onNewAgentFile() {
 function onNewAgentDir() {
     runNewDirFlow({ agentId: props.agentId, scope: 'agent', parentPath: '', onMutated: onMutatedAgent })
 }
+
+// ── 空白区点击刷新（与 Git tab 同语义：点目录树空白 = “看一眼最新”）──
+// 拖拽选中文本（位移 > 4px）不触发。
+let blankPointerDownAt: { x: number; y: number } | null = null
+function onBlankAreaPointerDown(e: PointerEvent) {
+    blankPointerDownAt = { x: e.clientX, y: e.clientY }
+}
+function onBlankAreaClick(e: MouseEvent) {
+    const down = blankPointerDownAt
+    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) return
+    void refreshAll(props.agentId, () => props.agentId)
+}
 </script>
 
 <template>
@@ -165,8 +180,9 @@ function onNewAgentDir() {
             </div>
         </div>
 
-        <!-- 主区：workspace 目录树（flex-1 + 内部滚动） -->
-        <div class="flex-1 min-h-0 overflow-y-auto">
+        <!-- 主区：workspace 目录树（flex-1 + 内部滚动）；点空白处刷新 -->
+        <div class="flex-1 min-h-0 overflow-y-auto" @pointerdown="onBlankAreaPointerDown"
+            @click.self="onBlankAreaClick">
             <div v-if="tree.isLoading('')" class="p-3 text-base-content/60">
                 <span class="loading loading-spinner loading-xs mr-2" />{{ $t('common.loading') }}
             </div>

@@ -33,9 +33,11 @@ import {
     FolderPlusIcon,
     ArrowUpOnSquareIcon,
     TrashIcon,
+    ArrowPathIcon,
     ArrowTopRightOnSquareIcon,
     EyeIcon,
 } from '@heroicons/vue/24/outline'
+import { useWorkspaceRefresh } from './useWorkspaceRefresh'
 
 export type FileScope = 'workspace' | 'agent'
 
@@ -471,6 +473,13 @@ export function buildFileMenuItems(args: BuildArgs): ContextMenuItem[] {
                     toast.error(`${tr('workspace.menu.delete')}: ${e?.message || String(e)}`)
                 }
             },
+        },
+        // 全量刷新：与面板右键菜单/Files 空白左键同一套 refreshAll
+        {
+            label: tr('common.refresh'),
+            icon: ArrowPathIcon,
+            separator: true,
+            action: () => { void useWorkspaceRefresh().refreshAll(agentId) },
         },
     ]
 }

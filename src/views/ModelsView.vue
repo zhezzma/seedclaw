@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import ViewHeader from '@/components/ViewHeader.vue'
-
 import { useModelsState } from '../composables/useModelsState'
 import { useUiSettingsStore } from '@/stores/setting'
 
@@ -23,10 +21,6 @@ const selectedProviderId = computed(() => {
     return (route.query.providerId as string) || undefined
 })
 
-const selectedProviderName = computed(() => {
-    return selectedProviderId.value || 'Provider'
-})
-
 // Get provider IDs from computed providers
 const providerIds = computed(() => {
     return providers.value.map(p => p.id)
@@ -37,9 +31,16 @@ const selectProvider = (providerId: string) => {
 }
 
 const clearSelection = () => {
-    const query = { ...route.query }
-    delete query.providerId
-    router.replace({ query })
+    // 同 AgentsView：上一条历史是本页列表时 back() 弹栈，避免 replace 留下重复列表项
+    // 导致列表页需按两次返回才能退出；深链直达详情时才 replace
+    const backPath = (window.history.state as any)?.back
+    if (typeof backPath === 'string' && backPath.split('?')[0] === route.path) {
+        router.back()
+    } else {
+        const query = { ...route.query }
+        delete query.providerId
+        router.replace({ query })
+    }
 }
 
 // 删除提供商后清除选中，桌面端由 watch 自动选中第一个，移动端回到列表页
@@ -77,12 +78,8 @@ watch(() => [providerIds.value, route.query.providerId], ([providerList, current
             selectedProviderId ? 'w-full flex lg:flex-1' : 'hidden lg:flex lg:flex-1'
         ]">
 
-            <!-- Mobile Back Button Header -->
-            <div class="lg:hidden shrink-0">
-                <ViewHeader :title="selectedProviderName"></ViewHeader>
-            </div>
-
-            <ModelDetail v-if="selectedProviderId" :provider-id="selectedProviderId" class="flex-1 overflow-hidden" @deleted="handleProviderDeleted" />
+            <ModelDetail v-if="selectedProviderId" :provider-id="selectedProviderId" class="flex-1 overflow-hidden"
+                @deleted="handleProviderDeleted" @back="clearSelection" />
 
             <!-- Empty State for Desktop -->
             <div v-else class="hidden lg:flex flex-1 items-center justify-center text-base-content/40">

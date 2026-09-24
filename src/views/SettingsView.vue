@@ -333,7 +333,7 @@ const logout = async () => {
 
 <template>
     <div class="flex flex-col h-full ">
-        <ViewHeader :title="$t('settings.title')" :is-main-page="true">
+        <ViewHeader :title="$t('settings.title')" wc-pad :is-main-page="true">
         </ViewHeader>
 
         <div class="flex-1 overflow-y-auto ">

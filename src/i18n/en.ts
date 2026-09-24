@@ -816,7 +816,6 @@ export default {
         language: 'Language',
         dark: 'Dark',
         light: 'Light',
-        showBottomNav: 'Show Bottom Nav',
         notifications: 'Notifications',
         notConfigured: 'Not Configured',
         voice: 'Voice Settings',
