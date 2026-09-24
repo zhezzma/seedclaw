@@ -107,6 +107,24 @@ test('WorkspaceTabGit: 加载 workspaceRoot + 菜单传绝对路径 + HistoryLis
     assert.match(src, /:on-open-file="openCommitFile"/, 'must pass onOpenFile to HistoryList for commit file open')
 })
 
+test('WorkspaceTabGit: 空白区点击刷新（5s 节流）', () => {
+    const src = read('src/components/workspace/WorkspaceTabGit.vue')
+    // 滚动容器挂 @click.self：只有点到容器自身空白处才触发，
+    // 列表行 / 按钮 / 输入框 / 下拉等子元素不受影响
+    assert.match(src, /@click\.self="onBlankAreaClick"/, 'scroll container must bind click.self for blank-area refresh')
+    // 复用 loadAll：status（refresh=1 顺带 fetch upstream）+ log，与切仓/顶部刷新同语义
+    assert.match(src, /function onBlankAreaClick[\s\S]*?void loadAll\(repo\)/, 'blank click must reuse loadAll (status+log)')
+    // 无选中仓库直接忽略
+    assert.match(src, /function onBlankAreaClick[\s\S]*?if \(!repo\) return/, 'must ignore blank click when no repo selected')
+    // 5s 时间戳节流：连点不会狂刷（refresh=1 会 git fetch，开销不小）
+    assert.match(src, /5000/, 'throttle interval must be 5s')
+    assert.match(src, /lastBlankAreaRefreshAt < BLANK_AREA_REFRESH_INTERVAL_MS/, 'must throttle by timestamp window')
+    // 拖拽选中文本松手在空白处：click 落在公共祖先（容器），.self 挡不住 →
+    // pointerdown 起点位移 >4px 视为拖拽，不触发刷新
+    assert.match(src, /@pointerdown="onBlankAreaPointerDown"/, 'must track pointerdown origin')
+    assert.match(src, /Math\.hypot\(e\.clientX - down\.x, e\.clientY - down\.y\) > 4/, 'must ignore drag-release (>4px) as click')
+})
+
 test('CollapsibleSection: header + body + maxHeight + count + actions slot', () => {
     const src = read('src/components/workspace/CollapsibleSection.vue')
     assert.match(src, /ChevronRightIcon/, 'must render collapsed chevron')

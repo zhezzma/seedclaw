@@ -96,6 +96,28 @@ function onPickRepo(repo: string) {
     loadAll(repo)
 }
 
+// ── 空白区点击刷新（点状态列表下方的空白 = “看一眼最新”）──
+// 5s 时间戳节流：loadStatus 带 refresh=1 会 git fetch，连点不能狂刷。
+// @click.self 只响应容器自身的空白点击，列表行/按钮/输入框不受影响。
+const BLANK_AREA_REFRESH_INTERVAL_MS = 5000
+let lastBlankAreaRefreshAt = 0
+// 拖拽选中文本时 mousedown 在子元素、mouseup 在空白处 → click 落在公共祖先（本容器），
+// .self 挡不住；记录 pointerdown 起点，位移超过阈值视为拖拽，不触发刷新。
+let blankPointerDownAt: { x: number; y: number } | null = null
+function onBlankAreaPointerDown(e: PointerEvent) {
+    blankPointerDownAt = { x: e.clientX, y: e.clientY }
+}
+function onBlankAreaClick(e: MouseEvent) {
+    const down = blankPointerDownAt
+    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) return
+    const repo = selectedRepo.value
+    if (!repo) return
+    const now = Date.now()
+    if (now - lastBlankAreaRefreshAt < BLANK_AREA_REFRESH_INTERVAL_MS) return
+    lastBlankAreaRefreshAt = now
+    void loadAll(repo)
+}
+
 function openDiff(group: GitGroup, change: FileChange) {
     const repo = selectedRepo.value
     if (!repo) return
@@ -396,8 +418,9 @@ async function onPrimary() {
 
 <template>
     <div class="flex flex-col h-full">
-        <!-- 顶部：RepoSelector + Commit Bar — flex-1 内部滚动 -->
-        <div class="flex-1 min-h-0 overflow-y-auto">
+        <!-- 顶部：RepoSelector + Commit Bar — flex-1 内部滚动；点空白处节流刷新 -->
+        <div class="flex-1 min-h-0 overflow-y-auto" @pointerdown="onBlankAreaPointerDown"
+            @click.self="onBlankAreaClick">
             <RepoSelector :selected-repo="selectedRepo" @select="onPickRepo" />
 
             <!-- Commit bar：消息 textarea 在上，提交按钮另起一行 — VSCode 风格 -->
