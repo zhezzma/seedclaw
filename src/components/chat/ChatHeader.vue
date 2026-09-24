@@ -185,7 +185,7 @@ defineExpose({
 </script>
 
 <template>
-    <ViewHeader>
+    <ViewHeader :show-border="isSession">
         <!-- Back Button or Hamburger -->
         <template #left>
             <div class="flex-none lg:hidden">

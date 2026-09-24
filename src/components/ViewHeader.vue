@@ -7,9 +7,11 @@ import { useUiSettingsStore } from '../stores/setting'
 const props = withDefaults(defineProps<{
     title?: string
     isMainPage?: boolean
+    showBorder?: boolean
 }>(), {
     isMainPage: false,
-    title: ''
+    title: '',
+    showBorder: true
 })
 
 const router = useRouter()
@@ -30,7 +32,7 @@ const goBack = () => {
 </script>
 
 <template>
-    <div class="shrink-0 navbar border-b border-base-300 min-h-[3rem]">
+    <div class="shrink-0 navbar min-h-[3rem]" :class="{ 'border-b border-base-300': showBorder }">
         <div class="flex-1 flex items-center gap-2">
             <template v-if="!$slots.left">
                 <button v-if="shouldShowBack" @click="goBack" class="btn btn-ghost btn-sm btn-circle"
