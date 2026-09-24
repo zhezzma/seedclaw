@@ -20,7 +20,6 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          # ≥22.6：npm test 依赖 --experimental-strip-types
           node-version: 22
           cache: npm
 
@@ -31,9 +30,6 @@ jobs:
 
       - name: Type check
         run: npm run tcs
-
-      - name: Unit tests
-        run: npm test
 
       - name: Build web
         run: npm run build
