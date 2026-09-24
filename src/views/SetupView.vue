@@ -12,7 +12,6 @@ import {
     ArrowRightIcon,
     EyeIcon,
     EyeSlashIcon,
-    DevicePhoneMobileIcon,
     CheckCircleIcon,
     ServerIcon,
     UserCircleIcon,
@@ -45,7 +44,8 @@ const authToken = ref('')
 const isLoading = ref(false)
 const error = ref('')
 const showPassword = ref(false)
-const deviceName = ref(configStore.deviceName || 'SeedCode')
+// 引导页名称输入：写入网关条目（GatewayProfile.name），留空走 store 兜底
+const gatewayName = ref('')
 
 // 内置服务端模式（Tauri + bundled）：本地服务由应用托管，
 // 引导页不再要求手填网关地址；"连接远程服务器"是显式的高级选项
@@ -113,19 +113,22 @@ const handleLocalSubmit = async () => {
     error.value = ''
 
     try {
+        const profileName = gatewayName.value.trim()
         const existingLocal = configStore.gateways.find((g) => g.id === LOCAL_GATEWAY_ID)
         if (existingLocal) {
             // 保留条目上的 lastNewSessionAgentId（迁移来的本地 agent 记忆）：
             // addGateway 是整条目 upsert，会把记忆字段清掉
+            // 名称留空时不覆盖：保留条目已有名称
             configStore.updateGateway(LOCAL_GATEWAY_ID, {
                 apiBaseUrl: localServer.url ?? '',
                 token: localServer.token ?? '',
+                ...(profileName ? { name: profileName } : {}),
             })
         } else {
             configStore.addGateway({
                 id: LOCAL_GATEWAY_ID,
                 type: 'local',
-                name: t('gateway.localManaged'),
+                name: profileName || t('gateway.localManaged'),
                 apiBaseUrl: localServer.url ?? '',
                 token: localServer.token ?? '',
             })
@@ -135,10 +138,7 @@ const handleLocalSubmit = async () => {
             configStore.save({
                 apiBaseUrl: localServer.url,
                 token: localServer.token,
-                deviceName: deviceName.value.trim() || 'SeedCode'
             })
-        } else {
-            configStore.save({ deviceName: deviceName.value.trim() || 'SeedCode' })
         }
         await checkNextSteps()
     } catch (e: any) {
@@ -175,17 +175,19 @@ const handleConnectionSubmit = async () => {
         // 远程模式：创建（或按 URL 复用）第一个远程条目并激活
         const url = apiBaseUrl.value.trim()
         const token = authToken.value.trim()
+        const profileName = gatewayName.value.trim()
         const existing = configStore.gateways.find(
             (g) => g.type === 'remote' && g.apiBaseUrl.replace(/\/+$/, '') === url.replace(/\/+$/, ''),
         )
         if (existing) {
-            configStore.updateGateway(existing.id, { token })
+            // 名称留空时不覆盖：保留条目已有名称
+            configStore.updateGateway(existing.id, { token, ...(profileName ? { name: profileName } : {}) })
             configStore.setActiveGateway(existing.id)
         } else {
-            const entry = configStore.addGateway({ type: 'remote', name: '', apiBaseUrl: url, token })
+            // 留空时 addGateway 内部兜底为地址 host 标识
+            const entry = configStore.addGateway({ type: 'remote', name: profileName, apiBaseUrl: url, token })
             configStore.setActiveGateway(entry.id)
         }
-        configStore.save({ deviceName: deviceName.value.trim() || 'SeedCode' })
 
         // Connection successful.
         // Determine if we need to show Model/Agent setup steps.
@@ -400,15 +402,14 @@ const handleAgentSubmit = async () => {
                         </div>
                     </div>
 
-                    <!-- Device Name -->
+                    <!-- Server Name -->
                     <fieldset class="fieldset">
                         <legend class="fieldset-legend text-sm font-medium">
-                            <DevicePhoneMobileIcon class="w-4 h-4 inline mr-1" />
-                            {{ $t('setup.deviceNameOptional') }}
+                            <ServerIcon class="w-4 h-4 inline mr-1" />
+                            {{ $t('gateway.serverName') }}
                         </legend>
-                        <input v-model="deviceName" type="text" class="input w-full focus:input-primary transition-all"
-                            placeholder="SeedCode" />
-                        <p class="label text-xs opacity-60">{{ $t('setup.deviceNameDesc') }}</p>
+                        <input v-model="gatewayName" type="text" class="input w-full focus:input-primary transition-all" />
+                        <p class="label text-xs opacity-60">{{ $t('gateway.serverNamePlaceholder') }}</p>
                     </fieldset>
 
                     <button type="button" @click="handleLocalSubmit"
@@ -475,15 +476,14 @@ const handleAgentSubmit = async () => {
                         <p class="label text-xs opacity-60">{{ $t('setup.tokenDesc') }}</p>
                     </fieldset>
 
-                    <!-- Device Name -->
+                    <!-- Server Name -->
                     <fieldset class="fieldset">
                         <legend class="fieldset-legend text-sm font-medium">
-                            <DevicePhoneMobileIcon class="w-4 h-4 inline mr-1" />
-                            {{ $t('setup.deviceNameOptional') }}
+                            <ServerIcon class="w-4 h-4 inline mr-1" />
+                            {{ $t('gateway.serverName') }}
                         </legend>
-                        <input v-model="deviceName" type="text" class="input w-full focus:input-primary transition-all"
-                            placeholder="SeedCode Web" />
-                        <p class="label text-xs opacity-60">{{ $t('setup.deviceNameDesc') }}</p>
+                        <input v-model="gatewayName" type="text" class="input w-full focus:input-primary transition-all" />
+                        <p class="label text-xs opacity-60">{{ $t('gateway.serverNamePlaceholder') }}</p>
                     </fieldset>
 
                     <button type="submit"

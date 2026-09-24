@@ -226,8 +226,6 @@
    单独一套 fade 动画而不是复用 .welcome-fade：后者 forwards 停在 opacity:1，
    会覆盖这里的静态半透明目标值 */
 .welcome-s-icon {
-    width: 10rem;
-    height: 10rem;
     opacity: 0;
     animation: welcome-fade-s 0.6s ease-out forwards;
 }

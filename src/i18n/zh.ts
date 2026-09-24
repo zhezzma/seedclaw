@@ -886,8 +886,6 @@ export default {
         token: '访问令牌',
         enterTokenPlaceholder: '请输入您的访问令牌',
         tokenDesc: '从 OpenClaw 控制台获取的认证令牌',
-        deviceNameOptional: '设备名称 (可选)',
-        deviceNameDesc: '显示在网关的设备标识名称',
         startUsing: '开始使用',
         localServerTitle: '内置本地服务',
         localServerDesc: '应用已内置本地服务端，无需手动配置地址与令牌',

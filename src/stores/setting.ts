@@ -44,7 +44,6 @@ export interface UiSettings {
     gateways: GatewayProfile[]
     /** 当前激活的 gateway id；顶层 apiBaseUrl/token 随它派生。 */
     activeGatewayId: string
-    deviceName: string
     /** 首次引导是否已完成：bundled 本地模式下 apiBaseUrl 由服务托管、恒为已配置，
      *  是否弹回主界面只能以"跑完过向导"为准（否则永远进不了引导页） */
     setupDone: boolean
@@ -384,7 +383,6 @@ const getDefaultSettings = (): UiSettings => ({
     token: '',
     gateways: [],
     activeGatewayId: '',
-    deviceName: 'SeedCode',
     setupDone: false,
     theme: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
     isSidebarOpen: false,
@@ -426,6 +424,8 @@ const loadConfig = (): UiSettings => {
             const parsed = JSON.parse(saved)
             // 迁移：lastActiveSessionKey 已废弃（只写不读的死状态），从旧配置中剥离
             delete parsed.lastActiveSessionKey
+            // 迁移：deviceName 已废弃（引导页名称改写入 GatewayProfile.name），从旧配置中剥离
+            delete parsed.deviceName
             if (parsed.gatewayUrl && !parsed.apiBaseUrl) {
                 let url = parsed.gatewayUrl as string
                 url = url.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://')

@@ -885,8 +885,6 @@ export default {
         token: 'Access Token',
         enterTokenPlaceholder: 'Please enter your Access Token',
         tokenDesc: 'Authentication Token from OpenClaw Console',
-        deviceNameOptional: 'Device Name (Optional)',
-        deviceNameDesc: 'Device identifier name displayed at Gateway',
         startUsing: 'Start Using',
         localServerTitle: 'Built-in Local Server',
         localServerDesc: 'A local server is bundled with this app — no URL or token setup needed',
