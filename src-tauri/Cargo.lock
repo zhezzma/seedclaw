@@ -3521,7 +3521,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "seedclaw"
+name = "seedcode"
 version = "0.1.0"
 dependencies = [
  "futures-util",

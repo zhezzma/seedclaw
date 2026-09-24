@@ -48,7 +48,7 @@ export function startCompactSSE(sessionId, body, onEvent, onError) { return make
 
 function stubPluginForTest() {
     return {
-        name: 'seedclaw-test-stubs',
+        name: 'seedcode-test-stubs',
         setup(b: any) {
             b.onResolve({ filter: /^@tauri-apps\// }, (a: any) => ({ path: a.path, namespace: 'stub' }))
             b.onResolve({ filter: /\/i18n$/ }, (a: any) => ({ path: a.path, namespace: 'stub' }))

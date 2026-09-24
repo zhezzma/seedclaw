@@ -384,7 +384,7 @@ const getDefaultSettings = (): UiSettings => ({
     token: '',
     gateways: [],
     activeGatewayId: '',
-    deviceName: 'SeedClaw',
+    deviceName: 'SeedCode',
     setupDone: false,
     theme: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
     isSidebarOpen: false,

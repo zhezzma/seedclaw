@@ -26,7 +26,7 @@ export type {
   IconName,
 } from './types'
 
-export { ICON_NAMES, A2UI_VERSION, SEEDCLAW_BASIC_CATALOG_ID } from './types'
+export { ICON_NAMES, A2UI_VERSION, SEEDCODE_BASIC_CATALOG_ID } from './types'
 
 // 组件导出
 export { default as A2UIRenderer } from './A2UIRenderer.vue'

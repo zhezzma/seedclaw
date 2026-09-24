@@ -62,13 +62,13 @@ test('persists per-session input history into localStorage', async () => {
 
     assert.deepEqual(store.getHistory('session-a'), ['first command', 'second command'])
     assert.equal(
-        storage.getItem('seedclaw_input_history'),
+        storage.getItem('seedcode_input_history'),
         JSON.stringify({ 'session-a': ['first command', 'second command'] }),
     )
 })
 
 test('reloads persisted history from localStorage in a fresh store instance', async () => {
-    storage.setItem('seedclaw_input_history', JSON.stringify({
+    storage.setItem('seedcode_input_history', JSON.stringify({
         'session-a': ['cmd-1', 'cmd-2'],
         'session-b': ['other'],
     }))
@@ -89,7 +89,7 @@ test('removes stored history when a session is deleted locally', async () => {
     assert.deepEqual(store.getHistory('session-a'), [])
     assert.deepEqual(store.getHistory('session-b'), ['cmd-2'])
     assert.equal(
-        storage.getItem('seedclaw_input_history'),
+        storage.getItem('seedcode_input_history'),
         JSON.stringify({ 'session-b': ['cmd-2'] }),
     )
 })
@@ -116,13 +116,13 @@ test('persists per-session input draft into localStorage', async () => {
 
     assert.equal(store.getDraft('session-a'), 'draft text')
     assert.equal(
-        storage.getItem('seedclaw_input_drafts'),
+        storage.getItem('seedcode_input_drafts'),
         JSON.stringify({ 'session-a': 'draft text' }),
     )
 })
 
 test('draft survives store reload from localStorage', async () => {
-    storage.setItem('seedclaw_input_drafts', JSON.stringify({
+    storage.setItem('seedcode_input_drafts', JSON.stringify({
         'session-a': 'draft text',
         'session-b': 'other',
     }))
@@ -140,7 +140,7 @@ test('empty draft text removes the stored entry', async () => {
     store.setDraft('session-a', '')
 
     assert.equal(store.getDraft('session-a'), '')
-    assert.equal(storage.getItem('seedclaw_input_drafts'), null)
+    assert.equal(storage.getItem('seedcode_input_drafts'), null)
 })
 
 test('removes stored draft when a session is deleted locally', async () => {
@@ -161,7 +161,7 @@ test('removes draft for sessions that never had history', async () => {
     store.removeSessionHistory('session-a')
 
     assert.equal(store.getDraft('session-a'), '')
-    assert.equal(storage.getItem('seedclaw_input_drafts'), null)
+    assert.equal(storage.getItem('seedcode_input_drafts'), null)
 })
 
 test('enforces max draft length', async () => {
@@ -179,5 +179,5 @@ test('clearAll clears drafts as well', async () => {
     store.clearAll()
 
     assert.equal(store.getDraft('session-a'), '')
-    assert.equal(storage.getItem('seedclaw_input_drafts'), null)
+    assert.equal(storage.getItem('seedcode_input_drafts'), null)
 })

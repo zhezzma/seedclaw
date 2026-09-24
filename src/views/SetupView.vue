@@ -45,7 +45,7 @@ const authToken = ref('')
 const isLoading = ref(false)
 const error = ref('')
 const showPassword = ref(false)
-const deviceName = ref(configStore.deviceName || 'SeedClaw')
+const deviceName = ref(configStore.deviceName || 'SeedCode')
 
 // 内置服务端模式（Tauri + bundled）：本地服务由应用托管，
 // 引导页不再要求手填网关地址；"连接远程服务器"是显式的高级选项
@@ -135,10 +135,10 @@ const handleLocalSubmit = async () => {
             configStore.save({
                 apiBaseUrl: localServer.url,
                 token: localServer.token,
-                deviceName: deviceName.value.trim() || 'SeedClaw'
+                deviceName: deviceName.value.trim() || 'SeedCode'
             })
         } else {
-            configStore.save({ deviceName: deviceName.value.trim() || 'SeedClaw' })
+            configStore.save({ deviceName: deviceName.value.trim() || 'SeedCode' })
         }
         await checkNextSteps()
     } catch (e: any) {
@@ -185,7 +185,7 @@ const handleConnectionSubmit = async () => {
             const entry = configStore.addGateway({ type: 'remote', name: '', apiBaseUrl: url, token })
             configStore.setActiveGateway(entry.id)
         }
-        configStore.save({ deviceName: deviceName.value.trim() || 'SeedClaw' })
+        configStore.save({ deviceName: deviceName.value.trim() || 'SeedCode' })
 
         // Connection successful.
         // Determine if we need to show Model/Agent setup steps.
@@ -347,7 +347,7 @@ const handleAgentSubmit = async () => {
                     <div class="text-6xl mb-4 animate-bounce">🦀</div>
                     <h1
                         class="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                        Seedclaw
+                        Seedcode
                     </h1>
                     <!-- Steps Indicator -->
                     <ul class="steps steps-sm w-full mt-6">
@@ -407,7 +407,7 @@ const handleAgentSubmit = async () => {
                             {{ $t('setup.deviceNameOptional') }}
                         </legend>
                         <input v-model="deviceName" type="text" class="input w-full focus:input-primary transition-all"
-                            placeholder="SeedClaw" />
+                            placeholder="SeedCode" />
                         <p class="label text-xs opacity-60">{{ $t('setup.deviceNameDesc') }}</p>
                     </fieldset>
 
@@ -482,7 +482,7 @@ const handleAgentSubmit = async () => {
                             {{ $t('setup.deviceNameOptional') }}
                         </legend>
                         <input v-model="deviceName" type="text" class="input w-full focus:input-primary transition-all"
-                            placeholder="SeedClaw Web" />
+                            placeholder="SeedCode Web" />
                         <p class="label text-xs opacity-60">{{ $t('setup.deviceNameDesc') }}</p>
                     </fieldset>
 

@@ -9,7 +9,7 @@
 export const A2UI_VERSION = 'v1.0' as const
 
 /** 本渲染端组件 registry 对应的私有 catalog；服务端 createSurface 的默认 catalogId */
-export const SEEDCLAW_BASIC_CATALOG_ID = 'dev.seedclaw/basic'
+export const SEEDCODE_BASIC_CATALOG_ID = 'dev.seedcode/basic'
 
 // ==================== v1.0 纯谓词（零依赖，可测） ====================
 
@@ -20,14 +20,14 @@ export function isSupportedA2uiMessage(msg: any): boolean {
 
 /** v1.0 catalogId 解析：surface 默认 catalog 缺省视为本渲染端 catalog；显式声明其它值 → 拒绝 */
 export function isSurfaceCatalogAllowed(catalogId: unknown): boolean {
-    return catalogId === undefined || catalogId === SEEDCLAW_BASIC_CATALOG_ID
+    return catalogId === undefined || catalogId === SEEDCODE_BASIC_CATALOG_ID
 }
 
 /** 组件级 catalogId：非对象（null/undefined/标量）或非本渲染端 catalog → 不渲染 */
 export function isComponentCatalogAllowed(component: unknown): boolean {
     if (component == null || typeof component !== 'object') return false
     const catalogId = (component as { catalogId?: unknown }).catalogId
-    return catalogId === undefined || catalogId === SEEDCLAW_BASIC_CATALOG_ID
+    return catalogId === undefined || catalogId === SEEDCODE_BASIC_CATALOG_ID
 }
 
 // ==================== 动态值类型 ====================
@@ -292,7 +292,7 @@ export interface CreateSurfaceMessage {
   version: typeof A2UI_VERSION
   createSurface: {
     surfaceId: string
-    /** v1.0：surface 默认 catalog（本渲染端仅识别 SEEDCLAW_BASIC_CATALOG_ID） */
+    /** v1.0：surface 默认 catalog（本渲染端仅识别 SEEDCODE_BASIC_CATALOG_ID） */
     catalogId?: string
     /** v1.0：单消息内联整面 UI */
     components?: A2UIComponent[]

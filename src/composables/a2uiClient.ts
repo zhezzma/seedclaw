@@ -10,7 +10,7 @@
  */
 
 import { apiPost } from './api-client'
-import { A2UI_VERSION, SEEDCLAW_BASIC_CATALOG_ID } from '../components/a2ui/types'
+import { A2UI_VERSION, SEEDCODE_BASIC_CATALOG_ID } from '../components/a2ui/types'
 
 // 纯谓词（版本硬切 / catalog 解析）实现在零依赖的 types.ts，便于 node 原生测试
 export { isSupportedA2uiMessage, isSurfaceCatalogAllowed, isComponentCatalogAllowed } from '../components/a2ui/types'
@@ -85,7 +85,7 @@ export async function callA2uiAgentFunction(input: {
             callFunction: {
                 function: input.call,
                 args: input.args,
-                catalogId: SEEDCLAW_BASIC_CATALOG_ID,
+                catalogId: SEEDCODE_BASIC_CATALOG_ID,
             },
         },
         surfaces: input.surfaces,

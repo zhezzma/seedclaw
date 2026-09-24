@@ -726,7 +726,7 @@ export default {
         deny: 'Deny',
     },
     home: {
-        welcome: 'Welcome to SeedClaw',
+        welcome: 'Welcome to SeedCode',
         startChat: 'Start Sidebar',
         newSession: 'New Session',
         greetingNight: 'Working late? How can I help',

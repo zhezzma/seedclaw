@@ -23,7 +23,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}
-          name: "SeedClaw ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}"
+          name: "SeedCode ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}"
           body: "Automated release for ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}"
           draft: false
           prerelease: false
@@ -81,7 +81,7 @@ jobs:
           NODE_OPTIONS: "--max-old-space-size=4096"
 
       # ── 内置服务端（bundleServer 腿）──────────────────────────────
-      # GITHUB_TOKEN 只对 seedclaw 本仓库有权限，同账号也不行；
+      # GITHUB_TOKEN 只对 seedcode 本仓库有权限，同账号也不行；
       # 跨仓库克隆私有 seedagent 需要 PAT secret：SEEDAGENT_TOKEN
       # （fine-grained PAT，对 zhezzma/seedagent 授予 Contents: Read-only）
       - name: Checkout seedagent (bundled server source)
@@ -103,8 +103,8 @@ jobs:
         run: |
           ./scripts/package-desktop.ps1 -StageOnly -SeedagentDir "$env:GITHUB_WORKSPACE/seedagent"
           @{
-            productName = "SeedClaw Server"
-            identifier = "com.godgodgame.seedclaw.server"
+            productName = "SeedCode Server"
+            identifier = "com.godgodgame.seedcode.server"
             bundle = @{ resources = @("resources/seedagent/**/*") }
           } | ConvertTo-Json -Depth 3 | Set-Content -Path "src-tauri/tauri.server-edition.conf.json" -Encoding utf8NoBOM
 
@@ -128,17 +128,17 @@ jobs:
           BUNDLE_SERVER: ${{ matrix.bundleServer }}
         run: |
           $suffix = if ($env:BUNDLE_SERVER -eq 'true') { '-server' } else { '' }
-          $zipName = "seedclaw${suffix}-windows-portable-x64.zip"
+          $zipName = "seedcode${suffix}-windows-portable-x64.zip"
           $portableDir = "portable-bundle"
           if (Test-Path $portableDir) { Remove-Item -Recurse -Force $portableDir }
           New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
-          Copy-Item "src-tauri/target/release/seedclaw.exe" $portableDir
+          Copy-Item "src-tauri/target/release/seedcode.exe" $portableDir
           if ($env:BUNDLE_SERVER -eq 'true') {
             robocopy "src-tauri/resources" "$portableDir/resources" /E /NFL /NDL /NJH /NJS | Out-Null
             if ($LASTEXITCODE -ge 8) { throw "robocopy resources failed (exit $LASTEXITCODE)" }
-            tar -a -c -f $zipName -C $portableDir seedclaw.exe resources
+            tar -a -c -f $zipName -C $portableDir seedcode.exe resources
           } else {
-            tar -a -c -f $zipName -C $portableDir seedclaw.exe
+            tar -a -c -f $zipName -C $portableDir seedcode.exe
           }
           Get-Item $zipName | Format-List FullName, Length
 
@@ -151,8 +151,8 @@ jobs:
             src-tauri/target/release/bundle/msi/*.msi.sig
             src-tauri/target/release/bundle/nsis/*.exe
             src-tauri/target/release/bundle/nsis/*.exe.sig
-            seedclaw-windows-portable-x64.zip
-            seedclaw-server-windows-portable-x64.zip
+            seedcode-windows-portable-x64.zip
+            seedcode-server-windows-portable-x64.zip
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/deb/*.deb.sig
             src-tauri/target/release/bundle/appimage/*.AppImage

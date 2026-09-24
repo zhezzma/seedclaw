@@ -1,4 +1,4 @@
-name: Deploy SeedClaw Web
+name: Deploy SeedCode Web
 
 on:
   push:

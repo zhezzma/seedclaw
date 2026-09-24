@@ -85,13 +85,13 @@ if (Test-Path $msiDir) {
 }
 
 # 3.3 复制便携版 (绿色版/文件夹格式)
-$exeSource = "$projectRoot\src-tauri\target\release\seedclaw.exe"
+$exeSource = "$projectRoot\src-tauri\target\release\seedcode.exe"
 if (Test-Path $exeSource) {
-    $portableDir = "$distDir\seedclaw-portable"
+    $portableDir = "$distDir\seedcode-portable"
     New-Item -ItemType Directory -Path $portableDir | Out-Null
     
     # 复制主程序
-    Copy-Item $exeSource "$portableDir\seedclaw.exe"
+    Copy-Item $exeSource "$portableDir\seedcode.exe"
     
     # 如果有外部依赖 DLL (如 OpenSSL/WebView2Loader)，通常也在同级目录，一并复制
     # 这里简单起见，复制同级所有 .dll 和 .json 资源 (如果有)
@@ -100,8 +100,8 @@ if (Test-Path $exeSource) {
     
     Write-Host "   [便携版] $portableDir"
     
-    # 4. 部署到指定目录 (D:\Applications\seedclaw)
-    $deployDir = "D:\Applications\seedclaw"
+    # 4. 部署到指定目录 (D:\Applications\seedcode)
+    $deployDir = "D:\Applications\seedcode"
     if (-not (Test-Path $deployDir)) {
         New-Item -ItemType Directory -Path $deployDir -Force | Out-Null
     }

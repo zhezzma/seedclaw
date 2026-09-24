@@ -18,7 +18,7 @@ if (Test-Path $envFile) {
 
 # 配置信息
 $keystore = "$projectRoot\release.keystore"
-$alias = "seedclaw"
+$alias = "seedcode"
 
 # 签名口令必须显式提供：默认口令回退等价于公开签名私钥，
 # 且 Android 签名密钥不可轮换（代码审核 #3）

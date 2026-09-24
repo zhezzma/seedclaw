@@ -896,7 +896,10 @@ async function applyDefaultSessionBehavior() {
                     <!-- 内层撑满高度（flex-1）：让下面的空隙按“高度”参与布局，
                          输入框才能像会话页那样锚定底边、向上扩展（见两处空隙注释） -->
                     <div class="relative w-full max-w-2xl sm:max-w-3xl lg:max-w-4xl flex-1 flex flex-col">
-                        <h1 class="welcome-title text-3xl font-bold text-center mt-[20%]">{{ $t(greetingKey) }}</h1>
+                        <!-- 上方弹性空隙：与下方空隙一起把「图标+问候语」居中在输入框上方空间 -->
+                        <div class="flex-1" aria-hidden="true"></div>
+                        <img src="/welcome-s.png" alt="" aria-hidden="true" class="welcome-s-icon mx-auto" />
+                        <h1 class="welcome-title text-3xl font-bold text-center mt-8">{{ $t(greetingKey) }}</h1>
 
                         <!-- 弹性空隙：输入框长高时收缩这里，使输入框底边不动、向上扩展，
                              与会话页底栏输入框行为一致；移动端键盘(resizes-content)弹出时

@@ -38,7 +38,7 @@ const STUBS: Record<string, string> = {
 
 function stubPluginForTest() {
     return {
-        name: 'seedclaw-test-stubs',
+        name: 'seedcode-test-stubs',
         setup(b: any) {
             b.onResolve({ filter: /^@tauri-apps\// }, (a: any) => ({ path: a.path, namespace: 'stub' }))
             b.onResolve({ filter: /\/i18n$/ }, (a: any) => ({ path: a.path, namespace: 'stub' }))
@@ -163,7 +163,7 @@ async function runHarness(outDir: string, env: Record<string, string>): Promise<
 }
 
 test('session row instances stay identical across open + consecutive model switches (behavior)', async () => {
-    const outDir = join(repoRoot, 'node_modules/.cache/seedclaw-row-harness')
+    const outDir = join(repoRoot, 'node_modules/.cache/seedcode-row-harness')
     try {
         const out = await runHarness(outDir, {})
 
@@ -182,7 +182,7 @@ test('session row instances stay identical across open + consecutive model switc
 })
 
 test('all-fail overlapping double-select rolls back to the true server value (behavior)', async () => {
-    const outDir = join(repoRoot, 'node_modules/.cache/seedclaw-row-harness-allfail')
+    const outDir = join(repoRoot, 'node_modules/.cache/seedcode-row-harness-allfail')
     try {
         const out = await runHarness(outDir, { HARNESS_ALL_FAIL: '1' })
         assert.match(
@@ -196,7 +196,7 @@ test('all-fail overlapping double-select rolls back to the true server value (be
 })
 
 test('cold-start switch lands on the row once it materializes (behavior)', async () => {
-    const outDir = join(repoRoot, 'node_modules/.cache/seedclaw-row-harness-cold')
+    const outDir = join(repoRoot, 'node_modules/.cache/seedcode-row-harness-cold')
     try {
         const out = await runHarness(outDir, { HARNESS_COLD_START: '1', HARNESS_INFO_DELAY_MS: '60' })
         assert.match(

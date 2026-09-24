@@ -7,7 +7,7 @@
 //!    开始菜单存在一个带 `System.AppUserModel.ID`（即 tauri.conf.json 的
 //!    identifier）的快捷方式。Tauri 的 NSIS/MSI 安装器
 //!    （SetLnkAppUserModelId 宏）就是靠它让"安装版"通知可用的；
-//!    seedclaw 日常以 `--no-bundle` 便携方式部署，没有安装器，必须在启动时
+//!    seedcode 日常以 `--no-bundle` 便携方式部署，没有安装器，必须在启动时
 //!    自建。做法：专用 STA 线程重建 `%APPDATA%\...\Programs\{productName}.lnk`，
 //!    无条件重建换取自愈（换部署目录/误删/卸载后下次启动恢复）。
 //!
@@ -19,12 +19,12 @@
 //!    《Send a local toast notification from desktop apps》）：
 //!    - `HKCU\Software\Classes\AppUserModelId\{AUMID}\CustomActivator = {CLSID}`
 //!    - `HKCU\Software\Classes\CLSID\{CLSID}\LocalServer32 = exe 路径`
-//!    进程存活时（seedclaw 常驻托盘，真实唯一场景）Windows 直接调
+//!    进程存活时（seedcode 常驻托盘，真实唯一场景）Windows 直接调
 //!    进程内 CoRegisterClassObject 注册的 activator；进程死后则经
 //!    LocalServer32 冷启动拉起 exe（webview 未就绪时点击 payload 丢失，见下）。
 //!    （冷启动限制与后续优化方向见底部「冷启动限制」。）
 //!
-//! 3. **CLSID 派生**：客户端版 / SeedClaw Server 版两版可并存安装
+//! 3. **CLSID 派生**：客户端版 / SeedCode Server 版两版可并存安装
 //!    （见 release.yml），CLSID 从 identifier 确定性派生（双 offset FNV-64 拼合），
 //!    两版各自独立互不冲突，也避免硬编码常量跨版本漂移。
 //!
@@ -126,7 +126,7 @@ fn derive_clsid(identifier: &str) -> GUID {
 
 /// 点击激活回调（RPC 线程触发）。`invokedargs` = toast XML 的 launch 属性
 /// （通知插件写入的 JSON：`{id, data:{sessionKey}}`）。
-/// 注：seedclaw 不使用 toast 动作按钮，非 JSON 的 invokedargs（按钮场景）
+/// 注：seedcode 不使用 toast 动作按钮，非 JSON 的 invokedargs（按钮场景）
 /// 统一按点击处理（恢复窗口不跳转）——若将来加按钮需在此区分。
 #[implement(INotificationActivationCallback)]
 struct ToastClickedActivator;

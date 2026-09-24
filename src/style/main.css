@@ -221,9 +221,31 @@
         welcome-rise 0.6s ease-out forwards;
 }
 
+/* 欢迎页装饰图（灰线 S，透明底）：文档流内居中，竖排「图标→问候语→输入框」。
+   亮色主题用深描边，暗色主题反色为浅描边。
+   单独一套 fade 动画而不是复用 .welcome-fade：后者 forwards 停在 opacity:1，
+   会覆盖这里的静态半透明目标值 */
+.welcome-s-icon {
+    width: 10rem;
+    height: 10rem;
+    opacity: 0;
+    animation: welcome-fade-s 0.6s ease-out forwards;
+}
+
+@keyframes welcome-fade-s {
+    to {
+        opacity: 0.8;
+    }
+}
+
+[data-theme="dark"] .welcome-s-icon {
+    filter: invert(1);
+}
+
 @media (prefers-reduced-motion: reduce) {
     .welcome-blob,
     .welcome-fade,
+    .welcome-s-icon,
     .welcome-title {
         animation: none;
     }
@@ -235,6 +257,10 @@
     .welcome-fade,
     .welcome-title {
         opacity: 1;
+    }
+
+    .welcome-s-icon {
+        opacity: 0.8;
     }
 }
 

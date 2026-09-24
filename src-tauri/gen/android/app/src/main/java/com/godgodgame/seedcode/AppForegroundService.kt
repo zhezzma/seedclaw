@@ -1,4 +1,4 @@
-package com.godgodgame.seedclaw
+package com.godgodgame.seedcode
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -12,7 +12,7 @@ import androidx.core.app.NotificationCompat
 
 import android.content.pm.ServiceInfo
 import android.os.PowerManager
-import com.godgodgame.seedclaw.R
+import com.godgodgame.seedcode.R
 
 class AppForegroundService : Service() {
 
@@ -37,7 +37,7 @@ class AppForegroundService : Service() {
 
         // Acquire WakeLock
         val powerManager = getSystemService(POWER_SERVICE) as PowerManager
-        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SeedClaw::BackgroundService").apply {
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SeedCode::BackgroundService").apply {
             acquire()
         }
     }
@@ -61,7 +61,7 @@ class AppForegroundService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
                 CHANNEL_ID,
-                "SeedClaw后台通知服务", // User sees this name
+                "SeedCode后台通知服务", // User sees this name
                 NotificationManager.IMPORTANCE_LOW
             )
             val manager = getSystemService(NotificationManager::class.java)
@@ -82,7 +82,7 @@ class AppForegroundService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("SeedClaw服务")
+            .setContentTitle("SeedCode服务")
             .setContentText("正在保持连接...")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
@@ -90,7 +90,7 @@ class AppForegroundService : Service() {
     }
 
     companion object {
-        const val CHANNEL_ID = "SeedClawServiceChannel" // Changed ID to reset importance settings
+        const val CHANNEL_ID = "SeedCodeServiceChannel" // Changed ID to reset importance settings
         const val NOTIFICATION_ID = 1001
     }
 }

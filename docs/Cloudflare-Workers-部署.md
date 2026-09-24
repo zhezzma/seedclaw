@@ -1,11 +1,11 @@
-# SeedClaw Web 部署到 Cloudflare Workers
+# SeedCode Web 部署到 Cloudflare Workers
 
-本文档描述 `seedclaw` Web 版本的自动部署方式。
+本文档描述 `seedcode` Web 版本的自动部署方式。
 
 ## 部署目标
 
 - 部署平台：Cloudflare Workers + Static Assets
-- 自定义域名：`seedclaw.godgodgame.com`
+- 自定义域名：`seedcode.godgodgame.com`
 - 自动部署分支：`seedagent`
 - 手动部署方式：GitHub Actions `workflow_dispatch`
 
@@ -19,14 +19,14 @@
 
 - `assets.directory = "./dist"`
 - `assets.not_found_handling = "single-page-application"`
-- `routes.pattern = "seedclaw.godgodgame.com"`
+- `routes.pattern = "seedcode.godgodgame.com"`
 - `routes.custom_domain = true`
 
 说明：
 
 - `single-page-application` 用于兼容 Vue Router 的 `createWebHistory()`，避免刷新深层路由时返回 404。
 - `custom_domain = true` 使用 Cloudflare Workers Custom Domain，而不是旧式 Pages 站点配置。
-- 根据 Cloudflare 最新文档，Custom Domain 配置应写为精确主机名，例如 `seedclaw.godgodgame.com`，不要写成 `seedclaw.godgodgame.com/*`。
+- 根据 Cloudflare 最新文档，Custom Domain 配置应写为精确主机名，例如 `seedcode.godgodgame.com`，不要写成 `seedcode.godgodgame.com/*`。
 
 ### 2. GitHub Actions 工作流
 
@@ -64,7 +64,7 @@ on:
 部署前需要满足以下条件：
 
 1. `godgodgame.com` 已接入对应 Cloudflare 账号。
-2. `seedclaw.godgodgame.com` 没有冲突的现有 DNS 记录，尤其不要已有冲突的 `CNAME`。
+2. `seedcode.godgodgame.com` 没有冲突的现有 DNS 记录，尤其不要已有冲突的 `CNAME`。
 3. API Token 具备 Workers 部署权限，建议使用 Cloudflare 提供的 `Edit Cloudflare Workers` 模板后再按账号范围收紧权限。
 
 ## 首次部署流程
@@ -83,7 +83,7 @@ GitHub Actions 会自动执行部署。
 
 进入 GitHub 仓库的 **Actions** 页面：
 
-1. 选择 `Deploy SeedClaw Web`
+1. 选择 `Deploy SeedCode Web`
 2. 点击 **Run workflow**
 3. 选择 `seedagent` 分支并执行
 
@@ -92,7 +92,7 @@ GitHub Actions 会自动执行部署。
 部署成功后：
 
 - Cloudflare 会为 Worker 上传静态资源
-- `seedclaw.godgodgame.com` 会作为 Worker Custom Domain 生效
+- `seedcode.godgodgame.com` 会作为 Worker Custom Domain 生效
 - SPA 路由会由 `index.html` 承接
 
 ## 故障排查
@@ -121,7 +121,7 @@ GitHub Actions 会自动执行部署。
 
 优先检查：
 
-- `seedclaw.godgodgame.com` 是否已有冲突 CNAME
+- `seedcode.godgodgame.com` 是否已有冲突 CNAME
 - 域名是否属于当前 Cloudflare zone
 - 证书签发是否还在处理中
 

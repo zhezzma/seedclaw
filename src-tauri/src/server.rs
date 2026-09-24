@@ -614,7 +614,7 @@ mod tests {
 
     fn temp_home(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
-            "seedclaw-server-test-{}-{}",
+            "seedcode-server-test-{}-{}",
             tag,
             std::process::id()
         ));

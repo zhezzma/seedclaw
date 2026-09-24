@@ -727,7 +727,7 @@ export default {
         deny: '拒绝',
     },
     home: {
-        welcome: '欢迎使用 SeedClaw',
+        welcome: '欢迎使用 SeedCode',
         startChat: '开始侧边栏',
         newSession: '新会话',
         greetingNight: '夜深了，有什么想让我帮忙的吗',

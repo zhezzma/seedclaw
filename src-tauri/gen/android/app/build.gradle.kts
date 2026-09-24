@@ -15,10 +15,10 @@ val tauriProperties = Properties().apply {
 
 android {
     compileSdk = 36
-    namespace = "com.godgodgame.seedclaw"
+    namespace = "com.godgodgame.seedcode"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "true"
-        applicationId = "com.godgodgame.seedclaw"
+        applicationId = "com.godgodgame.seedcode"
         minSdk = 29
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()

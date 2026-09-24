@@ -1,12 +1,12 @@
-# SeedClaw
+# SeedCode
 
-SeedClaw 是一个基于 Tauri 构建的跨平台 AI 智能体客户端，支持 Windows / macOS /
+SeedCode 是一个基于 Tauri 构建的跨平台 AI 智能体客户端，支持 Windows / macOS /
 Linux 桌面端、Web 与 Android。它结合了现代 Web 前端技术与 Rust 后端能力，
 提供了一个安全、可扩展的智能体交互环境。
 
 **服务端为 [seedagent](https://github.com/zhezzma/seedagent)**——独立的 Node.js
 多 Agent 服务，通过 HTTP + WebSocket 提供会话、聊天、技能、定时任务等 API。
-SeedClaw 作为客户端连接它：桌面版可将服务端**内置打包**（本地模式），也可连接
+SeedCode 作为客户端连接它：桌面版可将服务端**内置打包**（本地模式），也可连接
 任意远程部署的 seedagent（远程模式）。
 
 ## 技术架构
@@ -103,6 +103,6 @@ npm run tauri dev
 
 - 自动部署分支：`seedagent`
 - 手动部署：GitHub Actions `workflow_dispatch`
-- 自定义域名：`seedclaw.godgodgame.com`
+- 自定义域名：`seedcode.godgodgame.com`
 
 详细说明见：[`docs/Cloudflare-Workers-部署.md`](docs/Cloudflare-Workers-部署.md)

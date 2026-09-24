@@ -1,4 +1,4 @@
-package com.godgodgame.seedclaw
+package com.godgodgame.seedcode
 
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge

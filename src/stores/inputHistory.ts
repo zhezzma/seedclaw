@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 
-export const INPUT_HISTORY_STORAGE_KEY = 'seedclaw_input_history'
-export const INPUT_DRAFTS_STORAGE_KEY = 'seedclaw_input_drafts'
+export const INPUT_HISTORY_STORAGE_KEY = 'seedcode_input_history'
+export const INPUT_DRAFTS_STORAGE_KEY = 'seedcode_input_drafts'
 export const INPUT_HISTORY_MAX = 100
 export const INPUT_DRAFT_MAX_LENGTH = 20000
 /** 旧版 /new 草稿哨兵：不分网关，本地/远程切换会窜台，已废弃（load 时剥离，不迁移——草稿是临时态） */

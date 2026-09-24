@@ -56,7 +56,7 @@ test('legacy sentinels are stripped from stored drafts on load', async () => {
     // 升级后不迁移（草稿是临时态），正常会话草稿保留
     const { loadDraftsForTest } = await import('../src/stores/inputHistory.ts')
     const storage = new MemoryStorage([
-        ['seedclaw_input_drafts', JSON.stringify({
+        ['seedcode_input_drafts', JSON.stringify({
             '__new_session__': 'draft typed before the mode split',
             '__new_session_remote__': 'draft typed before the gateway entries',
             'session-a': 'keep me',

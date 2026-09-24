@@ -482,7 +482,7 @@ const logout = async () => {
                             </li>
 
                             <li>
-                                <a href="https://github.com/zhezzma/seedclaw" target="_blank" rel="noopener noreferrer"
+                                <a href="https://github.com/zhezzma/seedcode" target="_blank" rel="noopener noreferrer"
                                     class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-300 transition-colors">
                                     <div class="flex items-center gap-3">
                                         <QuestionMarkCircleIcon class="h-5 w-5 text-base-content/60" />
@@ -503,7 +503,7 @@ const logout = async () => {
                 </div>
 
                 <div class="text-center py-4">
-                    <p class="text-xs text-base-content/40">Seedclaw v0.1.0</p>
+                    <p class="text-xs text-base-content/40">Seedcode v0.1.0</p>
                 </div>
             </div>
         </div>

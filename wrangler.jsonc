@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "seedclaw",
+  "name": "seedcode",
   "compatibility_date": "2026-03-19",
   "assets": {
     "directory": "./dist",
@@ -8,7 +8,7 @@
   },
   "routes": [
     {
-      "pattern": "seedclaw.godgodgame.com",
+      "pattern": "seedcode.godgodgame.com",
       "custom_domain": true
     }
   ]

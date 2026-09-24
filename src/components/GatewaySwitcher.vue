@@ -224,13 +224,10 @@ const handleExternalLink = () => {
                 </li>
             </ul>
 
-            <div class="mx-2 my-1 border-t border-base-300"></div>
-
-            <ul class="menu menu-compact w-full p-0" role="menu">
-
+            <ul class="menu menu-compact w-full p-0 mt-1" role="menu">
                 <!-- 外部链接（原侧栏 Header 跳转按钮的归宿）：设置里配了地址才显示。
                      button + JS 触发锚点（handleExternalLink），导航本身仍是原生 <a target="_blank"> -->
-                <li v-if="configStore.externalUrl" role="none">
+                <li v-if="configStore.externalUrl" role="none" class=" pt-1 border-t border-base-300">
                     <button type="button" role="menuitem" class="rounded-xl px-3 py-2 text-sm"
                         @click="handleExternalLink">
                         <ArrowTopRightOnSquareIcon class="h-4 w-4" />

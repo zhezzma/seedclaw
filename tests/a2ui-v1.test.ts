@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
     A2UI_VERSION,
-    SEEDCLAW_BASIC_CATALOG_ID,
+    SEEDCODE_BASIC_CATALOG_ID,
     isSupportedA2uiMessage,
     isSurfaceCatalogAllowed,
     isComponentCatalogAllowed,
@@ -22,7 +22,7 @@ test('isSupportedA2uiMessage rejects non-v1.0 envelopes', () => {
 /** v1.0 catalogId 解析：surface 默认 catalog 仅接受本渲染端私有 catalog（缺省允许） */
 test('isSurfaceCatalogAllowed enforces private catalog resolution', () => {
     assert.equal(isSurfaceCatalogAllowed(undefined), true)
-    assert.equal(isSurfaceCatalogAllowed(SEEDCLAW_BASIC_CATALOG_ID), true)
+    assert.equal(isSurfaceCatalogAllowed(SEEDCODE_BASIC_CATALOG_ID), true)
     assert.equal(isSurfaceCatalogAllowed('question_catalog'), false)
     assert.equal(isSurfaceCatalogAllowed('https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json'), false)
 })
@@ -30,7 +30,7 @@ test('isSurfaceCatalogAllowed enforces private catalog resolution', () => {
 /** 组件级 catalogId：非对象或非本渲染端 catalog 的组件不渲染 */
 test('isComponentCatalogAllowed drops foreign-catalog components', () => {
     assert.equal(isComponentCatalogAllowed({ id: 'a' }), true)
-    assert.equal(isComponentCatalogAllowed({ id: 'a', catalogId: SEEDCLAW_BASIC_CATALOG_ID }), true)
+    assert.equal(isComponentCatalogAllowed({ id: 'a', catalogId: SEEDCODE_BASIC_CATALOG_ID }), true)
     assert.equal(isComponentCatalogAllowed({ id: 'a', catalogId: 'other.com:cat' }), false)
     // 非对象（null/标量）不是合法组件：直接丢弃，避免后续渲染层炸
     assert.equal(isComponentCatalogAllowed(null), false)
@@ -60,7 +60,7 @@ test('processMessage applies inline createSurface components and dataModel', () 
         version: A2UI_VERSION,
         createSurface: {
             surfaceId,
-            catalogId: SEEDCLAW_BASIC_CATALOG_ID,
+            catalogId: SEEDCODE_BASIC_CATALOG_ID,
             components: [
                 { id: 'root', component: 'Column', children: ['text'] },
                 { id: 'text', component: 'Text', text: 'hi' },

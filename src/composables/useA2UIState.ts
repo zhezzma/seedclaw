@@ -18,7 +18,7 @@ import type {
   Action,
   ChildList,
 } from '../components/a2ui/types'
-import { A2UI_VERSION, SEEDCLAW_BASIC_CATALOG_ID } from '../components/a2ui/types.ts'
+import { A2UI_VERSION, SEEDCODE_BASIC_CATALOG_ID } from '../components/a2ui/types.ts'
 
 // ==================== JSON Pointer 工具 ====================
 
@@ -371,7 +371,7 @@ export function useA2UIState() {
       const { surfaceId, catalogId, sendDataModel, components, dataModel } = msg.createSurface
       const surface: A2UISurface = {
         surfaceId,
-        catalogId: catalogId ?? SEEDCLAW_BASIC_CATALOG_ID,
+        catalogId: catalogId ?? SEEDCODE_BASIC_CATALOG_ID,
         components: new Map(),
         rootComponentIds: [],
         dataModel: reactive({}),

@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    seedclaw_lib::run()
+    seedcode_lib::run()
 }

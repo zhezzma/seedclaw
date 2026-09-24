@@ -479,8 +479,8 @@ const handleNavClick = (item: any) => {
         <div class="shrink-0 px-5 py-3 flex items-center justify-between"
             :class="isCollapsed && 'lg:flex-col lg:items-center lg:gap-2 lg:px-0'">
             <div class="flex items-center gap-2">
-                <span class="text-2xl">🦀</span>
-                <span class="text-lg font-bold tracking-tight" :class="isCollapsed && 'lg:hidden'">SeedClaw</span>
+                <img src="/icon.svg" alt="SeedCode" class="h-7 w-7" />
+                <span class="text-lg font-bold tracking-tight" :class="isCollapsed && 'lg:hidden'">SeedCode</span>
             </div>
             <div class="flex gap-1">
                 <!-- 收起/展开（桌面端，仅图标） -->

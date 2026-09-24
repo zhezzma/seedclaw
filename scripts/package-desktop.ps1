@@ -19,11 +19,11 @@ src-tauri\resources\seedagent\ 目录的过程。该目录会被 tauri 打进安
   ① 构建 seedagent（在 $SeedagentDir 里 npm run build，每次强制重跑，保证 dist 最新）
   ② 采集 Node 运行时（本机版本匹配则拷贝，否则下载并缓存到 scripts\.cache\）
   ③ 装配（staging）：清空重建 src-tauri\resources\seedagent\，填入上述内容并校验
-  ④ tauri build：默认 --no-bundle 只编译裸 seedclaw.exe（快）；-Installers 时才打 MSI/NSIS
+  ④ tauri build：默认 --no-bundle 只编译裸 seedcode.exe（快）；-Installers 时才打 MSI/NSIS
      安装包（WiX/NSIS 要压缩近 3 万个文件，5~20 分钟，日常迭代别开）
   ⑤ 收集产物：默认只准备便携版目录（exe + resources）；-Installers 额外收集安装包并压便携版 zip
-  ⑥ 部署：便携版内容镜像到 $DeployDir（先结束部署目录内运行中的 seedclaw/node 进程）
-  ⑦ 自动启动：部署成功后拉起 $DeployDir\seedclaw.exe（-NoLaunch 可关）。
+  ⑥ 部署：便携版内容镜像到 $DeployDir（先结束部署目录内运行中的 seedcode/node 进程）
+  ⑦ 自动启动：部署成功后拉起 $DeployDir\seedcode.exe（-NoLaunch 可关）。
      ⑥ 会终止旧实例（含正在里面跑的 agent 会话），不拉起的话桌面端停留在退出状态。
      脚本本身可能就是被杀实例的子进程（在会话里发起构建）——Windows 不连坐杀孤儿，
      尾部照常执行；Start-Process 分离启动，新实例不随脚本退出而终止。
@@ -41,7 +41,7 @@ src-tauri\resources\seedagent\ 目录的过程。该目录会被 tauri 打进安
   -NodeExe       显式指定本机 node.exe 路径（校验主版本为 23.x 后直接使用，不走下载）；
                  例如 nvm 用户：-NodeExe "$env:USERPROFILE\AppData\Roaming\nvm\v23.0.0\node.exe" 或者 -NodeExe "D:\Applications\Scoop\persist\nvm\nodejs\v23.0.0\node.exe"
                  （或者直接 `nvm use 23.x` 后让脚本自动识别，无需此参数）
-  -DeployDir     部署目录（默认 D:\Applications\seedclaw）
+  -DeployDir     部署目录（默认 D:\Applications\seedcode）
   -NoLaunch      部署后不自动启动新实例（默认部署成功即拉起，见 ⑦）
   注意：-StageOnly 与 -SkipStage 互斥，不要同时传（同时传等于什么也不做直接退出）。
 #>
@@ -49,7 +49,7 @@ param(
     [string]$SeedagentDir = $(if ($env:SEEDAGENT_DIR) { $env:SEEDAGENT_DIR } else { "D:\Workspace\seedagent" }),
     [string]$NodeVersion = "23.11.0",
     [string]$NodeExe = "",
-    [string]$DeployDir = "D:\Applications\seedclaw",
+    [string]$DeployDir = "D:\Applications\seedcode",
     [switch]$StageOnly,
     [switch]$SkipStage,
     [switch]$SkipDeploy,
@@ -72,7 +72,7 @@ function Assert-Staging([string]$Dir) {
 # robocopy 内部走 \\?\ 长路径 API：用空目录 /MIR 清空目标，再删掉空壳。
 function Remove-LongPath([string]$Dir) {
     if (-not (Test-Path $Dir)) { return }
-    $emptyDir = Join-Path $env:TEMP ("seedclaw-empty-" + [guid]::NewGuid().ToString('N'))
+    $emptyDir = Join-Path $env:TEMP ("seedcode-empty-" + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force -Path $emptyDir | Out-Null
     robocopy $emptyDir $Dir /MIR /NFL /NDL /NJH /NJS | Out-Null
     # robocopy 退出码 >= 8 表示有文件删除/拷贝失败（典型原因：文件被运行中的进程占用）。
@@ -80,15 +80,15 @@ function Remove-LongPath([string]$Dir) {
     # 最终产出缺 seedserver.mjs/jiti 的坏包（排查成本极高），必须在此显式失败。
     if ($LASTEXITCODE -ge 8) {
         Remove-Item -Recurse -Force $emptyDir -ErrorAction SilentlyContinue
-        throw "清除 ${Dir} 失败（robocopy exit $LASTEXITCODE）：目录内有文件被占用。\n最常见原因：seedclaw/node 正在从该目录运行（窗口点 X 只是隐藏到托盘！）。\n请先在托盘图标右键 Quit 退出，或在任务管理器中结束对应 node.exe/seedclaw.exe 后重试。"
+        throw "清除 ${Dir} 失败（robocopy exit $LASTEXITCODE）：目录内有文件被占用。\n最常见原因：seedcode/node 正在从该目录运行（窗口点 X 只是隐藏到托盘！）。\n请先在托盘图标右键 Quit 退出，或在任务管理器中结束对应 node.exe/seedcode.exe 后重试。"
     }
     Remove-Item -Recurse -Force $emptyDir
 }
 
-# 结束从指定目录内运行的 seedclaw/node 进程（文件被锁定会导致 staging/部署目录无法重建）。
+# 结束从指定目录内运行的 seedcode/node 进程（文件被锁定会导致 staging/部署目录无法重建）。
 # 注意只杀路径匹配的进程，不动系统里其他 node（如本脚本自身依赖的 npm/node）。
 function Stop-ProcessesUnder([string]$Dir, [string]$Reason) {
-    $victims = Get-Process -Name seedclaw, node -ErrorAction SilentlyContinue |
+    $victims = Get-Process -Name seedcode, node -ErrorAction SilentlyContinue |
         Where-Object { $_.Path -and ($_.Path -like "$Dir*") }
     foreach ($p in $victims) {
         Write-Host "    killing $($p.ProcessName) (pid $($p.Id)) — $Reason"
@@ -233,21 +233,21 @@ if ($Installers) {
 $portable = Join-Path $outDir 'portable'
 Remove-LongPath $portable
 New-Item -ItemType Directory -Force -Path $portable | Out-Null
-Copy-Item (Join-Path $root 'src-tauri\target\release\seedclaw.exe') $portable
+Copy-Item (Join-Path $root 'src-tauri\target\release\seedcode.exe') $portable
 # Copy-Item -Recurse 同样受 260 字符限制，node_modules 用 robocopy 拷贝
 robocopy (Join-Path $root 'src-tauri\resources') (Join-Path $portable 'resources') /E /NFL /NDL /NJH /NJS | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "robocopy resources failed (exit $LASTEXITCODE)" }
 
 if ($Installers) {
     # Compress-Archive 对深路径同样会失败，用系统自带 bsdtar 生成 zip（绝对路径调用，避免 PATH 里 GNU tar 抢占）
-    $portableZip = Join-Path $outDir 'seedclaw-portable-windows.zip'
+    $portableZip = Join-Path $outDir 'seedcode-portable-windows.zip'
     if (Test-Path $portableZip) { Remove-Item -Force $portableZip }
     Push-Location $portable
     try {
-        & "$env:SystemRoot\System32\tar.exe" -a -c -f $portableZip seedclaw.exe resources
+        & "$env:SystemRoot\System32\tar.exe" -a -c -f $portableZip seedcode.exe resources
         if ($LASTEXITCODE -ne 0) { throw "portable zip failed (tar exit $LASTEXITCODE)" }
     } finally { Pop-Location }
-    Write-Host "==> portable zip: dist-windows\seedclaw-portable-windows.zip"
+    Write-Host "==> portable zip: dist-windows\seedcode-portable-windows.zip"
 }
 
 # ⑥ 部署便携版到指定目录（参考 build_windows.ps1）
@@ -255,7 +255,7 @@ $deployed = $false
 if (-not $SkipDeploy) {
     Write-Host "==> deploying to $DeployDir ..."
 
-    # 先结束部署目录里运行中的进程（seedclaw.exe 及其拉起的 node.exe），
+    # 先结束部署目录里运行中的进程（seedcode.exe 及其拉起的 node.exe），
     # 否则 exe/node_modules 被锁，robocopy 覆盖会失败。
     Stop-ProcessesUnder $DeployDir "部署目录内运行中的旧实例"
 
@@ -267,9 +267,9 @@ if (-not $SkipDeploy) {
 
     # ⑦ 自动启动新实例。分离启动（Start-Process）：新进程不挂在脚本进程树下，
     # 脚本退出/被杀都不影响它。不检查前存实例：⑥ 刚清理过部署目录内的进程；
-    # 若有外部实例残留，seedclaw 自身的单实例机制会处理。
+    # 若有外部实例残留，seedcode 自身的单实例机制会处理。
     if (-not $NoLaunch) {
-        $exe = Join-Path $DeployDir 'seedclaw.exe'
+        $exe = Join-Path $DeployDir 'seedcode.exe'
         if (Test-Path $exe) {
             Start-Sleep -Milliseconds 500   # 给文件句柄释放留点余量
             Start-Process -FilePath $exe -WorkingDirectory $DeployDir
