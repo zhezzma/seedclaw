@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { ArrowLeftIcon, Bars3Icon } from '@heroicons/vue/24/outline'
+import { ArrowLeftIcon } from '@heroicons/vue/24/outline'
 import { isDesktopTauri } from '../utils/environment'
 
 const props = withDefaults(defineProps<{
@@ -37,15 +37,10 @@ const goBack = () => {
         :data-tauri-drag-region="isDesktopTauri ? 'deep' : undefined">
         <div class="flex-1 flex items-center gap-2">
             <template v-if="!$slots.left">
-                <!-- 主页面（移动端）：汉堡开侧栏抽屉，抽屉节点由 MobileLayout 托管；
-                     桌面端侧栏常驻，什么都不渲染 -->
-                <div v-if="isMainPage" class="flex-none lg:hidden">
-                    <label for="sidebar-drawer" :aria-label="$t('common.openSidebar')" class="btn btn-ghost btn-sm btn-circle drawer-button">
-                        <Bars3Icon class="w-5 h-5" />
-                    </label>
-                </div>
-                <!-- 子页面：返回箭头 -->
-                <button v-else @click="goBack" class="btn btn-ghost btn-sm btn-circle">
+                <!-- 返回箭头：主页面仅移动端显示（桌面侧栏常驻无需返回）；
+                     移动端开侧栏抽屉的汉堡只归 ChatHeader（主页）所有 -->
+                <button @click="goBack" class="btn btn-ghost btn-sm btn-circle"
+                    :class="{ 'lg:hidden': isMainPage }" :aria-label="$t('common.back')">
                     <ArrowLeftIcon class="w-5 h-5" />
                 </button>
             </template>

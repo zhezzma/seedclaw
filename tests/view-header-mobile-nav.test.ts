@@ -27,25 +27,23 @@ test('ViewHeader goBack falls back to home when there is no in-app history', () 
     )
 })
 
-test('mobile main pages open the sidebar drawer via a hamburger instead of back arrow', () => {
-    // isMainPage 顶栏移动端渲染汉堡（lg:hidden），桌面端保持无键；
-    // label for= 跨 DOM 生效，指向 MobileLayout 挂载的全局抽屉节点。
-    // lg:hidden 是硬约束：桌面布局无 sidebar-drawer 输入节点，可见即死键
+test('mobile main pages keep the back arrow (drawer hamburger is home-only)', () => {
+    // isMainPage 顶栏保留返回箭头：移动端可见（返回主页/上一页），桌面端 lg:hidden；
+    // 开侧栏抽屉的汉堡只归主页 ChatHeader 所有，ViewHeader 不得再渲染抽屉入口
     assert.match(
         viewHeaderSource,
-        /<div v-if="isMainPage" class="flex-none lg:hidden">\s*\n\s*<label for="sidebar-drawer"/,
-        'main-page hamburger must be mobile-only (lg:hidden) and target the shared drawer',
+        /:class="\{\s*'lg:hidden':\s*isMainPage\s*\}"/,
+        'main-page back arrow must stay mobile-only (lg:hidden binds isMainPage)',
     )
-    assert.match(
-        viewHeaderSource,
-        /:aria-label="\$t\('common\.openSidebar'\)"/,
-        'the hamburger label needs an accessible name',
-    )
-    // 非主页面（子页）仍保留返回箭头
     assert.match(
         viewHeaderSource,
         /ArrowLeftIcon/,
-        'sub pages keep the back arrow',
+        'both main and sub pages render the back arrow',
+    )
+    assert.doesNotMatch(
+        viewHeaderSource,
+        /sidebar-drawer/,
+        'ViewHeader must not open the drawer; ChatHeader (home) owns the hamburger',
     )
 })
 
