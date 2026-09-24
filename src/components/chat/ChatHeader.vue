@@ -191,7 +191,7 @@ defineExpose({
         <!-- Back Button or Hamburger -->
         <template #left>
             <div class="flex-none lg:hidden">
-                <label for="sidebar-drawer" class="btn btn-ghost btn-xs btn-circle drawer-button">
+                <label for="sidebar-drawer" :aria-label="$t('common.openSidebar')" class="btn btn-ghost btn-xs btn-circle drawer-button">
                     <Bars3Icon class="h-5 w-5" />
                 </label>
             </div>

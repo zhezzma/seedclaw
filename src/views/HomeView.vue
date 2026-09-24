@@ -20,7 +20,6 @@ import ChatDockArea from '../components/chat/ChatDockArea.vue'
 import SessionTreeModal from '../components/chat/SessionTreeModal.vue'
 import SubagentTraceDrawer from '../components/chat/SubagentTraceDrawer.vue'
 import VoiceChatOverlay from '../components/chat/VoiceChatOverlay.vue'
-import AppSidebar from '../components/AppSidebar.vue'
 import MediaPreviewOverlay from '../components/chat/MediaPreviewOverlay.vue'
 import WorkspacePanel from '../components/workspace/WorkspacePanel.vue'
 import WorkspaceViewer from '../components/workspace/WorkspaceViewer.vue'
@@ -856,16 +855,7 @@ async function applyDefaultSessionBehavior() {
 
 <template>
     <div class="h-full w-full flex">
-        <!-- Sidebar drawer (Mobile) -->
-        <div class="drawer lg:hidden absolute inset-0 pointer-events-none z-100">
-            <input id="sidebar-drawer" type="checkbox" class="drawer-toggle pointer-events-auto" />
-            <div class="drawer-side pointer-events-auto h-full">
-                <label for="sidebar-drawer" aria-label="close sidebar" class="drawer-overlay app-backdrop"></label>
-                <div class="w-80 h-full bg-base-200">
-                    <AppSidebar />
-                </div>
-            </div>
-        </div>
+        <!-- 移动端侧栏抽屉已上提到 MobileLayout（全视图共享），HomeView 不再挂自己的副本 -->
 
         <!-- Chat Area: 始终保留 ChatHeader + ChatInput；Main 区域在 viewer 打开时被替换 -->
         <div class="flex-1 flex flex-col h-full min-w-0">

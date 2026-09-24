@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { MinusIcon, Square2StackIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import type { Window as TauriWindow } from '@tauri-apps/api/window'
+import { isDesktopTauri } from '../utils/environment'
 
+const { t } = useI18n()
 // 仅桌面端 Tauri 渲染：移动端无窗口装饰概念，浏览器环境无窗口 API
-const isTauriApp = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
-const visible = isTauriApp && !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+const visible = isDesktopTauri
 
 // 最大化状态跟随窗口 resize 事件同步（启动即 maximized，靠初始读取对齐图标）
 const isMaximized = ref(false)
@@ -45,14 +47,14 @@ const closeClass = ' hover:bg-red-600 hover:text-white'
     <!-- 悬浮窗口键组：右上角，与页面顶栏（ViewHeader min-h-[3rem]）同高。
          拖拽窗口/双击最大化由 ViewHeader / AppSidebar 头部的 drag region 承担，这里只放三颗键 -->
     <div v-if="visible" class="fixed top-0 right-0 z-30 h-12 flex items-stretch select-none">
-        <button :class="btnClass" aria-label="Minimize" @click="onMinimize">
+        <button :class="btnClass" :aria-label="t('common.minimize')" @click="onMinimize">
             <MinusIcon class="w-4 h-4" />
         </button>
-        <button :class="btnClass" :aria-label="isMaximized ? 'Restore' : 'Maximize'" @click="onToggleMaximize">
+        <button :class="btnClass" :aria-label="isMaximized ? t('common.restore') : t('common.maximize')" @click="onToggleMaximize">
             <Square2StackIcon v-if="isMaximized" class="w-4 h-4" />
             <span v-else class="w-2.5 h-2.5 border border-current"></span>
         </button>
-        <button :class="btnClass + closeClass" aria-label="Close" @click="onClose">
+        <button :class="btnClass + closeClass" :aria-label="t('common.close')" @click="onClose">
             <XMarkIcon class="w-4 h-4" />
         </button>
     </div>

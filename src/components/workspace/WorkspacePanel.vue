@@ -17,6 +17,7 @@ import { XMarkIcon, ArrowPathIcon, DocumentPlusIcon, FolderPlusIcon, FolderIcon,
 import { useI18n } from 'vue-i18n'
 import { useContextMenu, type ContextMenuItem } from '../../composables/useContextMenu'
 import { useWorkspaceRefresh } from '../../composables/useWorkspaceRefresh'
+import { isDesktopTauri } from '../../utils/environment'
 import { runNewFileFlow, runNewDirFlow } from '../../composables/useFileActions'
 import { useWorkspacePanel, PANEL_MIN_WIDTH, PANEL_MAX_WIDTH } from '../../composables/useWorkspacePanel'
 import { useWorkspaceTree } from '../../composables/useWorkspaceTree'
@@ -114,9 +115,6 @@ const { isRefreshing, refreshAll } = useWorkspaceRefresh()
 // Files tab 下补充根目录新建入口；Git tab 只有刷新 —— 全面板只有空白菜单 + 文件行菜单两种。
 const { t } = useI18n()
 const ctxMenu = useContextMenu()
-// 桌面端 Tauri：面板头部兼作标题栏拖拽区（与 ViewHeader 同一语义）
-const isDesktopTauri = (!!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__)
-    && !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
 
 function onPanelContextMenu(e: MouseEvent) {
     if (props.mobile || e.defaultPrevented) return

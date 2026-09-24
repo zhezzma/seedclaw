@@ -15,6 +15,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import { FolderIcon } from '@heroicons/vue/24/solid'
 import { SIDEBAR_ITEMS } from '../config/navigation'
+import { isDesktopTauri } from '../utils/environment'
 import SessionActionMenu from './chat/SessionActionMenu.vue'
 import SessionInfoModal from './chat/SessionInfoModal.vue'
 import GatewaySwitcher from './GatewaySwitcher.vue'
@@ -110,10 +111,6 @@ const { t } = useI18n()
 const configStore = useUiSettingsStore()
 
 const isCollapsed = computed(() => configStore.isSidebarCollapsed)
-
-// 桌面端 Tauri：侧栏头部兼作标题栏拖拽区（deep 拖拽）
-const isDesktopTauri = (!!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__)
-    && !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
 
 const toggleCollapsed = () => {
     configStore.toggleSidebarCollapsed()
