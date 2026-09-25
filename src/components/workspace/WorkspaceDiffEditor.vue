@@ -16,6 +16,7 @@ import { ref, watch, onMounted, onBeforeUnmount, useTemplateRef, computed } from
 import { useI18n } from 'vue-i18n'
 import {
     fetchFileVersions,
+    fetchDiff,
     type DiffMode,
     type FileVersions,
 } from '../../composables/workspace-api'
@@ -182,7 +183,19 @@ onBeforeUnmount(() => {
     disposeEditor()
 })
 
-defineExpose({ sideBySide, toggleSideBySide })
+/** 复制用：按需拉取 git 原生 unified diff 文本（与编辑器内的行级 diff 计算无关，
+ *  以 git 输出为准）。失败抛错由调用方提示；后端有字节上限截断保护。 */
+async function getUnifiedDiff(): Promise<string> {
+    const r = await fetchDiff(props.agentId, {
+        repo: props.repo,
+        mode: props.mode,
+        file: props.file,
+        ref: props.refSha,
+    })
+    return r.diff ?? ''
+}
+
+defineExpose({ sideBySide, toggleSideBySide, getUnifiedDiff })
 </script>
 
 <template>

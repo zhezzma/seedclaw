@@ -142,6 +142,24 @@ function onClickToggleSplit() {
     diffViewRef.value?.toggleSideBySide()
 }
 
+/** 复制 diff 模式的 unified diff 文本（git 原生输出，按需拉取）。 */
+const isCopyingDiff = ref(false)
+async function onClickCopyDiff() {
+    if (!diffViewRef.value || isCopyingDiff.value) return
+    isCopyingDiff.value = true
+    try {
+        const text = await diffViewRef.value.getUnifiedDiff()
+        if (!text) return
+        await navigator.clipboard.writeText(text)
+        useToast().success(t('common.copied'))
+    } catch {
+        // 拉取 diff 走网络，失败给出可感知提示（与 file 复制仅剪贴板静默失败不同）
+        useToast().error(t('common.networkError'))
+    } finally {
+        isCopyingDiff.value = false
+    }
+}
+
 async function onEscape(e: KeyboardEvent) {
     if (e.key !== 'Escape') return
     if (e.isComposing) return
@@ -230,8 +248,13 @@ watch(target, () => {
                     </button>
                 </template>
 
-                <!-- diff 模式按钮：Split / Inline 切换 -->
+                <!-- diff 模式按钮：Copy unified diff + Split / Inline 切换 -->
                 <template v-else-if="target?.type === 'diff'">
+                    <button class="btn btn-ghost btn-sm gap-1" :title="$t('common.copy')"
+                        :disabled="isCopyingDiff" @click="onClickCopyDiff">
+                        <ClipboardDocumentIcon class="h-4 w-4" />
+                        <span class="hidden md:inline text-xs">{{ $t('common.copy') }}</span>
+                    </button>
                     <button class="btn btn-ghost btn-sm gap-1"
                         :title="diffSideBySide ? $t('workspace.diffInline') : $t('workspace.diffSplit')"
                         @click="onClickToggleSplit">
