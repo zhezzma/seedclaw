@@ -214,9 +214,12 @@ watch(target, () => {
                 </button>
             </template>
             <template #title>
-                <div class="flex-1 min-w-0 truncate text-sm font-mono text-base-content/70">
-                    {{ breadcrumb }}
-                    <span v-if="isFileMode && fileIsDirty" class="text-warning ml-1">●</span>
+                <!-- max-w：移动端标题视觉上限（同 ChatHeader）；正确性由 ViewHeader 左区容器
+                     min-w-0 兜底（容器可缩 → 截断必生效，按钮不会被挤出视口）。
+                     dirty 点放 truncate 元素外（shrink-0），路径截断时不被一起裁掉 -->
+                <div class="flex-1 min-w-0 flex items-center gap-1 max-w-[150px] lg:max-w-none">
+                    <span class="min-w-0 truncate text-sm font-mono text-base-content/70" :title="breadcrumb">{{ breadcrumb }}</span>
+                    <span v-if="isFileMode && fileIsDirty" class="text-warning shrink-0">●</span>
                 </div>
             </template>
             <template #actions>
