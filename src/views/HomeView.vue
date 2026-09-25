@@ -731,16 +731,6 @@ const showWorkspacePanel = computed(() =>
 const isMobile = useMediaQuery('(max-width: 1023px)')
 const showWorkspaceViewer = computed(() => wsViewer.isActive.value)
 
-// Viewer 关闭后恢复聊天区滚动位置：viewer 打开时 messagesContainerRef 对应的 div 会被 v-else-if
-// 卸载，关闭后重新挂载，但 useScrollManager 的 watch 只重新绑 listener、不会主动调 restore。
-// 手动控制一下，让用户从 viewer 返回聊天后位置不丢。
-watch(() => wsViewer.isActive.value, async (active, prev) => {
-    if (prev && !active) {
-        await nextTick()
-        restoreIfSaved()
-    }
-})
-
 // 移动端：viewer 打开 / 切换 target 时自动关 drawer。
 // drawer 是从右侧滑出占满屏的，viewer 也是全屏替代主区，不关会被 drawer 盖不可见。
 // 这里 watch viewer.current（而非 isActive）以便同样在从一个文件切到另一个时也生效。
@@ -876,14 +866,15 @@ async function applyDefaultSessionBehavior() {
     <div class="h-full w-full flex">
         <!-- 移动端侧栏抽屉已上提到 MobileLayout（全视图共享），HomeView 不再挂自己的副本 -->
 
-        <!-- Chat Area: 始终保留 ChatHeader + ChatInput；Main 区域在 viewer 打开时被替换 -->
-        <div class="flex-1 flex flex-col h-full min-w-0">
+        <!-- Chat Area：viewer 打开时以全屏覆盖层盖住整列（header/主区/输入框），
+             聊天区 DOM 始终保持挂载 -->
+        <div class="relative flex-1 flex flex-col h-full min-w-0">
 
-            <!-- Header 始终可见：panel toggle / 主题 / 会话树 / 通知都依赖它 -->
+            <!-- Header：panel toggle / 主题 / 会话树 / 通知都依赖它；viewer 打开时被覆盖 -->
             <ChatHeader ref="chatHeaderRef" @start-voice-chat="startVoiceChat" @open-session-tree="openSessionTree"
                 :session-name="currentSessionName" :panel-visible="showWorkspacePanel" />
 
-            <!-- Main content area: chat messages OR viewer -->
+            <!-- Main content area: chat messages -->
             <div class="relative flex-1 flex flex-col min-h-0">
                 <!-- 桌面端 session tree rail（minimap）：仅消息列表分支显示，
                      绝对定位在非滚动祖先上，不随消息区滚动 -->
@@ -892,11 +883,8 @@ async function applyDefaultSessionBehavior() {
                     :items="sessionTreeItems"
                     :active-entry-id="virtualMessageListRef?.activeEntryId ?? null"
                     @jump-to-entry="handleJumpToTreeEntry" />
-                <!-- Workspace Viewer（仅替换主消息区，不动 ChatHeader / ChatInput） -->
-                <WorkspaceViewer v-if="showWorkspaceViewer" :agent-id="chatState.agentsSelectedId || ''" />
-
                 <!-- Loading state -->
-                <div v-else-if="isLoading" class="flex-1 flex items-center justify-center">
+                <div v-if="isLoading" class="flex-1 flex items-center justify-center">
                     <span class="loading loading-spinner loading-lg"></span>
                 </div>
 
@@ -961,7 +949,7 @@ async function applyDefaultSessionBehavior() {
                     </div>
                 </div>
 
-                <!-- Chat messages - only this area scrolls -->
+                <!-- Chat messages - only this area scrolls（viewer 打开时保持挂载，仅被覆盖层遮盖） -->
                 <div v-else ref="messagesContainerRef" class="flex-1 overflow-y-auto p-2 md:p-4 relative">
                     <!-- lg:pl-4：给左侧 SessionTreeRail 预留列空间，避免与消息内容重叠；rail 关闭时同步取消 -->
                     <div class="mx-auto w-full" :class="{ 'lg:pl-4': settingsStore.isSessionTreeRailVisible }">
@@ -986,10 +974,15 @@ async function applyDefaultSessionBehavior() {
             <!-- 输入框上方扩展 dock 区（各 widget 自决定显隐，新会话页不挂载） -->
             <ChatDockArea v-if="!isNewSessionPage && !isCreatingSession" />
 
-            <!-- ChatInput：非新会话页固定在底部（新会话页的输入框居中展示在欢迎区）。
-                 viewer 打开时也保留，用户仍可与 agent 讨论 diff/文件内容 -->
+            <!-- ChatInput：非新会话页固定在底部（新会话页的输入框居中展示在欢迎区）。viewer 打开时被覆盖 -->
             <ChatInput v-if="!isNewSessionPage && !isCreatingSession" ref="chatInputRef" :is-busy="isBusy"
                 :disabled="false" @send="handleSend" />
+
+            <!-- Workspace Viewer：全屏覆盖层（盖住 header/主区/输入框）。挂在 Chat Area 列上，
+                 聊天区保持挂载、scrollTop 天然保留——从文件/diff 返回时不会卸载重建导致滚动跳动。
+                 z-30：低于 MediaPreviewOverlay / VoiceChatOverlay（fixed z-50），图片/语音预览不被挡 -->
+            <WorkspaceViewer v-if="showWorkspaceViewer" :agent-id="chatState.agentsSelectedId || ''"
+                :panel-visible="showWorkspacePanel" class="absolute inset-0 z-30" />
 
             <!-- Voice Chat Overlay -->
             <VoiceChatOverlay :is-open="isVoiceChatActive" :status="voiceStatus" :transcript="transcript"

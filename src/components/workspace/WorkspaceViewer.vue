@@ -25,14 +25,21 @@ import {
     EyeSlashIcon,
     ViewColumnsIcon,
     Bars3Icon,
+    ClipboardDocumentIcon,
 } from '@heroicons/vue/24/outline'
 import WorkspaceFileView from './WorkspaceFileView.vue'
 import WorkspaceDiffEditor from './WorkspaceDiffEditor.vue'
+import ViewHeader from '../ViewHeader.vue'
 import { previewableExt } from '../../composables/workspace-api'
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
 import { useConfirm } from '../../composables/useConfirm'
+import { useToast } from '../../composables/useToast'
 
-const props = defineProps<{ agentId: string }>()
+const props = defineProps<{
+    agentId: string
+    /** Workspace 面板可见时（占据窗口右侧全高），悬浮窗口键压在面板上而非 viewer 顶栏，无需预留（同 ChatHeader） */
+    panelVisible?: boolean
+}>()
 const viewer = useWorkspaceViewer()
 const { confirm } = useConfirm()
 const { t } = useI18n()
@@ -113,6 +120,18 @@ async function onClickSave() {
     await fileViewRef.value.save()
 }
 
+/** 复制当前内容到剪贴板（file 模式）。content 是编辑器实时内容，含未保存修改。 */
+async function onClickCopy() {
+    const text = fileViewRef.value?.content ?? ''
+    if (!text) return
+    try {
+        await navigator.clipboard.writeText(text)
+        useToast().success(t('common.copied'))
+    } catch {
+        // 剪贴板权限失败：静默即可（浏览器/WebView 受限场景罕见）
+    }
+}
+
 function onClickPreview() {
     // .html / .md / .svg 都可切换；子组件根据当前文件选渲染分支。
     if (previewKind.value === null) return
@@ -168,51 +187,63 @@ watch(target, () => {
 <template>
     <div ref="rootRef" tabindex="-1" role="region" :aria-label="breadcrumb || $t('workspace.tabFiles')"
         class="flex flex-col h-full bg-base-100 outline-none">
-        <div class="flex items-center gap-2 p-2 border-b border-base-300 shrink-0">
-            <button class="btn btn-ghost btn-sm btn-circle" :title="$t('common.back')" @click="close()">
-                <ArrowLeftIcon class="h-5 w-5" />
-            </button>
-            <div class="flex-1 min-w-0 truncate text-sm font-mono text-base-content/70">
-                {{ breadcrumb }}
-                <span v-if="isFileMode && fileIsDirty" class="text-warning ml-1">●</span>
-            </div>
-
-            <!-- file 模式：Save + （按需）Preview；workspace 与 agent 两种 scope 共用 -->
-            <template v-if="isFileMode">
-                <button v-if="showPreviewButton" class="btn btn-sm gap-1"
-                    :class="filePreviewMode ? 'btn-primary' : 'btn-ghost'"
-                    :title="filePreviewMode ? $t('workspace.previewExit') : $t('workspace.preview')"
-                    @click="onClickPreview">
-                    <EyeSlashIcon v-if="filePreviewMode" class="h-4 w-4" />
-                    <EyeIcon v-else class="h-4 w-4" />
-                    <span class="hidden md:inline text-xs">
-                        {{ filePreviewMode ? $t('workspace.previewExit') : $t('workspace.preview') }}
-                    </span>
-                </button>
-                <button class="btn btn-sm gap-1"
-                    :class="fileIsDirty && !fileIsReadOnly ? 'btn-primary' : 'btn-ghost'"
-                    :disabled="fileSaveDisabled" :title="$t('workspace.save') + ' (Ctrl+S)'"
-                    @click="onClickSave">
-                    <DocumentCheckIcon class="h-4 w-4" />
-                    <span class="hidden md:inline text-xs">
-                        {{ fileIsSaving ? $t('workspace.saving') : $t('workspace.save') }}
-                    </span>
+        <!-- 顶栏复用 ViewHeader：wcPad 避让右上角悬浮窗口键组（pr-[144px]），
+             桌面端自带 drag region（拖动/双击最大化），规格与全局顶栏统一 -->
+        <ViewHeader :wc-pad="!panelVisible">
+            <template #left>
+                <button class="btn btn-ghost btn-sm btn-circle" :title="$t('common.back')" @click="close()">
+                    <ArrowLeftIcon class="h-5 w-5" />
                 </button>
             </template>
-
-            <!-- diff 模式按钮：Split / Inline 切换 -->
-            <template v-else-if="target?.type === 'diff'">
-                <button class="btn btn-ghost btn-sm gap-1"
-                    :title="diffSideBySide ? $t('workspace.diffInline') : $t('workspace.diffSplit')"
-                    @click="onClickToggleSplit">
-                    <ViewColumnsIcon v-if="!diffSideBySide" class="h-4 w-4" />
-                    <Bars3Icon v-else class="h-4 w-4" />
-                    <span class="hidden md:inline text-xs">
-                        {{ diffSideBySide ? $t('workspace.diffInline') : $t('workspace.diffSplit') }}
-                    </span>
-                </button>
+            <template #title>
+                <div class="flex-1 min-w-0 truncate text-sm font-mono text-base-content/70">
+                    {{ breadcrumb }}
+                    <span v-if="isFileMode && fileIsDirty" class="text-warning ml-1">●</span>
+                </div>
             </template>
-        </div>
+            <template #actions>
+                <!-- file 模式：Save + （按需）Preview；workspace 与 agent 两种 scope 共用 -->
+                <template v-if="isFileMode">
+                    <button v-if="showPreviewButton" class="btn btn-sm gap-1"
+                        :class="filePreviewMode ? 'btn-primary' : 'btn-ghost'"
+                        :title="filePreviewMode ? $t('workspace.previewExit') : $t('workspace.preview')"
+                        @click="onClickPreview">
+                        <EyeSlashIcon v-if="filePreviewMode" class="h-4 w-4" />
+                        <EyeIcon v-else class="h-4 w-4" />
+                        <span class="hidden md:inline text-xs">
+                            {{ filePreviewMode ? $t('workspace.previewExit') : $t('workspace.preview') }}
+                        </span>
+                    </button>
+                    <button class="btn btn-ghost btn-sm gap-1" :title="$t('common.copy')"
+                        :disabled="!fileViewRef?.content" @click="onClickCopy">
+                        <ClipboardDocumentIcon class="h-4 w-4" />
+                        <span class="hidden md:inline text-xs">{{ $t('common.copy') }}</span>
+                    </button>
+                    <button class="btn btn-sm gap-1"
+                        :class="fileIsDirty && !fileIsReadOnly ? 'btn-primary' : 'btn-ghost'"
+                        :disabled="fileSaveDisabled" :title="$t('workspace.save') + ' (Ctrl+S)'"
+                        @click="onClickSave">
+                        <DocumentCheckIcon class="h-4 w-4" />
+                        <span class="hidden md:inline text-xs">
+                            {{ fileIsSaving ? $t('workspace.saving') : $t('workspace.save') }}
+                        </span>
+                    </button>
+                </template>
+
+                <!-- diff 模式按钮：Split / Inline 切换 -->
+                <template v-else-if="target?.type === 'diff'">
+                    <button class="btn btn-ghost btn-sm gap-1"
+                        :title="diffSideBySide ? $t('workspace.diffInline') : $t('workspace.diffSplit')"
+                        @click="onClickToggleSplit">
+                        <ViewColumnsIcon v-if="!diffSideBySide" class="h-4 w-4" />
+                        <Bars3Icon v-else class="h-4 w-4" />
+                        <span class="hidden md:inline text-xs">
+                            {{ diffSideBySide ? $t('workspace.diffInline') : $t('workspace.diffSplit') }}
+                        </span>
+                    </button>
+                </template>
+            </template>
+        </ViewHeader>
 
         <div class="flex-1 min-h-0 overflow-hidden">
             <WorkspaceFileView v-if="target?.type === 'file'" ref="fileViewRef" :agent-id="agentId"
