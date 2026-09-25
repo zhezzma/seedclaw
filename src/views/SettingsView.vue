@@ -419,7 +419,7 @@ const logout = async () => {
                                 </div>
                             </li>
 
-                            <li class="flex items-center justify-between gap-4 p-4">
+                            <li class="hidden lg:flex items-center justify-between gap-4 p-4">
                                 <div class="flex items-center gap-3">
                                     <QueueListIcon class="h-5 w-5 text-base-content/60" />
                                     <div>
