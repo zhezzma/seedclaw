@@ -28,8 +28,9 @@ const props = defineProps<{
     messages: DisplayMessage[]
     isBusy: boolean
     scrollContainer: HTMLElement | null
-    isWideMode: boolean
     getBranchInfo: (msg: DisplayMessage) => BranchInfo | null
+    /** 跳转定位闪光：与此 entryId 匹配的气泡短暂高亮（HomeView 定时清除） */
+    flashEntryId?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -63,6 +64,9 @@ const heights = ref(globalHeights)
 
 /** 当前已挂载的 item key 集合（在缓冲区窗口内的行） */
 const visibleKeys = ref<Set<string>>(new Set())
+
+/** 视口中心线命中的 item key（滚动跟随高亮用，见 activeEntryId） */
+const activeKey = ref<string | null>(null)
 
 /** 监听每个已挂载行的 ResizeObserver */
 let ro: ResizeObserver | null = null
@@ -125,6 +129,11 @@ const updateVisibleRange = () => {
     const next = new Set<string>()
     let accum = 0
 
+    // 视口中心线的绝对 Y 坐标：落在哪条消息上，rail 的加粗短横就指向哪条
+    const centerLine = scrollTop + clientHeight / 2
+    let centerKey: string | null = null
+    let closestDistance = Infinity
+
     for (const item of enrichedItems.value) {
         const h = getHeight(item.key)
         const top = accum
@@ -134,6 +143,15 @@ const updateVisibleRange = () => {
             next.add(item.key)
         }
 
+        // 视口中心命中的消息（尚未命中时取最近的一条，避免消息间隙/空档时丢失指示）
+        const distance = centerLine >= top && centerLine < bottom
+            ? 0
+            : Math.min(Math.abs(centerLine - top), Math.abs(centerLine - bottom))
+        if (distance < closestDistance) {
+            closestDistance = distance
+            centerKey = item.key
+        }
+
         // 始终保持最后一条消息渲染（流式输出 / 加载指示器）
         if (item.isLast) next.add(item.key)
 
@@ -141,6 +159,7 @@ const updateVisibleRange = () => {
     }
 
     visibleKeys.value = next
+    activeKey.value = centerKey
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -251,6 +270,22 @@ onMounted(() => {
     nextTick(updateVisibleRange)
 })
 
+/**
+ * 视口中心当前命中的消息 entryId（滚动跟随高亮）。
+ * 中心落在伪消息（streaming-pending / 压缩行，仅出现在列表末尾）上时，
+ * 回退到之前最近一条有 entryId 的消息，避免流式期间 rail 丢失加粗指示。
+ */
+const activeEntryId = computed(() => {
+    const items = enrichedItems.value
+    const index = items.findIndex(item => item.key === activeKey.value)
+    if (index < 0) return null
+    for (let i = index; i >= 0; i--) {
+        const entryId = items[i].msg.entryId
+        if (entryId) return entryId
+    }
+    return null
+})
+
 const scrollToEntry = async (entryId: string): Promise<boolean> => {
     const container = props.scrollContainer
     if (!container) return false
@@ -273,7 +308,7 @@ const scrollToEntry = async (entryId: string): Promise<boolean> => {
     return true
 }
 
-defineExpose({ scrollToEntry })
+defineExpose({ scrollToEntry, activeEntryId })
 
 onBeforeUnmount(() => {
     ro?.disconnect()
@@ -297,6 +332,7 @@ onBeforeUnmount(() => {
                 <MessageBubble :message="item.msg" :is-loading="isBusy && item.isLast" :is-busy="isBusy"
                     :is-last-message="item.isLast"
                     :is-branch-tail="item.isBranchTail"
+                    :flash="!!item.msg.entryId && item.msg.entryId === flashEntryId"
                     :branch-info="getBranchInfo(item.msg)" @copy="emit('copy', item.msg)"
                     @read-aloud="emit('read-aloud', item.msg)" @delete="emit('delete', item.msg)"
                     @retry="emit('retry', item.msg)" @fork="emit('fork', item.msg)"

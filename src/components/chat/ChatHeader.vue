@@ -7,8 +7,6 @@ import {
     Bars3Icon,
     SunIcon,
     MoonIcon,
-    ArrowsPointingOutIcon,
-    ArrowsPointingInIcon,
     PlusIcon,
     PhoneIcon,
     BellIcon,
@@ -17,7 +15,6 @@ import {
     RectangleGroupIcon,
     QueueListIcon
 } from '@heroicons/vue/24/outline'
-import { useUiSettingsStore } from '../../stores/setting'
 import { isConnected } from '../../composables/notify-server-connection'
 import { useWorkspacePanel } from '../../composables/useWorkspacePanel'
 
@@ -41,7 +38,6 @@ const emit = defineEmits<{
 const router = useRouter()
 const chatState = useChatState()
 const { t } = useI18n()
-const settingsStore = useUiSettingsStore()
 const panel = useWorkspacePanel()
 
 
@@ -250,11 +246,6 @@ defineExpose({
 
 
                 <!-- PC -->
-                <!-- <button @click="settingsStore.toggleLayout()" class="btn btn-ghost btn-circle btn-xs hidden lg:flex"
-                    :title="settingsStore.isWideMode ? $t('chat.switchToNarrow') : $t('chat.switchToWide')">
-                    <ArrowsPointingInIcon v-if="settingsStore.isWideMode" class="h-5 w-5" />
-                    <ArrowsPointingOutIcon v-else class="h-5 w-5" />
-                </button> -->
 
 
                 <!-- PC 与移动端共用 -->
@@ -265,9 +256,9 @@ defineExpose({
                         <PhoneIcon class="h-5 w-5" />
                 </button> -->
 
-                <!-- Session tree -->
-                <button v-if="isSession" @click="emit('open-session-tree')" class="btn btn-ghost btn-circle btn-xs"
-                    :title="$t('chat.openSessionTree')">
+                <!-- Session tree（仅移动端：桌面端用左侧 SessionTreeRail） -->
+                <button v-if="isSession" @click="emit('open-session-tree')"
+                    class="btn btn-ghost btn-circle btn-xs lg:hidden" :title="$t('chat.openSessionTree')">
                     <QueueListIcon class="h-5 w-5" />
                 </button>
 

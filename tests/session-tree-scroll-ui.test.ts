@@ -20,7 +20,7 @@ test('virtual message list exposes entry scrolling for virtualized rows', () => 
     const source = src('components/chat/VirtualMessageList.vue')
 
     assert.match(source, /const scrollToEntry = async \(entryId: string\)/)
-    assert.match(source, /defineExpose\(\{\s*scrollToEntry\s*\}\)/)
+    assert.match(source, /defineExpose\(\{\s*scrollToEntry,\s*activeEntryId\s*\}\)/)
     assert.match(source, /querySelectorAll<HTMLElement>\('\[data-key\]'\)/)
     assert.match(source, /scrollIntoView\(\{ block: 'center', inline: 'nearest' \}\)/)
 })

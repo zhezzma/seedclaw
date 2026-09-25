@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useUiSettingsStore } from '../stores/setting'
 import { useLogsState, type LogEntry } from '../composables/useLogsState'
 import {
     ArrowPathIcon,
@@ -20,7 +19,6 @@ import { useI18n } from 'vue-i18n'
 type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'
 
 const logsState = useLogsState()
-const settingsStore = useUiSettingsStore()
 const { t } = useI18n()
 
 // Filters
@@ -237,8 +235,7 @@ onUnmounted(() => {
         <!-- Content -->
         <div class="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth"
             :class="{ 'opacity-60 grayscale-[0.5] pointer-events-none': logsState.logsLoading }">
-            <div class="mx-auto space-y-4 transition-all duration-300"
-                :class="{ 'max-w-7xl': !settingsStore.isWideMode }">
+            <div class="mx-auto space-y-4 transition-all duration-300">
 
                 <!-- Error state -->
                 <div v-if="logsState.logsError" class="alert alert-error shadow-lg">

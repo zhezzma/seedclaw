@@ -12,7 +12,6 @@ import { useI18n } from 'vue-i18n'
 import ViewHeader from '@/components/ViewHeader.vue'
 import DeliveryTargetsEditor from '@/components/delivery/DeliveryTargetsEditor.vue'
 import ExecutionTargetEditor from '@/components/cron/ExecutionTargetEditor.vue'
-import { useUiSettingsStore } from '../stores/setting'
 import { useToast } from '../composables/useToast'
 import { useCronState, type CronFormState, type CronRunLogEntry, type TaskJob } from '../composables/useCronState'
 import { useAgentsState } from '../composables/useAgentsState'
@@ -23,7 +22,6 @@ import { summarizeExecutionTarget } from '../utils/cron-execution-target'
 import { mergeExecutionTargetCandidates } from '../utils/cron-session-search'
 import { validateCronForm } from '../utils/form-validation'
 
-const settingsStore = useUiSettingsStore()
 const toastStore = useToast()
 const { confirm } = useConfirm()
 const { t } = useI18n()
@@ -253,7 +251,7 @@ onMounted(() => {
         </ViewHeader>
 
         <div class="flex-1 overflow-y-auto p-4 md:p-6">
-            <div class="mx-auto space-y-6 w-full" :class="{ 'max-w-4xl': !settingsStore.isWideMode }">
+            <div class="mx-auto space-y-6 w-full">
                 <div>
                     <p v-if="cronState.cronLoading && cronState.cronJobs.length === 0"
                         class="text-center py-8 opacity-50">
@@ -266,8 +264,7 @@ onMounted(() => {
                         <button @click="handleOpenAdd" class="btn btn-link">{{ $t('cron.createOne') }}</button>
                     </div>
 
-                    <div v-else class="grid gap-4"
-                        :class="settingsStore.isWideMode ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3' : 'grid-cols-1 md:grid-cols-2'">
+                    <div v-else class="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
                         <div v-for="job in cronState.cronJobs" :key="job.id"
                             class="card bg-base-200 shadow-sm border border-base-300 cursor-pointer hover:border-primary transition-colors hover:shadow-md group h-full"
                             @click="handleViewLogs(job)">

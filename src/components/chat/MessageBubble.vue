@@ -40,6 +40,8 @@ const props = defineProps<{
      *  user 气泡的分支导航门控：仅分支尾部的 user 消息需要承担导航锚点（尾部无已渲染
      *  回复或分支被续写后分叉点不再是末项），避免与 assistant 气泡的导航重复渲染 n/n */
     isBranchTail?: boolean
+    /** 跳转定位闪光：rail/树跳转落到本气泡时短暂高亮（HomeView 定时清除） */
+    flash?: boolean
     /** 覆盖助手显示名（子代理轨迹抽屉传子代理名）；不传用当前 agent 名 */
     agentName?: string
 }>()
@@ -268,7 +270,7 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
 </script>
 
 <template>
-    <div class="chat group" :class="message.role === 'user' ? 'chat-end' : 'chat-start'">
+    <div class="chat group" :class="[message.role === 'user' ? 'chat-end' : 'chat-start', { 'bubble-flash': flash }]">
         <!-- Avatar -->
         <div class="chat-image avatar hidden md:block">
             <div class="w-10 rounded-full bg-base-300 flex items-center justify-center overflow-hidden">
@@ -637,6 +639,20 @@ const assistantBlockKeys = computed(() => computeBlockKeys(assistantParsedBlocks
 </template>
 
 <style scoped>
+
+/* 跳转定位闪光：外圈光晕淡出，one-shot 动画（class 移除后重加可重放） */
+.bubble-flash {
+    animation: bubble-flash 900ms ease-out;
+}
+
+@keyframes bubble-flash {
+    0% {
+        filter: drop-shadow(0 0 6px hsl(var(--p) / 0.55));
+    }
+    100% {
+        filter: drop-shadow(0 0 0 transparent);
+    }
+}
 
 @media (max-width: 768px) {
     .chat {

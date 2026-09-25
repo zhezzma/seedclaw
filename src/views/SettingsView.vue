@@ -25,6 +25,7 @@ import {
     ChatBubbleLeftRightIcon,
     LinkIcon,
     PlusIcon,
+    QueueListIcon,
 } from '@heroicons/vue/24/outline'
 import ViewHeader from '@/components/ViewHeader.vue'
 import { useConfirm } from '../composables/useConfirm'
@@ -416,6 +417,19 @@ const logout = async () => {
                                         <option value="en">English</option>
                                     </select>
                                 </div>
+                            </li>
+
+                            <li class="flex items-center justify-between gap-4 p-4">
+                                <div class="flex items-center gap-3">
+                                    <QueueListIcon class="h-5 w-5 text-base-content/60" />
+                                    <div>
+                                        <span class="font-medium">{{ $t('settings.sessionTreeRail') }}</span>
+                                        <p class="text-xs text-base-content/50">{{ $t('settings.sessionTreeRailDesc') }}</p>
+                                    </div>
+                                </div>
+                                <input type="checkbox" class="toggle toggle-primary"
+                                    :checked="configStore.isSessionTreeRailVisible"
+                                    @change="configStore.toggleSessionTreeRail()" />
                             </li>
                         </ul>
                     </div>

@@ -18,6 +18,7 @@ import VirtualMessageList from '../components/chat/VirtualMessageList.vue'
 import ChatInput from '../components/chat/ChatInput.vue'
 import ChatDockArea from '../components/chat/ChatDockArea.vue'
 import SessionTreeModal from '../components/chat/SessionTreeModal.vue'
+import SessionTreeRail from '../components/chat/SessionTreeRail.vue'
 import SubagentTraceDrawer from '../components/chat/SubagentTraceDrawer.vue'
 import VoiceChatOverlay from '../components/chat/VoiceChatOverlay.vue'
 import MediaPreviewOverlay from '../components/chat/MediaPreviewOverlay.vue'
@@ -40,6 +41,7 @@ import { useWorkspaceViewer } from '../composables/useWorkspaceViewer'
 import { truncateText } from '../utils/format'
 import { collectSessionImageSources } from '../utils/session-image-gallery'
 import { buildBranchIndexes, findLeafId as findBranchLeafId, getBranchInfo as resolveBranchInfo } from '../utils/chatBranchNavigation'
+import { buildSessionTreeItems } from '../utils/sessionTreeItems'
 import { isCommandInvocation } from '../utils/command-invocation'
 
 const route = useRoute()
@@ -181,6 +183,22 @@ const isCreatingSession = ref(false)
 const showSessionTreeModal = ref(false)
 const sessionTreeBusy = ref(false)
 
+// 桌面端左侧 rail 的数据：与消息气泡 1:1（user / 合并后 AI 轮），同源 processedMessages，
+// 不依赖 /entries 的返回时机
+const sessionTreeItems = computed(() => buildSessionTreeItems(processedMessages.value))
+
+// 跳转定位闪光：rail / 树跳转落点气泡短暂高亮
+const flashEntryId = ref<string | null>(null)
+let flashTimer: ReturnType<typeof setTimeout> | null = null
+const flashEntry = (entryId: string) => {
+    flashEntryId.value = entryId
+    if (flashTimer) clearTimeout(flashTimer)
+    flashTimer = setTimeout(() => {
+        flashEntryId.value = null
+        flashTimer = null
+    }, 950)
+}
+
 const openSessionTree = async () => {
     if (!chatState.sessionKey) return
     await chatState.fetchSessionTree()
@@ -237,6 +255,7 @@ const handleJumpToTreeEntry = async (entryId: string) => {
         }
         if (target) {
             await virtualMessageListRef.value?.scrollToEntry(target)
+            flashEntry(target)
         }
     } finally {
         sessionTreeBusy.value = false
@@ -865,7 +884,14 @@ async function applyDefaultSessionBehavior() {
                 :session-name="currentSessionName" :panel-visible="showWorkspacePanel" />
 
             <!-- Main content area: chat messages OR viewer -->
-            <div class="flex-1 flex flex-col min-h-0">
+            <div class="relative flex-1 flex flex-col min-h-0">
+                <!-- 桌面端 session tree rail（minimap）：仅消息列表分支显示，
+                     绝对定位在非滚动祖先上，不随消息区滚动 -->
+                <SessionTreeRail
+                    v-if="settingsStore.isSessionTreeRailVisible && !showWorkspaceViewer && !isLoading && !isNewSessionPage && !isCreatingSession && sessionTreeItems.length > 0"
+                    :items="sessionTreeItems"
+                    :active-entry-id="virtualMessageListRef?.activeEntryId ?? null"
+                    @jump-to-entry="handleJumpToTreeEntry" />
                 <!-- Workspace Viewer（仅替换主消息区，不动 ChatHeader / ChatInput） -->
                 <WorkspaceViewer v-if="showWorkspaceViewer" :agent-id="chatState.agentsSelectedId || ''" />
 
@@ -937,9 +963,10 @@ async function applyDefaultSessionBehavior() {
 
                 <!-- Chat messages - only this area scrolls -->
                 <div v-else ref="messagesContainerRef" class="flex-1 overflow-y-auto p-2 md:p-4 relative">
-                    <div class="mx-auto w-full" :class="{ 'max-w-3xl': !settingsStore.isWideMode }">
+                    <!-- lg:pl-4：给左侧 SessionTreeRail 预留列空间，避免与消息内容重叠；rail 关闭时同步取消 -->
+                    <div class="mx-auto w-full" :class="{ 'lg:pl-4': settingsStore.isSessionTreeRailVisible }">
                         <VirtualMessageList ref="virtualMessageListRef" :messages="processedMessages" :is-busy="isBusy"
-                            :scroll-container="messagesContainerRef" :is-wide-mode="settingsStore.isWideMode"
+                            :scroll-container="messagesContainerRef" :flash-entry-id="flashEntryId"
                             :get-branch-info="getBranchInfo" @copy="copyMessage" @read-aloud="readAloud"
                             @delete="deleteMessage" @retry="retryMessage" @edit="editMessage"
                             @fork="forkMessage" @navigate-branch="navigateBranch" />

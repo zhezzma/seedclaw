@@ -51,7 +51,8 @@ export interface UiSettings {
     isSidebarOpen: boolean
     isSidebarCollapsed: boolean
     isSidebarGrouped: boolean
-    isWideMode: boolean
+    /** 桌面端会话页左侧的 session tree rail（minimap 快速定位条）显隐 */
+    isSessionTreeRailVisible: boolean
     asrEngine: ASREngineType
     ttsEngine: TTSEngineType
     asrConfigs: EngineConfig<ASREngineType>[]
@@ -387,7 +388,7 @@ const getDefaultSettings = (): UiSettings => ({
     isSidebarOpen: false,
     isSidebarCollapsed: false,
     isSidebarGrouped: false,
-    isWideMode: true,
+    isSessionTreeRailVisible: true,
     asrEngine: 'fun-asr',
     ttsEngine: 'edge',
     asrConfigs: defaultAsrConfigs(),
@@ -723,6 +724,11 @@ export const useUiSettingsStore = defineStore('ui-settings', {
             this.persist()
         },
 
+        toggleSessionTreeRail() {
+            this.isSessionTreeRailVisible = !this.isSessionTreeRailVisible
+            this.persist()
+        },
+
         applyTheme(t: 'light' | 'dark') {
             document.documentElement.setAttribute('data-theme', t)
         },
@@ -735,11 +741,6 @@ export const useUiSettingsStore = defineStore('ui-settings', {
 
         initTheme() {
             this.applyTheme(this.theme)
-        },
-
-        toggleLayout() {
-            this.isWideMode = !this.isWideMode
-            this.persist()
         },
 
         setLanguage(lang: 'zh' | 'en') {
