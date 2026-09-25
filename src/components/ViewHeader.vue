@@ -35,7 +35,8 @@ const goBack = () => {
     <div class="shrink-0 navbar min-h-[3rem]"
         :class="[{ 'border-b border-base-300': showBorder }, wcPad && isDesktopTauri && 'pr-[144px]']"
         :data-tauri-drag-region="isDesktopTauri ? 'deep' : undefined">
-        <div class="flex-1 flex items-center gap-2">
+        <!-- min-w-0：允许左区被压缩，标题 truncate 生效，不把 actions 挤出视口 -->
+        <div class="flex-1 min-w-0 flex items-center gap-2">
             <template v-if="!$slots.left">
                 <!-- 返回箭头：主页面仅移动端显示（桌面侧栏常驻无需返回）；
                      移动端开侧栏抽屉的汉堡只归 ChatHeader（主页）所有 -->
