@@ -1,3 +1,11 @@
+<script lang="ts">
+// 模块级缓存：跨所有 ToolInvocation 卡片共享（<script setup> 顶层是每实例的，
+// 长对话每张卡会各自拉一遍 fetchTree/fetchRepos）。值为 Promise 兼做并发去重；
+// 失败即从缓存删除，下次点击可重试。status 不缓存（diff 模式判定要新鲜数据）。
+const wsRootCache = new Map<string, Promise<string>>()
+const reposCache = new Map<string, Promise<{ path: string }[]>>()
+</script>
+
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -13,6 +21,18 @@ import {
 import { useWorkspaceViewer } from '../../composables/useWorkspaceViewer'
 import { useSubagentTrace } from '../../composables/useSubagentTrace'
 import { useChatState } from '../../composables/useChatState'
+import { fetchRepos, fetchStatus, fetchTree } from '../../composables/workspace-api.ts'
+import {
+    extractArgsPaths,
+    findRepoFor,
+    isAbsolutePath,
+    isAssetUrl,
+    joinPath,
+    pickDiffMode,
+    toRepoRelative,
+    toSlash,
+    toWorkspaceRelative,
+} from '../../utils/tool-file-paths.ts'
 
 const props = defineProps<{
     toolName: string
@@ -234,9 +254,9 @@ function basename(path: string): string {
     return parts[parts.length - 1] || path
 }
 
-/** Args 中提取到的路径 */
+/** Args 中按参数键名提取的路径（path / url / images[]，不做正则文本扫描） */
 const argsPaths = computed(() => {
-    return extractPaths(formatJson(props.args))
+    return extractArgsPaths(props.args)
 })
 
 /** Result 中提取到的路径 */
@@ -245,9 +265,80 @@ const resultPaths = computed(() => {
     return extractPaths(text)
 })
 
-/** 点击路径按钮 — 全屏打开（复用 WorkspaceViewer，与 workspace 打开文件体验一致）*/
+/** 点击路径按钮 — 全屏打开（复用 WorkspaceViewer，与 workspace 打开文件体验一致；结果路径按钮用）*/
 function openFilePath(path: string) {
     wsViewer.openAbsolute(path)
+}
+
+// ─── args 路径 → git diff 优先打开 ─────────────────────────
+
+function ensureWorkspaceRoot(agentId: string): Promise<string> {
+    let p = wsRootCache.get(agentId)
+    if (!p) {
+        p = fetchTree(agentId, '').then(t => {
+            const root = t.root || ''
+            if (!root) throw new Error('workspace root unavailable')
+            return root
+        })
+        wsRootCache.set(agentId, p)
+        p.catch(() => wsRootCache.delete(agentId))
+    }
+    return p
+}
+
+function ensureRepos(agentId: string): Promise<{ path: string }[]> {
+    let p = reposCache.get(agentId)
+    if (!p) {
+        p = fetchRepos(agentId).then(r => r.repos || [])
+        reposCache.set(agentId, p)
+        p.catch(() => reposCache.delete(agentId))
+    }
+    return p
+}
+
+/**
+ * 点击 args 路径按钮：优先打开该文件的 git 工作区 diff（agent 改了什么）；
+ * 不可 diff（/assets URL / 在 workspace 外 / 不在任何 repo / 文件干净）或接口失败时回退直接打开。
+ */
+async function openPathWithDiff(rawPath: string) {
+    const agentId = chatState.agentsSelectedId || ''
+    // /assets/... 是公开静态 URL（generate_image 产物），不是 workspace 文件
+    if (isAssetUrl(rawPath) || !agentId) {
+        wsViewer.openAbsolute(rawPath)
+        return
+    }
+    try {
+        const root = await ensureWorkspaceRoot(agentId)
+        const abs = isAbsolutePath(rawPath) ? toSlash(rawPath) : joinPath(root, rawPath)
+        const wsRel = toWorkspaceRelative(root, abs)
+        if (!wsRel) {
+            wsViewer.openAbsolute(abs) // workspace 外
+            return
+        }
+        const repo = findRepoFor(wsRel, await ensureRepos(agentId))
+        if (!repo) {
+            wsViewer.openAbsolute(abs) // 不在任何 git 仓库
+            return
+        }
+        const repoRel = toRepoRelative(repo, wsRel)
+        const mode = pickDiffMode(await fetchStatus(agentId, repo), repoRel)
+        if (!mode) {
+            wsViewer.openAbsolute(abs) // 文件干净，无 diff 可看
+            return
+        }
+        // 多次 await 期间用户可能已切到别的 agent：diff 视图按当前选中 agent 的 workspace
+        // 解析 repo/file，旧 agent 的解析结果会张冠李戴 → 回退 agent 无关的直接打开
+        if (chatState.agentsSelectedId !== agentId) {
+            wsViewer.openAbsolute(abs)
+            return
+        }
+        wsViewer.openDiff({ repo, mode, file: repoRel })
+    } catch {
+        // 接口失败回退：绝对路径直接打开；相对路径退 workspace 作用域打开
+        // （此时 agent 已切换则放弃 —— openFile 按当前 agent 的 workspace 解析会错位）
+        if (isAbsolutePath(rawPath)) wsViewer.openAbsolute(toSlash(rawPath))
+        else if (chatState.agentsSelectedId === agentId) wsViewer.openFile(toSlash(rawPath))
+    }
 }
 
 /** 预览内容 — 全屏只读展示（复用 WorkspaceViewer 的 text 模式，与打开文件体验一致）*/
@@ -343,10 +434,10 @@ function openTrace(subId?: string) {
                             @click="previewContent(formatJson(args))" :title="$t('tool.preview')">
                             <EyeIcon class="w-3.5 h-3.5" />
                         </button>
-                        <!-- Path buttons -->
+                        <!-- Path buttons（点击优先 git diff，回退直接打开） -->
                         <button v-for="p in argsPaths" :key="p"
                             class="btn btn-ghost btn-xs font-mono text-primary/80 hover:text-primary hover:bg-primary/10"
-                            :title="p" @click="openFilePath(p)">
+                            :title="p" @click="openPathWithDiff(p)">
                             {{ basename(p) }}
                         </button>
                     </div>
