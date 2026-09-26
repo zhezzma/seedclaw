@@ -628,6 +628,7 @@ export default {
         newChat: '新建对话',
         commands: '命令',
         commonCommands: '常用指令',
+        clientCommands: '本地指令',
         autoSend: '自动发送',
         models: '模型',
         thinkingLevel: '思考程度',

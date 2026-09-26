@@ -63,7 +63,16 @@ const {
     commandSuggestionIndex,
     confirmCommandSuggestion,
     closeSuggestions,
+    clientCommands,
 } = useChatInput()
+
+// 本地指令分区条目：注册表（ClientCommand）→ 下拉 CommandItem，供「命令」按钮下拉渲染；
+// 新增客户端命令只改 clientCommands.ts 注册表，这里与 / 补全自动跟随
+const clientCommandItems: CommandItem[] = clientCommands.map(cmd => ({
+    label: cmd.dropdownLabel || `/${cmd.name}`,
+    value: `/${cmd.name}`,
+    autoSend: cmd.autoSend,
+}))
 
 // 新会话页(centered)：禁用 `/` 触发命令补全浮层。必须在状态源头关，
 // 否则内部 Enter 仍会走“确认补全”而非发送。两种输入框互斥挂载，各自 mount 时按 props 纠正全局开关。
@@ -78,6 +87,7 @@ const SOURCE_BADGES: Record<NonNullable<CommandInfo['source']>, { cls: string, l
     skill: { cls: 'badge-accent', label: '技能' },
     prompt: { cls: 'badge-secondary badge-outline', label: 'Prompt' },
     extension: { cls: 'badge-primary badge-outline', label: '扩展' },
+    client: { cls: 'badge-ghost', label: '本地' },
 }
 const sourceBadge = (source: CommandInfo['source']) =>
     (source && SOURCE_BADGES[source]) || { cls: 'badge-primary badge-outline', label: '扩展' }
@@ -416,6 +426,13 @@ defineExpose({
                             class="dropdown-content menu p-2 shadow-xl bg-base-100 rounded-box w-56 border border-base-300 mb-2 z-[100]">
                             <li class="menu-title"><span>{{ $t('chat.commonCommands') }}</span></li>
                             <li v-for="cmd in COMMANDS" :key="cmd.value">
+                                <a @click="handleCommandSelect(cmd)" class="rounded-lg">{{ cmd.label }}</a>
+                            </li>
+                            <!-- 本地指令：客户端命令注册表派生（/todos /tree），不经服务端 -->
+                            <li v-if="clientCommandItems.length" class="menu-title">
+                                <span>{{ $t('chat.clientCommands') }}</span>
+                            </li>
+                            <li v-for="cmd in clientCommandItems" :key="cmd.value">
                                 <a @click="handleCommandSelect(cmd)" class="rounded-lg">{{ cmd.label }}</a>
                             </li>
                             <!-- Divider -->

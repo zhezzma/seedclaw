@@ -6,6 +6,7 @@ import { useToast } from './useToast'
 import { readFile } from '../utils/fileReader'
 import { createRuntimeId } from '../utils/runtime-id.ts'
 import { useCommandState, type CommandInfo } from './useCommandState'
+import { CLIENT_COMMANDS, filterClientCommands } from './clientCommands'
 import { useInputHistoryStore, newSessionDraftKeyFor } from '../stores/inputHistory'
 import { decideArrowKeyPriority, shouldOpenCommandSuggestions } from '../utils/chat-input-key-routing.ts'
 import { getMicrophoneErrorMessage } from '../utils/microphone-errors'
@@ -29,7 +30,6 @@ export const COMMANDS: CommandItem[] = [
     { label: '/follow-up (排队后续消息)', value: '/follow-up', autoSend: false },
     { label: '/tools (工具列表)', value: '/tools' },
     { label: '/session (会话信息)', value: '/session' },
-    { label: '/tree (会话树)', value: '/tree' },
     { label: '/debug (调试信息)', value: '/debug' },
     { label: '/help (帮助)', value: '/help' }
 ]
@@ -69,7 +69,13 @@ watch(inputText, (val) => {
     if (commandSuggestionsEnabled.value
         && shouldOpenCommandSuggestions(val, fromHistoryNavigation)) {
         const prefix = val.slice(1)
-        commandSuggestions.value = filterCommands.value(prefix)
+        const serverMatches = filterCommands.value(prefix)
+        const serverNames = new Set(serverMatches.map(cmd => cmd.name))
+        // 客户端命令（clientCommands 注册表）不在服务端命令表里，按前缀合并、按 name 去重
+        commandSuggestions.value = [
+            ...serverMatches,
+            ...filterClientCommands(prefix).filter(cmd => !serverNames.has(cmd.name)),
+        ]
         commandSuggestionsVisible.value = commandSuggestions.value.length > 0
         commandSuggestionIndex.value = 0
     } else {
@@ -371,6 +377,7 @@ const _chatInputState = {
     removeAttachment,
     appendText,
     commands: COMMANDS,
+    clientCommands: CLIENT_COMMANDS,
     commandSuggestionsVisible,
     commandSuggestionsEnabled,
     commandSuggestions,

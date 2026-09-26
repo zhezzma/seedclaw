@@ -627,6 +627,7 @@ export default {
         newChat: 'New Chat',
         commands: 'Commands',
         commonCommands: 'Common Commands',
+        clientCommands: 'Local Commands',
         autoSend: 'Auto Send',
         models: 'Models',
         thinkingLevel: 'Thinking Level',
