@@ -346,8 +346,18 @@ fn write_activation_registry(identifier: &str, clsid: GUID, executable: &Path) -
 // ─── 入口 ─────────────────────────────────────────────────────
 
 /// Windows Toast 身份与激活注册总入口（lib.rs setup 调用，仅一次）。
+/// debug 构建（tauri dev）整体跳过（见函数内注释）。
 /// 任何一步失败只记日志不阻断启动——缺失时应用其余功能全部正常，仅通知受限。
 pub fn setup(app: &AppHandle) {
+    // debug 构建（tauri dev）不落任何持久身份：无条件自愈会把开始菜单 lnk 与
+    // LocalServer32 改写为 target\debug 的 exe，劫持生产入口——用户从开始菜单
+    // 启动「release 版」实际拉起 dev 构建（console 子系统弹 cmd 窗口、前端指向
+    // devUrl 而白屏）。持久身份由 release/安装版每次启动自愈注册；dev 下横幅期
+    // 点击（通知插件进程内 handler）不受影响，仅通知中心冷启动点击不可用。
+    if cfg!(debug_assertions) {
+        log::info!("[win_toast] debug build: skip toast identity registration");
+        return;
+    }
     let config = app.config();
     // lnk 文件名用 productName（与 NSIS 安装器命名一致）：客户端/Server 两版
     // 可并存（release.yml），各自的 AUMID 快捷方式与 CLSID 互不覆盖

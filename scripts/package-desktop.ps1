@@ -101,8 +101,8 @@ function Stop-ProcessesUnder([string]$Dir, [string]$Reason) {
 # 运行的 tauri dev 残留实例（文件被锁会删不掉），再删除（深路径走 Remove-LongPath）
 $debugDir = Join-Path $root 'src-tauri\target\debug'
 Stop-ProcessesUnder $debugDir "target\debug 内残留的 tauri dev 实例"
-Write-Host "==> removing $debugDir"
-Remove-LongPath $debugDir
+# Write-Host "==> removing $debugDir"
+# Remove-LongPath $debugDir
 
 if ($SkipStage) {
     Write-Host "==> -SkipStage: reuse staging at $staging"
